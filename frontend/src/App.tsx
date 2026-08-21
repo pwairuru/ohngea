@@ -11,6 +11,7 @@ import { IvrMenus } from "./routes/IvrMenus";
 import { Users } from "./routes/Users";
 import { Domains } from "./routes/Domains";
 import { Plugins } from "./routes/Plugins";
+import { PluginDetail } from "./routes/PluginDetail";
 
 function Nav() {
   const [open, setOpen] = React.useState(false);
@@ -115,6 +116,7 @@ function Nav() {
             <Route path="/users" element={<Users />} />
             <Route path="/domains" element={<Domains />} />
             <Route path="/plugins" element={<Plugins />} />
+            <Route path="/plugins/:name" element={<PluginDetail />} />
             <Route path="*" element={<div className="p-4">Not found</div>} />
           </Routes>
         </main>
