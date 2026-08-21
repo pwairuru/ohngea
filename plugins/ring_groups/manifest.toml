@@ -1,0 +1,8 @@
+name = "ring_groups"
+version = "1.0.0"
+license = "MIT"
+description = "Ohngea ring_groups plugin — per-tenant toggleable"
+routes = ["/ring_groups"]
+permissions = ["ring_groups_view", "ring_groups_edit"]
+category = "advanced"
+icon = "phone"

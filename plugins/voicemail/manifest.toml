@@ -1,0 +1,8 @@
+name = "voicemail"
+version = "1.0.0"
+license = "MIT"
+description = "Ohngea voicemail plugin — per-tenant toggleable"
+routes = ["/voicemail"]
+permissions = ["voicemail_view", "voicemail_edit"]
+category = "advanced"
+icon = "phone"

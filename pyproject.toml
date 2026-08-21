@@ -74,5 +74,8 @@ dev = [
     "httpx>=0.27,<0.29",
 ]
 
+[project.scripts]
+ohngea-import = "app.cli.import_legacy:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

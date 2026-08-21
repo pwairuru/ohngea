@@ -69,6 +69,8 @@ def include_routers():
     from app.devices.router import router as devices_router, provision_router as provision_router
     from app.cdr.router import router as cdr_router
     from app.freeswitch.xml_router import router as fs_router
+    from app.plugins.router import router as plugins_router
+    from app.users.router import router as users_router
 
     app.include_router(auth_router)
     # also mount auth at /api/v1/auth for versioned consistency
@@ -83,15 +85,39 @@ def include_routers():
     app.include_router(provision_router)
     app.include_router(cdr_router)
     app.include_router(fs_router)
+    app.include_router(plugins_router)
+    app.include_router(users_router)
 
-    # plugins example if exists
+    # dynamic plugin routers — discover via registry
     try:
-        from plugins.example.router import router as example_router
-        app.include_router(example_router)
-    except Exception:
-        pass
+        from pathlib import Path
+        import importlib.util
 
-    # catch-all for alternative auth prefix already handled
+        from app.plugins.registry import load_plugins
+
+        plugins = load_plugins("plugins")
+        for p in plugins:
+            name = p.get("name")
+            if name == "example":
+                # already handled via plugins_router? keep example separate for backwards compat
+                try:
+                    from plugins.example.router import router as example_router
+
+                    app.include_router(example_router)
+                except Exception:
+                    pass
+                continue
+            # attempt dynamic import plugins.<name>.router
+            try:
+                spec = importlib.util.find_spec(f"plugins.{name}.router")
+                if spec and spec.loader:
+                    mod = importlib.import_module(f"plugins.{name}.router")
+                    if hasattr(mod, "router"):
+                        app.include_router(mod.router)
+            except Exception as e:
+                print(f"plugin {name} load failed: {e}")
+    except Exception as e:
+        print(f"plugin discovery failed: {e}")
 
 
 include_routers()

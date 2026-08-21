@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 COPY pyproject.toml README.md* ./
 COPY app ./app
 COPY alembic ./alembic
+COPY plugins ./plugins
 COPY alembic.ini ./
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -e . && \
