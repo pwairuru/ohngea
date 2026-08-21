@@ -6,5 +6,6 @@ node_modules/
 dist/
 .env
 .pytest_cache/
+uv.lock
 # legacy reference clone has its own repo - do not track as nested submodule
 ohngea/
