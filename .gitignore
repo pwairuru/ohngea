@@ -1,0 +1,10 @@
+# new app build
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+dist/
+.env
+.pytest_cache/
+# legacy reference clone has its own repo - do not track as nested submodule
+ohngea/
