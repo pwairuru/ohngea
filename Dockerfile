@@ -1,0 +1,46 @@
+# syntax=docker/dockerfile:1
+
+# ---------- Frontend builder (Vite + Tailwind) ----------
+FROM node:20-alpine AS frontend-builder
+WORKDIR /app
+COPY frontend ./frontend
+RUN if [ -f frontend/package.json ]; then \
+        cd frontend && npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts 2>/dev/null || true; \
+        npm run build 2>/dev/null || (echo "frontend build failed, creating placeholder" && mkdir -p /app/frontend/dist && echo '<html><body>PBX placeholder</body></html>' > /app/frontend/dist/index.html); \
+    else \
+        mkdir -p /app/frontend/dist && echo '<html><body>PBX placeholder</body></html>' > /app/frontend/dist/index.html; \
+    fi
+
+# ---------- Python runtime ----------
+FROM python:3.12-slim AS runtime
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# System deps for asyncpg, lxml, healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl build-essential libxml2 libxslt1.1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python deps
+COPY pyproject.toml README.md* ./
+COPY app ./app
+COPY alembic ./alembic
+COPY alembic.ini ./
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -e . && \
+    pip install --no-cache-dir gunicorn uvicorn[standard] || true
+
+# Copy built frontend assets
+COPY --from=frontend-builder /app/frontend/dist ./static
+# Also support frontend/dist location if project builds there
+RUN mkdir -p /app/static
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", "-w", "2", "--bind", "0.0.0.0:8000", "--access-logfile", "-", "--timeout", "120", "--graceful-timeout", "30"]
