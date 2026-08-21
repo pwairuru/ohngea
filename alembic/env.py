@@ -27,6 +27,8 @@ from app.sip_profiles.models import SipProfile  # noqa
 from app.ivr_menus.models import IvrMenu, IvrMenuOption  # noqa
 from app.devices.models import Device  # noqa
 from app.cdr.models import Cdr  # noqa
+from app.recordings.models import Recording  # noqa
+from app.contacts.models import Contact  # noqa
 
 target_metadata = SQLModel.metadata
 

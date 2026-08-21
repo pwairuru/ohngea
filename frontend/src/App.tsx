@@ -12,6 +12,7 @@ import { Users } from "./routes/Users";
 import { Domains } from "./routes/Domains";
 import { Plugins } from "./routes/Plugins";
 import { PluginDetail } from "./routes/PluginDetail";
+import { SipProfiles } from "./routes/SipProfiles";
 
 function Nav() {
   const [open, setOpen] = React.useState(false);
@@ -61,6 +62,7 @@ function Nav() {
               <summary className="cursor-pointer px-3 py-2 text-sm font-medium">Advanced</summary>
               <div className="pl-2 pt-2 flex flex-col gap-1">
                 <Link to="/ivr" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/ivr" ? "bg-muted font-medium" : "hover:bg-muted"}`}>IVR Menus</Link>
+                <Link to="/sip_profiles" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/sip_profiles" ? "bg-muted" : "hover:bg-muted"}`}>SIP Profiles</Link>
                 <Link to="/users" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/users" ? "bg-muted" : "hover:bg-muted"}`}>Users & Groups</Link>
                 <Link to="/domains" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/domains" ? "bg-muted" : "hover:bg-muted"}`}>Tenants</Link>
                 <Link to="/plugins" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/plugins" ? "bg-muted" : "hover:bg-muted"}`}>Plugins</Link>
@@ -96,6 +98,7 @@ function Nav() {
               <span className="px-3 py-2 text-sm font-medium">Advanced</span>
               <div className="flex flex-col gap-1 mt-1">
                 <Link to="/ivr" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">IVR Menus</Link>
+                <Link to="/sip_profiles" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">SIP Profiles</Link>
                 <Link to="/users" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">Users & Groups</Link>
                 <Link to="/domains" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">Tenants</Link>
                 <Link to="/plugins" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">Plugins</Link>
@@ -115,6 +118,7 @@ function Nav() {
             <Route path="/ivr" element={<IvrMenus />} />
             <Route path="/users" element={<Users />} />
             <Route path="/domains" element={<Domains />} />
+            <Route path="/sip_profiles" element={<SipProfiles />} />
             <Route path="/plugins" element={<Plugins />} />
             <Route path="/plugins/:name" element={<PluginDetail />} />
             <Route path="*" element={<div className="p-4">Not found</div>} />
