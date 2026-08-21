@@ -24,13 +24,12 @@ dependencies = [
     "pydantic-xml>=2.13",
     "uvicorn[standard]>=0.30",
     "gunicorn>=22",
-    "httpx>=0.27,<0.28",
+    "httpx>=0.27,<0.29",
     "anyio>=4",
     "python-multipart>=0.0.9",
     "lxml>=5",
     "jinja2>=3.1",
     "PyJWT>=2.8",
-    "passlib[bcrypt]>=1.7",
     "bcrypt>=4.0",
     "uuid6>=2024.7",
     "redis>=5.0",
@@ -42,7 +41,7 @@ dependencies = [
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.23",
-    "httpx>=0.27,<0.28",
+    "httpx>=0.27,<0.29",
     "anyio[trio]>=4",
 ]
 worker = [
@@ -72,8 +71,8 @@ ignore_missing_imports = true
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.23",
-    "httpx>=0.27,<0.28",
+    "httpx>=0.27,<0.29",
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["app", "alembic"]
+packages = ["app"]
