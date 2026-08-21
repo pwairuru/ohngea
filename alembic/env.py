@@ -5,6 +5,7 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlmodel import SQLModel
 
 from app.config import settings
 
@@ -16,8 +17,18 @@ if config.config_file_name is not None:
 # Override sqlalchemy.url from settings (12-factor)
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
-# No models yet in Task 1 — keep None. Future tasks will set target_metadata = SQLModel.metadata
-target_metadata = None
+# Import all models to populate SQLModel.metadata
+from app.domains.models import Domain, DomainSettings, DomainPlugin  # noqa
+from app.auth.models import User, Group, UserGroup, Permission, GroupPermission  # noqa
+from app.extensions.models import Extension  # noqa
+from app.dialplans.models import Dialplan, DialplanDetail  # noqa
+from app.gateways.models import Gateway  # noqa
+from app.sip_profiles.models import SipProfile  # noqa
+from app.ivr_menus.models import IvrMenu, IvrMenuOption  # noqa
+from app.devices.models import Device  # noqa
+from app.cdr.models import Cdr  # noqa
+
+target_metadata = SQLModel.metadata
 
 
 def run_migrations_offline() -> None:

@@ -1,0 +1,10 @@
+ohngea
+.git
+.gitignore
+.superpowers
+docs
+tests
+*.md
+__pycache__
+.venv
+node_modules

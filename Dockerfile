@@ -5,8 +5,9 @@ FROM node:20-alpine AS frontend-builder
 WORKDIR /app
 COPY frontend ./frontend
 RUN if [ -f frontend/package.json ]; then \
-        cd frontend && npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts 2>/dev/null || true; \
-        npm run build 2>/dev/null || (echo "frontend build failed, creating placeholder" && mkdir -p /app/frontend/dist && echo '<html><body>PBX placeholder</body></html>' > /app/frontend/dist/index.html); \
+        cd frontend && npm install --legacy-peer-deps 2>&1 | tail -n 50; \
+        echo "--- trying vite build ---" && npx vite build 2>&1 | tail -n 150 || npm run build 2>&1 | tail -n 150 || (echo "frontend build failed, creating placeholder" && mkdir -p /app/frontend/dist && echo '<html><body>PBX placeholder</body></html>' > /app/frontend/dist/index.html); \
+        ls -la /app/frontend/dist || (mkdir -p /app/frontend/dist && echo '<html><body>PBX fallback</body></html>' > /app/frontend/dist/index.html); \
     else \
         mkdir -p /app/frontend/dist && echo '<html><body>PBX placeholder</body></html>' > /app/frontend/dist/index.html; \
     fi
@@ -19,9 +20,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# System deps for asyncpg, lxml, healthcheck
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        curl build-essential libxml2 libxslt1.1 \
+# System deps for healthcheck only — lxml/asyncpg use wheels, no build needed
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps

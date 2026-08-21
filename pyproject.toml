@@ -21,6 +21,7 @@ dependencies = [
     "alembic>=1.13",
     "pydantic>=2.6",
     "pydantic-settings>=2.1",
+    "pydantic-xml>=2.13",
     "uvicorn[standard]>=0.30",
     "gunicorn>=22",
     "httpx>=0.27,<0.28",
@@ -28,6 +29,13 @@ dependencies = [
     "python-multipart>=0.0.9",
     "lxml>=5",
     "jinja2>=3.1",
+    "PyJWT>=2.8",
+    "passlib[bcrypt]>=1.7",
+    "bcrypt>=4.0",
+    "uuid6>=2024.7",
+    "redis>=5.0",
+    "celery>=5.3",
+    "email-validator>=2.2",
 ]
 
 [project.optional-dependencies]

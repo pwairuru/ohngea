@@ -1,0 +1,129 @@
+from typing import List
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth.deps import get_current_user, require_permission
+from app.auth.models import User
+from app.db import get_session, set_tenant
+from app.domains.models import Domain, DomainSettings
+from app.domains.schemas import DomainCreate, DomainRead, DomainUpdate, ThemeRead
+from app.domains.service import create_domain
+
+router = APIRouter(prefix="/api/v1/domains", tags=["domains"])
+
+
+@router.get("", response_model=List[DomainRead])
+async def list_domains(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    # Only superadmin / domain_add perm can list all — for now allow any authed
+    result = await session.execute(select(Domain).order_by(Domain.domain_name))
+    domains = result.scalars().all()
+    return domains
+
+
+@router.post("", response_model=DomainRead, status_code=201)
+async def create_domain_endpoint(
+    data: DomainCreate,
+    request: Request,
+    response: Response,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_permission("domain_add")),
+):
+    domain = await create_domain(session, data)
+    response.headers["Location"] = f"/api/v1/domains/{domain.domain_id}"
+    # HATEOAS light
+    return domain
+
+
+@router.get("/{domain_id}", response_model=DomainRead)
+async def get_domain(domain_id: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    r = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
+    d = r.scalar_one_or_none()
+    if not d:
+        raise HTTPException(status_code=404, detail="Domain not found")
+    return d
+
+
+@router.patch("/{domain_id}", response_model=DomainRead)
+async def update_domain(domain_id: UUID, data: DomainUpdate, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("domain_add"))):
+    r = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
+    d = r.scalar_one_or_none()
+    if not d:
+        raise HTTPException(status_code=404, detail="Domain not found")
+    if data.enabled is not None:
+        d.enabled = data.enabled
+    if data.description is not None:
+        d.description = data.description
+    await session.commit()
+    await session.refresh(d)
+    return d
+
+
+@router.delete("/{domain_id}", status_code=204)
+async def delete_domain(domain_id: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("domain_add"))):
+    r = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
+    d = r.scalar_one_or_none()
+    if not d:
+        raise HTTPException(status_code=404, detail="Domain not found")
+    await session.delete(d)
+    await session.commit()
+    return Response(status_code=204)
+
+
+@router.get("/{domain_id}/theme", response_model=ThemeRead)
+async def get_theme(domain_id: UUID, session: AsyncSession = Depends(get_session)):
+    # public theme fetch for injection (no auth needed for login page)
+    r = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
+    if not r.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Domain not found")
+    # fetch settings
+    r2 = await session.execute(select(DomainSettings).where(DomainSettings.domain_id == domain_id, DomainSettings.category == "theme"))
+    settings = {s.key: s.value for s in r2.scalars().all()}
+    return ThemeRead(
+        domain_id=domain_id,
+        primary_color=settings.get("primary_color", "221 83% 53%"),
+        background=settings.get("background", "0 0% 100%"),
+        radius=settings.get("radius", "0.5rem"),
+    )
+
+
+@router.put("/{domain_id}/theme", response_model=ThemeRead)
+async def put_theme(domain_id: UUID, theme: ThemeRead, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("domain_add"))):
+    for k, v in [("primary_color", theme.primary_color), ("background", theme.background), ("radius", theme.radius)]:
+        r = await session.execute(select(DomainSettings).where(DomainSettings.domain_id == domain_id, DomainSettings.key == k))
+        s = r.scalar_one_or_none()
+        if s:
+            s.value = v
+        else:
+            session.add(DomainSettings(domain_id=domain_id, category="theme", key=k, value=v))
+    await session.commit()
+    return theme
+
+
+@router.get("/{domain_id}/plugins")
+async def list_domain_plugins(domain_id: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    from app.domains.models import DomainPlugin
+
+    r = await session.execute(select(DomainPlugin).where(DomainPlugin.domain_id == domain_id))
+    return [{"plugin_name": p.plugin_name, "enabled": p.enabled} for p in r.scalars().all()]
+
+
+@router.put("/{domain_id}/plugins/{plugin_name}")
+async def toggle_plugin(domain_id: UUID, plugin_name: str, enabled: bool = True, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("domain_add"))):
+    from app.domains.models import DomainPlugin
+
+    r = await session.execute(select(DomainPlugin).where(DomainPlugin.domain_id == domain_id, DomainPlugin.plugin_name == plugin_name))
+    p = r.scalar_one_or_none()
+    if p:
+        p.enabled = enabled
+    else:
+        p = DomainPlugin(domain_id=domain_id, plugin_name=plugin_name, enabled=enabled)
+        session.add(p)
+    await session.commit()
+    return {"plugin_name": plugin_name, "enabled": enabled}

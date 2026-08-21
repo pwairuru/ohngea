@@ -1,0 +1,52 @@
+from uuid import UUID
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.auth.deps import get_current_user, require_permission
+from app.auth.models import User
+from app.db import get_session, set_tenant
+from app.ivr_menus.models import IvrMenu, IvrMenuOption
+
+router = APIRouter(prefix="/api/v1/ivr_menus", tags=["ivr_menus"])
+
+
+@router.get("")
+async def list_ivr(response: Response, page: int = Query(1, ge=1), per_page: int = Query(20, ge=1, le=100), session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    total = (await session.execute(select(func.count()).select_from(select(IvrMenu).where(IvrMenu.domain_id == domain_id).subquery()))).scalar() or 0
+    r = await session.execute(select(IvrMenu).where(IvrMenu.domain_id == domain_id).offset((page - 1) * per_page).limit(per_page))
+    data = [{"ivr_menu_uuid": str(m.ivr_menu_uuid), "name": m.name, "enabled": m.enabled, "_links": {"self": {"href": f"/api/v1/ivr_menus/{m.ivr_menu_uuid}"}}} for m in r.scalars().all()]
+    response.headers["X-Total-Count"] = str(total)
+    if page * per_page < total:
+        response.headers["Link"] = f'</api/v1/ivr_menus?page={page+1}&per_page={per_page}>; rel="next"'
+    return {"data": data, "total": total, "page": page, "per_page": per_page}
+
+
+@router.post("", status_code=201)
+async def create_ivr(payload: dict, response: Response, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("dialplan_view"))):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    m = IvrMenu(domain_id=domain_id, name=payload.get("name"), extension=payload.get("extension"), enabled=payload.get("enabled", True))
+    session.add(m)
+    await session.flush()
+    for idx, opt in enumerate(payload.get("options", [])):
+        o = IvrMenuOption(ivr_menu_uuid=m.ivr_menu_uuid, digits=opt.get("digits"), action=opt.get("action"), param=opt.get("param"), order=idx)
+        session.add(o)
+    await session.commit()
+    await session.refresh(m)
+    response.headers["Location"] = f"/api/v1/ivr_menus/{m.ivr_menu_uuid}"
+    return {"ivr_menu_uuid": str(m.ivr_menu_uuid), "name": m.name, "_links": {"self": {"href": f"/api/v1/ivr_menus/{m.ivr_menu_uuid}"}}}
+
+
+@router.get("/{ivr_menu_uuid}")
+async def get_ivr(ivr_menu_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    r = await session.execute(select(IvrMenu).where(IvrMenu.ivr_menu_uuid == ivr_menu_uuid, IvrMenu.domain_id == domain_id))
+    m = r.scalar_one_or_none()
+    if not m:
+        raise HTTPException(status_code=404, detail="IVR not found")
+    opts = await session.execute(select(IvrMenuOption).where(IvrMenuOption.ivr_menu_uuid == m.ivr_menu_uuid).order_by(IvrMenuOption.order))
+    options = [{"digits": o.digits, "action": o.action, "param": o.param} for o in opts.scalars().all()]
+    return {"ivr_menu_uuid": str(m.ivr_menu_uuid), "name": m.name, "options": options, "_links": {"self": {"href": f"/api/v1/ivr_menus/{m.ivr_menu_uuid}"}}}
