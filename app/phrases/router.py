@@ -6,10 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
+from app.middleware.app_gate import require_app_enabled
 from app.phrases.models import Phrase, PhraseDetail
 from app.phrases.schemas import PhraseCreate, PhraseRead, PhraseUpdate
 from app.phrases.service import create_phrase, list_phrases, get_phrase_with_details
-router=APIRouter(prefix="/api/v1/phrases", tags=["phrases"])
+router=APIRouter(prefix="/api/v1/phrases", tags=["phrases"], dependencies=[require_app_enabled("phrases")])
 def _links(o: Phrase):
     return {"self":{"href":f"/api/v1/phrases/{o.phrase_uuid}"}, "collection":{"href":"/api/v1/phrases"}}
 def _ser(o: Phrase, details=None):
@@ -67,6 +69,10 @@ async def patch_ph(uid:UUID, payload:PhraseUpdate, session:AsyncSession=Depends(
                 det=PhraseDetail(domain_id=domain_id, phrase_uuid=ph.phrase_uuid, phrase_detail_function=d.get("function"), phrase_detail_data=d.get("data"), phrase_detail_order=int(d.get("order",0) or 0))
                 session.add(det)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(ph)
     _, dets=await get_phrase_with_details(session,ph.phrase_uuid,domain_id)
     return _ser(ph,dets)
@@ -79,4 +85,8 @@ async def delete_ph(uid:UUID, session:AsyncSession=Depends(get_session), user:Us
         raise HTTPException(status_code=404, detail="Phrase not found")
     await session.delete(ph)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

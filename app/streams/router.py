@@ -6,10 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
+from app.middleware.app_gate import require_app_enabled
 from app.streams.models import Stream
 from app.streams.schemas import StreamCreate, StreamRead, StreamUpdate
 from app.streams.service import create_stream, list_streams
-router=APIRouter(prefix="/api/v1/streams", tags=["streams"])
+router=APIRouter(prefix="/api/v1/streams", tags=["streams"], dependencies=[require_app_enabled("streams")])
 def _links(o): return {"self":{"href":f"/api/v1/streams/{o.stream_uuid}"}, "collection":{"href":"/api/v1/streams"}}
 def _ser(o):
     d=StreamRead.model_validate(o, from_attributes=True).model_dump(mode="json")
@@ -50,6 +52,10 @@ async def patch_st(uid:UUID, payload:StreamUpdate, session:AsyncSession=Depends(
     for k,v in payload.model_dump(exclude_unset=True).items():
         setattr(o,k,v)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(o)
     return _ser(o)
 @router.delete("/{uid}", status_code=204)
@@ -61,4 +67,8 @@ async def delete_st(uid:UUID, session:AsyncSession=Depends(get_session), user:Us
     if not o: raise HTTPException(status_code=404, detail="Stream not found")
     await session.delete(o)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

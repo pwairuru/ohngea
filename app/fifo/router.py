@@ -6,10 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
+from app.middleware.app_gate import require_app_enabled
 from app.fifo.models import Fifo
 from app.fifo.schemas import FifoCreate, FifoRead, FifoUpdate
 from app.fifo.service import create_fifo, list_fifo
-router=APIRouter(prefix="/api/v1/fifo", tags=["fifo"])
+router=APIRouter(prefix="/api/v1/fifo", tags=["fifo"], dependencies=[require_app_enabled("fifo")])
 def _links(o): return {"self":{"href":f"/api/v1/fifo/{o.fifo_uuid}"}, "collection":{"href":"/api/v1/fifo"}}
 def _ser(o):
     d=FifoRead.model_validate(o, from_attributes=True).model_dump(mode="json")
@@ -49,6 +51,10 @@ async def patch_fifo(uid:UUID, payload:FifoUpdate, session:AsyncSession=Depends(
     for k,v in payload.model_dump(exclude_unset=True).items():
         setattr(o,k,v)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(o)
     return _ser(o)
 @router.delete("/{uid}", status_code=204)
@@ -60,4 +66,8 @@ async def delete_fifo(uid:UUID, session:AsyncSession=Depends(get_session), user:
     if not o: raise HTTPException(status_code=404, detail="FIFO not found")
     await session.delete(o)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)
