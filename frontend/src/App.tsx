@@ -55,6 +55,8 @@ import { OperatorPanel } from "./routes/OperatorPanel";
 import { Logs } from "./routes/Logs";
 import { DomainLimits } from "./routes/DomainLimits";
 import { WebPhoneProvider } from "./context/WebPhoneContext";
+import { WebPhoneButton } from "./components/WebPhone/WebPhoneButton";
+import { WebPhonePopup } from "./components/WebPhone/WebPhonePopup";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -67,6 +69,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 function Nav() {
   const [open, setOpen] = React.useState(false);
+  const [webPhoneOpen, setWebPhoneOpen] = React.useState(false);
   const loc = useLocation();
   const nav = useNavigate();
   const items = [
@@ -94,6 +97,8 @@ function Nav() {
         </div>
         <div className="flex items-center gap-2">
           <FsStatus />
+          <WebPhoneButton onOpen={()=>setWebPhoneOpen(true)} />
+          <WebPhonePopup open={webPhoneOpen} onOpenChange={setWebPhoneOpen} />
           <Link to="/domains" className="hidden md:inline text-sm hover:underline">Tenants</Link>
           <ThemeToggle />
           <button

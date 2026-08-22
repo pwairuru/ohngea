@@ -24,7 +24,7 @@ type Ctx = {
   duration:number;
 };
 
-const WebPhoneContext = React.createContext<Ctx|null>(null);
+export const WebPhoneContext = React.createContext<Ctx|null>(null);
 export function useWebPhone(){ const c=React.useContext(WebPhoneContext); if(!c) throw new Error("missing provider"); return c; }
 
 export function WebPhoneProvider({children}:{children:React.ReactNode}){
