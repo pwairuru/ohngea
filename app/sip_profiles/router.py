@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
-from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
+from app.freeswitch.cache import invalidate_fs_cache_for_session
 from app.sip_profiles.models import SipProfile
 
 router = APIRouter(prefix="/api/v1/sip_profiles", tags=["sip_profiles"])

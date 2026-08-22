@@ -47,6 +47,6 @@ async def get_credentials(payload: dict, session: AsyncSession = Depends(get_ses
             raise HTTPException(status_code=400, detail="webrtc auth disabled")
         # phase1 echo
         pwd = webrtc_pass or ""
-        return {"sip_uri": f"sip:{webrtc_user}@{sip_domain}", "wss_url": wss_url, "auth_user": webrtc_user, "password": pwd, "display_name": webrtc_user, "expires_in": 3600, "ice_servers": settings.ice_servers}
+        return {"sip_uri": f"sip:{webrtc_user}@{sip_domain}", "wss_url": wss_url, "auth_user": webrtc_user, "password": pwd, "display_name": webrtc_user, "expires_in": 3600, "ice_servers": settings.ice_servers or [{"urls": "stun:stun.l.google.com:19302"}]}
     else:
         raise HTTPException(status_code=422, detail="Provide extension or webrtc_user")
