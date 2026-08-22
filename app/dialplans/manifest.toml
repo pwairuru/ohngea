@@ -1,0 +1,8 @@
+name = "dialplans"
+version = "1.0.0"
+license = "MIT"
+description = "Dialplan routing"
+category = "core"
+enabled_by_default = true
+depends_on = []
+routes = ["/dialplans"]

@@ -1,0 +1,8 @@
+name = "cdr"
+version = "1.0.0"
+license = "MIT"
+description = "Call detail records"
+category = "core"
+enabled_by_default = true
+depends_on = []
+routes = ["/cdr"]

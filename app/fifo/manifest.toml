@@ -1,0 +1,8 @@
+name = "fifo"
+version = "1.0.0"
+license = "MIT"
+description = "FIFO queues"
+category = "queueing"
+enabled_by_default = false
+depends_on = []
+routes = ["/fifo"]

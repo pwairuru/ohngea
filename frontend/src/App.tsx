@@ -54,6 +54,7 @@ import { Registrations } from "./routes/Registrations";
 import { OperatorPanel } from "./routes/OperatorPanel";
 import { Logs } from "./routes/Logs";
 import { DomainLimits } from "./routes/DomainLimits";
+import { Apps } from "./routes/Apps";
 import { WebPhoneProvider } from "./context/WebPhoneContext";
 import { WebPhoneButton } from "./components/WebPhone/WebPhoneButton";
 import { WebPhonePopup } from "./components/WebPhone/WebPhonePopup";
@@ -272,6 +273,7 @@ function Nav() {
             <Route path="/call_block" element={<CallBlock />} />
             <Route path="/pin_numbers" element={<PinNumbers />} />
             <Route path="/call_centers" element={<CallCenters />} />
+            <Route path="/apps" element={<Apps />} />
             <Route path="/fifo" element={<Fifo />} />
             <Route path="/bridges" element={<Bridges />} />
             <Route path="/streams" element={<Streams />} />

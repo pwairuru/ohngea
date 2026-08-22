@@ -1,0 +1,8 @@
+name = "voicemail_greetings"
+version = "1.0.0"
+license = "MIT"
+description = "Voicemail greetings"
+category = "messaging"
+enabled_by_default = false
+depends_on = []
+routes = ["/voicemail_greetings"]

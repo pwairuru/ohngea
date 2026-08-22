@@ -1,0 +1,8 @@
+name = "pin_numbers"
+version = "1.0.0"
+license = "MIT"
+description = "PIN numbers"
+category = "security"
+enabled_by_default = false
+depends_on = []
+routes = ["/pin_numbers"]

@@ -1,0 +1,8 @@
+name = "call_flows"
+version = "1.0.0"
+license = "MIT"
+description = "Call flows"
+category = "routing"
+enabled_by_default = false
+depends_on = []
+routes = ["/call_flows"]

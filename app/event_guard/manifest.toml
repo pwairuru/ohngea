@@ -1,0 +1,8 @@
+name = "event_guard"
+version = "1.0.0"
+license = "MIT"
+description = "Event guard"
+category = "system"
+enabled_by_default = false
+depends_on = []
+routes = ["/event_guard"]

@@ -1,0 +1,8 @@
+name = "ivr_menus"
+version = "1.0.0"
+license = "MIT"
+description = "IVR menus"
+category = "core"
+enabled_by_default = true
+depends_on = []
+routes = ["/ivr"]
