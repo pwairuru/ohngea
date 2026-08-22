@@ -62,6 +62,7 @@ from app.feature_codes.models import FeatureCode  # noqa
 from app.database_transactions.models import DatabaseTransaction  # noqa
 from app.event_guard.models import EventGuardLog  # noqa
 from app.modules.models import Module  # noqa
+from app.webrtc_settings.models import WebRTCSettings  # noqa
 
 target_metadata = SQLModel.metadata
 
