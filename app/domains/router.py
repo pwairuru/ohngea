@@ -140,6 +140,10 @@ async def list_domain_apps(domain_id: UUID, session: AsyncSession = Depends(get_
     from app.domains.models import DomainApp
     from app.registry import discover_apps
 
+    r = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
+    if not r.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Domain not found")
+    await set_tenant(session, domain_id)
     apps = discover_apps()
     r = await session.execute(select(DomainApp).where(DomainApp.domain_id == domain_id))
     overrides = {p.app_name: p.enabled for p in r.scalars().all()}
@@ -165,6 +169,10 @@ async def list_enabled_apps(domain_id: UUID, session: AsyncSession = Depends(get
     from app.domains.models import DomainApp
     from app.registry import discover_apps
 
+    r = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
+    if not r.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Domain not found")
+    await set_tenant(session, domain_id)
     apps = discover_apps()
     r = await session.execute(select(DomainApp).where(DomainApp.domain_id == domain_id))
     overrides = {p.app_name: p.enabled for p in r.scalars().all()}
@@ -189,6 +197,10 @@ async def toggle_app(
     from app.domains.models import DomainApp
     from app.registry import discover_apps
 
+    r = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
+    if not r.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Domain not found")
+    await set_tenant(session, domain_id)
     apps = {a["name"]: a for a in discover_apps()}
     if app_name not in apps:
         raise HTTPException(status_code=404, detail=f"App {app_name} not found")
