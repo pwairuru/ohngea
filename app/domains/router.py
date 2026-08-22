@@ -137,7 +137,7 @@ async def put_theme(domain_id: UUID, theme: ThemeRead, session: AsyncSession = D
 
 @router.get("/{domain_id}/apps")
 async def list_domain_apps(domain_id: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
-    from app.domains.models import DomainApp
+    from app.domains.models import DomainApp, DomainPlugin
     from app.registry import discover_apps
 
     r = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
@@ -146,7 +146,21 @@ async def list_domain_apps(domain_id: UUID, session: AsyncSession = Depends(get_
     await set_tenant(session, domain_id)
     apps = discover_apps()
     r = await session.execute(select(DomainApp).where(DomainApp.domain_id == domain_id))
-    overrides = {p.app_name: p.enabled for p in r.scalars().all()}
+    rows = r.scalars().all()
+    overrides = {p.app_name: p.enabled for p in rows}
+    # legacy migration: copy DomainPlugin rows to DomainApp on first GET if empty (idempotent, app wins per registry dedupe)
+    if not rows:
+        r2 = await session.execute(select(DomainPlugin).where(DomainPlugin.domain_id == domain_id))
+        plugins = r2.scalars().all()
+        if plugins:
+            for p in plugins:
+                if p.plugin_name in overrides:
+                    continue
+                session.add(DomainApp(domain_id=domain_id, app_name=p.plugin_name, enabled=p.enabled))
+            await session.commit()
+            # re-fetch overrides after migration so response reflects migrated values
+            r = await session.execute(select(DomainApp).where(DomainApp.domain_id == domain_id))
+            overrides = {p.app_name: p.enabled for p in r.scalars().all()}
     data = []
     for a in apps:
         name = a["name"]
