@@ -7,7 +7,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db import get_session
-from app.freeswitch.xml_builder import build_dialplan_xml, build_directory_xml, build_empty_configuration_xml, build_not_found_xml
+from app.freeswitch.xml_builder import (
+    build_acl_xml,
+    build_dialplan_xml,
+    build_directory_xml,
+    build_empty_configuration_xml,
+    build_gateway_xml,
+    build_not_found_xml,
+    build_vars_xml,
+)
 from app.freeswitch.cache import cache_get, cache_set
 
 router = APIRouter(prefix="/api/internal/freeswitch", tags=["freeswitch-internal"])
@@ -131,7 +139,93 @@ async def fs_xml(
             return Response(content=xml, media_type="application/xml")
 
         elif section == "configuration":
+            # Handle acl.conf, sofia.conf, vars.xml etc.
+            # key_value may be like "acl.conf", "sofia.conf", "vars.xml" or domain
+            kv_lower = (key_value or "").lower()
+            # Try to find domain_name if key_value looks like domain
+            domain_name = None
+            domain_id = None
+            if "." in key_value and "@" not in key_value and "conf" not in kv_lower and "xml" not in kv_lower:
+                domain_name = key_value
+            else:
+                # key_value is conf name; try to infer domain from query param domain or use first domain
+                # Look for domain param in query
+                domain_param = request.query_params.get("domain") or request.query_params.get("domain_name")
+                if domain_param:
+                    domain_name = domain_param
+            # Normalize: if kv is acl
+            try:
+                if "acl" in kv_lower:
+                    from app.access_controls.models import AccessControl, AccessControlNode
+                    from app.domains.models import Domain
+
+                    # find domain to scope ACLs
+                    dom = None
+                    if domain_name:
+                        r = await session.execute(select(Domain).where(Domain.domain_name == domain_name))
+                        dom = r.scalar_one_or_none()
+                    if not dom:
+                        # fallback to first domain
+                        r = await session.execute(select(Domain).limit(1))
+                        dom = r.scalar_one_or_none()
+                    if dom:
+                        # fetch ACLs for domain
+                        ra = await session.execute(select(AccessControl).where(AccessControl.domain_id == dom.domain_id))
+                        acls = ra.scalars().all()
+                        acl_with_nodes = []
+                        for acl in acls:
+                            rn = await session.execute(select(AccessControlNode).where(AccessControlNode.access_control_uuid == acl.access_control_uuid))
+                            nodes = rn.scalars().all()
+                            acl_with_nodes.append((acl, nodes))
+                        xml = build_acl_xml(acl_with_nodes)
+                    else:
+                        xml = build_empty_configuration_xml()
+                    await cache_set(cache_key, xml.decode() if isinstance(xml, bytes) else xml, ttl=60)
+                    return Response(content=xml, media_type="application/xml")
+                elif "gateway" in kv_lower or "sofia" in kv_lower:
+                    from app.domains.models import Domain
+                    from app.gateways.models import Gateway
+
+                    dom = None
+                    if domain_name:
+                        r = await session.execute(select(Domain).where(Domain.domain_name == domain_name))
+                        dom = r.scalar_one_or_none()
+                    if not dom:
+                        r = await session.execute(select(Domain).limit(1))
+                        dom = r.scalar_one_or_none()
+                    if dom:
+                        rg = await session.execute(select(Gateway).where(Gateway.domain_id == dom.domain_id, Gateway.enabled == True))
+                        gws = rg.scalars().all()
+                        xml = build_gateway_xml(gws, dom.domain_name)
+                    else:
+                        xml = build_empty_configuration_xml()
+                    await cache_set(cache_key, xml.decode() if isinstance(xml, bytes) else xml, ttl=60)
+                    return Response(content=xml, media_type="application/xml")
+                elif "vars" in kv_lower:
+                    from app.domains.models import Domain
+                    from app.vars.models import Var
+
+                    dom = None
+                    if domain_name:
+                        r = await session.execute(select(Domain).where(Domain.domain_name == domain_name))
+                        dom = r.scalar_one_or_none()
+                    if not dom:
+                        r = await session.execute(select(Domain).limit(1))
+                        dom = r.scalar_one_or_none()
+                    if dom:
+                        rv = await session.execute(select(Var).where(Var.domain_id == dom.domain_id, Var.enabled == True))
+                        vars_list = rv.scalars().all()
+                        xml = build_vars_xml(vars_list)
+                    else:
+                        xml = build_empty_configuration_xml()
+                    await cache_set(cache_key, xml.decode() if isinstance(xml, bytes) else xml, ttl=60)
+                    return Response(content=xml, media_type="application/xml")
+            except Exception as e:
+                import logging
+
+                logging.getLogger("freeswitch").error(f"configuration builder error kv={key_value}: {e}")
             xml = build_empty_configuration_xml()
+            await cache_set(cache_key, xml.decode() if isinstance(xml, bytes) else xml, ttl=60)
             return Response(content=xml, media_type="application/xml")
         else:
             xml = build_not_found_xml()
