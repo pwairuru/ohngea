@@ -229,6 +229,9 @@ async def toggle_app(
     r = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
     if not r.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Domain not found")
+    perms = getattr(user, "_perms", None) or []
+    if str(getattr(user, "_domain_id", user.domain_id)) != str(domain_id) and "domain_add" not in perms and "*" not in perms:
+        raise HTTPException(status_code=403, detail="Forbidden")
     await set_tenant(session, domain_id)
     apps = {a["name"]: a for a in discover_apps()}
     if app_name not in apps:
@@ -278,6 +281,9 @@ async def toggle_plugin(domain_id: UUID, plugin_name: str, enabled: bool = True,
     r = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
     if not r.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Domain not found")
+    perms = getattr(user, "_perms", None) or []
+    if str(getattr(user, "_domain_id", user.domain_id)) != str(domain_id) and "domain_add" not in perms and "*" not in perms:
+        raise HTTPException(status_code=403, detail="Forbidden")
     await set_tenant(session, domain_id)
     r = await session.execute(select(DomainPlugin).where(DomainPlugin.domain_id == domain_id, DomainPlugin.plugin_name == plugin_name))
     p = r.scalar_one_or_none()

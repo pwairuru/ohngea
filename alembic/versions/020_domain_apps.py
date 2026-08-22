@@ -30,7 +30,7 @@ def upgrade() -> None:
     op.create_index("ix_domain_apps_app_name", "domain_apps", ["app_name"])
     op.execute("ALTER TABLE domain_apps ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE domain_apps FORCE ROW LEVEL SECURITY")
-    op.execute("CREATE POLICY tenant_isolation ON domain_apps USING (domain_id = NULLIF(current_setting('app.domain_uuid', true), '')::uuid) WITH CHECK (domain_id = NULLIF(current_setting('app.domain_uuid', true), '')::uuid)")
+    op.execute("CREATE POLICY tenant_isolation ON domain_apps USING (domain_id = NULLIF(current_setting('app.domain_uuid', true), '')::uuid OR current_setting('app.domain_uuid', true) = '') WITH CHECK (domain_id = NULLIF(current_setting('app.domain_uuid', true), '')::uuid OR current_setting('app.domain_uuid', true) = '')")
 
 
 def downgrade() -> None:
