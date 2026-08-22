@@ -145,19 +145,28 @@ async def list_domain_apps(domain_id: UUID, session: AsyncSession = Depends(get_
         raise HTTPException(status_code=404, detail="Domain not found")
     await set_tenant(session, domain_id)
     apps = discover_apps()
+    app_names = {a["name"] for a in apps}
     r = await session.execute(select(DomainApp).where(DomainApp.domain_id == domain_id))
     rows = r.scalars().all()
     overrides = {p.app_name: p.enabled for p in rows}
-    # legacy migration: copy DomainPlugin rows to DomainApp on first GET if empty (idempotent, app wins per registry dedupe)
-    if not rows:
-        r2 = await session.execute(select(DomainPlugin).where(DomainPlugin.domain_id == domain_id))
-        plugins = r2.scalars().all()
-        if plugins:
-            for p in plugins:
-                if p.plugin_name in overrides:
-                    continue
-                session.add(DomainApp(domain_id=domain_id, app_name=p.plugin_name, enabled=p.enabled))
-            await session.commit()
+    # legacy migration
+    r2 = await session.execute(select(DomainPlugin).where(DomainPlugin.domain_id == domain_id))
+    plugin_rows = r2.scalars().all()
+    if plugin_rows:
+        existing = set(overrides.keys())
+        to_add = []
+        for p in plugin_rows:
+            if p.plugin_name not in existing and p.plugin_name in app_names:
+                to_add.append(DomainApp(domain_id=domain_id, app_name=p.plugin_name, enabled=p.enabled))
+        if to_add:
+            for obj in to_add:
+                session.add(obj)
+            from sqlalchemy.exc import IntegrityError
+
+            try:
+                await session.commit()
+            except IntegrityError:
+                await session.rollback()
             # re-fetch overrides after migration so response reflects migrated values
             r = await session.execute(select(DomainApp).where(DomainApp.domain_id == domain_id))
             overrides = {p.app_name: p.enabled for p in r.scalars().all()}
