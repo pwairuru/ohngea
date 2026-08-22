@@ -135,6 +135,86 @@ async def put_theme(domain_id: UUID, theme: ThemeRead, session: AsyncSession = D
     return theme
 
 
+@router.get("/{domain_id}/apps")
+async def list_domain_apps(domain_id: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    from app.domains.models import DomainApp
+    from app.registry import discover_apps
+
+    apps = discover_apps()
+    r = await session.execute(select(DomainApp).where(DomainApp.domain_id == domain_id))
+    overrides = {p.app_name: p.enabled for p in r.scalars().all()}
+    data = []
+    for a in apps:
+        name = a["name"]
+        enabled = overrides.get(name, a.get("enabled_by_default", True))
+        data.append(
+            {
+                "app_name": name,
+                "enabled": enabled,
+                "category": a.get("category", "advanced"),
+                "depends_on": a.get("depends_on", []),
+                "description": a.get("description", ""),
+                "source": a.get("source"),
+            }
+        )
+    return {"data": data, "total": len(data)}
+
+
+@router.get("/{domain_id}/apps/enabled")
+async def list_enabled_apps(domain_id: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    from app.domains.models import DomainApp
+    from app.registry import discover_apps
+
+    apps = discover_apps()
+    r = await session.execute(select(DomainApp).where(DomainApp.domain_id == domain_id))
+    overrides = {p.app_name: p.enabled for p in r.scalars().all()}
+    enabled_list = []
+    for a in apps:
+        name = a["name"]
+        enabled = overrides.get(name, a.get("enabled_by_default", True))
+        if enabled:
+            enabled_list.append(name)
+    return enabled_list
+
+
+@router.put("/{domain_id}/apps/{app_name}")
+async def toggle_app(
+    domain_id: UUID,
+    app_name: str,
+    enabled: bool = True,
+    force: bool = False,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_permission("domain_add")),
+):
+    from app.domains.models import DomainApp
+    from app.registry import discover_apps
+
+    apps = {a["name"]: a for a in discover_apps()}
+    if app_name not in apps:
+        raise HTTPException(status_code=404, detail=f"App {app_name} not found")
+    # dependency check: if disabling, prevent if dependents still enabled unless force
+    if not enabled and not force:
+        dependents = [n for n, m in apps.items() if app_name in m.get("depends_on", [])]
+        if dependents:
+            r = await session.execute(select(DomainApp).where(DomainApp.domain_id == domain_id))
+            overrides = {p.app_name: p.enabled for p in r.scalars().all()}
+            active_dependents = [d for d in dependents if overrides.get(d, apps[d].get("enabled_by_default", True))]
+            if active_dependents:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Cannot disable {app_name}: dependents still enabled {active_dependents}. Disable them first or force with ?force=true",
+                )
+    r = await session.execute(select(DomainApp).where(DomainApp.domain_id == domain_id, DomainApp.app_name == app_name))
+    p = r.scalar_one_or_none()
+    if p:
+        p.enabled = enabled
+    else:
+        p = DomainApp(domain_id=domain_id, app_name=app_name, enabled=enabled)
+        session.add(p)
+    await session.commit()
+    return {"app_name": app_name, "enabled": enabled}
+
+
 @router.get("/{domain_id}/plugins")
 async def list_domain_plugins(domain_id: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     from app.domains.models import DomainPlugin
