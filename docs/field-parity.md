@@ -33,14 +33,14 @@ All 60 legacy columns now present. Old `unique_id`/`dial_user`/`dial_domain`/`in
 
 ---
 
-## Gateways — ❌ thin (needs 022)
+## Gateways — ✅ FIXED in 022_gateways_full
 
-| Legacy | Modern (6 fields) | Gap |
+| Legacy | Modern (now 36 fields) | Status |
 |---|---|---|
 | gateway, username, password, proxy, register, enabled | ✅ |  |
 | distinct_to, auth_username, realm, from_user/domain, register_proxy, outbound_proxy, expire_seconds, register_transport, contact_params, retry_seconds, extension, ping/min/max, contact_in_ping, caller_id_in_from, supress_cng, sip_cid_type, codec_prefs, channels, extension_in_contact, context, profile, hostname, description | ❌ | 30 fields missing; affects sofia gateway XML generation (not yet implemented via xml_curl configuration section) |
 
-Impact today: gateways create usable minimal SIP trunk, but advanced timers/codecs/ping not configurable → add in phase 2.
+Fixed: all 30 legacy fields now in model + gateway sofia XML via xml_curl configuration, UI hidden Advanced 30 fields, Verify Sofia XML button.
 
 ## Dialplans — ⚠️ partial
 
