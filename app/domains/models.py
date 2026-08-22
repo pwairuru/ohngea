@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from app.db import uuid7
@@ -48,4 +49,7 @@ class DomainApp(SQLModel, table=True):
     app_name: str = Field(max_length=64, index=True)
     enabled: bool = Field(default=True)
     created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    __table_args__ = ({"comment": "per-tenant app toggle"},)
+    __table_args__ = (
+        UniqueConstraint("domain_id", "app_name", name="uq_domain_apps_domain_app"),
+        {"comment": "per-tenant app toggle"},
+    )
