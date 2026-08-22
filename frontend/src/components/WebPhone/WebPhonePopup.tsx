@@ -10,7 +10,7 @@ export function WebPhonePopup({open, onOpenChange}:{open:boolean; onOpenChange:(
   const {registrationState, registrationError, config, connect, disconnect, call, hangup, answer, reject, callState, isMuted, mute} = useWebPhone();
   const [settings,setSettings]=React.useState<any>(null);
   const [extList,setExtList]=React.useState<any[]>([]);
-  const [form,setForm]=React.useState({extension:"", password:"", webrtc_user:"", webrtc_pass:"", wss_url:"", useExtension:true});
+  const [form,setForm]=React.useState({extension:"", webrtc_user:"", webrtc_pass:"", wss_url:"", useExtension:true});
   const [dial,setDial]=React.useState("");
   const [loading,setLoading]=React.useState(false);
   const [error,setError]=React.useState<string|null>(null);

@@ -8,7 +8,7 @@ Source reference: legacy Ohngea at `ohngea/` (separate git clone, ignored) — r
 - **Control:** Python 3.14, FastAPI, SQLModel, asyncpg, Alembic, pydantic-xml, lxml, Jinja2, PyJWT, bcrypt, uuid6, Valkey, Celery
 - **DB:** PostgreSQL 18 `PARTITION BY HASH (domain_id)` 32, RLS `USING (domain_id = current_setting('app.domain_uuid')::uuid)` + `SET LOCAL` per request, local indexes `(domain_id, start_stamp DESC)`
 - **Media:** FreeSWITCH via `mod_xml_curl` `GET /api/internal/freeswitch/xml?section=directory|dialplan` + ESL `sofia rescan`
-- **Frontend:** React 19 + Vite + Tailwind + shadcn/ui Radix + TanStack Table/Query + Recharts + Lucide, dark `class`, CSS vars `--primary`, per-tenant `GET /domains/{id}/theme`, PWA `vite-plugin-pwa`
+- **Frontend:** React 19 + Vite + Tailwind + shadcn/ui Radix + TanStack Table/Query + Recharts + Lucide + sip.js 0.21 (lazy WebPhone WSS), dark `class`, CSS vars `--primary`, per-tenant `GET /domains/{id}/theme`, PWA `vite-plugin-pwa`
 - **Ops:** `gunicorn -k uvicorn.workers.UvicornWorker`, Docker multi-stage `node:20-alpine` + `python:3.14-slim`, `docker-compose` `db/valkey/api/worker`
 
 ## Quick start (Docker — recommended, no host venv)

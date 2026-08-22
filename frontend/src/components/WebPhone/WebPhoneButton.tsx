@@ -10,9 +10,9 @@ export function WebPhoneButton({onOpen}:{onOpen:()=>void}){
   else if(registrationState==="failed"||registrationState==="unregistered"){ dot="bg-red-500"; aria="webphone disconnected"; }
   const tooltip = registrationError ? `WebPhone ${registrationState}: ${registrationError}` : `WebPhone ${registrationState}`;
   return (
-    <button data-testid="webphone-btn" onClick={onOpen} title={tooltip} aria-label={aria} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium hover:bg-muted">
+    <button data-testid="webphone-btn" onClick={onOpen} title={tooltip} aria-label={aria} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium hover:bg-muted min-h-[44px] touch-manipulation">
       <span data-testid="webphone-registration-dot" aria-hidden className={`inline-block h-2 w-2 rounded-full ${dot}`} />
-      <Phone className="h-3.5 w-3.5" />
+      <Phone className="h-3.5 w-3.5" aria-hidden />
       <span className="hidden sm:inline">{registrationState==="registered"? "Registered": registrationState==="connecting"? "Connecting": "Phone"}</span>
     </button>
   );

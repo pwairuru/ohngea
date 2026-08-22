@@ -34,6 +34,22 @@ npm --prefix frontend run build # tsc && vite 819kB 13 precache 852KiB ; docker 
 - Live ESL `8021` `app/active_calls registrations operator_panel sip_status` use `esl_command("show channels as json")` `show registrations` `conference list` with DB fallback when FS absent — intentional mock: `active_calls total 0` `operator_panel active[] queues[]` when no FS, `sip_status connected false`. RLS `conference_centers vars` verified cross-tenant `test.example.com 01a027d9` vs `second.example.com 01a027e6` `total domain1 2 domain2 0` `vars isolated` `tests/test_rls_new.py:1 1 passed`.
 - Frontend `frontend/dist 835kB` `vite build` `tsc && vite` `PWA 13 precache 868KiB` `playwright.config.ts projects chromium iPhone 14 Pixel 7` `comprehensive.spec.ts:136 mobile drawer 3/3 passed` `vitest 3 files 5 passed` `npm run build 819kB` `docker build --target frontend-builder` `4.58s` `Successfully built` proves `node:20-alpine npm install --legacy-peer-deps`.
 
+## WebPhone WSS
+- SIP over WebSocket via `sip.js 0.21` lazy-loaded in `frontend/src/context/WebPhoneContext.tsx` (persists `WebPhoneConfig {sip_uri,wss_url,auth_user,password,display_name,ice_servers}` per tenant+user key `webphone:cfg:{domain_id}:{sub}`).
+- `GET/PUT /domains/{id}/webrtc_settings` (admin, tenant-isolated via `set_tenant`) returns `enabled, auth_mode (extension|custom|both), wss_url, ice_servers`; `POST /webrtc/credentials` issues per-extension or custom SIP `sip_uri/wss_url/auth_user/password` with RLS `set_tenant`.
+- `sip_profiles` WSS persisted via `wss_url/wss_binding` fields (migration `018`+) and reflected in `sofia` XML; `sofia profile internal wss-binding:7443` + cert enables WSS.
+- Caddy reverse-proxy example for WSS:
+```
+pbx.example.com {
+  handle /wss/* {
+    reverse_proxy freeswitch:5066
+  }
+}
+sofia profile internal wss-binding:7443 + cert
+```
+- Vite does NOT proxy `/wss` (direct WSS to FreeSWITCH via `wss_url`); frontend `WSS URL must start with wss://` validated in `WebPhonePopup`.
+- Topnav `WebPhoneButton` (`data-testid="webphone-btn"`, `Phone` icon, registration dot `webphone-registration-dot` gray/yellow/green/red) + `Dialog` popup `webphone-config-form` vs `webphone-dialpad` (`dial-input`, `call-btn` disabled when empty, `hangup-btn`, `incoming-banner`, 44px touch).
+
 ## Monitoring
 - `/health` liveness, `/api/v1/health` version, `/api/internal/freeswitch/health`.
 - `audit` middleware logs `METHOD path -> status ms` + `X-Request-Duration-ms`.
