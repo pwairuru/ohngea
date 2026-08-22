@@ -33,6 +33,11 @@ async def test_db():
     import app.domains.models  # noqa: F401
     import app.auth.models  # noqa: F401
     import app.extensions.models  # noqa: F401
+    import app.sip_profiles.models  # noqa: F401
+    try:
+        import app.webrtc.credentials_router  # noqa: F401
+    except ImportError:
+        pass
 
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
@@ -158,3 +163,22 @@ async def auth_headers_user(test_db, domain):
 async def other_auth_headers(test_db, other_domain):
     _, token = await _make_user(test_db, other_domain, f"admin2-{uuid4().hex[:4]}", ["*"])
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture
+async def extension(test_db, domain):
+    """Extension fixture for webrtc credential tests."""
+    from app.extensions.models import Extension
+
+    async with test_db() as session:
+        ext = Extension(
+            extension="1001",
+            effective_caller_id_name="Test User",
+            domain_id=domain.domain_id,
+            password="secret123",
+            enabled=True,
+        )
+        session.add(ext)
+        await session.commit()
+        await session.refresh(ext)
+        return ext

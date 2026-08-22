@@ -159,6 +159,7 @@ def include_routers():
     from app.plugins.router import router as plugins_router
     from app.users.router import router as users_router
     from app.webrtc_settings.router import router as webrtc_settings_router
+    from app.webrtc.credentials_router import router as webrtc_credentials_router
 
     app.include_router(auth_router)
     # also mount auth at /api/v1/auth for versioned consistency
@@ -218,6 +219,7 @@ def include_routers():
     app.include_router(plugins_router)
     app.include_router(users_router)
     app.include_router(webrtc_settings_router)
+    app.include_router(webrtc_credentials_router)
 
     # dynamic plugin routers — discover via registry
     try:

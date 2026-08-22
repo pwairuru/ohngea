@@ -13,6 +13,10 @@ class SipProfileBase(SQLModel):
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
     sip_port: int = Field(default=5060)
     sip_ip: Optional[str] = Field(default=None)
+    wss_port: Optional[int] = Field(default=None)
+    wss_binding: Optional[str] = Field(default=None, max_length=128)
+    tls_cert_path: Optional[str] = Field(default=None, max_length=256)
+    tls_key_path: Optional[str] = Field(default=None, max_length=256)
 
 
 class SipProfile(SipProfileBase, table=True):
