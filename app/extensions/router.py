@@ -8,9 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, get_tenant_id, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.extensions.models import Extension
 from app.extensions.schemas import ExtensionCreate, ExtensionRead, ExtensionUpdate
-from app.extensions.service import create_extension, list_extensions
+from app.extensions.service import create_extension, list_extensions, _invalidate_fs_cache, generate_password
 
 router = APIRouter(prefix="/api/v1/extensions", tags=["extensions"])
 
@@ -130,17 +131,19 @@ async def patch_ext(extension_uuid: UUID, payload: ExtensionUpdate, session: Asy
     for k, v in update.items():
         setattr(e, k, v)
     await session.commit()
-    await session.refresh(e)
     try:
-        try:
-            import valkey.asyncio as redis  # type: ignore[import-not-found]
-        except ImportError:
-            import redis.asyncio as redis  # type: ignore[no-redef]
-        from app.config import settings
-        url = getattr(settings, "valkey_url", settings.redis_url)
-        rds = redis.from_url(url)
-        await rds.delete(f"xml:{domain_id}:directory")
-        await rds.aclose()
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
+    await session.refresh(e)
+    # invalidate FS cache + ESL
+    try:
+        # resolve domain_name for targeted invalidation
+        from app.domains.models import Domain
+        r2 = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
+        dom = r2.scalar_one_or_none()
+        domain_name = dom.domain_name if dom else None
+        await _invalidate_fs_cache(domain_id, domain_name)
     except Exception:
         pass
     return e
@@ -157,15 +160,11 @@ async def delete_ext(extension_uuid: UUID, session: AsyncSession = Depends(get_s
     await session.delete(e)
     await session.commit()
     try:
-        try:
-            import valkey.asyncio as redis  # type: ignore[import-not-found]
-        except ImportError:
-            import redis.asyncio as redis  # type: ignore[no-redef]
-        from app.config import settings
-        url = getattr(settings, "valkey_url", settings.redis_url)
-        rds = redis.from_url(url)
-        await rds.delete(f"xml:{domain_id}:directory")
-        await rds.aclose()
+        from app.domains.models import Domain
+        r2 = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
+        dom = r2.scalar_one_or_none()
+        domain_name = dom.domain_name if dom else None
+        await _invalidate_fs_cache(domain_id, domain_name)
     except Exception:
         pass
     return Response(status_code=204)
@@ -175,16 +174,35 @@ async def delete_ext(extension_uuid: UUID, session: AsyncSession = Depends(get_s
 async def batch_create(payload: list[ExtensionCreate], session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("extension_add"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
+    # resolve domain_name once
+    from app.domains.models import Domain
+    rdom = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
+    dom = rdom.scalar_one_or_none()
+    domain_name = dom.domain_name if dom else None
     created = []
     for data in payload:
         if not data.domain_id:
             data.domain_id = domain_id
         elif str(data.domain_id) != str(domain_id):
             raise HTTPException(status_code=403, detail="Domain mismatch in batch")
-        ext = Extension(**data.model_dump())
+        dump = data.model_dump()
+        if not dump.get("password"):
+            dump["password"] = generate_password(20)
+        if not dump.get("user_context") and domain_name:
+            dump["user_context"] = domain_name
+        # check duplicate per domain (extension)
+        ex = await session.execute(select(Extension).where(Extension.domain_id == domain_id, Extension.extension == dump.get("extension")))
+        if ex.scalar_one_or_none():
+            raise HTTPException(status_code=409, detail=f"Extension {dump.get('extension')} already exists")
+        ext = Extension(**dump)
         session.add(ext)
         created.append(ext)
     await session.commit()
     for c in created:
         await session.refresh(c)
+    # invalidate cache once
+    try:
+        await _invalidate_fs_cache(domain_id, domain_name)
+    except Exception:
+        pass
     return {"created": len(created)}

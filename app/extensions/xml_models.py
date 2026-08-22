@@ -21,15 +21,29 @@ class UserXml(BaseXmlModel, tag="user"):
 
     @classmethod
     def from_db(cls, db) -> "UserXml":
-        # Map Extension fields to FS directory user
+        # Map Extension fields to FS directory user with full parity
+        pwd = getattr(db, "password", None) or "1234"
         params = [
-            ParamXml(name="password", value="1234"),
-            ParamXml(name="vm-password", value=getattr(db, "extension", "1234")),
+            ParamXml(name="password", value=str(pwd)),
+            ParamXml(name="vm-password", value=str(pwd)),
+            ParamXml(name="reverse-auth-user", value=str(db.extension)),
+            ParamXml(name="reverse-auth-pass", value=str(pwd)),
         ]
-        if db.effective_caller_id_name:
+        if getattr(db, "effective_caller_id_name", None):
             params.append(ParamXml(name="effective_caller_id_name", value=db.effective_caller_id_name))
-        if db.effective_caller_id_number:
+        if getattr(db, "effective_caller_id_number", None):
             params.append(ParamXml(name="effective_caller_id_number", value=db.effective_caller_id_number))
+        if getattr(db, "outbound_caller_id_name", None):
+            params.append(ParamXml(name="outbound_caller_id_name", value=db.outbound_caller_id_name))
+        if getattr(db, "outbound_caller_id_number", None):
+            params.append(ParamXml(name="outbound_caller_id_number", value=db.outbound_caller_id_number))
+        if getattr(db, "mwi_account", None):
+            params.append(ParamXml(name="MWI-Account", value=db.mwi_account))
+        if getattr(db, "auth_acl", None):
+            params.append(ParamXml(name="auth-acl", value=db.auth_acl))
+        dial_string = getattr(db, "dial_string", None)
+        if dial_string:
+            params.append(ParamXml(name="dial-string", value=dial_string))
         return cls(id=db.extension, params=params)
 
 
