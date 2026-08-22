@@ -57,6 +57,7 @@ import { DomainLimits } from "./routes/DomainLimits";
 import { WebPhoneProvider } from "./context/WebPhoneContext";
 import { WebPhoneButton } from "./components/WebPhone/WebPhoneButton";
 import { WebPhonePopup } from "./components/WebPhone/WebPhonePopup";
+import { useEnabledApps } from "./lib/apps";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -72,6 +73,7 @@ function Nav() {
   const [webPhoneOpen, setWebPhoneOpen] = React.useState(false);
   const loc = useLocation();
   const nav = useNavigate();
+  const { isEnabled } = useEnabledApps();
   const items = [
     { to: "/", label: "Dashboard" },
     { to: "/extensions", label: "Extensions" },
@@ -79,6 +81,70 @@ function Nav() {
     { to: "/gateways", label: "Gateways" },
     { to: "/devices", label: "Devices" },
     { to: "/cdr", label: "Reports" },
+  ];
+  const desktopAdvanced: { to: string; label: string; app: string }[] = [
+    { to: "/ivr", label: "IVR Menus", app: "ivr_menus" },
+    { to: "/sip_profiles", label: "SIP Profiles", app: "sip_profiles" },
+    { to: "/ring_groups", label: "Ring Groups", app: "ring_groups" },
+    { to: "/time_conditions", label: "Time Conditions", app: "time_conditions" },
+    { to: "/voicemails", label: "Voicemails", app: "voicemails" },
+    { to: "/conferences", label: "Conferences", app: "conferences" },
+    { to: "/conference_profiles", label: "Conf Profiles", app: "conference_profiles" },
+    { to: "/conference_controls", label: "Conf Controls", app: "conference_controls" },
+    { to: "/conference_centers", label: "Conf Centers", app: "conference_centers" },
+    { to: "/access_controls", label: "ACL", app: "access_controls" },
+    { to: "/call_block", label: "Block", app: "call_block" },
+    { to: "/call_centers", label: "Call Centers", app: "call_centers" },
+    { to: "/fifo", label: "Fifo", app: "fifo" },
+    { to: "/bridges", label: "Bridges", app: "bridges" },
+    { to: "/streams", label: "Streams", app: "streams" },
+    { to: "/phrases", label: "Phrases", app: "phrases" },
+    { to: "/pin_numbers", label: "PINs", app: "pin_numbers" },
+    { to: "/destinations", label: "Destinations", app: "destinations" },
+    { to: "/follow_me", label: "FollowMe", app: "follow_me" },
+    { to: "/music_on_hold", label: "MOH", app: "music_on_hold" },
+    { to: "/call_flows", label: "Call Flows", app: "call_flows" },
+    { to: "/fax", label: "Fax", app: "fax" },
+    { to: "/fax_queue", label: "Fax Queue", app: "fax_queue" },
+    { to: "/vars", label: "Vars", app: "vars" },
+    { to: "/number_translations", label: "Number Trans", app: "number_translations" },
+    { to: "/call_broadcasts", label: "Broadcasts", app: "call_broadcast" },
+    { to: "/emergency_logs", label: "Emergency", app: "emergency_logs" },
+    { to: "/voicemail_greetings", label: "VM Greetings", app: "voicemail_greetings" },
+    { to: "/extension_settings", label: "Ext Settings", app: "extension_settings" },
+    { to: "/email_queue", label: "Email Queue", app: "email_queue" },
+    { to: "/sofia_global_settings", label: "Sofia Global", app: "sofia_global_settings" },
+    { to: "/feature_codes", label: "Feature Codes", app: "feature_codes" },
+    { to: "/database_transactions", label: "DB Transactions", app: "database_transactions" },
+    { to: "/event_guard", label: "Event Guard", app: "event_guard" },
+    { to: "/modules", label: "Modules", app: "modules" },
+    { to: "/active_calls", label: "Active Calls", app: "active_calls" },
+    { to: "/registrations", label: "Registrations", app: "registrations" },
+    { to: "/operator_panel", label: "Operator", app: "operator_panel" },
+    { to: "/logs", label: "Logs", app: "log_viewer" },
+    { to: "/domain_limits", label: "Limits", app: "domain_limits" },
+    { to: "/users", label: "Users & Groups", app: "users" },
+    { to: "/domains", label: "Tenants", app: "domains" },
+    { to: "/plugins", label: "Plugins", app: "plugins" },
+  ];
+  const mobileAdvanced: { to: string; label: string; app: string }[] = [
+    { to: "/ivr", label: "IVR Menus", app: "ivr_menus" },
+    { to: "/sip_profiles", label: "SIP Profiles", app: "sip_profiles" },
+    { to: "/ring_groups", label: "Ring Groups", app: "ring_groups" },
+    { to: "/time_conditions", label: "Time Conditions", app: "time_conditions" },
+    { to: "/voicemails", label: "Voicemails", app: "voicemails" },
+    { to: "/conferences", label: "Conferences", app: "conferences" },
+    { to: "/call_flows", label: "Call Flows", app: "call_flows" },
+    { to: "/music_on_hold", label: "MOH", app: "music_on_hold" },
+    { to: "/fifo", label: "Fifo", app: "fifo" },
+    { to: "/call_centers", label: "Call Centers", app: "call_centers" },
+    { to: "/access_controls", label: "ACL", app: "access_controls" },
+    { to: "/active_calls", label: "Active Calls", app: "active_calls" },
+    { to: "/operator_panel", label: "Operator", app: "operator_panel" },
+    { to: "/logs", label: "Logs", app: "log_viewer" },
+    { to: "/users", label: "Users & Groups", app: "users" },
+    { to: "/domains", label: "Tenants", app: "domains" },
+    { to: "/plugins", label: "Plugins", app: "plugins" },
   ];
   return (
     <>
@@ -130,49 +196,15 @@ function Nav() {
               <details open>
                 <summary className="cursor-pointer px-3 py-2 text-sm font-medium">Advanced</summary>
                 <div className="pl-2 pt-2 flex flex-col gap-1">
-                <Link to="/ivr" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/ivr" ? "bg-muted font-medium" : "hover:bg-muted"}`}>IVR Menus</Link>
-                <Link to="/sip_profiles" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/sip_profiles" ? "bg-muted" : "hover:bg-muted"}`}>SIP Profiles</Link>
-                <Link to="/ring_groups" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/ring_groups" ? "bg-muted" : "hover:bg-muted"}`}>Ring Groups</Link>
-                <Link to="/time_conditions" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/time_conditions" ? "bg-muted" : "hover:bg-muted"}`}>Time Conditions</Link>
-                <Link to="/voicemails" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/voicemails" ? "bg-muted" : "hover:bg-muted"}`}>Voicemails</Link>
-                <Link to="/conferences" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/conferences" ? "bg-muted" : "hover:bg-muted"}`}>Conferences</Link>
-                <Link to="/conference_profiles" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/conference_profiles" ? "bg-muted" : "hover:bg-muted"}`}>Conf Profiles</Link>
-                <Link to="/conference_controls" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/conference_controls" ? "bg-muted" : "hover:bg-muted"}`}>Conf Controls</Link>
-                <Link to="/conference_centers" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/conference_centers" ? "bg-muted" : "hover:bg-muted"}`}>Conf Centers</Link>
-                <Link to="/access_controls" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/access_controls" ? "bg-muted" : "hover:bg-muted"}`}>ACL</Link>
-                <Link to="/call_block" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/call_block" ? "bg-muted" : "hover:bg-muted"}`}>Block</Link>
-                <Link to="/call_centers" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/call_centers" ? "bg-muted" : "hover:bg-muted"}`}>Call Centers</Link>
-                <Link to="/fifo" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/fifo" ? "bg-muted" : "hover:bg-muted"}`}>Fifo</Link>
-                <Link to="/bridges" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/bridges" ? "bg-muted" : "hover:bg-muted"}`}>Bridges</Link>
-                <Link to="/streams" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/streams" ? "bg-muted" : "hover:bg-muted"}`}>Streams</Link>
-                <Link to="/phrases" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/phrases" ? "bg-muted" : "hover:bg-muted"}`}>Phrases</Link>
-                <Link to="/pin_numbers" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/pin_numbers" ? "bg-muted" : "hover:bg-muted"}`}>PINs</Link>
-                <Link to="/destinations" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/destinations" ? "bg-muted" : "hover:bg-muted"}`}>Destinations</Link>
-                <Link to="/follow_me" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/follow_me" ? "bg-muted" : "hover:bg-muted"}`}>FollowMe</Link>
-                <Link to="/music_on_hold" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/music_on_hold" ? "bg-muted" : "hover:bg-muted"}`}>MOH</Link>
-                <Link to="/call_flows" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/call_flows" ? "bg-muted" : "hover:bg-muted"}`}>Call Flows</Link>
-                <Link to="/fax" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/fax" ? "bg-muted" : "hover:bg-muted"}`}>Fax</Link>
-                <Link to="/fax_queue" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/fax_queue" ? "bg-muted" : "hover:bg-muted"}`}>Fax Queue</Link>
-                <Link to="/vars" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/vars" ? "bg-muted" : "hover:bg-muted"}`}>Vars</Link>
-                <Link to="/number_translations" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/number_translations" ? "bg-muted" : "hover:bg-muted"}`}>Number Trans</Link>
-                <Link to="/call_broadcasts" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/call_broadcasts" ? "bg-muted" : "hover:bg-muted"}`}>Broadcasts</Link>
-                <Link to="/emergency_logs" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/emergency_logs" ? "bg-muted" : "hover:bg-muted"}`}>Emergency</Link>
-                <Link to="/voicemail_greetings" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/voicemail_greetings" ? "bg-muted" : "hover:bg-muted"}`}>VM Greetings</Link>
-                <Link to="/extension_settings" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/extension_settings" ? "bg-muted" : "hover:bg-muted"}`}>Ext Settings</Link>
-                <Link to="/email_queue" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/email_queue" ? "bg-muted" : "hover:bg-muted"}`}>Email Queue</Link>
-                <Link to="/sofia_global_settings" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/sofia_global_settings" ? "bg-muted" : "hover:bg-muted"}`}>Sofia Global</Link>
-                <Link to="/feature_codes" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/feature_codes" ? "bg-muted" : "hover:bg-muted"}`}>Feature Codes</Link>
-                <Link to="/database_transactions" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/database_transactions" ? "bg-muted" : "hover:bg-muted"}`}>DB Transactions</Link>
-                <Link to="/event_guard" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/event_guard" ? "bg-muted" : "hover:bg-muted"}`}>Event Guard</Link>
-                <Link to="/modules" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/modules" ? "bg-muted" : "hover:bg-muted"}`}>Modules</Link>
-                <Link to="/active_calls" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/active_calls" ? "bg-muted" : "hover:bg-muted"}`}>Active Calls</Link>
-                <Link to="/registrations" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/registrations" ? "bg-muted" : "hover:bg-muted"}`}>Registrations</Link>
-                <Link to="/operator_panel" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/operator_panel" ? "bg-muted" : "hover:bg-muted"}`}>Operator</Link>
-                <Link to="/logs" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/logs" ? "bg-muted" : "hover:bg-muted"}`}>Logs</Link>
-                <Link to="/domain_limits" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/domain_limits" ? "bg-muted" : "hover:bg-muted"}`}>Limits</Link>
-                <Link to="/users" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/users" ? "bg-muted" : "hover:bg-muted"}`}>Users & Groups</Link>
-                <Link to="/domains" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/domains" ? "bg-muted" : "hover:bg-muted"}`}>Tenants</Link>
-                <Link to="/plugins" className={`rounded px-3 py-2 text-sm ${loc.pathname === "/plugins" ? "bg-muted" : "hover:bg-muted"}`}>Plugins</Link>
+                  {desktopAdvanced.filter((it) => isEnabled(it.app)).map((it) => (
+                    <Link
+                      key={it.to}
+                      to={it.to}
+                      className={`rounded px-3 py-2 text-sm ${loc.pathname === it.to ? "bg-muted font-medium" : "hover:bg-muted"}`}
+                    >
+                      {it.label}
+                    </Link>
+                  ))}
               </div>
             </details>
           </div>
@@ -205,23 +237,16 @@ function Nav() {
             <div className="mt-4 border-t pt-4">
               <span className="px-3 py-2 text-sm font-medium">Advanced</span>
               <div className="flex flex-col gap-1 mt-1">
-                <Link to="/ivr" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">IVR Menus</Link>
-                <Link to="/sip_profiles" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">SIP Profiles</Link>
-                <Link to="/ring_groups" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">Ring Groups</Link>
-                <Link to="/time_conditions" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">Time Conditions</Link>
-                <Link to="/voicemails" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">Voicemails</Link>
-                <Link to="/conferences" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">Conferences</Link>
-                <Link to="/call_flows" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">Call Flows</Link>
-                <Link to="/music_on_hold" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">MOH</Link>
-                <Link to="/fifo" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">Fifo</Link>
-                <Link to="/call_centers" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">Call Centers</Link>
-                <Link to="/access_controls" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">ACL</Link>
-                <Link to="/active_calls" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">Active Calls</Link>
-                <Link to="/operator_panel" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">Operator</Link>
-                <Link to="/logs" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">Logs</Link>
-                <Link to="/users" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">Users & Groups</Link>
-                <Link to="/domains" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">Tenants</Link>
-                <Link to="/plugins" onClick={() => setOpen(false)} className="rounded px-3 py-3 text-base hover:bg-muted border">Plugins</Link>
+                {mobileAdvanced.filter((it) => isEnabled(it.app)).map((it) => (
+                  <Link
+                    key={it.to}
+                    to={it.to}
+                    onClick={() => setOpen(false)}
+                    className="rounded px-3 py-3 text-base hover:bg-muted border"
+                  >
+                    {it.label}
+                  </Link>
+                ))}
               </div>
             </div>
           </nav>
