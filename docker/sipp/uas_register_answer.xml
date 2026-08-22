@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+<!-- Register as [field0]@[field1], answer any INVITE, hold ~5s, BYE, re-register.
+     CSV fields: field0 = extension number, field1 = domain name. -->
+<scenario name="register_and_answer">
+
+  <label id="register"/>
+
+  <!-- 1st REGISTER (no auth) -->
+  <send retrans="500">
+    <![CDATA[
+REGISTER sip:[field1] SIP/2.0
+Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+From: <sip:[field0]@[field1]>;tag=[call_number]
+To: <sip:[field0]@[field1]>
+Call-ID: reg-[call_number]@[local_ip]
+CSeq: 1 REGISTER
+Contact: <sip:[field0]@[local_ip]:[local_port];transport=[transport]>
+Max-Forwards: 70
+Expires: 60
+Content-Length: 0
+]]>
+  </send>
+
+  <recv response="401" next="auth"/>
+  <recv response="200" next="wait"/>
+
+  <!-- 2nd REGISTER with digest credentials from the 401 challenge -->
+  <label id="auth"/>
+
+  <send retrans="500">
+    <![CDATA[
+REGISTER sip:[field1] SIP/2.0
+Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+From: <sip:[field0]@[field1]>;tag=[call_number]
+To: <sip:[field0]@[field1]>
+Call-ID: reg-[call_number]@[local_ip]
+CSeq: 2 REGISTER
+Contact: <sip:[field0]@[local_ip]:[local_port];transport=[transport]>
+Authorization: [authentication username=[field0] password=1234]
+Max-Forwards: 70
+Expires: 60
+Content-Length: 0
+]]>
+  </send>
+
+  <recv response="200" next="wait" rtd="true"/>
+
+  <!-- wait for INVITE from FreeSWITCH -->
+  <label id="wait"/>
+
+  <recv request="INVITE" rrs="true"/>
+  <send>
+    <![CDATA[
+SIP/2.0 180 Ringing
+[last_Via:]
+[last_From:]
+[last_To:];tag=[call_number]
+[last_Call-ID:]
+[last_CSeq:]
+Contact: <sip:[field0]@[local_ip]:[local_port];transport=[transport]>
+Content-Length: 0
+]]>
+  </send>
+
+  <send retrans="500">
+    <![CDATA[
+SIP/2.0 200 OK
+[last_Via:]
+[last_From:]
+[last_To:];tag=[call_number]
+[last_Call-ID:]
+[last_CSeq:]
+Contact: <sip:[field0]@[local_ip]:[local_port];transport=[transport]>
+Content-Type: application/sdp
+Content-Length: [len]
+
+v=0
+o=userns 53655765 235368767 IN IP4 [local_ip]
+s=-
+c=IN IP4 [local_ip]
+t=0 0
+m=audio [media_port] RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+]]>
+  </send>
+
+  <recv request="ACK" optional="true"/>
+  <pause milliseconds="5000"/>
+
+  <send retrans="500">
+    <![CDATA[
+BYE sip:[remote_ip]:[remote_port] SIP/2.0
+Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+From: <sip:[field0]@[field1]>;tag=[call_number]
+[last_From:]
+Call-ID: [last_Call-ID:]
+CSeq: 2 BYE
+Max-Forwards: 70
+Content-Length: 0
+]]>
+  </send>
+
+  <recv response="200" timeout="5000"/>
+
+  <!-- loop forever: re-register and wait for the next call -->
+  <pause milliseconds="1000" next="register"/>
+
+</scenario>

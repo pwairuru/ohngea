@@ -2,7 +2,12 @@ import json
 from typing import Optional
 
 try:
-    import redis.asyncio as redis
+    # Prefer valkey, fallback to redis for backwards compat
+    try:
+        import valkey.asyncio as redis  # type: ignore[import-not-found]
+    except ImportError:
+        import redis.asyncio as redis  # type: ignore[no-redef]
+
     from app.config import settings
 
     _redis = None
@@ -10,10 +15,12 @@ try:
     def get_redis():
         global _redis
         if _redis is None:
-            _redis = redis.from_url(settings.redis_url, decode_responses=True)
+            # valkey_url is primary, fallback to redis_url
+            url = getattr(settings, "valkey_url", getattr(settings, "redis_url", "valkey://localhost:6379/0"))
+            _redis = redis.from_url(url, decode_responses=True)
         return _redis
 except Exception:
-    get_redis = lambda: None
+    get_redis = lambda: None  # type: ignore
 
 
 async def cache_get(key: str) -> Optional[str]:

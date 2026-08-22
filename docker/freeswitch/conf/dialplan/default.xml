@@ -1,0 +1,5 @@
+<!-- Local fallback only — real dialplan is served by the API via xml_curl.
+     This context exists so FS startup never fails on a missing include. -->
+<include>
+  <context name="default"/>
+</include>

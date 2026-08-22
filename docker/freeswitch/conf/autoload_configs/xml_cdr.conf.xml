@@ -1,0 +1,11 @@
+<configuration name="xml_cdr.conf" description="XML CDR POST to Ohngea PBX">
+  <settings>
+    <param name="url" value="http://api:8000/api/v1/cdr/import"/>
+    <!-- raw XML body so the API parser sees it directly -->
+    <param name="encode" value="false"/>
+    <param name="leg" value="both"/>
+    <!-- disable local file logging; the API is the sink -->
+    <param name="log-dir" value=""/>
+    <param name="err-log-dir" value="/tmp"/>
+  </settings>
+</configuration>

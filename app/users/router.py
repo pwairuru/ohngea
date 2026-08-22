@@ -49,4 +49,36 @@ async def create_user(payload: dict, response: Response, session: AsyncSession =
     await session.commit()
     await session.refresh(u)
     response.headers["Location"] = f"/api/v1/users/{u.user_uuid}"
-    return {"user_uuid": str(u.user_uuid), "username": u.username, "_links": {"self": {"href": f"/api/v1/users/{u.user_uuid}"}}}
+    return {"user_uuid": str(u.user_uuid), "username": u.username, "email": u.email, "enabled": u.enabled, "_links": {"self": {"href": f"/api/v1/users/{u.user_uuid}"}}}
+
+
+@router.patch("/{user_uuid}")
+async def patch_user(user_uuid: UUID, payload: dict, session: AsyncSession = Depends(get_session), current: User = Depends(require_permission("domain_add"))):
+    domain_id = getattr(current, "_domain_id", current.domain_id)
+    await set_tenant(session, domain_id)
+    r = await session.execute(select(User).where(User.user_uuid == user_uuid, User.domain_id == domain_id))
+    u = r.scalar_one_or_none()
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    for k in ["username", "email", "enabled"]:
+        if k in payload:
+            setattr(u, k, payload[k])
+    if "password" in payload and payload["password"]:
+        from app.auth.service import hash_password
+        u.password_hash = hash_password(payload["password"])
+    await session.commit()
+    await session.refresh(u)
+    return {"user_uuid": str(u.user_uuid), "username": u.username, "email": u.email, "enabled": u.enabled, "_links": {"self": {"href": f"/api/v1/users/{u.user_uuid}"}}}
+
+
+@router.delete("/{user_uuid}", status_code=204)
+async def delete_user(user_uuid: UUID, session: AsyncSession = Depends(get_session), current: User = Depends(require_permission("domain_add"))):
+    domain_id = getattr(current, "_domain_id", current.domain_id)
+    await set_tenant(session, domain_id)
+    r = await session.execute(select(User).where(User.user_uuid == user_uuid, User.domain_id == domain_id))
+    u = r.scalar_one_or_none()
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    await session.delete(u)
+    await session.commit()
+    return Response(status_code=204)

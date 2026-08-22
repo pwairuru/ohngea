@@ -1,3 +1,4 @@
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -6,10 +7,21 @@ class Settings(BaseSettings):
 
     All fields have sane defaults for local dev; override via .env or env vars.
     See .env.example for documentation.
+    Valkey is primary cache/broker; REDIS_URL kept for backwards compat and celery.
     """
 
     database_url: str = "postgresql+asyncpg://ohngea:ohngea@localhost:5432/ohngea"
-    redis_url: str = "redis://localhost:6379/0"
+    # Primary cache URL (valkey). Supports valkey://, valkeys://, redis://, rediss:// for migration.
+    valkey_url: str = Field(
+        default="valkey://localhost:6379/0",
+        validation_alias=AliasChoices("VALKEY_URL", "REDIS_URL"),
+    )
+    # Deprecated alias — celery/kombu still require redis:// scheme, so keep separate field.
+    # This will be derived from valkey_url if only VALKEY_URL is set.
+    redis_url: str = Field(
+        default="redis://localhost:6379/0",
+        validation_alias=AliasChoices("REDIS_URL"),
+    )
     jwt_secret: str = "dev-secret-change"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24
@@ -25,6 +37,33 @@ class Settings(BaseSettings):
         extra="ignore",
         case_sensitive=False,
     )
+
+    @model_validator(mode="after")
+    def _sync_valkey_redis_urls(self):  # type: ignore[no-redef]
+        """Sync valkey/redis URLs for backwards compat.
+
+        - If only REDIS_URL was set (valkey_url still default via REDIS_URL alias fallback),
+          keep redis_url as source, but ensure valkey_url reflects same host (supports redis://).
+        - If only VALKEY_URL was set (redis_url still default), derive redis_url with redis:// scheme
+          for celery/kombu which only understands redis://.
+        """
+        default_valkey = "valkey://localhost:6379/0"
+        default_redis = "redis://localhost:6379/0"
+        # When both were explicitly set (docker-compose sets both), do nothing.
+        # When valkey is default but redis is customized, valkey already got REDIS_URL via alias,
+        # so no action needed — but handle case where alias didn't populate due to validation_alias ordering.
+        if self.valkey_url == default_valkey and self.redis_url != default_redis:
+            # REDIS_URL set, VALKEY_URL not — copy (valkey-py supports redis://)
+            self.valkey_url = self.redis_url
+        elif self.redis_url == default_redis and self.valkey_url != default_valkey:
+            # VALKEY_URL set, REDIS_URL not — derive redis:// for celery
+            if self.valkey_url.startswith("valkey://"):
+                self.redis_url = self.valkey_url.replace("valkey://", "redis://", 1)
+            elif self.valkey_url.startswith("valkeys://"):
+                self.redis_url = self.valkey_url.replace("valkeys://", "rediss://", 1)
+            else:
+                self.redis_url = self.valkey_url
+        return self
 
 
 settings = Settings()

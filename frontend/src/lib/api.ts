@@ -15,6 +15,17 @@ export async function apiFetch(path: string, opts: RequestInit = {}) {
   const res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
   if (!res.ok) {
     const txt = await res.text();
+    if (res.status === 401) {
+      // clear stale token and redirect to login if not already there
+      const isLogin = window.location.pathname === "/login" || window.location.pathname === "/setup";
+      if (!isLogin) {
+        localStorage.removeItem("token");
+        // allow caller to handle, but also redirect
+        // use location to avoid React Router hook outside component
+        const next = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = `/login?next=${next}`;
+      }
+    }
     throw new Error(`${res.status} ${txt}`);
   }
   // handle 204

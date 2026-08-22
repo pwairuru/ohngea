@@ -1,7 +1,8 @@
 import * as React from "react";
 import { cn } from "../../lib/utils";
 
-export function Button({ className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+export function Button({ className, variant, size, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) {
+  void variant; void size;
   return (
     <button
       className={cn(

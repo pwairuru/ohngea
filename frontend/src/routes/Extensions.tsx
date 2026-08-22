@@ -16,6 +16,7 @@ export function Extensions() {
   const [open, setOpen] = React.useState(false);
   const [step, setStep] = React.useState(1);
   const [form, setForm] = React.useState({ extension: "", effective_caller_id_name: "", effective_caller_id_number: "", enabled: true });
+  const [editing, setEditing] = React.useState<any | null>(null);
   const [csvOpen, setCsvOpen] = React.useState(false);
   const [csvText, setCsvText] = React.useState("extension,name\n1001,Alice\n1002,Bob");
 
@@ -28,10 +29,24 @@ export function Extensions() {
   React.useEffect(() => { load(); }, [load]);
 
   const create = async () => {
-    // for demo: need domain_id — fetch first domain
     try {
-      const domains = await apiFetch("/domains");
-      const domain_id = domains[0]?.domain_id || domains.data?.[0]?.domain_id;
+      if (editing) {
+        await apiFetch(`/extensions/${editing.extension_uuid}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            extension: form.extension,
+            effective_caller_id_name: form.effective_caller_id_name,
+            effective_caller_id_number: form.effective_caller_id_number,
+            enabled: form.enabled,
+          }),
+        });
+        setOpen(false); setStep(1); setEditing(null);
+        setForm({ extension: "", effective_caller_id_name: "", effective_caller_id_number: "", enabled: true });
+        load();
+        return;
+      }
+      const me = await apiFetch("/auth/me");
+      const domain_id = me.domain_id;
       if (!domain_id) { alert("No domain found — create domain first"); return; }
       await apiFetch("/extensions", { method: "POST", body: JSON.stringify({ ...form, domain_id }) });
       setOpen(false); setStep(1); setForm({ extension: "", effective_caller_id_name: "", effective_caller_id_number: "", enabled: true });
@@ -39,16 +54,49 @@ export function Extensions() {
     } catch (e: any) { alert(e.message); }
   };
 
+  const startEdit = (e: any) => {
+    setEditing(e);
+    setForm({
+      extension: e.extension || "",
+      effective_caller_id_name: e.effective_caller_id_name || "",
+      effective_caller_id_number: e.effective_caller_id_number || "",
+      enabled: !!e.enabled,
+    });
+    setStep(1);
+    setOpen(true);
+  };
+
+  const startCreate = () => {
+    setEditing(null);
+    setForm({ extension: "", effective_caller_id_name: "", effective_caller_id_number: "", enabled: true });
+    setStep(1);
+    setOpen(true);
+  };
+
+  const toggleEnabled = async (e: any) => {
+    try {
+      await apiFetch(`/extensions/${e.extension_uuid}`, { method: "PATCH", body: JSON.stringify({ enabled: !e.enabled }) });
+      load();
+    } catch (err: any) { alert(err.message); }
+  };
+
+  const deleteExt = async (e: any) => {
+    if (!confirm(`Delete extension ${e.extension}?`)) return;
+    try {
+      await apiFetch(`/extensions/${e.extension_uuid}`, { method: "DELETE" });
+      load();
+    } catch (err: any) { alert(err.message); }
+  };
+
   const parseCsv = async () => {
     const lines = csvText.split("\n").filter(Boolean);
-    const header = lines[0].split(",");
     const rows = lines.slice(1).map((l) => {
       const v = l.split(",");
       return { extension: v[0], effective_caller_id_name: v[1] };
     });
     try {
-      const domains = await apiFetch("/domains");
-      const domain_id = domains[0]?.domain_id || domains.data?.[0]?.domain_id;
+      const me = await apiFetch("/auth/me");
+      const domain_id = me.domain_id;
       const payload = rows.map((r) => ({ ...r, domain_id, enabled: true }));
       await apiFetch("/extensions:batch", { method: "POST", body: JSON.stringify(payload) });
       setCsvOpen(false); load();
@@ -61,7 +109,7 @@ export function Extensions() {
         <h1 className="text-2xl font-bold">Extensions</h1>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setCsvOpen(true)}>CSV Import</Button>
-          <Button onClick={() => setOpen(true)}>Add Extension</Button>
+          <Button onClick={startCreate}>Add Extension</Button>
         </div>
       </div>
 
@@ -89,7 +137,13 @@ export function Extensions() {
                   <TableCell>{e.effective_caller_id_name}</TableCell>
                   <TableCell>{e.effective_caller_id_number || "-"}</TableCell>
                   <TableCell>{e.enabled ? <Badge>enabled</Badge> : <Badge className="bg-muted text-muted-foreground">disabled</Badge>}</TableCell>
-                  <TableCell><Button variant="outline" className="h-8">Edit</Button></TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button variant="outline" className="h-8" onClick={() => startEdit(e)}>Edit</Button>
+                      <Button variant="outline" className="h-8" onClick={() => toggleEnabled(e)} title={e.enabled ? "Disable" : "Enable"}>{e.enabled ? "Disable" : "Enable"}</Button>
+                      <Button variant="outline" className="h-8 text-red-600 border-red-200 hover:bg-red-50" onClick={() => deleteExt(e)}>Delete</Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
               {data.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No extensions — try Add or CSV Import</TableCell></TableRow>}
@@ -107,6 +161,11 @@ export function Extensions() {
             </div>
             <div className="text-sm font-medium">{e.effective_caller_id_name}</div>
             <div className="text-xs text-muted-foreground">{e.effective_caller_id_number || "no number"}</div>
+            <div className="flex gap-2 mt-3">
+              <Button variant="outline" className="flex-1 h-8" onClick={() => startEdit(e)}>Edit</Button>
+              <Button variant="outline" className="flex-1 h-8" onClick={() => toggleEnabled(e)}>{e.enabled ? "Disable" : "Enable"}</Button>
+              <Button variant="outline" className="flex-1 h-8 text-red-600" onClick={() => deleteExt(e)}>Delete</Button>
+            </div>
           </Card>
         ))}
         {data.length === 0 && <Card className="p-8 text-center text-muted-foreground">No extensions</Card>}
@@ -121,8 +180,8 @@ export function Extensions() {
         </div>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogHeader><DialogTitle>Add Extension — Step {step} of 3</DialogTitle></DialogHeader>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); setStep(1); } }}>
+        <DialogHeader><DialogTitle>{editing ? "Edit Extension" : "Add Extension"} — Step {step} of 3</DialogTitle></DialogHeader>
         <div className="flex gap-1 mb-4">
           {[1, 2, 3].map((s) => <div key={s} className={`h-1 flex-1 rounded ${s <= step ? "bg-primary" : "bg-muted"}`} />)}
         </div>
@@ -148,8 +207,8 @@ export function Extensions() {
         )}
         {step === 3 && (
           <div className="space-y-3">
-            <Card><CardContent className="pt-4 text-sm space-y-1"><div>Extension: <span className="font-mono">{form.extension}</span></div><div>Name: {form.effective_caller_id_name}</div><div>Number: {form.effective_caller_id_number || "-"}</div></CardContent></Card>
-            <div className="flex gap-2"><Button variant="outline" onClick={() => setStep(2)} className="flex-1">Back</Button><Button onClick={create} className="flex-1">Create</Button></div>
+            <Card><CardContent className="pt-4 text-sm space-y-1"><div>Extension: <span className="font-mono">{form.extension}</span></div><div>Name: {form.effective_caller_id_name}</div><div>Number: {form.effective_caller_id_number || "-"}</div><div className="flex items-center gap-2 pt-2"><input type="checkbox" id="ext-enabled" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} className="h-4 w-4" /><Label htmlFor="ext-enabled" className="cursor-pointer">{form.enabled ? "Enabled" : "Disabled"}</Label></div></CardContent></Card>
+            <div className="flex gap-2"><Button variant="outline" onClick={() => setStep(2)} className="flex-1">Back</Button><Button onClick={create} className="flex-1">{editing ? "Save" : "Create"}</Button></div>
           </div>
         )}
       </Dialog>

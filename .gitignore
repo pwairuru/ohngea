@@ -9,3 +9,13 @@ dist/
 uv.lock
 # legacy reference clone has its own repo - do not track as nested submodule
 ohngea/
+# test / build artifacts
+.playwright-mcp/
+test-results/
+frontend/test-results/
+frontend/dist/
+.playwright/
+*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
+frontend/tsconfig.node.tsbuildinfo
+coverage/

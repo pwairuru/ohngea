@@ -8,7 +8,8 @@ def test_settings_importable():
 
     assert settings is not None
     assert hasattr(settings, "database_url")
-    assert hasattr(settings, "redis_url")
+    assert hasattr(settings, "valkey_url")
+    assert hasattr(settings, "redis_url")  # deprecated alias kept for celery
     assert hasattr(settings, "jwt_secret")
     assert hasattr(settings, "fs_esl_host")
     assert hasattr(settings, "fs_esl_port")
@@ -22,6 +23,7 @@ def test_settings_defaults():
     # defaults as per spec / brief
     assert "asyncpg" in settings.database_url
     assert "postgresql" in settings.database_url
+    assert settings.valkey_url.startswith("valkey://") or settings.valkey_url.startswith("redis://")
     assert settings.redis_url.startswith("redis://")
     assert settings.fs_esl_host == "127.0.0.1"
     assert settings.fs_esl_port == 8021

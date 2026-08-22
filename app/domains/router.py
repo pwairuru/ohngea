@@ -1,7 +1,8 @@
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +14,34 @@ from app.domains.schemas import DomainCreate, DomainRead, DomainUpdate, ThemeRea
 from app.domains.service import create_domain
 
 router = APIRouter(prefix="/api/v1/domains", tags=["domains"])
+
+
+@router.get("/bootstrap/status", response_model=dict)
+async def bootstrap_status(session: AsyncSession = Depends(get_session)):
+    """Public — check if initial setup is needed (no domains exist)."""
+    result = await session.execute(select(Domain).limit(1))
+    exists = result.scalar_one_or_none() is not None
+    return {"needs_setup": not exists, "has_domains": exists}
+
+
+class BootstrapRequest(BaseModel):
+    domain_name: str
+    admin_username: str = "admin"
+    admin_password: str = "admin"
+    admin_email: Optional[str] = None
+    description: Optional[str] = None
+
+
+@router.post("/bootstrap", response_model=DomainRead, status_code=201)
+async def bootstrap_domain(payload: BootstrapRequest, response: Response, session: AsyncSession = Depends(get_session)):
+    """Public — create first domain without auth if no domains exist. Returns 409 if already bootstrapped."""
+    result = await session.execute(select(Domain).limit(1))
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Already bootstrapped — use authenticated POST /api/v1/domains")
+    data = DomainCreate(domain_name=payload.domain_name, enabled=True, description=payload.description)
+    domain = await create_domain(session, data, admin_username=payload.admin_username, admin_password=payload.admin_password)
+    response.headers["Location"] = f"/api/v1/domains/{domain.domain_id}"
+    return domain
 
 
 @router.get("", response_model=List[DomainRead])

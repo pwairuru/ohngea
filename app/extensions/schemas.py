@@ -5,10 +5,13 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from app.extensions.models import ExtensionBase
+from typing import Optional as _Optional
+from uuid import UUID as _UUID
 
 
 class ExtensionCreate(ExtensionBase):
-    pass
+    # allow missing domain_id — router auto-fills from JWT
+    domain_id: _Optional[_UUID] = None  # type: ignore[assignment]
 
 
 class ExtensionUpdate(BaseModel):

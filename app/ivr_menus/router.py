@@ -16,7 +16,7 @@ async def list_ivr(response: Response, page: int = Query(1, ge=1), per_page: int
     await set_tenant(session, domain_id)
     total = (await session.execute(select(func.count()).select_from(select(IvrMenu).where(IvrMenu.domain_id == domain_id).subquery()))).scalar() or 0
     r = await session.execute(select(IvrMenu).where(IvrMenu.domain_id == domain_id).offset((page - 1) * per_page).limit(per_page))
-    data = [{"ivr_menu_uuid": str(m.ivr_menu_uuid), "name": m.name, "enabled": m.enabled, "_links": {"self": {"href": f"/api/v1/ivr_menus/{m.ivr_menu_uuid}"}}} for m in r.scalars().all()]
+    data = [{"ivr_menu_uuid": str(m.ivr_menu_uuid), "name": m.name, "extension": m.extension, "enabled": m.enabled, "_links": {"self": {"href": f"/api/v1/ivr_menus/{m.ivr_menu_uuid}"}}} for m in r.scalars().all()]
     response.headers["X-Total-Count"] = str(total)
     if page * per_page < total:
         response.headers["Link"] = f'</api/v1/ivr_menus?page={page+1}&per_page={per_page}>; rel="next"'
@@ -49,4 +49,41 @@ async def get_ivr(ivr_menu_uuid: UUID, session: AsyncSession = Depends(get_sessi
         raise HTTPException(status_code=404, detail="IVR not found")
     opts = await session.execute(select(IvrMenuOption).where(IvrMenuOption.ivr_menu_uuid == m.ivr_menu_uuid).order_by(IvrMenuOption.order))
     options = [{"digits": o.digits, "action": o.action, "param": o.param} for o in opts.scalars().all()]
-    return {"ivr_menu_uuid": str(m.ivr_menu_uuid), "name": m.name, "options": options, "_links": {"self": {"href": f"/api/v1/ivr_menus/{m.ivr_menu_uuid}"}}}
+    return {"ivr_menu_uuid": str(m.ivr_menu_uuid), "name": m.name, "extension": m.extension, "enabled": m.enabled, "options": options, "_links": {"self": {"href": f"/api/v1/ivr_menus/{m.ivr_menu_uuid}"}}}
+
+
+@router.patch("/{ivr_menu_uuid}")
+async def patch_ivr(ivr_menu_uuid: UUID, payload: dict, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("dialplan_view"))):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    r = await session.execute(select(IvrMenu).where(IvrMenu.ivr_menu_uuid == ivr_menu_uuid, IvrMenu.domain_id == domain_id))
+    m = r.scalar_one_or_none()
+    if not m:
+        raise HTTPException(status_code=404, detail="IVR not found")
+    for k in ["name", "extension", "enabled"]:
+        if k in payload:
+            setattr(m, k, payload[k])
+    if "options" in payload and isinstance(payload["options"], list):
+        # replace options
+        old = await session.execute(select(IvrMenuOption).where(IvrMenuOption.ivr_menu_uuid == m.ivr_menu_uuid))
+        for o in old.scalars().all():
+            await session.delete(o)
+        for idx, opt in enumerate(payload["options"]):
+            o = IvrMenuOption(ivr_menu_uuid=m.ivr_menu_uuid, digits=opt.get("digits"), action=opt.get("action"), param=opt.get("param"), order=idx)
+            session.add(o)
+    await session.commit()
+    await session.refresh(m)
+    return {"ivr_menu_uuid": str(m.ivr_menu_uuid), "name": m.name, "extension": m.extension, "enabled": m.enabled, "_links": {"self": {"href": f"/api/v1/ivr_menus/{m.ivr_menu_uuid}"}}}
+
+
+@router.delete("/{ivr_menu_uuid}", status_code=204)
+async def delete_ivr(ivr_menu_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("dialplan_view"))):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    r = await session.execute(select(IvrMenu).where(IvrMenu.ivr_menu_uuid == ivr_menu_uuid, IvrMenu.domain_id == domain_id))
+    m = r.scalar_one_or_none()
+    if not m:
+        raise HTTPException(status_code=404, detail="IVR not found")
+    await session.delete(m)
+    await session.commit()
+    return Response(status_code=204)

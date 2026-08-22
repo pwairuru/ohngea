@@ -64,7 +64,7 @@ export function Plugins() {
           <Card key={p.name} className="p-4 flex flex-col">
             <div className="flex justify-between items-start">
               <div className="font-bold capitalize">{p.name.replace("_", " ")}</div>
-              <Badge variant="outline">{p.license}</Badge>
+              <Badge>{p.license}</Badge>
             </div>
             <div className="text-xs text-muted-foreground mt-1">{p.description}</div>
             <div className="text-xs mt-2">routes: <code>{(p.routes || []).join(", ") || `/api/v1/${p.name}`}</code></div>

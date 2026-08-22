@@ -16,11 +16,15 @@ async def create_extension(session: AsyncSession, data: ExtensionCreate) -> Exte
     session.add(ext)
     await session.commit()
     await session.refresh(ext)
-    # invalidate cache if redis available (best effort)
+    # invalidate cache if valkey/redis available (best effort)
     try:
-        import redis.asyncio as redis
+        try:
+            import valkey.asyncio as redis  # type: ignore[import-not-found]
+        except ImportError:
+            import redis.asyncio as redis  # type: ignore[no-redef]
         from app.config import settings
-        r = redis.from_url(settings.redis_url)
+        url = getattr(settings, "valkey_url", settings.redis_url)
+        r = redis.from_url(url)
         await r.delete(f"xml:{data.domain_id}:directory")
         await r.aclose()
     except Exception:

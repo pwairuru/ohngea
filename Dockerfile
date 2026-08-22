@@ -13,16 +13,14 @@ RUN if [ -f frontend/package.json ]; then \
     fi
 
 # ---------- Python runtime ----------
-FROM python:3.12-slim AS runtime
+FROM python:3.14-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
-# System deps for healthcheck only — lxml/asyncpg use wheels, no build needed
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
+# No extra system deps — lxml/asyncpg use wheels, healthcheck uses python stdlib
 
 # Install Python deps
 COPY pyproject.toml README.md* ./
@@ -42,6 +40,6 @@ RUN mkdir -p /app/static
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD python -c "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').getcode()==200 else 1)" || exit 1
 
 CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", "-w", "2", "--bind", "0.0.0.0:8000", "--access-logfile", "-", "--timeout", "120", "--graceful-timeout", "30"]

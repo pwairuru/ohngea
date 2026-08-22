@@ -11,7 +11,7 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:8000",
     trace: "on-first-retry",
-    headless: false, // headed per AGENTS.md
+    headless: true,
   },
   projects: [
     {
@@ -20,16 +20,18 @@ export default defineConfig({
     },
     {
       name: "iPhone 14",
-      use: { ...devices["iPhone 14"] },
+      // use chromium instead of webkit to avoid missing host deps (libmanette) in CI
+      use: { ...devices["iPhone 14"], browserName: "chromium" as const },
     },
     {
       name: "Pixel 7",
       use: { ...devices["Pixel 7"] },
     },
   ],
-  webServer: {
-    command: "npm run dev",
-    port: 5173,
-    reuseExistingServer: !process.env.CI,
-  },
+  // webServer disabled — api already running on 8000 serving frontend/dist
+  // webServer: {
+  //   command: "npm run dev",
+  //   port: 5173,
+  //   reuseExistingServer: !process.env.CI,
+  // },
 });

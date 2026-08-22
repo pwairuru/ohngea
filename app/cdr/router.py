@@ -55,22 +55,25 @@ def parse_cdr_xml(xml_str: str, default_domain_id: Optional[UUID] = None) -> dic
     data["direction"] = find("direction") or "inbound"
     data["sip_call_id"] = find("sip_call_id") or find("uuid") or None
     data["hangup_cause"] = find("hangup_cause") or None
-    # domain
-    dom = find("domain_name") or find("domain_uuid") or None
-    if dom and default_domain_id:
-        data["domain_id"] = default_domain_id
+    # Domain resolution for mod_xml_cdr payloads:
+    # prefer an explicit domain_uuid variable, else keep domain_name for a
+    # DB lookup by the caller (import endpoint), else fall back to default.
+    dom_uuid = find("domain_uuid")
+    dom_name = find("domain_name")
+    resolved = None
+    if dom_uuid:
+        try:
+            resolved = UUID(dom_uuid.strip())
+        except ValueError:
+            resolved = None
+    if resolved:
+        data["domain_id"] = resolved
     elif default_domain_id:
         data["domain_id"] = default_domain_id
-    else:
-        # try find domain_uuid tag
-        try:
-            if dom:
-                data["domain_id"] = UUID(dom)
-            else:
-                data["domain_id"] = default_domain_id
-        except Exception:
-            data["domain_id"] = default_domain_id
-    if not data.get("domain_id"):
+    elif dom_name:
+        data["_domain_name"] = dom_name
+        data["domain_id"] = None
+    if not data.get("domain_id") and not data.get("_domain_name"):
         raise HTTPException(status_code=400, detail="domain_id required for CDR")
     return data
 
@@ -83,12 +86,16 @@ async def import_cdr(
     session: AsyncSession = Depends(get_session),
 ):
     # FS may not be authed via JWT; allow either JWT or basic? For now allow without auth if FS IP, or require JWT
-    # Check Idempotency via Redis
+    # Check Idempotency via Valkey/Redis
     if idempotency_key:
         try:
-            import redis.asyncio as redis
+            try:
+                import valkey.asyncio as redis  # type: ignore[import-not-found]
+            except ImportError:
+                import redis.asyncio as redis  # type: ignore[no-redef]
             from app.config import settings
-            r = redis.from_url(settings.redis_url)
+            url = getattr(settings, "valkey_url", settings.redis_url)
+            r = redis.from_url(url)
             exists = await r.get(f"idempotency:{idempotency_key}")
             if exists:
                 response.headers["Location"] = exists.decode() if isinstance(exists, bytes) else exists
@@ -129,6 +136,16 @@ async def import_cdr(
 
     if "xml" in content_type or body.strip().startswith(b"<"):
         data = parse_cdr_xml(body.decode("utf-8", errors="ignore"), domain_id)
+        # resolve domain_name-only CDRs (typical mod_xml_cdr) via domains table
+        dom_name = data.pop("_domain_name", None)
+        if not data.get("domain_id") and dom_name:
+            from app.domains.models import Domain
+
+            r = await session.execute(select(Domain).where(Domain.domain_name == dom_name))
+            dom = r.scalar_one_or_none()
+            if not dom:
+                raise HTTPException(status_code=404, detail=f"Unknown domain: {dom_name}")
+            data["domain_id"] = dom.domain_id
     else:
         # try JSON
         try:
@@ -166,9 +183,13 @@ async def import_cdr(
     # store idempotency
     if idempotency_key:
         try:
-            import redis.asyncio as redis
+            try:
+                import valkey.asyncio as redis  # type: ignore[import-not-found]
+            except ImportError:
+                import redis.asyncio as redis  # type: ignore[no-redef]
             from app.config import settings
-            r = redis.from_url(settings.redis_url)
+            url = getattr(settings, "valkey_url", settings.redis_url)
+            r = redis.from_url(url)
             await r.setex(f"idempotency:{idempotency_key}", 86400, location)
             await r.aclose()
         except Exception:
@@ -277,7 +298,7 @@ async def analytics_summary(session: AsyncSession = Depends(get_session), user: 
     total = (await session.execute(select(func.count()).select_from(select(Cdr).where(Cdr.domain_id == domain_id).subquery()))).scalar() or 0
     # today's count
     from datetime import timedelta, timezone
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).replace(tzinfo=None)
     today_q = select(func.count()).select_from(select(Cdr).where(Cdr.domain_id == domain_id, Cdr.start_stamp >= today_start).subquery())
     today = (await session.execute(today_q)).scalar() or 0
     # avg duration
@@ -298,3 +319,118 @@ async def analytics_daily(days: int = Query(7, ge=1, le=90), session: AsyncSessi
     r = await session.execute(q, {"did": str(domain_id), "days": days})
     rows = [{"day": str(row[0].date()) if row[0] else "", "count": row[1]} for row in r.fetchall()]
     return {"data": rows}
+
+
+@router.get("/analytics/by_direction")
+async def analytics_by_direction(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    q = text("""
+        SELECT COALESCE(direction, 'unknown') as direction, count(*) as count
+        FROM cdr WHERE domain_id = :did GROUP BY direction ORDER BY count DESC
+    """)
+    r = await session.execute(q, {"did": str(domain_id)})
+    rows = [{"direction": row[0], "count": row[1]} for row in r.fetchall()]
+    return {"data": rows}
+
+
+@router.get("/analytics/by_hangup")
+async def analytics_by_hangup(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    q = text("""
+        SELECT COALESCE(hangup_cause, 'unknown') as hangup_cause, count(*) as count
+        FROM cdr WHERE domain_id = :did GROUP BY hangup_cause ORDER BY count DESC LIMIT 10
+    """)
+    r = await session.execute(q, {"did": str(domain_id)})
+    rows = [{"hangup_cause": row[0], "count": row[1]} for row in r.fetchall()]
+    return {"data": rows}
+
+
+@router.get("/analytics/top_extensions")
+async def analytics_top_extensions(limit: int = Query(5, ge=1, le=20), session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    q = text("""
+        SELECT destination_number as extension, count(*) as count, avg(billsec) as avg_billsec
+        FROM cdr WHERE domain_id = :did GROUP BY destination_number ORDER BY count DESC LIMIT :limit
+    """)
+    r = await session.execute(q, {"did": str(domain_id), "limit": limit})
+    rows = [{"extension": row[0], "count": row[1], "avg_billsec": float(row[2] or 0)} for row in r.fetchall()]
+    return {"data": rows}
+
+
+@router.get("/analytics/hourly")
+async def analytics_hourly(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    q = text("""
+        SELECT date_trunc('hour', start_stamp) as hour, count(*) as count
+        FROM cdr WHERE domain_id = :did AND start_stamp >= date_trunc('day', NOW())
+        GROUP BY hour ORDER BY hour
+    """)
+    r = await session.execute(q, {"did": str(domain_id)})
+    raw_counts: dict[int, int] = {}
+    for row in r.fetchall():
+        dt = row[0]
+        cnt = row[1]
+        if dt is not None:
+            try:
+                hr = dt.hour if hasattr(dt, "hour") else int(str(dt).split(" ")[1].split(":")[0])
+                raw_counts[int(hr)] = int(cnt)
+            except Exception:
+                continue
+    from datetime import datetime, timezone
+    base = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    rows = [{"hour": base.replace(hour=h).isoformat(), "count": raw_counts.get(h, 0)} for h in range(24)]
+    return {"data": rows}
+
+
+@router.get("/analytics/system_counts")
+async def analytics_system_counts(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    # count extensions, devices, gateways, sip_profiles tenant-scoped
+    from app.extensions.models import Extension
+    from app.devices.models import Device
+    from app.gateways.models import Gateway
+    from app.sip_profiles.models import SipProfile
+    from app.voicemails.models import Voicemail  # may not exist, handle gracefully
+    counts = {}
+    for model, key in [(Extension, "extensions"), (Device, "devices"), (Gateway, "gateways"), (SipProfile, "sip_profiles")]:
+        try:
+            q = select(func.count()).select_from(model).where(model.domain_id == domain_id)
+            val = (await session.execute(q)).scalar() or 0
+            counts[key] = val
+        except Exception:
+            counts[key] = 0
+    # voicemails optional
+    try:
+        from app.voicemails.models import Voicemail
+        q = select(func.count()).select_from(Voicemail).where(Voicemail.domain_id == domain_id)
+        counts["voicemails"] = (await session.execute(q)).scalar() or 0
+    except Exception:
+        counts["voicemails"] = 0
+    # registrations approximated as enabled extensions
+    try:
+        q = select(func.count()).select_from(Extension).where(Extension.domain_id == domain_id, Extension.enabled == True)  # noqa
+        counts["enabled_extensions"] = (await session.execute(q)).scalar() or 0
+        counts["disabled_extensions"] = counts["extensions"] - counts["enabled_extensions"]
+    except Exception:
+        counts["enabled_extensions"] = 0
+        counts["disabled_extensions"] = 0
+    return counts
+
+
+@router.get("/analytics/answer_rate")
+async def analytics_answer_rate(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    total = (await session.execute(select(func.count()).select_from(select(Cdr).where(Cdr.domain_id == domain_id).subquery()))).scalar() or 0
+    # answered = billsec > 0 or hangup NORMAL_CLEARING with answer
+    answered_q = text("SELECT count(*) FROM cdr WHERE domain_id = :did AND billsec > 0")
+    answered = (await session.execute(answered_q, {"did": str(domain_id)})).scalar() or 0
+    missed_q = text("SELECT count(*) FROM cdr WHERE domain_id = :did AND (billsec = 0 OR billsec IS NULL)")
+    missed = (await session.execute(missed_q, {"did": str(domain_id)})).scalar() or 0
+    avg_bill = (await session.execute(select(func.avg(Cdr.billsec)).where(Cdr.domain_id == domain_id))).scalar() or 0
+    return {"total": total, "answered": answered, "missed": missed, "answer_rate": (answered / total * 100 if total else 0), "avg_billsec": float(avg_bill or 0)}

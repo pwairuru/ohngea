@@ -18,7 +18,7 @@ async def list_gateways(response: Response, page: int = Query(1, ge=1), per_page
     await set_tenant(session, domain_id)
     total = (await session.execute(select(func.count()).select_from(select(Gateway).where(Gateway.domain_id == domain_id).subquery()))).scalar() or 0
     r = await session.execute(select(Gateway).where(Gateway.domain_id == domain_id).offset((page - 1) * per_page).limit(per_page))
-    data = [{"gateway_uuid": str(g.gateway_uuid), "gateway": g.gateway, "enabled": g.enabled, "_links": {"self": {"href": f"/api/v1/gateways/{g.gateway_uuid}"}}} for g in r.scalars().all()]
+    data = [{"gateway_uuid": str(g.gateway_uuid), "gateway": g.gateway, "proxy": g.proxy, "username": g.username, "register": g.register, "enabled": g.enabled, "_links": {"self": {"href": f"/api/v1/gateways/{g.gateway_uuid}"}}} for g in r.scalars().all()]
     response.headers["X-Total-Count"] = str(total)
     if page * per_page < total:
         response.headers["Link"] = f'</api/v1/gateways?page={page+1}&per_page={per_page}>; rel="next"'
@@ -45,7 +45,23 @@ async def get_gateway(gateway_uuid: UUID, session: AsyncSession = Depends(get_se
     g = r.scalar_one_or_none()
     if not g:
         raise HTTPException(status_code=404, detail="Gateway not found")
-    return {"gateway_uuid": str(g.gateway_uuid), "gateway": g.gateway, "enabled": g.enabled, "_links": {"self": {"href": f"/api/v1/gateways/{g.gateway_uuid}"}}}
+    return {"gateway_uuid": str(g.gateway_uuid), "gateway": g.gateway, "proxy": g.proxy, "username": g.username, "register": g.register, "enabled": g.enabled, "_links": {"self": {"href": f"/api/v1/gateways/{g.gateway_uuid}"}}}
+
+
+@router.patch("/{gateway_uuid}")
+async def patch_gateway(gateway_uuid: UUID, payload: dict, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("gateway_view"))):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    r = await session.execute(select(Gateway).where(Gateway.gateway_uuid == gateway_uuid, Gateway.domain_id == domain_id))
+    g = r.scalar_one_or_none()
+    if not g:
+        raise HTTPException(status_code=404, detail="Gateway not found")
+    for k in ["gateway", "proxy", "username", "password", "register", "enabled"]:
+        if k in payload:
+            setattr(g, k, payload[k])
+    await session.commit()
+    await session.refresh(g)
+    return {"gateway_uuid": str(g.gateway_uuid), "gateway": g.gateway, "proxy": g.proxy, "username": g.username, "register": g.register, "enabled": g.enabled, "_links": {"self": {"href": f"/api/v1/gateways/{g.gateway_uuid}"}}}
 
 
 @router.delete("/{gateway_uuid}", status_code=204)

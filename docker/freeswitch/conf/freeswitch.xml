@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Minimal FreeSWITCH config for Ohngea PBX E2E testing.
+     Directory + dialplan are served remotely by the API over mod_xml_curl. -->
+<document type="freeswitch/xml">
+  <X-PRE-PROCESS cmd="include" data="vars.xml"/>
+
+  <section name="configuration" description="Configuration">
+    <X-PRE-PROCESS cmd="include" data="autoload_configs/*.xml"/>
+  </section>
+
+  <section name="dialplan" description="Dialplan">
+    <X-PRE-PROCESS cmd="include" data="dialplan/*.xml"/>
+  </section>
+
+  <section name="directory" description="Directory">
+    <X-PRE-PROCESS cmd="include" data="directory/*.xml"/>
+  </section>
+</document>

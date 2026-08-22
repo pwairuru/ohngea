@@ -5,26 +5,27 @@ Clean-room replacement for Ohngea — FastAPI + SQLModel + pydantic-xml + Postgr
 Source reference: legacy Ohngea at `ohngea/` (separate git clone, ignored) — read-only.
 
 ## Stack
-- **Control:** Python 3.12, FastAPI, SQLModel, asyncpg, Alembic, pydantic-xml, lxml, Jinja2, PyJWT, bcrypt, uuid6, Redis, Celery
-- **DB:** PostgreSQL 16 `PARTITION BY HASH (domain_id)` 32, RLS `USING (domain_id = current_setting('app.domain_uuid')::uuid)` + `SET LOCAL` per request, local indexes `(domain_id, start_stamp DESC)`
+- **Control:** Python 3.14, FastAPI, SQLModel, asyncpg, Alembic, pydantic-xml, lxml, Jinja2, PyJWT, bcrypt, uuid6, Valkey, Celery
+- **DB:** PostgreSQL 18 `PARTITION BY HASH (domain_id)` 32, RLS `USING (domain_id = current_setting('app.domain_uuid')::uuid)` + `SET LOCAL` per request, local indexes `(domain_id, start_stamp DESC)`
 - **Media:** FreeSWITCH via `mod_xml_curl` `GET /api/internal/freeswitch/xml?section=directory|dialplan` + ESL `sofia rescan`
 - **Frontend:** React 19 + Vite + Tailwind + shadcn/ui Radix + TanStack Table/Query + Recharts + Lucide, dark `class`, CSS vars `--primary`, per-tenant `GET /domains/{id}/theme`, PWA `vite-plugin-pwa`
-- **Ops:** `gunicorn -k uvicorn.workers.UvicornWorker`, Docker multi-stage `node:20-alpine` + `python:3.12-slim`, `docker-compose` `db/redis/api/worker`
+- **Ops:** `gunicorn -k uvicorn.workers.UvicornWorker`, Docker multi-stage `node:20-alpine` + `python:3.14-slim`, `docker-compose` `db/valkey/api/worker`
 
 ## Quick start (Docker — recommended, no host venv)
 ```bash
 cp .env.example .env
 docker build -t ohngea-pbx:test .  # frontend vite build 635kB + pip wheels
-docker compose up -d db redis
+docker compose up -d db valkey
 docker compose run --rm api alembic upgrade head
 docker compose up -d api
 curl -f http://localhost:8000/health && curl -f http://localhost:8000/api/v1/health
 # frontend at http://localhost:8000/ (static) or npm run dev proxy
+# NOTE: PostgreSQL 18 upgrade from 16 needs: `docker compose down -v` (dev) or `pg_upgrade`/`pg_dumpall` (prod). See docs.
 ```
 
 Local dev (if you have uv):
 ```bash
-uv sync --python 3.12
+uv sync --python 3.14
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload  # :8000
 cd frontend && npm install --legacy-peer-deps && npm run dev  # :5173 proxy /api

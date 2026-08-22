@@ -14,11 +14,17 @@ env = Environment(
 )
 
 
-def render_provision(vendor: str, context: dict) -> str:
-    """Render provision template for vendor."""
+def render_provision(vendor: str, context: dict, model: str | None = None) -> str:
+    """Render provision template for vendor (+ optional model)."""
     vendor = vendor.lower()
-    # try vendor/base.j2 then base.j2
-    candidates = [f"{vendor}/base.j2", f"{vendor}.j2", "base.j2"]
+    model = (model or context.get("model") or "").strip()
+    candidates: list[str] = []
+    if model:
+        # model-specific first: e.g. poly/VVX450.j2, poly/vvx450.j2, yealink/T46S.j2
+        m = model.strip()
+        candidates.extend([f"{vendor}/{m}.j2", f"{vendor}/{m.lower()}.j2", f"{vendor}/{m.upper()}.j2"])
+    # fallback to vendor base
+    candidates.extend([f"{vendor}/base.j2", f"{vendor}.j2", "base.j2"])
     last_err = None
     for name in candidates:
         try:

@@ -1,0 +1,4 @@
+<!-- Local fallback only — real directory is served by the API via xml_curl. -->
+<include>
+  <domain name="test.local"/>
+</include>

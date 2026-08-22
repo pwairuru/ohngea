@@ -18,8 +18,8 @@ class User(UserBase, table=True):
     user_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
     password_hash: str = Field(max_length=255)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
 
 
 class Group(SQLModel, table=True):
@@ -28,7 +28,7 @@ class Group(SQLModel, table=True):
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
     name: str = Field(max_length=64, index=True)
     description: Optional[str] = Field(default=None)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
 
 
 class UserGroup(SQLModel, table=True):

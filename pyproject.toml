@@ -3,7 +3,7 @@ name = "ohngea-pbx"
 version = "0.1.0"
 description = "Ohngea PBX Clone — FastAPI + SQLModel + PostgreSQL RLS + per-tenant partitioning"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 license = { text = "MIT" }
 authors = [{ name = "Ohngea PBX" }]
 keywords = ["ohngea", "fastapi", "voip", "freeswitch"]
@@ -11,6 +11,8 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Framework :: FastAPI",
 ]
 dependencies = [
@@ -32,7 +34,8 @@ dependencies = [
     "PyJWT>=2.8",
     "bcrypt>=4.0",
     "uuid6>=2024.7",
-    "redis>=5.0",
+    "valkey>=6.0",
+    "redis>=5.0",  # transitional: celery/kombu still require redis client to talk to valkey server; remove after kombu#2246 + celery#9300 merged
     "celery>=5.3",
     "email-validator>=2.2",
 ]
@@ -46,6 +49,7 @@ dev = [
 ]
 worker = [
     "celery>=5.3",
+    "valkey>=6.0",
     "redis>=5",
 ]
 
@@ -61,10 +65,10 @@ addopts = "-v"
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py314"
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 ignore_missing_imports = true
 
 [dependency-groups]
@@ -79,3 +83,8 @@ ohngea-import = "app.cli.import_legacy:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
+
+[[tool.uv.index]]
+name = "tuna"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true

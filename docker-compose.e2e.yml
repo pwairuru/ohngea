@@ -1,0 +1,37 @@
+# E2E overlay: real FreeSWITCH + SIPp endpoints wired to the API.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
+#
+# The api service is overridden to point ESL at the real FreeSWITCH instead of
+# the mock. See docs/e2e-testing.md and Makefile targets e2e-*.
+services:
+  freeswitch:
+    # community Debian image with the full module set (mod_xml_curl, mod_xml_cdr,
+    # mod_sofia, fs_cli). The official signalwire images now require registry auth.
+    image: safarov/freeswitch:latest
+    command: ["freeswitch", "-nonat", "-nf"]
+    volumes:
+      - ./docker/freeswitch/conf:/etc/freeswitch
+    ports:
+      - "5060:5060/udp"
+      - "8022:8021"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  sipp1001:
+    build: ./docker/sipp
+    command: ["-sf", "uas_register_answer.xml", "-inf", "users/1001.csv", "-trace_err", "freeswitch"]
+    depends_on:
+      - freeswitch
+
+  sipp1002:
+    build: ./docker/sipp
+    command: ["-sf", "uas_register_answer.xml", "-inf", "users/1002.csv", "-trace_err", "freeswitch"]
+    depends_on:
+      - freeswitch
+
+  api:
+    environment:
+      # talk to the real FreeSWITCH event socket instead of the mock
+      FS_ESL_HOST: freeswitch

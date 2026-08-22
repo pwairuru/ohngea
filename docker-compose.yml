@@ -1,31 +1,46 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: ohngea
       POSTGRES_PASSWORD: ohngea
       POSTGRES_DB: ohngea
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ohngea"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  redis:
-    image: redis:7-alpine
+  valkey:
+    image: valkey/valkey:8-alpine
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
-      - redisdata:/data
+      - valkeydata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
+
+  freeswitch-mock:
+    image: python:3.14-slim
+    ports:
+      - "8021:8021"
+    volumes:
+      - ./app:/app/app
+    working_dir: /app
+    command: python -m app.freeswitch.mock_esl_server
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import socket,sys; sys.exit(0 if socket.socket().connect_ex((\"127.0.0.1\",8021))==0 else 1)'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   api:
     build: .
@@ -35,11 +50,18 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://ohngea:ohngea@db:5432/ohngea
-      REDIS_URL: redis://redis:6379/0
+      VALKEY_URL: valkey://valkey:6379/0
+      # REDIS_URL kept for backwards compat (celery/kombu still require redis:// scheme)
+      REDIS_URL: redis://valkey:6379/0
+      FS_ESL_HOST: freeswitch-mock
+      FS_ESL_PORT: 8021
+      FS_ESL_PASSWORD: ClueCon
     depends_on:
       db:
         condition: service_healthy
-      redis:
+      valkey:
+        condition: service_healthy
+      freeswitch-mock:
         condition: service_healthy
     volumes:
       - ./app:/app/app
@@ -47,7 +69,7 @@ services:
       - ./alembic.ini:/app/alembic.ini
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').getcode()==200 else 1)\" || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -58,11 +80,12 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://ohngea:ohngea@db:5432/ohngea
-      REDIS_URL: redis://redis:6379/0
+      VALKEY_URL: valkey://valkey:6379/0
+      REDIS_URL: redis://valkey:6379/0
     depends_on:
       db:
         condition: service_healthy
-      redis:
+      valkey:
         condition: service_healthy
     command: celery -A app.workers.celery_app worker --loglevel=info
     profiles:
@@ -70,4 +93,4 @@ services:
 
 volumes:
   pgdata:
-  redisdata:
+  valkeydata:

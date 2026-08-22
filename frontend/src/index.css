@@ -29,4 +29,30 @@
     @apply bg-background text-foreground touch-manipulation;
     font-family: Inter, ui-sans-serif, system-ui;
   }
+  /* thin overlay scrollbar for sidebar — avoid ugly double/browser scrollbar */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    scrollbar-gutter: stable;
+  }
+  .custom-scrollbar:hover {
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 9999px;
+  }
+  .custom-scrollbar:hover::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--foreground) / 0.2);
+  }
 }

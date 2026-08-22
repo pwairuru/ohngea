@@ -20,4 +20,4 @@ class GatewayBase(SQLModel):
 class Gateway(GatewayBase, table=True):
     __tablename__ = "gateways"
     gateway_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())

@@ -18,4 +18,4 @@ class ContactBase(SQLModel):
 class Contact(ContactBase, table=True):
     __tablename__ = "contacts"
     contact_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())

@@ -1,6 +1,7 @@
-.PHONY: dev test lint migrate upgrade docker-build clean
+.PHONY: dev test lint migrate upgrade docker-build clean e2e-up e2e-seed e2e-call e2e-down
 
-PY := uv run --python 3.12
+PY := uv run --python 3.14
+COMPOSE_E2E := docker compose -f docker-compose.yml -f docker-compose.e2e.yml
 
 dev:
 	uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -35,7 +36,25 @@ clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 install:
-	uv sync --python 3.12
+	uv sync --python 3.14
 
 format:
 	uv run ruff format app tests || true
+
+# --- E2E call test: real FreeSWITCH + SIPp, CDR round-trip (docs/e2e-testing.md) ---
+
+e2e-up:
+	$(COMPOSE_E2E) up -d --build db valkey api freeswitch sipp1001 sipp1002
+	@sleep 5
+	$(MAKE) e2e-seed
+
+e2e-seed:
+	uv run python tests/e2e/seed.py
+
+e2e-call:
+	$(COMPOSE_E2E) exec freeswitch fs_cli -x "originate user/1001@test.local &bridge(user/1002@test.local)"
+	@sleep 10
+	uv run python tests/e2e/verify.py
+
+e2e-down:
+	$(COMPOSE_E2E) down -v

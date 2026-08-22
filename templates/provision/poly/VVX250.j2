@@ -1,0 +1,9 @@
+# Poly VVX250 provision — legacy ohngea/resources/templates/provision/poly/poly-vvx-250
+# MAC: {{ mac }}
+# Domain: {{ domain }}
+# Extension: {{ extension }}
+<poly-vvx250 mac="{{ mac }}">
+  <device model="VVX250" vendor="poly" mac="{{ mac }}" />
+  <line extension="{{ extension }}" domain="{{ domain }}" auth_user="{{ extension }}" />
+  <provision url="http://api:8000/provision/{{ mac }}.cfg" />
+</poly-vvx250>

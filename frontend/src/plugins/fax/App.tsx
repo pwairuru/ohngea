@@ -9,25 +9,48 @@ import { Badge } from "../../components/ui/badge";
 
 export default function FaxPlugin() {
   const [items, setItems] = React.useState<any[]>([]);
-  const [form, setForm] = React.useState({ destination: "15551234567", file: "" });
-  const load = () => apiFetch("/fax").then((r) => setItems(r.data || [])).catch(() => {});
+  const [total, setTotal] = React.useState(0);
+  const [q, setQ] = React.useState("");
+  const [form, setForm] = React.useState({ fax_extension: "", fax_name: "", fax_email: "", enabled: true });
+  const load = () =>
+    apiFetch(`/fax?page=1&per_page=20&q=${encodeURIComponent(q)}`)
+      .then((r: any) => {
+        setItems(r.data || []);
+        setTotal(r.total || 0);
+      })
+      .catch(() => {});
   React.useEffect(() => { load(); }, []);
-  const send = async () => {
-    await apiFetch("/fax", { method: "POST", body: JSON.stringify({ destination: form.destination, status: "queued", created_at: new Date().toISOString() }) });
+  const create = async () => {
+    const me: any = await apiFetch("/auth/me");
+    const domain_id = me.domain_id;
+    if (!domain_id) {
+      alert("No domain found — create domain first");
+      return;
+    }
+    await apiFetch("/fax", {
+      method: "POST",
+      body: JSON.stringify({ ...form, domain_id }),
+    });
+    setForm({ fax_extension: "", fax_name: "", fax_email: "", enabled: true });
     load();
   };
   return (
     <div className="p-4 space-y-4">
-      <h1 className="text-2xl font-bold">Fax <Badge>plugin</Badge> <Badge variant="outline">MIT</Badge></h1>
-      <Card><CardHeader><CardTitle>Fax Queue — Celery + Redis</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">Per-tenant fax queue, worker `app/workers/celery_app.py` sends via `mod_spandsp`, `POST /api/v1/fax` queues, `GET /fax` lists partitioned by domain_id.</CardContent></Card>
-      <Card><CardHeader><CardTitle>Send Fax</CardTitle></CardHeader><CardContent className="space-y-3">
-        <div><Label>Destination</Label><Input value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} placeholder="15551234567" /></div>
-        <div><Label>File (placeholder)</Label><Input value={form.file} onChange={(e) => setForm({ ...form, file: e.target.value })} placeholder="path/to.pdf" /></div>
-        <Button onClick={send} className="w-full">Queue Fax</Button>
+      <h1 className="text-2xl font-bold">Fax <Badge>core</Badge> <Badge variant="outline">MIT</Badge></h1>
+      <Card><CardHeader><CardTitle>Fax Extensions — per-tenant, RLS + hash partitioned</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">Manage fax extensions per domain. `POST /api/v1/fax` creates `fax_extension` 2-7 digits, `fax_name`, `fax_email` for delivery. Worker `app/workers/celery_app.py` handles `mod_spandsp` via `fax_send`.</CardContent></Card>
+      <div className="flex gap-2">
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search fax name, extension..." className="flex-1" />
+        <Button onClick={load}>Search</Button>
+      </div>
+      <Card><CardHeader><CardTitle>Add Fax Extension</CardTitle></CardHeader><CardContent className="space-y-3">
+        <div><Label>Fax Extension *</Label><Input value={form.fax_extension} onChange={(e) => setForm({ ...form, fax_extension: e.target.value })} placeholder="300" /></div>
+        <div><Label>Fax Name *</Label><Input value={form.fax_name} onChange={(e) => setForm({ ...form, fax_name: e.target.value })} placeholder="Fax 300" /></div>
+        <div><Label>Email</Label><Input value={form.fax_email} onChange={(e) => setForm({ ...form, fax_email: e.target.value })} placeholder="fax@example.com" /></div>
+        <Button onClick={create} className="w-full">Create</Button>
       </CardContent></Card>
-      <Card><CardHeader><CardTitle>Queue</CardTitle></CardHeader><CardContent>
-        <div className="hidden md:block"><Table><TableHeader><TableRow><TableHead>Destination</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>{items.map((it) => <TableRow key={it.id}><TableCell className="font-mono">{it.destination}</TableCell><TableCell><Badge>{it.status || "queued"}</Badge></TableCell></TableRow>)}{items.length===0 && <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground py-6">No faxes</TableCell></TableRow>}</TableBody></Table></div>
-        <div className="md:hidden grid gap-2">{items.map((it) => <Card key={it.id} className="p-3"><div className="font-mono">{it.destination}</div><Badge>{it.status}</Badge></Card>)}{items.length===0 && <div className="text-center text-muted-foreground py-4">No faxes</div>}</div>
+      <Card><CardHeader><CardTitle>Fax Extensions — total {total}</CardTitle></CardHeader><CardContent>
+        <div className="hidden md:block"><Table><TableHeader><TableRow><TableHead>Extension</TableHead><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>{items.map((it: any) => <TableRow key={it.fax_uuid}><TableCell className="font-mono">{it.fax_extension}</TableCell><TableCell>{it.fax_name}</TableCell><TableCell>{it.fax_email || "-"}</TableCell><TableCell><Badge>{it.enabled ? "enabled" : "disabled"}</Badge></TableCell></TableRow>)}{items.length===0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">No fax extensions — total {total}</TableCell></TableRow>}</TableBody></Table></div>
+        <div className="md:hidden grid gap-2">{items.map((it: any) => <Card key={it.fax_uuid} className="p-3"><div className="font-mono font-bold">{it.fax_extension}</div><div className="text-sm">{it.fax_name}</div><div className="text-xs text-muted-foreground">{it.fax_email}</div><Badge>{it.enabled ? "enabled" : "disabled"}</Badge></Card>)}{items.length===0 && <div className="text-center text-muted-foreground py-4">No faxes</div>}</div>
       </CardContent></Card>
     </div>
   );

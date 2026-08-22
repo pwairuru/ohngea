@@ -28,7 +28,11 @@ async def create_domain(session: AsyncSession, data: DomainCreate, admin_usernam
         session.add(DomainSettings(domain_id=domain.domain_id, category=cat, subcategory=sub, key=k, value=v))
 
     # seed default permissions if not exist
-    for perm_name in ["domain_view", "domain_add", "extension_view", "extension_add", "dialplan_view", "gateway_view"]:
+    for perm_name in [
+        "domain_view", "domain_add", "extension_view", "extension_add", "dialplan_view", "gateway_view",
+        "ring_group_view", "ring_group_add",
+        "time_condition_view", "time_condition_add", "time_condition_edit", "time_condition_delete",
+    ]:
         r = await session.execute(select(Permission).where(Permission.name == perm_name))
         if not r.scalar_one_or_none():
             session.add(Permission(name=perm_name))
@@ -47,6 +51,15 @@ async def create_domain(session: AsyncSession, data: DomainCreate, admin_usernam
     session.add(user)
     await session.flush()
     session.add(UserGroup(user_uuid=user.user_uuid, group_uuid=group.group_uuid, domain_id=domain.domain_id))
+
+    # seed default SIP profiles (tenant-aware, idempotent)
+    from app.sip_profiles.models import SipProfile
+
+    for name, port in [("internal", 5060), ("external", 5080)]:
+        r = await session.execute(select(SipProfile).where(SipProfile.domain_id == domain.domain_id, SipProfile.name == name))
+        if not r.scalar_one_or_none():
+            session.add(SipProfile(domain_id=domain.domain_id, name=name, enabled=True, sip_port=port))
+
     await session.commit()
     await session.refresh(domain)
     return domain

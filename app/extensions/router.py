@@ -88,10 +88,10 @@ async def create_ext(
     user: User = Depends(require_permission("extension_add")),
 ):
     domain_id = getattr(user, "_domain_id", user.domain_id)
-    # enforce tenant isolation: payload.domain_id must match JWT domain_id unless superadmin with X header
-    if str(payload.domain_id) != str(domain_id):
-        # allow if user has domain_add and payload domain exists (superadmin case) — for now allow if matched or superadmin
-        # strict: must match
+    # auto-fill domain_id if missing (frontend may send without or with domain_uuid alias)
+    if not payload.domain_id:
+        payload.domain_id = domain_id
+    elif str(payload.domain_id) != str(domain_id):
         raise HTTPException(status_code=403, detail="Domain mismatch")
     await set_tenant(session, domain_id)
     ext = await create_extension(session, payload)
@@ -132,9 +132,13 @@ async def patch_ext(extension_uuid: UUID, payload: ExtensionUpdate, session: Asy
     await session.commit()
     await session.refresh(e)
     try:
-        import redis.asyncio as redis
+        try:
+            import valkey.asyncio as redis  # type: ignore[import-not-found]
+        except ImportError:
+            import redis.asyncio as redis  # type: ignore[no-redef]
         from app.config import settings
-        rds = redis.from_url(settings.redis_url)
+        url = getattr(settings, "valkey_url", settings.redis_url)
+        rds = redis.from_url(url)
         await rds.delete(f"xml:{domain_id}:directory")
         await rds.aclose()
     except Exception:
@@ -153,9 +157,13 @@ async def delete_ext(extension_uuid: UUID, session: AsyncSession = Depends(get_s
     await session.delete(e)
     await session.commit()
     try:
-        import redis.asyncio as redis
+        try:
+            import valkey.asyncio as redis  # type: ignore[import-not-found]
+        except ImportError:
+            import redis.asyncio as redis  # type: ignore[no-redef]
         from app.config import settings
-        rds = redis.from_url(settings.redis_url)
+        url = getattr(settings, "valkey_url", settings.redis_url)
+        rds = redis.from_url(url)
         await rds.delete(f"xml:{domain_id}:directory")
         await rds.aclose()
     except Exception:
@@ -169,7 +177,9 @@ async def batch_create(payload: list[ExtensionCreate], session: AsyncSession = D
     await set_tenant(session, domain_id)
     created = []
     for data in payload:
-        if str(data.domain_id) != str(domain_id):
+        if not data.domain_id:
+            data.domain_id = domain_id
+        elif str(data.domain_id) != str(domain_id):
             raise HTTPException(status_code=403, detail="Domain mismatch in batch")
         ext = Extension(**data.model_dump())
         session.add(ext)
