@@ -54,6 +54,7 @@ import { Registrations } from "./routes/Registrations";
 import { OperatorPanel } from "./routes/OperatorPanel";
 import { Logs } from "./routes/Logs";
 import { DomainLimits } from "./routes/DomainLimits";
+import { WebPhoneProvider } from "./context/WebPhoneContext";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -285,18 +286,20 @@ export default function App() {
   return (
     <ThemeProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/setup" element={<Setup />} />
-          <Route
-            path="/*"
-            element={
-              <RequireAuth>
-                <Nav />
-              </RequireAuth>
-            }
-          />
-        </Routes>
+        <WebPhoneProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/setup" element={<Setup />} />
+            <Route
+              path="/*"
+              element={
+                <RequireAuth>
+                  <Nav />
+                </RequireAuth>
+              }
+            />
+          </Routes>
+        </WebPhoneProvider>
       </BrowserRouter>
     </ThemeProvider>
   );
