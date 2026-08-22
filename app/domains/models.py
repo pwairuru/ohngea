@@ -39,3 +39,13 @@ class DomainPlugin(SQLModel, table=True):
     plugin_name: str = Field(max_length=64, index=True)
     enabled: bool = Field(default=True)
     created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+
+
+class DomainApp(SQLModel, table=True):
+    __tablename__ = "domain_apps"
+    id: UUID = Field(default_factory=uuid7, primary_key=True)
+    domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
+    app_name: str = Field(max_length=64, index=True)
+    enabled: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    __table_args__ = ({"comment": "per-tenant app toggle"},)
