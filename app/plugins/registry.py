@@ -30,7 +30,8 @@ def load_plugins(root: Path | str = "plugins") -> List[dict]:
     if not root.exists():
         return plugins
     for manifest in root.glob("*/manifest.toml"):
-        data = tomllib.load(open(manifest, "rb"))
+        with open(manifest, "rb") as f:
+            data = tomllib.load(f)
         lic = data.get("license", "")
         if not is_license_allowed(lic):
             raise ValueError(f"license {lic} not allowed for plugin {data.get('name', manifest.parent.name)} — see allowed {ALLOWED_LICENSES}")

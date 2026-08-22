@@ -2,14 +2,15 @@ import tomllib
 from pathlib import Path
 from typing import List, Dict
 
-from app.plugins.registry import ALLOWED_LICENSES, is_license_allowed, validate_plugin_license
+from app.plugins.registry import is_license_allowed, validate_plugin_license
 
 def validate_license(lic: str):
     validate_plugin_license(lic)
     return True
 
 def _load_manifest(p: Path) -> Dict:
-    data = tomllib.load(open(p, "rb"))
+    with open(p, "rb") as f:
+        data = tomllib.load(f)
     lic = data.get("license", "MIT")
     if not is_license_allowed(lic):
         raise ValueError(f"license {lic} not allowed")
@@ -42,7 +43,7 @@ def discover_apps(root_app="app", root_plugins="plugins") -> List[Dict]:
             d.setdefault("enabled_by_default", True)
             d.setdefault("category", "advanced")
             d["source"] = "plugin"
-            d["has_router"] = True
+            d["has_router"] = (m.parent / "router.py").exists()
             # dedupe if already in app
             if any(a["name"] == d["name"] for a in apps):
                 continue
