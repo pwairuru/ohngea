@@ -18,7 +18,7 @@ if config.config_file_name is not None:
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Import all models to populate SQLModel.metadata
-from app.domains.models import Domain, DomainSettings, DomainPlugin  # noqa
+from app.domains.models import Domain, DomainSettings, DomainPlugin, DomainApp  # noqa
 from app.auth.models import User, Group, UserGroup, Permission, GroupPermission  # noqa
 from app.extensions.models import Extension  # noqa
 from app.dialplans.models import Dialplan, DialplanDetail  # noqa

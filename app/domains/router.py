@@ -143,6 +143,9 @@ async def list_domain_apps(domain_id: UUID, session: AsyncSession = Depends(get_
     r = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
     if not r.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Domain not found")
+    perms = getattr(user, "_perms", None) or []
+    if str(getattr(user, "_domain_id", user.domain_id)) != str(domain_id) and "domain_add" not in perms and "*" not in perms:
+        raise HTTPException(status_code=403, detail="Forbidden")
     await set_tenant(session, domain_id)
     apps = discover_apps()
     app_names = {a["name"] for a in apps}
@@ -195,6 +198,9 @@ async def list_enabled_apps(domain_id: UUID, session: AsyncSession = Depends(get
     r = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
     if not r.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Domain not found")
+    perms = getattr(user, "_perms", None) or []
+    if str(getattr(user, "_domain_id", user.domain_id)) != str(domain_id) and "domain_add" not in perms and "*" not in perms:
+        raise HTTPException(status_code=403, detail="Forbidden")
     await set_tenant(session, domain_id)
     apps = discover_apps()
     r = await session.execute(select(DomainApp).where(DomainApp.domain_id == domain_id))
@@ -254,6 +260,13 @@ async def toggle_app(
 async def list_domain_plugins(domain_id: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     from app.domains.models import DomainPlugin
 
+    r = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
+    if not r.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Domain not found")
+    perms = getattr(user, "_perms", None) or []
+    if str(getattr(user, "_domain_id", user.domain_id)) != str(domain_id) and "domain_add" not in perms and "*" not in perms:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    await set_tenant(session, domain_id)
     r = await session.execute(select(DomainPlugin).where(DomainPlugin.domain_id == domain_id))
     return [{"plugin_name": p.plugin_name, "enabled": p.enabled} for p in r.scalars().all()]
 
@@ -262,6 +275,10 @@ async def list_domain_plugins(domain_id: UUID, session: AsyncSession = Depends(g
 async def toggle_plugin(domain_id: UUID, plugin_name: str, enabled: bool = True, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("domain_add"))):
     from app.domains.models import DomainPlugin
 
+    r = await session.execute(select(Domain).where(Domain.domain_id == domain_id))
+    if not r.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Domain not found")
+    await set_tenant(session, domain_id)
     r = await session.execute(select(DomainPlugin).where(DomainPlugin.domain_id == domain_id, DomainPlugin.plugin_name == plugin_name))
     p = r.scalar_one_or_none()
     if p:

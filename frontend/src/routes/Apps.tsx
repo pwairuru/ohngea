@@ -15,13 +15,24 @@ type DomainApp = {
   source?: string;
 };
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const b64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
 function resolveDomainId(): string | null {
   const fromLs = typeof window !== "undefined" ? localStorage.getItem("domain_id") : null;
   if (fromLs) return fromLs;
   try {
     const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     if (!token) return null;
-    const payload = JSON.parse(atob(token.split(".")[1]));
+    const payload = decodeJwtPayload(token);
+    if (!payload) return null;
     if (payload?.domain_id) return String(payload.domain_id);
     if (payload?.domainId) return String(payload.domainId);
     if (payload?.domain_uuid) return String(payload.domain_uuid);

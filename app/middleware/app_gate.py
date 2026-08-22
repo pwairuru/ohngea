@@ -1,3 +1,4 @@
+# TODO: gate all apps centrally via middleware, currently 5 routers as MVP
 from fastapi import Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
