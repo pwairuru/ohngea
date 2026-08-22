@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
-from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
+from app.freeswitch.cache import invalidate_fs_cache_for_session
 from app.middleware.app_gate import require_app_enabled
 from app.fifo.models import Fifo
 from app.fifo.schemas import FifoCreate, FifoRead, FifoUpdate

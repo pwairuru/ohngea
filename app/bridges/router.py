@@ -6,10 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.middleware.app_gate import require_app_enabled
 from app.bridges.models import Bridge
 from app.bridges.schemas import BridgeCreate, BridgeRead, BridgeUpdate
 from app.bridges.service import create_bridge, list_bridges
-router=APIRouter(prefix="/api/v1/bridges", tags=["bridges"])
+router=APIRouter(prefix="/api/v1/bridges", tags=["bridges"], dependencies=[require_app_enabled("bridges")])
 def _links(o): return {"self":{"href":f"/api/v1/bridges/{o.bridge_uuid}"}, "collection":{"href":"/api/v1/bridges"}}
 def _ser(o):
     d=BridgeRead.model_validate(o, from_attributes=True).model_dump(mode="json")

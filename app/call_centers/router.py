@@ -6,10 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.middleware.app_gate import require_app_enabled
 from app.call_centers.models import CallCenter, CallCenterAgent
 from app.call_centers.schemas import CallCenterCreate, CallCenterRead, CallCenterUpdate
 from app.call_centers.service import create_cc, list_cc, get_cc_with_agents
-router=APIRouter(prefix="/api/v1/call_centers", tags=["call_centers"])
+router=APIRouter(prefix="/api/v1/call_centers", tags=["call_centers"], dependencies=[require_app_enabled("call_centers")])
 def _links(o): return {"self":{"href":f"/api/v1/call_centers/{o.call_center_queue_uuid}"}, "collection":{"href":"/api/v1/call_centers"}}
 def _ser(o, agents=None):
     d=CallCenterRead.model_validate(o, from_attributes=True).model_dump(mode="json")

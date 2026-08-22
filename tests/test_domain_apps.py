@@ -30,3 +30,19 @@ async def test_toggle_app(client, domain, auth_headers):
 async def test_toggle_unknown_app_404(client, domain, auth_headers):
     resp = await client.put(f"/api/v1/domains/{domain.domain_id}/apps/does_not_exist?enabled=false", headers=auth_headers)
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_disabled_app_returns_403(client, domain, auth_headers):
+    resp = await client.put(f"/api/v1/domains/{domain.domain_id}/apps/fifo?enabled=false", headers=auth_headers)
+    assert resp.status_code == 200
+    resp = await client.get("/api/v1/fifo", headers=auth_headers)
+    assert resp.status_code == 403
+    assert "disabled" in resp.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_enabled_app_still_200(client, domain, auth_headers):
+    await client.put(f"/api/v1/domains/{domain.domain_id}/apps/fifo?enabled=true", headers=auth_headers)
+    resp = await client.get("/api/v1/fifo", headers=auth_headers)
+    assert resp.status_code == 200
