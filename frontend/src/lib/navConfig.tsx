@@ -7,7 +7,7 @@ import {
   ListOrdered, Printer, Inbox, Voicemail, Mic, Radio, Music, Megaphone,
   Cable, Globe, ArrowLeftRight, Shield,
   Activity, UserCheck, MonitorSpeaker, ScrollText, Siren, BellRing,
-  Building2, Users, Puzzle, Boxes, Variable, Settings, Database, Mail, Gauge,
+  Building2, Users, Puzzle, Boxes, Variable, Settings, Database, Mail, Gauge, Server,
 } from "lucide-react";
 
 export type NavItem = { to: string; label: string; icon: ComponentType<{ className?: string }> };
@@ -89,6 +89,7 @@ export const advancedNav: NavGroup[] = [
       { to: "/database_transactions", label: "DB Transactions", icon: Database },
       { to: "/email_queue", label: "Email Queue", icon: Mail },
       { to: "/domain_limits", label: "Domain Limits", icon: Gauge },
+      { to: "/system", label: "System Status", icon: Server },
     ],
   },
 ];

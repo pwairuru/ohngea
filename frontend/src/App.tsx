@@ -69,6 +69,7 @@ import { Registrations } from "./routes/Registrations";
 import { OperatorPanel } from "./routes/OperatorPanel";
 import { Logs } from "./routes/Logs";
 import { DomainLimits } from "./routes/DomainLimits";
+import { System } from "./routes/System";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -166,6 +167,7 @@ function Nav() {
                 <Route path="/operator_panel" element={<OperatorPanel />} />
                 <Route path="/logs" element={<Logs />} />
                 <Route path="/domain_limits" element={<DomainLimits />} />
+                <Route path="/system" element={<System />} />
                 <Route path="/vars" element={<Vars />} />
                 <Route path="/destinations" element={<Destinations />} />
                 <Route path="/users" element={<Users />} />
