@@ -1,6 +1,7 @@
 import * as React from "react";
 import { EmptyState } from "../../components/ui/empty-state";
 import { toast, toastError } from "../../lib/toast";
+import { useConfirm } from "../../components/ui/confirm";
 import { apiFetch } from "../../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
@@ -10,6 +11,7 @@ import { Label } from "../../components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 
 export default function VoicemailPlugin() {
+  const confirm = useConfirm();
   const [items, setItems] = React.useState<any[]>([]);
   const [total, setTotal] = React.useState(0);
   const [page, setPage] = React.useState(1);
@@ -87,7 +89,8 @@ export default function VoicemailPlugin() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Delete voicemail?")) return;
+    const ok = await confirm({ title: "Delete voicemail?", confirmLabel: "Delete" });
+    if (!ok) return;
     try {
       await apiFetch(`/voicemails/${id}`, { method: "DELETE" });
       load();
