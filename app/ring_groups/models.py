@@ -20,6 +20,8 @@ class RingGroupBase(SQLModel):
     timeout: int = Field(default=30, ge=1, le=999, description="Call timeout seconds")
     enabled: bool = Field(default=True)
     description: Optional[str] = Field(default=None, max_length=512)
+    ring_group_forward_enabled: bool = Field(default=False)
+    ring_group_forward_destination: Optional[str] = Field(default=None, max_length=128)
 
     @field_validator("extension")
     @classmethod

@@ -15,6 +15,7 @@ class FollowMeBase(SQLModel):
     call_prompt: Optional[str] = Field(default=None, max_length=32)
     dial_string: Optional[str] = Field(default=None, max_length=512)
     description: Optional[str] = Field(default=None, max_length=512)
+    follow_me_ignore_busy: bool = Field(default=False)
 
 
 class FollowMe(FollowMeBase, table=True):

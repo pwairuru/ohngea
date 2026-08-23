@@ -22,6 +22,9 @@ class VoicemailBase(SQLModel):
     voicemail_file: Optional[str] = Field(default=None, max_length=32, description="attach, link, or listen")
     # keep generic extra: not stored as JSON, but simple columns
     alternate_greet_id: Optional[str] = Field(default=None, max_length=64)
+    voicemail_tutorial: bool = Field(default=False)
+    voicemail_local_after_email: bool = Field(default=True)
+    voicemail_transcription_enabled: bool = Field(default=False)
 
     @field_validator("voicemail_id")
     @classmethod
