@@ -36,8 +36,9 @@ npm --prefix frontend run build # tsc && vite 819kB 13 precache 852KiB ; docker 
 
 ## WebPhone WSS
 - SIP over WebSocket via `sip.js 0.21` lazy-loaded in `frontend/src/context/WebPhoneContext.tsx` (persists `WebPhoneConfig {sip_uri,wss_url,auth_user,password,display_name,ice_servers}` per tenant+user key `webphone:cfg:{domain_id}:{sub}`).
-- `GET/PUT /domains/{id}/webrtc_settings` (admin, tenant-isolated via `set_tenant`) returns `enabled, auth_mode (extension|custom|both), wss_url, ice_servers`; `POST /webrtc/credentials` issues per-extension or custom SIP `sip_uri/wss_url/auth_user/password` with RLS `set_tenant`.
-- `sip_profiles` WSS persisted via `wss_url/wss_binding` fields (migration `018`+) and reflected in `sofia` XML; `sofia profile internal wss-binding:7443` + cert enables WSS.
+- `GET/PUT /domains/{id}/webrtc_settings` (admin, tenant-isolated via `set_tenant`) returns `enabled, auth_mode (extension|webrtc|both), wss_url, ice_servers`; `POST /webrtc/credentials` issues per-extension or custom SIP `sip_uri/wss_url/auth_user/password` with RLS `set_tenant`.
+- `sip_profiles` WSS persisted via `wss_port/wss_binding` fields (migration `024_sip_profiles_wss`) and reflected in `sofia` XML; `sofia profile internal wss-binding:7443` + cert enables WSS.
+- Security: phase1 `POST /webrtc/credentials` returns `extensions.password` plaintext over TLS; rotate SIP passwords separately — phase2 will issue short-lived tokens (warn in docs).
 - Caddy reverse-proxy example for WSS:
 ```
 pbx.example.com {

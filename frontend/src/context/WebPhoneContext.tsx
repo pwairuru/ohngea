@@ -22,6 +22,8 @@ type Ctx = {
   hold:(v:boolean)=>void;
   sendDTMF:(tone:string)=>void;
   duration:number;
+  remoteAudioRef: React.RefObject<HTMLAudioElement | null>;
+  // TODO(phase2): hold-retrieve sync to FS via re-INVITE 3pcc deferred — phase1 local only
 };
 
 export const WebPhoneContext = React.createContext<Ctx|null>(null);
@@ -39,17 +41,34 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
   const uaRef=React.useRef<any>(null);
   const regRef=React.useRef<any>(null);
   const sessionRef=React.useRef<any>(null);
+  const remoteAudioRef=React.useRef<HTMLAudioElement>(null);
+  const ringtoneRef=React.useRef<HTMLAudioElement|null>(null);
 
-  const storageKey=React.useMemo(()=>{
+  function getStorageKey(): string | null {
     try{ const token=localStorage.getItem("token"); if(!token) return null; const payload=JSON.parse(atob(token.split(".")[1])); return `webphone:cfg:${payload.domain_id}:${payload.sub}`; }catch{return null}
-  },[]);
+  }
 
-  // hydrate
+  // storageKey recomputed each render (no stale memo). Hydrate effect deps trigger when token appears after login.
+  const storageKey = getStorageKey();
+
+  // hydrate + listen for same-tab token changes (login via addInitScript/localStorage.setItem doesn't fire storage event)
   React.useEffect(()=>{
-    if(!storageKey) return;
-    const raw=localStorage.getItem(storageKey);
+    const key = getStorageKey();
+    if(!key) return;
+    const raw=localStorage.getItem(key);
     if(raw){ try{ const cfg=JSON.parse(raw); setConfig(cfg); setRegistrationState("unregistered"); }catch{} }
   },[storageKey]);
+
+  // keep hydrate reactive to token changes from login without reload: poll + storage/focus events
+  React.useEffect(()=>{
+    const onStorage = (e: StorageEvent)=>{ if(e.key==="token" || e.key?.startsWith("webphone:cfg:")) { const k=getStorageKey(); if(k){ const raw=localStorage.getItem(k); if(raw){ try{ const cfg=JSON.parse(raw); setConfig(cfg); setRegistrationState(s=>s==="unconfigured"?"unregistered":s); }catch{} } } } };
+    const onFocus = ()=>{ const k=getStorageKey(); if(k){ const raw=localStorage.getItem(k); if(raw && !config){ try{ const cfg=JSON.parse(raw); setConfig(cfg); setRegistrationState(s=>s==="unconfigured"?"unregistered":s); }catch{} } } };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", onFocus as any);
+    const id = setInterval(()=>{ const k=getStorageKey(); if(k && !config){ const raw=localStorage.getItem(k); if(raw){ try{ const cfg=JSON.parse(raw); setConfig(c=>c||JSON.parse(raw)); setRegistrationState(s=>s==="unconfigured"?"unregistered":s); }catch{} } } }, 1000);
+    return ()=>{ window.removeEventListener("storage", onStorage); window.removeEventListener("focus", onFocus as any); clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[config?.sip_uri]);
 
   // auto-connect if config + enabled
   React.useEffect(()=>{
@@ -75,8 +94,67 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
       try{ regRef.current?.unregister(); }catch{}
       try{ uaRef.current?.stop(); }catch{}
       uaRef.current=null; regRef.current=null;
+      stopRingtone();
+      if(remoteAudioRef.current) remoteAudioRef.current.srcObject=null;
     };
   },[]);
+
+  function startRingtone(){
+    try{
+      if(ringtoneRef.current) return;
+      const a=document.createElement("audio");
+      a.loop=true;
+      a.volume=0.6;
+      // minimal silent wav loop fallback; real ringtone can be replaced via /ringtone.mp3 if present
+      a.src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==";
+      a.play().catch(()=>{});
+      ringtoneRef.current=a;
+      if(typeof Notification !== "undefined"){
+        if(Notification.permission==="granted"){
+          try{ new Notification("Incoming call", { body: "WebPhone incoming call" }); }catch{}
+        } else if(Notification.permission!=="denied"){
+          try{ Notification.requestPermission().catch(()=>{}); }catch{}
+        }
+      }
+    }catch{}
+  }
+  function stopRingtone(){
+    try{ ringtoneRef.current?.pause(); if(ringtoneRef.current?.src?.startsWith("blob:")) URL.revokeObjectURL(ringtoneRef.current.src); ringtoneRef.current=null; }catch{}
+  }
+
+  function attachRemoteStream(session:any){
+    try{
+      const sdh = session?.sessionDescriptionHandler;
+      const pc: RTCPeerConnection | undefined = sdh?.peerConnection;
+      if(!pc) return;
+      const doAttach = (stream: MediaStream)=>{
+        const el = remoteAudioRef.current || (document.getElementById("webphone-remote-audio") as HTMLAudioElement | null);
+        if(el){
+          el.srcObject = stream;
+          // ensure audio element is visible to autoplay
+          el.play().catch(()=>{});
+        }
+      };
+      // attach existing receivers (for late binding after Established already fired)
+      if(pc.getReceivers){
+        try{
+          const receivers = pc.getReceivers();
+          if(receivers?.length){
+            const ms = new MediaStream();
+            receivers.forEach((r:any)=>{ if(r.track) ms.addTrack(r.track); });
+            if(ms.getTracks().length) doAttach(ms);
+          }
+        }catch{}
+      }
+      const handler = (e:any)=>{
+        const s = e.streams?.[0] || new MediaStream([e.track]);
+        doAttach(s);
+      };
+      // @ts-ignore
+      pc.ontrack = handler;
+      try{ pc.addEventListener("track", handler); }catch{}
+    }catch{}
+  }
 
   async function connect(cfg:WebPhoneConfig){
     setRegistrationState("connecting"); setRegistrationError(null);
@@ -96,7 +174,13 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
           sessionRef.current=inv;
           setCurrentSession(inv);
           setCallState("incoming");
-          inv.stateChange.addListener((st:any)=>{ if(st==="Established") setCallState("confirmed"); if(st==="Terminated") {setCallState("idle"); sessionRef.current=null; setCurrentSession(null); setDuration(0);} });
+          startRingtone();
+          inv.stateChange.addListener((st:any)=>{
+            if(st==="Established"){ setCallState("confirmed"); stopRingtone(); attachRemoteStream(inv); }
+            if(st==="Terminated") { stopRingtone(); setCallState("idle"); sessionRef.current=null; setCurrentSession(null); setDuration(0); if(remoteAudioRef.current) remoteAudioRef.current.srcObject=null; }
+          });
+          // also handle track directly on invite's SDH once available
+          setTimeout(()=>attachRemoteStream(inv), 0);
         }
       };
       await ua.start();
@@ -109,7 +193,8 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
       });
       await registerer.register();
       uaRef.current=ua; regRef.current=registerer;
-      if(storageKey) localStorage.setItem(storageKey, JSON.stringify(cfg));
+      const key = getStorageKey();
+      if(key) localStorage.setItem(key, JSON.stringify(cfg));
       setConfig(cfg);
       setRegistrationState("registered");
     }catch(e:any){
@@ -118,11 +203,14 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
   }
 
   async function disconnect(){
+    stopRingtone();
     try{ await regRef.current?.unregister(); await uaRef.current?.stop(); }catch{}
     uaRef.current=null; regRef.current=null;
     sessionRef.current=null; setCurrentSession(null);
     setRegistrationState("unconfigured"); setCallState("idle"); setDuration(0);
-    if(storageKey) localStorage.removeItem(storageKey);
+    if(remoteAudioRef.current) remoteAudioRef.current.srcObject=null;
+    const key = getStorageKey();
+    if(key) localStorage.removeItem(key);
     setConfig(null);
   }
   async function call(dest:string){
@@ -137,16 +225,23 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
     setDuration(0);
     inv.stateChange.addListener((s:string)=>{
       if(s===SessionState.Establishing) setCallState("proceeding");
-      else if(s===SessionState.Established) setCallState("confirmed");
-      else if(s===SessionState.Terminated){ setCallState("idle"); sessionRef.current=null; setCurrentSession(null); setDuration(0); }
+      else if(s===SessionState.Established){ setCallState("confirmed"); attachRemoteStream(inv); }
+      else if(s===SessionState.Terminated){ stopRingtone(); setCallState("idle"); sessionRef.current=null; setCurrentSession(null); setDuration(0); if(remoteAudioRef.current) remoteAudioRef.current.srcObject=null; }
     });
+    // also attach on early media (if peerConnection available before Established)
+    setTimeout(()=>attachRemoteStream(inv), 100);
     await inv.invite();
   }
-  async function hangup(){ try{ await sessionRef.current?.bye(); }catch{} setCallState("idle"); sessionRef.current=null; setCurrentSession(null); setDuration(0); }
-  async function answer(){ try{ await sessionRef.current?.accept(); setCallState("confirmed"); }catch{} }
-  async function reject(){ try{ await sessionRef.current?.reject(); }catch{} setCallState("idle"); sessionRef.current=null; setCurrentSession(null); setDuration(0); }
+  async function hangup(){ stopRingtone(); try{ await sessionRef.current?.bye(); }catch{} setCallState("idle"); sessionRef.current=null; setCurrentSession(null); setDuration(0); if(remoteAudioRef.current) remoteAudioRef.current.srcObject=null; }
+  async function answer(){ stopRingtone(); try{ await sessionRef.current?.accept(); setCallState("confirmed"); if(sessionRef.current) attachRemoteStream(sessionRef.current); }catch{} }
+  async function reject(){ stopRingtone(); try{ await sessionRef.current?.reject(); }catch{} setCallState("idle"); sessionRef.current=null; setCurrentSession(null); setDuration(0); }
   function mute(v:boolean){ try{ const pc=sessionRef.current?.sessionDescriptionHandler?.peerConnection; pc?.getSenders().forEach((s:any)=>{ if(s.track?.kind==="audio") s.track.enabled=!v; }); }catch{} setIsMuted(v); }
-  function hold(v:boolean){ setIsHeld(v); /* sip.js hold via invite with a=inactive - phase2 */ }
+  function hold(v:boolean){
+    // TODO(phase2): sync hold-retrieve to FreeSWITCH via re-INVITE with a=inactive / 3pcc.
+    // Phase 1 is local-only: just flip UI state. Future will call session.hold() or send Re-INVITE with hold.
+    // Non-goal per spec: hold-retrieve sync to FS (3pcc) deferred.
+    setIsHeld(v);
+  }
   function sendDTMF(tone:string){ try{ sessionRef.current?.sessionDescriptionHandler?.sendDtmf(tone); }catch{} }
 
   // duration ticker
@@ -159,5 +254,5 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
     return()=>clearInterval(id);
   },[callState]);
 
-  return <WebPhoneContext.Provider value={{registrationState, registrationError, callState, currentSession, config, isMuted, isHeld, connect, disconnect, call, hangup, answer, reject, mute, hold, sendDTMF, duration}}>{children}</WebPhoneContext.Provider>;
+  return <WebPhoneContext.Provider value={{registrationState, registrationError, callState, currentSession, config, isMuted, isHeld, connect, disconnect, call, hangup, answer, reject, mute, hold, sendDTMF, duration, remoteAudioRef}}>{children}</WebPhoneContext.Provider>;
 }

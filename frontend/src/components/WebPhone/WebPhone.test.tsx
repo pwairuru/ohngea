@@ -46,7 +46,7 @@ describe("WebPhoneContext", ()=>{
 describe("WebPhoneButton", ()=>{
   it("shows green dot when registered", async()=>{
     const Wrapper=({state}:{state:any})=>(
-      <WebPhoneContext.Provider value={{registrationState:state, registrationError:null, callState:"idle", currentSession:null, config:null, isMuted:false,isHeld:false, connect:async()=>{}, disconnect:async()=>{}, call:async()=>{}, hangup:async()=>{}, answer:async()=>{}, reject:async()=>{}, mute:()=>{}, hold:()=>{}, sendDTMF:()=>{}, duration:0}}>
+      <WebPhoneContext.Provider value={{registrationState:state, registrationError:null, callState:"idle", currentSession:null, config:null, isMuted:false,isHeld:false, connect:async()=>{}, disconnect:async()=>{}, call:async()=>{}, hangup:async()=>{}, answer:async()=>{}, reject:async()=>{}, mute:()=>{}, hold:()=>{}, sendDTMF:()=>{}, duration:0, remoteAudioRef:{current:null} as any}}>
         <WebPhoneButton onOpen={()=>{}} />
       </WebPhoneContext.Provider>
     );
@@ -71,7 +71,7 @@ describe("WebPhonePopup", ()=>{
 
   it("shows config form when unconfigured and dialpad when configured", async()=>{
     const UnconfiguredWrapper = ()=>(
-      <WebPhoneContext.Provider value={{registrationState:"unconfigured", registrationError:null, callState:"idle", currentSession:null, config:null, isMuted:false,isHeld:false, connect:vi.fn(async()=>{}), disconnect:vi.fn(async()=>{}), call:vi.fn(async()=>{}), hangup:vi.fn(async()=>{}), answer:vi.fn(async()=>{}), reject:vi.fn(async()=>{}), mute:vi.fn(), hold:vi.fn(), sendDTMF:vi.fn(), duration:0}}>
+      <WebPhoneContext.Provider value={{registrationState:"unconfigured", registrationError:null, callState:"idle", currentSession:null, config:null, isMuted:false,isHeld:false, connect:vi.fn(async()=>{}), disconnect:vi.fn(async()=>{}), call:vi.fn(async()=>{}), hangup:vi.fn(async()=>{}), answer:vi.fn(async()=>{}), reject:vi.fn(async()=>{}), mute:vi.fn(), hold:vi.fn(), sendDTMF:vi.fn(), duration:0, remoteAudioRef:{current:null} as any}}>
         <WebPhonePopup open onOpenChange={()=>{}} />
       </WebPhoneContext.Provider>
     );
@@ -81,7 +81,7 @@ describe("WebPhonePopup", ()=>{
     unmount();
 
     const ConfiguredWrapper = ()=>(
-      <WebPhoneContext.Provider value={{registrationState:"registered", registrationError:null, callState:"idle", currentSession:null, config:{sip_uri:"sip:1001@example.com", wss_url:"wss://pbx.example.com/wss", auth_user:"1001", password:"secret"}, isMuted:false,isHeld:false, connect:vi.fn(async()=>{}), disconnect:vi.fn(async()=>{}), call:vi.fn(async()=>{}), hangup:vi.fn(async()=>{}), answer:vi.fn(async()=>{}), reject:vi.fn(async()=>{}), mute:vi.fn(), hold:vi.fn(), sendDTMF:vi.fn(), duration:0}}>
+      <WebPhoneContext.Provider value={{registrationState:"registered", registrationError:null, callState:"idle", currentSession:null, config:{sip_uri:"sip:1001@example.com", wss_url:"wss://pbx.example.com/wss", auth_user:"1001", password:"secret"}, isMuted:false,isHeld:false, connect:vi.fn(async()=>{}), disconnect:vi.fn(async()=>{}), call:vi.fn(async()=>{}), hangup:vi.fn(async()=>{}), answer:vi.fn(async()=>{}), reject:vi.fn(async()=>{}), mute:vi.fn(), hold:vi.fn(), sendDTMF:vi.fn(), duration:0, remoteAudioRef:{current:null} as any}}>
         <WebPhonePopup open onOpenChange={()=>{}} />
       </WebPhoneContext.Provider>
     );
@@ -92,7 +92,7 @@ describe("WebPhonePopup", ()=>{
 
   it("config form validates wss_url", async()=>{
     const Wrapper = ()=>(
-      <WebPhoneContext.Provider value={{registrationState:"unconfigured", registrationError:null, callState:"idle", currentSession:null, config:null, isMuted:false,isHeld:false, connect:vi.fn(async()=>{}), disconnect:vi.fn(async()=>{}), call:vi.fn(async()=>{}), hangup:vi.fn(async()=>{}), answer:vi.fn(async()=>{}), reject:vi.fn(async()=>{}), mute:vi.fn(), hold:vi.fn(), sendDTMF:vi.fn(), duration:0}}>
+      <WebPhoneContext.Provider value={{registrationState:"unconfigured", registrationError:null, callState:"idle", currentSession:null, config:null, isMuted:false,isHeld:false, connect:vi.fn(async()=>{}), disconnect:vi.fn(async()=>{}), call:vi.fn(async()=>{}), hangup:vi.fn(async()=>{}), answer:vi.fn(async()=>{}), reject:vi.fn(async()=>{}), mute:vi.fn(), hold:vi.fn(), sendDTMF:vi.fn(), duration:0, remoteAudioRef:{current:null} as any}}>
         <WebPhonePopup open onOpenChange={()=>{}} />
       </WebPhoneContext.Provider>
     );
@@ -112,7 +112,7 @@ describe("WebPhonePopup", ()=>{
   it("shows incoming banner with Answer/Reject and dialpad grid/call controls", async()=>{
     const answer = vi.fn(async()=>{}); const reject = vi.fn(async()=>{}); const callFn = vi.fn(async()=>{}); const hangup = vi.fn(async()=>{}); const muteFn = vi.fn();
     const Wrapper = ()=>(
-      <WebPhoneContext.Provider value={{registrationState:"registered", registrationError:null, callState:"incoming", currentSession:{} as any, config:{sip_uri:"sip:1001@example.com", wss_url:"wss://pbx.example.com/wss", auth_user:"1001", password:"secret"}, isMuted:false,isHeld:false, connect:vi.fn(async()=>{}), disconnect:vi.fn(async()=>{}), call:callFn, hangup, answer, reject, mute:muteFn, hold:vi.fn(), sendDTMF:vi.fn(), duration:0}}>
+      <WebPhoneContext.Provider value={{registrationState:"registered", registrationError:null, callState:"incoming", currentSession:{} as any, config:{sip_uri:"sip:1001@example.com", wss_url:"wss://pbx.example.com/wss", auth_user:"1001", password:"secret"}, isMuted:false,isHeld:false, connect:vi.fn(async()=>{}), disconnect:vi.fn(async()=>{}), call:callFn, hangup, answer, reject, mute:muteFn, hold:vi.fn(), sendDTMF:vi.fn(), duration:0, remoteAudioRef:{current:null} as any}}>
         <WebPhonePopup open onOpenChange={()=>{}} />
       </WebPhoneContext.Provider>
     );
@@ -135,7 +135,7 @@ describe("WebPhonePopup", ()=>{
   it("dialpad grid appends digits and call/hangup toggles", async()=>{
     const callFn = vi.fn(async()=>{}); const hangup = vi.fn(async()=>{});
     const IdleWrapper = ()=>(
-      <WebPhoneContext.Provider value={{registrationState:"registered", registrationError:null, callState:"idle", currentSession:null, config:{sip_uri:"sip:1001@example.com", wss_url:"wss://pbx.example.com/wss", auth_user:"1001", password:"secret"}, isMuted:false,isHeld:false, connect:vi.fn(async()=>{}), disconnect:vi.fn(async()=>{}), call:callFn, hangup, answer:vi.fn(async()=>{}), reject:vi.fn(async()=>{}), mute:vi.fn(), hold:vi.fn(), sendDTMF:vi.fn(), duration:0}}>
+      <WebPhoneContext.Provider value={{registrationState:"registered", registrationError:null, callState:"idle", currentSession:null, config:{sip_uri:"sip:1001@example.com", wss_url:"wss://pbx.example.com/wss", auth_user:"1001", password:"secret"}, isMuted:false,isHeld:false, connect:vi.fn(async()=>{}), disconnect:vi.fn(async()=>{}), call:callFn, hangup, answer:vi.fn(async()=>{}), reject:vi.fn(async()=>{}), mute:vi.fn(), hold:vi.fn(), sendDTMF:vi.fn(), duration:0, remoteAudioRef:{current:null} as any}}>
         <WebPhonePopup open onOpenChange={()=>{}} />
       </WebPhoneContext.Provider>
     );
@@ -152,7 +152,7 @@ describe("WebPhonePopup", ()=>{
     unmount();
 
     const ActiveWrapper = ()=>(
-      <WebPhoneContext.Provider value={{registrationState:"registered", registrationError:null, callState:"confirmed", currentSession:{} as any, config:{sip_uri:"sip:1001@example.com", wss_url:"wss://pbx.example.com/wss", auth_user:"1001", password:"secret"}, isMuted:true,isHeld:false, connect:vi.fn(async()=>{}), disconnect:vi.fn(async()=>{}), call:callFn, hangup, answer:vi.fn(async()=>{}), reject:vi.fn(async()=>{}), mute:vi.fn(), hold:vi.fn(), sendDTMF:vi.fn(), duration:0}}>
+      <WebPhoneContext.Provider value={{registrationState:"registered", registrationError:null, callState:"confirmed", currentSession:{} as any, config:{sip_uri:"sip:1001@example.com", wss_url:"wss://pbx.example.com/wss", auth_user:"1001", password:"secret"}, isMuted:true,isHeld:false, connect:vi.fn(async()=>{}), disconnect:vi.fn(async()=>{}), call:callFn, hangup, answer:vi.fn(async()=>{}), reject:vi.fn(async()=>{}), mute:vi.fn(), hold:vi.fn(), sendDTMF:vi.fn(), duration:0, remoteAudioRef:{current:null} as any}}>
         <WebPhonePopup open onOpenChange={()=>{}} />
       </WebPhoneContext.Provider>
     );

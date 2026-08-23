@@ -7,7 +7,7 @@ import { useWebPhone } from "../../context/WebPhoneContext";
 import { apiFetch } from "../../lib/api";
 
 export function WebPhonePopup({open, onOpenChange}:{open:boolean; onOpenChange:(v:boolean)=>void}){
-  const {registrationState, registrationError, config, connect, disconnect, call, hangup, answer, reject, callState, isMuted, mute} = useWebPhone();
+  const {registrationState, registrationError, config, connect, disconnect, call, hangup, answer, reject, callState, isMuted, mute, duration, remoteAudioRef, hold, isHeld} = useWebPhone();
   const [settings,setSettings]=React.useState<any>(null);
   const [extList,setExtList]=React.useState<any[]>([]);
   const [form,setForm]=React.useState({extension:"", webrtc_user:"", webrtc_pass:"", wss_url:"", useExtension:true});
@@ -52,6 +52,8 @@ export function WebPhonePopup({open, onOpenChange}:{open:boolean; onOpenChange:(
     }catch(e:any){ setError(e.message?.slice(0,300)||"failed"); }
     finally{ setLoading(false); }
   }
+
+  const timer = `${String(Math.floor(duration/60)).padStart(2,"0")}:${String(duration%60).padStart(2,"0")}`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -103,9 +105,11 @@ export function WebPhonePopup({open, onOpenChange}:{open:boolean; onOpenChange:(
           <div className="flex gap-2">
             {callState==="idle" ? <Button data-testid="call-btn" onClick={()=>call(dial)} disabled={!dial} className="flex-1 bg-green-600 hover:bg-green-700">Call</Button> : <Button data-testid="hangup-btn" onClick={hangup} variant="destructive" className="flex-1">Hangup</Button>}
             {callState!=="idle" && <Button onClick={()=>mute(!isMuted)} variant="outline">{isMuted?"Unmute":"Mute"}</Button>}
+            {callState!=="idle" && <Button onClick={()=>hold(!isHeld)} variant="outline" title="Local hold only — FS sync deferred to phase2 (TODO)">{isHeld?"Unhold":"Hold"}</Button>}
           </div>
-          <div className="text-xs text-muted-foreground">State: {registrationState} • Call: {callState} {registrationError? `• ${registrationError}`:""}</div>
-          <audio id="webphone-remote-audio" autoPlay hidden />
+          {callState==="confirmed" && <div data-testid="call-timer" className="text-sm font-mono text-center">{timer}</div>}
+          <div className="text-xs text-muted-foreground">State: {registrationState} • Call: {callState} {callState==="confirmed" ? `• ${timer}` : ""} {registrationError? `• ${registrationError}`:""}</div>
+          <audio ref={remoteAudioRef} id="webphone-remote-audio" autoPlay hidden />
         </div>
       )}
     </Dialog>
