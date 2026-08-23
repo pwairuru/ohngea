@@ -24,39 +24,46 @@ export function WebPhonePanel({open, onOpenChange, embedded}:{open:boolean; onOp
   const timer = `${String(Math.floor(duration/60)).padStart(2,"0")}:${String(duration%60).padStart(2,"0")}`;
 
   const [activeTab,setActiveTab]=React.useState<string>(()=> isConfigured ? "dialpad" : "settings");
-  React.useEffect(()=>{ if(open) setActiveTab(isConfigured ? "dialpad" : "settings"); },[open, isConfigured]);
-
-  React.useEffect(()=>{
-    if(!open) return;
-    const domainId = localStorage.getItem("domain_id") || (()=>{
-      try{ return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])).domain_id }catch{return null}
-    })();
-    if(domainId) apiFetch(`/domains/${domainId}/webrtc_settings`).then(setSettings).catch(()=>setSettings({enabled:false}));
-    apiFetch("/extensions?per_page=100").then((r:any)=>setExtList(r.data||[])).catch(()=>{});
-  },[open]);
+  const prevOpen=React.useRef(open);
+  React.useEffect(()=>{ if(open && !prevOpen.current) setActiveTab(isConfigured?"dialpad":"settings"); prevOpen.current=open; },[open]);
 
   React.useEffect(()=>{
     if(!open) return;
     let cancelled=false;
+    const domainId = localStorage.getItem("domain_id") || (()=>{
+      try{ return JSON.parse(atob(localStorage.getItem("token")!.split(".")[1])).domain_id }catch{return null}
+    })();
+    if(domainId) apiFetch(`/domains/${domainId}/webrtc_settings`).then(s=>{ if(!cancelled) setSettings(s); }).catch(()=>{ if(!cancelled) setSettings({enabled:false}); });
     async function load(){
       try{
         const token=localStorage.getItem("token");
         let domain="", user="";
         try{ const p=JSON.parse(atob(token!.split(".")[1])); domain=p.domain_id; user=p.sub; }catch{}
         const favKey=`webphone:favorites:${domain}:${user}`;
-        let favIds:string[]=[];
-        try{ const raw=localStorage.getItem(favKey); if(raw) favIds=JSON.parse(raw); }catch{}
-        const favSet=new Set(favIds);
         const [extRes, userRes]=await Promise.all([
           apiFetch("/extensions?per_page=100").catch(()=>({data:[]})),
           apiFetch("/users?per_page=100").catch(()=> apiFetch("/users").catch(()=>({data:[]}))),
         ]);
+        if(cancelled) return;
         const extData=(extRes as any)?.data || (Array.isArray(extRes)?extRes:[]);
         const userData=(userRes as any)?.data || (Array.isArray(userRes)?userRes:[]);
+        if(!cancelled) setExtList(extData);
+        let favIds:string[]=[];
+        try{ const raw=localStorage.getItem(favKey); if(raw) favIds=JSON.parse(raw); }catch{}
+        const favSet=new Set(favIds);
         const mappedExt=extData.map((e:any)=>({ id:e.extension_uuid || e.id || e.extension, kind:"extension", primary:e.extension, name:e.effective_caller_id_name || e.name || e.extension, favorite: favSet.has(e.extension_uuid || e.id || e.extension), domain_id: e.domain_id || domain }));
         const mappedUsers=userData.map((u:any)=>({ id:u.user_uuid || u.id, kind:"user", primary:u.username || u.extension || u.primary, name:u.contact_name || u.username || u.primary, favorite: favSet.has(u.user_uuid || u.id), domain_id: u.domain_id || domain }));
-        const merged=[...mappedExt, ...mappedUsers].filter((c:any)=>c.primary);
-        if(!cancelled) setContacts(merged);
+        const merged=[...mappedExt, ...mappedUsers].filter((c:any)=>c.primary).map((c:any)=>({...c, favorite: favSet.has(c.id)}));
+        if(cancelled) return;
+        setContacts(prev=>{
+          if(cancelled) return prev;
+          let latestIds:string[]=[];
+          try{ const raw=localStorage.getItem(favKey); if(raw) latestIds=JSON.parse(raw); }catch{}
+          const latestSet=new Set(latestIds);
+          const withLatest=merged.map((c:any)=>({...c, favorite: latestSet.has(c.id)}));
+          if(prev.length===0) return withLatest;
+          return prev.map((p:any)=>({...p, favorite: latestSet.has(p.id)}));
+        });
       }catch{
         if(!cancelled) setContacts([]);
       }
@@ -101,8 +108,6 @@ export function WebPhonePanel({open, onOpenChange, embedded}:{open:boolean; onOp
       if (urlToValidate.startsWith("ws://") && !urlToValidate.includes("localhost") && !urlToValidate.includes("127.0.0.1")) {
         setError("ws:// only allowed for localhost — use wss:// for production");
         return;
-      }
-      if (!form.webrtc_user || !form.webrtc_pass) {
       }
     } else {
       if (!form.extension) {
