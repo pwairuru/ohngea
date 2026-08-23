@@ -201,14 +201,14 @@ PASSED: patch level on protected 403, patch protected 403, description patch 200
 ### Commits
 
 ```
-cbf2c39 fix(groups): reviewer round1 — remove contact FK, permission_protected delete, toggle guard, superadmin *, domain index, patch guard
+6226ffa fix(groups): reviewer round1 — remove contact FK, permission_protected delete, toggle guard, superadmin *, domain index, patch guard
   5 files: alembic/versions/001_initial.py, alembic/versions/023_groups_users_parity.py, app/groups/service.py, app/groups/router.py, .superpowers/sdd/2026-08-23-groups-users-parity-fix/task-1-report.md
   base: 1fe0bdfa8a2d6dc0a22e0c226b4c558a7bf1607e
   previous: c5b49e62e3b057fbfc9ac5bf88fdc4f5991ed5dd
-  head: cbf2c39
+  head: 6226ffa (amended from cbf2c39)
 ```
 
-Diff isolation: `git diff 1fe0bdfa8a2d6dc0a22e0c226b4c558a7bf1607e..cbf2c39 --name-only` →
+Diff isolation: `git diff 1fe0bdfa8a2d6dc0a22e0c226b4c558a7bf1607e..6226ffa --name-only` →
 ```
 alembic/versions/001_initial.py
 alembic/versions/020_webrtc_settings.py
