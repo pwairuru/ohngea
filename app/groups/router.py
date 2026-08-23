@@ -486,8 +486,22 @@ async def remove_user_group_ep(user_uuid: UUID, group_uuid: UUID, session: Async
 # permissions
 
 @router.get("/permissions", response_model=dict)
-async def list_permissions_ep(session: AsyncSession=Depends(get_session), user: User=Depends(get_current_user)):
+async def list_permissions_ep(category: Optional[str]=Query(None), search: Optional[str]=Query(None), session: AsyncSession=Depends(get_session), user: User=Depends(get_current_user)):
+    # perm check: GET /permissions requires group_view (legacy permission.php:94 hierarchy, * is superadmin)
+    perms_check = getattr(user, "_perms", None)
+    if perms_check is None:
+        from app.auth.service import get_user_permissions as _gup
+        perms_check = await _gup(session, user)
+    if not ("*" in perms_check or "group_view" in perms_check or "group_permission_view" in perms_check or "group_permissions" in perms_check or "domain_add" in perms_check):
+        raise HTTPException(status_code=403, detail="Missing permission: group_view")
     perms = await list_permissions(session)
+    # category filter: permission name prefix before "_" (e.g. dialplan matches dialplan_view)
+    if category:
+        cat = category.lower()
+        perms = [p for p in perms if p.name.lower() == cat or p.name.lower().startswith(cat + "_") or p.name.lower().startswith(cat + ".")]
+    if search and search.strip():
+        s = search.lower()
+        perms = [p for p in perms if s in p.name.lower()]
     data = [{"permission_uuid": str(p.permission_uuid), "name": p.name, "description": p.description} for p in perms]
     return {"data": data, "total": len(data)}
 

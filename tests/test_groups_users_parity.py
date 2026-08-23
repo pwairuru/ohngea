@@ -328,6 +328,41 @@ async def test_delete_protected_group_blocked(client, test_db, domain, auth_head
     assert resp3.status_code == 204, resp3.text
 
 
+async def test_perm_protected_persist(client, auth_headers, test_db, domain):
+    # PUT with permission_protected=True, GET ?view=protected should return it (task 5)
+    from app.auth.models import Permission
+    async with test_db() as s:
+        perm = Permission(name=f"dialplan_view_{uuid4().hex[:4]}")
+        s.add(perm)
+        await s.commit()
+        await s.refresh(perm)
+        perm_name = perm.name
+    # create group
+    resp = await client.post("/api/v1/groups", json={"name": f"pp-{uuid4().hex[:4]}", "group_level": 20}, headers=auth_headers)
+    assert resp.status_code == 201, resp.text
+    gid = resp.json()["group_uuid"]
+    # PUT with permission_protected True via dict keyed by name (protected_map persist)
+    put_resp = await client.put(f"/api/v1/groups/{gid}/permissions", json={"permission_names": [perm_name], "permission_protected": {perm_name: True}}, headers=auth_headers)
+    assert put_resp.status_code == 200, put_resp.text
+    # GET ?view=protected should return it with protected=True (protected_map persist verified)
+    get_resp = await client.get(f"/api/v1/groups/{gid}/permissions?view=protected", headers=auth_headers)
+    assert get_resp.status_code == 200, get_resp.text
+    data = get_resp.json()["data"]
+    assert any(x["name"] == perm_name and x.get("protected") is True for x in data), f"protected persist failed, got {data}"
+    # also verify category filter: ?category=dialplan should return this perm via name prefix
+    cat_resp = await client.get(f"/api/v1/groups/{gid}/permissions?category=dialplan", headers=auth_headers)
+    assert cat_resp.status_code == 200
+    assert any(x["name"] == perm_name for x in cat_resp.json()["data"]), "category filter failed"
+    # verify GET /permissions perm check: low user without group_view should get 403
+    _, token_low, _ = await _make_level_user(test_db, domain, f"lowcat-{uuid4().hex[:4]}", 10, perms=["extension_view"])
+    headers_low = {"Authorization": f"Bearer {token_low}"}
+    r_perm = await client.get("/api/v1/permissions", headers=headers_low)
+    assert r_perm.status_code == 403, f"GET /permissions should require group_view, got {r_perm.status_code} {r_perm.text}"
+    # with proper perm should succeed with category filter (Permission.name.startswith(category+"_"))
+    r_perm_ok = await client.get("/api/v1/permissions?category=dialplan", headers=auth_headers)
+    assert r_perm_ok.status_code == 200
+
+
 async def test_groups_show_all_requires_permission(client, test_db, domain, other_domain):
     # low user with only group_view (no group_all) cannot see other domain even with show=all
     _, token_low, _ = await _make_level_user(test_db, domain, f"low2-{uuid4().hex[:4]}", 10, perms=["group_view"])

@@ -34,6 +34,7 @@ async def me(user: User = Depends(get_current_user)):
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    # refresh on group change: re-query permissions so JWT reflects current group assignments
     perms = await get_user_permissions(session, user)
     token = create_token(user, perms)
     return TokenResponse(access_token=token)

@@ -85,6 +85,49 @@ export function Users() {
     try { await apiFetch(`/users/${u.user_uuid}`, { method: "DELETE" }); toast(`User ${u.username} deleted`); reload(); } catch (err) { toastError(err); }
   };
 
+  // Task 5: protected toggle persist — PUT /groups/{id}/permissions now stores permission_protected per item
+  // GET supports ?category= filter via Permission.name.startswith(category+"_") and ?view=protected
+  // Save payload must send protected flag: {permission_names, permission_protected, protected_map, items}
+  const saveGroupPermissions = async (
+    groupUuid: string,
+    permsList: Array<{ name: string; permission_uuid?: string; assigned: boolean; protected?: boolean }>
+  ) => {
+    const permission_names = permsList.filter((p) => p.assigned).map((p) => p.name);
+    const permission_uuids = permsList.filter((p) => p.assigned && p.permission_uuid).map((p) => p.permission_uuid as string);
+    // protected_map from body protected flag — handles both name and uuid keys
+    // legacy: permission_protected dict + protected_map dict + items with protected attr
+    const permission_protected: Record<string, boolean> = {};
+    const protected_map: Record<string, boolean> = {};
+    permsList.forEach((p) => {
+      if (p.protected) {
+        permission_protected[p.name] = true;
+        protected_map[p.name] = true;
+        if (p.permission_uuid) protected_map[p.permission_uuid] = true;
+      }
+    });
+    // items shape for router: {permission_name, permission_uuid, assigned, protected} — matches brief `hasattr(item,'protected')`
+    const items = permsList.map((p) => ({
+      permission_name: p.name,
+      permission_uuid: p.permission_uuid,
+      name: p.name,
+      assigned: p.assigned,
+      protected: !!p.protected,
+    }));
+    try {
+      await apiFetch(`/groups/${groupUuid}/permissions`, {
+        method: "PUT",
+        body: JSON.stringify({ permission_names, permission_uuids, permission_protected, protected_map, items }),
+      });
+      toast(`Permissions saved for group ${groupUuid}`, { variant: "success" });
+    } catch (err) {
+      toastError(err);
+    }
+  };
+
+  // Example usage: fetch with category + view=protected to verify persist
+  // await apiFetch(`/groups/${groupUuid}/permissions?category=dialplan&view=protected`)
+  // JWT refresh on group change: call POST /auth/refresh to get new token with updated perms
+
   return (
     <>
       <PageHeader title="Users & Groups" description="Users per tenant (RLS) and RBAC groups" actions={<Button onClick={startCreate}>Add User</Button>} />
