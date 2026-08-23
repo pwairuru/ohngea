@@ -25,11 +25,11 @@ type Ctx = {
   sendDTMF:(tone:string)=>void;
   duration:number;
   remoteAudioRef: React.RefObject<HTMLAudioElement | null>;
-  history?: CallRecord[];
-  contacts?: Contact[];
-  addHistory?:(rec:CallRecord)=>void;
-  clearHistory?:()=>void;
-  getHistoryKey?:()=>string|null;
+  history: CallRecord[];
+  contacts: Contact[];
+  addHistory:(rec:CallRecord)=>void;
+  clearHistory:()=>void;
+  getHistoryKey:()=>string|null;
   // TODO(phase2): hold-retrieve sync to FS via re-INVITE 3pcc deferred — phase1 local only
 };
 
@@ -90,32 +90,36 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
   },[storeState.history]);
 
   function addHistory(rec: CallRecord){
-    dispatch({type:"HISTORY_APPEND", rec});
-    // immediate persist also handled by effect; do direct set for sync guarantee
     try{
       const hk = getHistoryKey();
       if(hk){
-        // compute next history synchronously for immediate persist (effect will also sync)
-        // we rely on reducer cap logic; effect will overwrite with correct sliced value next render, but ensure at least append
-        // no-op if hk missing
+        const next = reducer(storeState, {type:"HISTORY_APPEND", rec} as any);
+        try{ localStorage.setItem(hk, JSON.stringify(next.history)); }catch{}
       }
     }catch{}
+    dispatch({type:"HISTORY_APPEND", rec});
   }
   function clearHistory(){
+    try{
+      const hk = getHistoryKey();
+      if(hk) try{ localStorage.setItem(hk, JSON.stringify([])); }catch{}
+    }catch{}
     dispatch({type:"HISTORY_CLEAR"});
   }
   function getHistoryKeyCb(): string | null { return getHistoryKey(); }
 
   // keep hydrate reactive to token changes from login without reload: poll + storage/focus events
+  // use ref to avoid stale closure on history length inside interval/focus
+  const historyLenRef = React.useRef(storeState.history.length);
+  React.useEffect(()=>{ historyLenRef.current = storeState.history.length; },[storeState.history.length]);
   React.useEffect(()=>{
     const onStorage = (e: StorageEvent)=>{ if(e.key==="token" || e.key?.startsWith("webphone:cfg:") || e.key?.startsWith("webphone:history:")) { const k=getStorageKey(); if(k){ const raw=localStorage.getItem(k); if(raw){ try{ const cfg=JSON.parse(raw); setConfig(cfg); setRegistrationState(s=>s==="unconfigured"?"unregistered":s); }catch{} } } const hk=getHistoryKey(); if(hk){ const rawH=localStorage.getItem(hk); if(rawH){ try{ const h=JSON.parse(rawH); dispatch({type:"HISTORY_LOAD", history:h}); }catch{} } } } };
-    const onFocus = ()=>{ const k=getStorageKey(); if(k){ const raw=localStorage.getItem(k); if(raw && !config){ try{ const cfg=JSON.parse(raw); setConfig(cfg); setRegistrationState(s=>s==="unconfigured"?"unregistered":s); }catch{} } } const hk=getHistoryKey(); if(hk){ const rawH=localStorage.getItem(hk); if(rawH){ try{ const h=JSON.parse(rawH); if(h.length && storeState.history.length===0) dispatch({type:"HISTORY_LOAD", history:h}); }catch{} } } };
+    const onFocus = ()=>{ const k=getStorageKey(); if(k){ const raw=localStorage.getItem(k); if(raw && !config){ try{ const cfg=JSON.parse(raw); setConfig(cfg); setRegistrationState(s=>s==="unconfigured"?"unregistered":s); }catch{} } } const hk=getHistoryKey(); if(hk){ const rawH=localStorage.getItem(hk); if(rawH){ try{ const h=JSON.parse(rawH); if(h.length && historyLenRef.current===0) dispatch({type:"HISTORY_LOAD", history:h}); }catch{} } } };
     window.addEventListener("storage", onStorage);
     window.addEventListener("focus", onFocus as any);
-    const id = setInterval(()=>{ const k=getStorageKey(); if(k && !config){ const raw=localStorage.getItem(k); if(raw){ try{ const cfg=JSON.parse(raw); setConfig(c=>c||JSON.parse(raw)); setRegistrationState(s=>s==="unconfigured"?"unregistered":s); }catch{} } } const hk=getHistoryKey(); if(hk){ const rawH=localStorage.getItem(hk); if(rawH && storeState.history.length===0){ try{ const h=JSON.parse(rawH); if(h.length) dispatch({type:"HISTORY_LOAD", history:h}); }catch{} } } }, 1000);
+    const id = setInterval(()=>{ const k=getStorageKey(); if(k && !config){ const raw=localStorage.getItem(k); if(raw){ try{ const cfg=JSON.parse(raw); setConfig(c=>c||JSON.parse(raw)); setRegistrationState(s=>s==="unconfigured"?"unregistered":s); }catch{} } } const hk=getHistoryKey(); if(hk){ const rawH=localStorage.getItem(hk); if(rawH && historyLenRef.current===0){ try{ const h=JSON.parse(rawH); if(h.length) dispatch({type:"HISTORY_LOAD", history:h}); }catch{} } } }, 1000);
     return ()=>{ window.removeEventListener("storage", onStorage); window.removeEventListener("focus", onFocus as any); clearInterval(id); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[config?.sip_uri]);
+  },[config?.sip_uri, storeState.history.length]);
 
   // auto-connect if config + enabled
   React.useEffect(()=>{
