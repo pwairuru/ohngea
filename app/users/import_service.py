@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 from typing import List, Tuple, Dict, Any
 from uuid import UUID
 import uuid6
@@ -10,6 +11,21 @@ from app.auth.models import User, Group, UserGroup
 from app.auth.service import hash_password
 from app.contacts.models import Contact
 from app.db import uuid7
+
+
+def _validate_password_strength(password: str, length_req=12, need_number=True, need_lower=True, need_upper=True, need_special=False):
+    errors = []
+    if len(password) < length_req:
+        errors.append(f"password must be at least {length_req} characters")
+    if need_number and not re.search(r"\d", password):
+        errors.append("password must contain at least one number")
+    if need_lower and not re.search(r"[a-z]", password):
+        errors.append("password must contain at least one lowercase")
+    if need_upper and not re.search(r"[A-Z]", password):
+        errors.append("password must contain at least one uppercase")
+    if need_special and not re.search(r"[\W_]", password):
+        errors.append("password must contain at least one special character")
+    return errors
 
 
 async def _validate_and_create_user(
@@ -40,12 +56,10 @@ async def _validate_and_create_user(
     # basic email validation if provided
     if email and "@" not in email:
         return None, "invalid email"
-    # password strength minimal (use default 12 like create_user but allow shorter for import?)
-    # For import, we still enforce basic: at least 8? Keep legacy: require 12? Use same validation as router but simplified
-    # We'll allow any password >=8 for import stub to avoid blocking tests, unless caller wants strict.
-    # But follow create_user default: length 12 etc. For now require >=4 to keep import usable in tests
-    if len(password) < 4:
-        return None, "password too short"
+    # password strength: reuse same validation as router (defaults 12/true/true/true/false) — no weak bypass
+    pw_errors = _validate_password_strength(password)
+    if pw_errors:
+        return None, "; ".join(pw_errors)
     # create user
     enabled_val = row.get("enabled", row.get("user_enabled", "true"))
     if isinstance(enabled_val, str):

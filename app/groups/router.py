@@ -203,9 +203,14 @@ async def get_group_ep(group_uuid: UUID, show: Optional[str]=Query(None), sessio
     g = await get_group(session, domain_id, group_uuid, show_all=show_all)
     if not g:
         raise HTTPException(status_code=404, detail="Group not found")
-    # level visibility
+    # level visibility: * means superadmin (no level fallback)
     lvl = await get_user_level(session, user)
-    if g.group_level is not None and g.group_level > lvl and lvl < 80:
+    perms = getattr(user, "_perms", None)
+    if perms is None:
+        from app.auth.service import get_user_permissions as _gup2
+        perms = await _gup2(session, user)
+    is_super = "*" in perms
+    if g.group_level is not None and g.group_level > lvl and not is_super:
         raise HTTPException(status_code=403, detail="Group level too high")
     c = (await session.execute(select(func.count()).select_from(UserGroup).where(UserGroup.group_uuid == group_uuid))).scalar_one()
     pc = (await session.execute(select(func.count()).select_from(GroupPermission).where(GroupPermission.group_uuid == group_uuid))).scalar_one()
@@ -370,13 +375,11 @@ async def list_group_users_ep(group_uuid: UUID, show: Optional[str]=Query(None),
     g = await get_group(session, domain_id, group_uuid, show_all=show_all)
     if not g:
         raise HTTPException(status_code=404, detail="Group not found")
-    # superadmin guard
+    # superadmin guard: * means superadmin, no lvl fallback
     if g.name=="superadmin":
-        lvl = await get_user_level(session, user)
-        is_super = lvl>=80 or any(1 for _ in [] )
         # check if user is superadmin member
         my_uuids = await get_user_groups(session, domain_id, user.user_uuid)
-        is_super = any(gr.name=="superadmin" for gr in my_uuids) or "*" in perms
+        is_super = "*" in perms or any(gr.name=="superadmin" for gr in my_uuids)
         if not is_super:
             raise HTTPException(status_code=403, detail="Only superadmin can view superadmin members")
     users = await get_group_users(session, domain_id, group_uuid, show_all=show_all)

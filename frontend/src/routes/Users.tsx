@@ -68,6 +68,7 @@ export function Users() {
   const [permsView, setPermsView] = React.useState("");
 
   // password strength: length 12 + number/lower/upper/special (defaults 12/true/true/true/false per app_config:119) — preserve Task 3 meter 36-54
+  // TODO: fetch password config from backend domain settings or /users/password-config; currently hardcoded 12/true/true/true/false matches backend defaults but backend can be customized per domain
   const validatePassword = (pw: string) => {
     const errs: string[] = [];
     if (pw.length < 12) errs.push("at least 12 characters");
@@ -221,7 +222,7 @@ export function Users() {
           api_key: userForm.api_key||undefined, user_totp_secret: userForm.user_totp_secret||undefined,
           domain_uuid: userForm.domain_id || undefined
         };
-        if(!payload.password) payload.password = "TempPass123!";
+        // password required: isPasswordWeak guard above already blocks empty/weak; backend will 422 if missing
         // multi-group checkboxes
         if(selectedGroups.size>0) {
           payload.groups = Array.from(selectedGroups);

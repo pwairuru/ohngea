@@ -1,9 +1,11 @@
 from uuid import UUID
+import logging
 import re
 import uuid6
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File, Request
 from sqlalchemy import select, func, or_, and_, text, update, delete
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user
@@ -13,6 +15,9 @@ from app.contacts.models import Contact
 from app.db import get_session, set_tenant
 from app.domains.models import Domain, DomainSettings
 from app.freeswitch.cache import invalidate_fs_cache_for_session
+from app.groups.service import _is_superadmin
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
@@ -42,7 +47,8 @@ async def _get_domain_setting(session: AsyncSession, domain_id: UUID, category: 
             row2 = r2.scalar_one_or_none()
             if row2:
                 return row2.value
-    except Exception:
+    except SQLAlchemyError as e:
+        logger.warning(f"_get_domain_setting failed {category}/{subcategory} for {domain_id}: {e}")
         pass
     return default
 
@@ -324,16 +330,14 @@ async def bulk_users(payload: dict, session: AsyncSession=Depends(get_session), 
             if not ("*" in perms or "user_delete" in perms or "domain_add" in perms):
                 results.append({"user_uuid": str(uid_str), "error": "Missing permission: user_delete"})
                 continue
-            # superadmin protection
+            # superadmin protection: * means superadmin, no lvl fallback
             # check if user is superadmin member
             gr = await session.execute(select(Group.name).join(UserGroup, UserGroup.group_uuid==Group.group_uuid).where(UserGroup.user_uuid==uid))
             is_super = any(row[0]=="superadmin" for row in gr.all())
             if is_super:
-                lvl = await get_user_level(session, current)
-                my_groups = await get_user_group_uuids(session, current)
                 # check if current is superadmin
                 cr = await session.execute(select(Group.name).join(UserGroup, UserGroup.group_uuid==Group.group_uuid).where(UserGroup.user_uuid==current.user_uuid))
-                is_cur_super = any(row[0]=="superadmin" for row in cr.all()) or "*" in perms or lvl>=80
+                is_cur_super = any(row[0]=="superadmin" for row in cr.all()) or "*" in perms
                 if not is_cur_super:
                     results.append({"user_uuid": str(uid_str), "error": "Only superadmin can delete superadmin"})
                     continue
@@ -606,10 +610,10 @@ async def create_user(payload: dict, response: Response, session: AsyncSession=D
             gr = await session.execute(select(Group).where(Group.group_uuid==g_uuid))
             grp = gr.scalar_one_or_none()
             if grp:
-                # delegation check
+                # delegation check: * means superadmin (no lvl fallback)
                 lvl = await get_user_level(session, current)
                 my_uuids = await get_user_group_uuids(session, current)
-                if grp.group_level is not None and grp.group_level >= lvl and g_uuid not in my_uuids and lvl < 80:
+                if grp.group_level is not None and grp.group_level >= lvl and g_uuid not in my_uuids and not _is_superadmin(current):
                     raise HTTPException(status_code=403, detail="Cannot assign group at your level or higher")
                 ug = UserGroup(user_uuid=u.user_uuid, group_uuid=g_uuid, domain_id=target_domain_uuid, group_name=grp.name)
                 session.add(ug)
@@ -636,7 +640,7 @@ async def create_user(payload: dict, response: Response, session: AsyncSession=D
                     if grp:
                         lvl = await get_user_level(session, current)
                         my_uuids = await get_user_group_uuids(session, current)
-                        if grp.group_level is not None and grp.group_level >= lvl and g_uuid not in my_uuids and lvl < 80:
+                        if grp.group_level is not None and grp.group_level >= lvl and g_uuid not in my_uuids and not _is_superadmin(current):
                             continue
                         ug = UserGroup(user_uuid=u.user_uuid, group_uuid=g_uuid, domain_id=target_domain_uuid, group_name=grp.name)
                         session.add(ug)
@@ -667,14 +671,13 @@ async def patch_user(user_uuid: UUID, payload: dict, session: AsyncSession=Depen
     show_all = ("*" in perms or "user_all" in perms)
     if not show_all and str(u.domain_id)!=str(domain_id):
         raise HTTPException(status_code=404, detail="User not found")
-    # superadmin protection
+    # superadmin protection: * means superadmin, no lvl fallback
     gr = await session.execute(select(Group.name).join(UserGroup, UserGroup.group_uuid==Group.group_uuid).where(UserGroup.user_uuid==user_uuid))
     is_super = any(row[0]=="superadmin" for row in gr.all())
     if is_super:
         cr = await session.execute(select(Group.name).join(UserGroup, UserGroup.group_uuid==Group.group_uuid).where(UserGroup.user_uuid==current.user_uuid))
         is_cur_super = any(row[0]=="superadmin" for row in cr.all()) or "*" in perms
-        lvl = await get_user_level(session, current)
-        if not is_cur_super and lvl < 80:
+        if not is_cur_super:
             raise HTTPException(status_code=403, detail="Only superadmin can edit superadmin")
     # update fields
     if "username" in payload and payload["username"]!=u.username:
@@ -881,7 +884,7 @@ async def patch_user(user_uuid: UUID, payload: dict, session: AsyncSession=Depen
             if grp:
                 lvl = await get_user_level(session, current)
                 my_uuids = await get_user_group_uuids(session, current)
-                if grp.group_level is not None and grp.group_level >= lvl and g_uuid not in my_uuids and lvl < 80:
+                if grp.group_level is not None and grp.group_level >= lvl and g_uuid not in my_uuids and not _is_superadmin(current):
                     raise HTTPException(status_code=403, detail="Cannot assign group at your level or higher")
                 # check duplicate
                 chk = await session.execute(select(UserGroup).where(UserGroup.user_uuid==user_uuid, UserGroup.group_uuid==g_uuid))
@@ -917,14 +920,13 @@ async def delete_user(user_uuid: UUID, session: AsyncSession=Depends(get_session
     show_all = ("*" in perms or "user_all" in perms)
     if not show_all and str(u.domain_id)!=str(domain_id):
         raise HTTPException(status_code=404, detail="User not found")
-    # superadmin protection
+    # superadmin protection: * means superadmin, no lvl fallback
     gr = await session.execute(select(Group.name).join(UserGroup, UserGroup.group_uuid==Group.group_uuid).where(UserGroup.user_uuid==user_uuid))
     is_super = any(row[0]=="superadmin" for row in gr.all())
     if is_super:
         cr = await session.execute(select(Group.name).join(UserGroup, UserGroup.group_uuid==Group.group_uuid).where(UserGroup.user_uuid==current.user_uuid))
         is_cur_super = any(row[0]=="superadmin" for row in cr.all()) or "*" in perms
-        lvl = await get_user_level(session, current)
-        if not is_cur_super and lvl < 80:
+        if not is_cur_super:
             raise HTTPException(status_code=403, detail="Only superadmin can delete superadmin")
     await session.delete(u)
     await session.commit()
