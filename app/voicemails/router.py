@@ -56,7 +56,7 @@ def _serialize(vm: Voicemail, destinations: list[VoicemailDestination] | None = 
     return d
 
 
-@router.get("", response_model=dict)
+@router.get("", response_model=dict, dependencies=[Depends(require_permission("voicemail_view"))])
 async def list_vm(
     request: Request,
     response: Response,
@@ -148,7 +148,7 @@ async def create_vm(
     return _serialize(vm, dests)
 
 
-@router.get("/{voicemail_uuid}", response_model=dict)
+@router.get("/{voicemail_uuid}", response_model=dict, dependencies=[Depends(require_permission("voicemail_view"))])
 async def get_vm(voicemail_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)

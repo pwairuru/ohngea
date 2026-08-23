@@ -25,7 +25,7 @@ async def _sofia_rescan(profile: str | None):
 router = APIRouter(prefix="/api/v1/gateways", tags=["gateways"])
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_permission("gateway_view"))])
 async def list_gateways(response: Response, page: int = Query(1, ge=1), per_page: int = Query(20, ge=1, le=100), session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
@@ -94,7 +94,7 @@ async def create_gateway(payload: dict, response: Response, session: AsyncSessio
     return d
 
 
-@router.get("/{gateway_uuid}")
+@router.get("/{gateway_uuid}", dependencies=[Depends(require_permission("gateway_view"))])
 async def get_gateway(gateway_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)

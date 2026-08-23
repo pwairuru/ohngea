@@ -15,7 +15,7 @@ from app.freeswitch.cache import invalidate_fs_cache_for_session
 router = APIRouter(prefix="/api/v1/dialplans", tags=["dialplans"])
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_permission("dialplan_view"))])
 async def list_dialplans(
     response: Response,
     page: int = Query(1, ge=1),
@@ -74,7 +74,7 @@ async def create_dialplan(
     return {"dialplan_uuid": str(d.dialplan_uuid), "name": d.name, "context": d.context, "enabled": d.enabled, "details": [{"tag": x.tag, "type": x.type, "data": x.data} for x in details], "_links": {"self": {"href": f"/api/v1/dialplans/{d.dialplan_uuid}"}}}
 
 
-@router.get("/{dialplan_uuid}")
+@router.get("/{dialplan_uuid}", dependencies=[Depends(require_permission("dialplan_view"))])
 async def get_dialplan(dialplan_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)

@@ -21,7 +21,7 @@ def _links(ext: Extension):
     return {"self": {"href": base}, "collection": {"href": "/api/v1/extensions"}}
 
 
-@router.get("", response_model=dict)
+@router.get("", response_model=dict, dependencies=[Depends(require_permission("extension_view"))])
 async def list_ext(
     request: Request,
     response: Response,
@@ -106,7 +106,7 @@ async def create_ext(
     return ext
 
 
-@router.get("/{extension_uuid}", response_model=dict)
+@router.get("/{extension_uuid}", response_model=dict, dependencies=[Depends(require_permission("extension_view"))])
 async def get_ext(extension_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)

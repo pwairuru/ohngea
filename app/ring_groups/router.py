@@ -42,7 +42,7 @@ def _serialize(rg: RingGroup, members: list[RingGroupMember] | None = None):
     return d
 
 
-@router.get("", response_model=dict)
+@router.get("", response_model=dict, dependencies=[Depends(require_permission("ring_group_view"))])
 async def list_rg(
     request: Request,
     response: Response,
@@ -126,7 +126,7 @@ async def create_rg(
     return result
 
 
-@router.get("/{ring_group_uuid}", response_model=dict)
+@router.get("/{ring_group_uuid}", response_model=dict, dependencies=[Depends(require_permission("ring_group_view"))])
 async def get_rg(ring_group_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
