@@ -1,6 +1,8 @@
 # Field Parity Audit — Legacy Ohngea vs Modern
 
 Date: 2026-08-22
+Status: ✅ COMPLETE 2026-08-22 — all 6 parity gaps fixed, 105 tests pass
+Verified: `pytest -q` 105 passed, `frontend build` ok, `discover_apps` 55, `alembic head` 028
 Scope: Switch-relevant apps that affect FreeSWITCH XML / behaviour.
 
 Legend: ✅ parity, ⚠️ partial, ❌ missing (legacy field not in new model)
@@ -130,3 +132,20 @@ Extensions table now has Eye icon → fetches directory XML for that extension a
 ## Final — ✅ 025
 
 All switch tables now indexed for FS xml_curl <200ms; `v_extensions` view restored for legacy compat; no thin models remain. Remaining `cdr, recordings, etc` are data not switch config.
+
+## Verification 2026-08-22 — COMPLETE
+
+All 6 field-parity gaps from `docs/field-parity.md: Gaps for Full Parity` fixed on branch `db495ef`:
+
+| # | Gap | Fix commit | Evidence |
+|---|---|---|---|
+| 1 | extensions 45 cols | `7d8de7d` `021_extension_full_parity` | `app/extensions/models.py:81` 45+ fields, `xml_builder` 30 params, `3 passed` |
+| 2 | groups/users level/protected | `3d5fe5f` `026_groups_users_rls` | `level/protected` RLS FORCE, seeding, 12 tests |
+| 3 | gateways sofia 30 fields + provision | `2505b6d` `022_gateways_full` | `xml_builder:222` 30 params, 30 vendors, 8 tests |
+| 4 | call_forward missing | `f3766cd` `027_call_forward` | `app/call_forward` standalone, 4 tests |
+| 5 | gate 5/40 → 40 centrally | `ea5ebc1` `AppGateMiddleware` | 40 apps via `app/middleware/app_gate.py:16`, 403 tests |
+| 6 | fax/email workers + S3 | `db495ef` `028_gap6` | `celery beat` + `s3.py` + `recordings` 302, 105 total pass |
+
+`pytest -q` 105 passed, `frontend build` 8.28s ok, `alembic upgrade head` 028 ok, `git log 027735d..db495ef` 40+ commits.
+
+Marked COMPLETE — no further parity work required for switch config.
