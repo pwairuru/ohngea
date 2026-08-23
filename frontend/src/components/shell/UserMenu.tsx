@@ -1,7 +1,6 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../lib/api";
-import { ThemeToggle } from "../theme/ThemeProvider";
 
 export function UserMenu() {
   const nav = useNavigate();
@@ -38,11 +37,6 @@ export function UserMenu() {
           <div className="px-2 py-1.5">
             <div className="text-sm font-medium truncate">{me.username ?? "Signed in"}</div>
             {me.domain_id && <div className="text-xs text-muted-foreground truncate num">{me.domain_id}</div>}
-          </div>
-          <div className="my-1 border-t" />
-          <div className="flex items-center justify-between px-2 py-1.5 text-sm">
-            <span>Theme</span>
-            <ThemeToggle />
           </div>
           <div className="my-1 border-t" />
           <button
