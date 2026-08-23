@@ -15,10 +15,10 @@ export function RingGroups() {
   const [reloadKey, setReloadKey] = React.useState(0);
   const reload = () => setReloadKey((k) => k + 1);
   const [open, setOpen] = React.useState(false);
-  const [form,setForm]=React.useState({ ring_group_name: "rg1", ring_group_extension: "2001" });
+  const [form,setForm]=React.useState({ name:"rg1", extension:"2001", description:"" });
   const columns: Column<any>[] = [
-    { key: "ring_group_name", header: "Name", className: "num", cell: (r: any) => r["ring_group_name"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
-    { key: "ring_group_extension", header: "Extension", cell: (r:any) => (r as any).ring_group_extension || (r as any)["ring_group_extension"] || "—" }
+    { key: "name", header: "Name", className: "num", cell: (r: any) => r.name || r.music_name || "—" },
+    { key: "extension", header: "Extension", cell: (r:any) => (r as any).extension || "—" }
   ];
   const createFn = async () => {
     try {
@@ -46,8 +46,9 @@ export function RingGroups() {
         emptyAction={<Button onClick={() => setOpen(true)}><Users className="h-4 w-4" /> Add Ring Groups</Button>}
       />
       <FormDialog open={open} onOpenChange={setOpen} title="Add Ring Groups" onSubmit={create} pending={pending} submitLabel="Create" pendingLabel="Creating…">
-        <div><Label>Name *</Label><Input value={form.ring_group_name} onChange={e=>setForm({...form,ring_group_name:e.target.value})} placeholder="rg1" /></div>
-        <div><Label>Extension</Label><Input value={form.ring_group_extension} onChange={e=>setForm({...form,ring_group_extension:e.target.value})} placeholder="2001" /></div>
+        <div><Label>Name *</Label><Input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="rg1" /></div>
+        <div><Label>Extension</Label><Input value={form.extension} onChange={e=>setForm({...form,extension:e.target.value})} placeholder="2001" /></div>
+        <div><Label>Description</Label><Input value={form.description} onChange={e=>setForm({...form,description:e.target.value})} /></div>
       </FormDialog>
     </>
   );
