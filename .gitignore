@@ -185,8 +185,9 @@ Desktop.ini
 # =============================================================================
 # Project-specific
 # =============================================================================
-# legacy reference clone — do not track as nested submodule
+# Legacy reference clone — keep on disk, not tracked
 ohngea/
+.superpowers/brainstorm/
 
 # Local overrides / secrets
 *.pem
