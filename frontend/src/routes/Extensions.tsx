@@ -64,9 +64,14 @@ export function Extensions() {
     setSaving(true);
     try {
       if (editing) {
+        const patchBody: Record<string, unknown> = { extension: form.extension, enabled: form.enabled };
+        for (const [key, value] of Object.entries(form)) {
+          if (key === "extension" || key === "enabled") continue;
+          if (value !== "") patchBody[key] = value;
+        }
         await apiFetch(`/extensions/${editing.extension_uuid}`, {
           method: "PATCH",
-          body: JSON.stringify(form),
+          body: JSON.stringify(patchBody),
         });
         toast(`Extension ${form.extension} updated`, { variant: "success" });
       } else {
@@ -147,6 +152,9 @@ export function Extensions() {
         emptyAction={<Button onClick={openCreate}><PhonePlus className="h-4 w-4" /> Add Extension</Button>}
         rowActions={(r) => (
           <div className="flex justify-end gap-1">
+            <Button variant="ghost" size="sm" onClick={() => toggle(r)}>
+              {r.enabled ? "Disable" : "Enable"}
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>Edit</Button>
             <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => remove(r)}>Delete</Button>
           </div>

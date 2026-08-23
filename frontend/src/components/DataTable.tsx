@@ -1,5 +1,6 @@
 import * as React from "react";
 import { apiFetch } from "../lib/api";
+import { toastError } from "../lib/toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
@@ -57,7 +58,11 @@ export function DataTable<T extends Record<string, any>>({
         setRows(res?.data ?? []);
         setTotal(res?.total ?? res?.data?.length ?? 0);
       })
-      .catch(() => alive && setRows([]))
+      .catch((err) => {
+        if (!alive) return;
+        toastError(err);
+        setRows([]);
+      })
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, [url, reloadKey]);
