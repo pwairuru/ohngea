@@ -17,7 +17,7 @@ export function RingGroups() {
   const [json, setJson] = React.useState(`{"ring_group_name": "rg1",
   "ring_group_extension": "2001"}`);
   const columns: Column<any>[] = [
-    { key: "ring_group_name", header: "Name", className: "font-mono text-xs", cell: (r: any) => r["ring_group_name"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
+    { key: "ring_group_name", header: "Name", className: "num", cell: (r: any) => r["ring_group_name"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
     { key: "details", header: "Details", cell: (r: any) => <span className="text-muted-foreground text-xs break-all">{JSON.stringify(r).slice(0, 80)}</span> },
   ];
   const createFn = async () => {

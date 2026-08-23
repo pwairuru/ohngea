@@ -16,7 +16,7 @@ export function NumberTranslations() {
   const [open, setOpen] = React.useState(false);
   const [json, setJson] = React.useState(`{"number_translation_name": "test-nt"}`);
   const columns: Column<any>[] = [
-    { key: "number_translation_name", header: "Name", className: "font-mono text-xs", cell: (r: any) => r["number_translation_name"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
+    { key: "number_translation_name", header: "Name", className: "num", cell: (r: any) => r["number_translation_name"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
     { key: "details", header: "Details", cell: (r: any) => <span className="text-muted-foreground text-xs break-all">{JSON.stringify(r).slice(0, 80)}</span> },
   ];
   const createFn = async () => {

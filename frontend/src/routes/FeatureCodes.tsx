@@ -16,7 +16,7 @@ export function FeatureCodes() {
   const [open, setOpen] = React.useState(false);
   const [json, setJson] = React.useState(`{"feature_code_name": "*99"}`);
   const columns: Column<any>[] = [
-    { key: "feature_code_name", header: "Code", className: "font-mono text-xs", cell: (r: any) => r["feature_code_name"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
+    { key: "feature_code_name", header: "Code", className: "num", cell: (r: any) => r["feature_code_name"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
     { key: "details", header: "Details", cell: (r: any) => <span className="text-muted-foreground text-xs break-all">{JSON.stringify(r).slice(0, 80)}</span> },
   ];
   const createFn = async () => {

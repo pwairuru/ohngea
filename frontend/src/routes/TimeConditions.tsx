@@ -16,7 +16,7 @@ export function TimeConditions() {
   const [open, setOpen] = React.useState(false);
   const [json, setJson] = React.useState(`{"time_condition_name": "tc1"}`);
   const columns: Column<any>[] = [
-    { key: "time_condition_name", header: "Name", className: "font-mono text-xs", cell: (r: any) => r["time_condition_name"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
+    { key: "time_condition_name", header: "Name", className: "num", cell: (r: any) => r["time_condition_name"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
     { key: "details", header: "Details", cell: (r: any) => <span className="text-muted-foreground text-xs break-all">{JSON.stringify(r).slice(0, 80)}</span> },
   ];
   const createFn = async () => {

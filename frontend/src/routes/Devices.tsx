@@ -57,7 +57,12 @@ export function Devices() {
   const saveFn = async () => {
     try {
       if (editing) {
-        await apiFetch(`/devices/${editing.device_uuid}`, { method: "PATCH", body: JSON.stringify(form) });
+        const patchBody: Record<string, unknown> = { mac: form.mac, enabled: form.enabled };
+        for (const [key, value] of Object.entries(form)) {
+          if (key === "mac" || key === "enabled") continue;
+          if (value !== "") patchBody[key] = value;
+        }
+        await apiFetch(`/devices/${editing.device_uuid}`, { method: "PATCH", body: JSON.stringify(patchBody) });
         toast(`Device ${form.mac} updated`, { variant: "success" });
       } else {
         await apiFetch("/devices", { method: "POST", body: JSON.stringify(form) });

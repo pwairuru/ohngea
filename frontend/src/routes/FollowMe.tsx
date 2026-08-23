@@ -16,7 +16,7 @@ export function FollowMe() {
   const [open, setOpen] = React.useState(false);
   const [json, setJson] = React.useState(`{"follow_me_number": "1001"}`);
   const columns: Column<any>[] = [
-    { key: "follow_me_number", header: "Number", className: "font-mono text-xs", cell: (r: any) => r["follow_me_number"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
+    { key: "follow_me_number", header: "Number", className: "num", cell: (r: any) => r["follow_me_number"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
     { key: "details", header: "Details", cell: (r: any) => <span className="text-muted-foreground text-xs break-all">{JSON.stringify(r).slice(0, 80)}</span> },
   ];
   const createFn = async () => {

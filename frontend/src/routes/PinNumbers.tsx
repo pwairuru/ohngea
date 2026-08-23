@@ -17,7 +17,7 @@ export function PinNumbers() {
   const [json, setJson] = React.useState(`{"accountcode": "1234",
   "pin_number": "1234"}`);
   const columns: Column<any>[] = [
-    { key: "pin_number", header: "PIN", className: "font-mono text-xs", cell: (r: any) => r["pin_number"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
+    { key: "pin_number", header: "PIN", className: "num", cell: (r: any) => r["pin_number"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
     { key: "details", header: "Details", cell: (r: any) => <span className="text-muted-foreground text-xs break-all">{JSON.stringify(r).slice(0, 80)}</span> },
   ];
   const createFn = async () => {

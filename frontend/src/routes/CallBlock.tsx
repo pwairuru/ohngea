@@ -16,7 +16,7 @@ export function CallBlock() {
   const [open, setOpen] = React.useState(false);
   const [json, setJson] = React.useState(`{"call_block_number": "8005551212"}`);
   const columns: Column<any>[] = [
-    { key: "call_block_number", header: "Number", className: "font-mono text-xs", cell: (r: any) => r["call_block_number"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
+    { key: "call_block_number", header: "Number", className: "num", cell: (r: any) => r["call_block_number"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
     { key: "details", header: "Details", cell: (r: any) => <span className="text-muted-foreground text-xs break-all">{JSON.stringify(r).slice(0, 80)}</span> },
   ];
   const createFn = async () => {

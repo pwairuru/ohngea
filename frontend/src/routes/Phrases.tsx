@@ -16,7 +16,7 @@ export function Phrases() {
   const [open, setOpen] = React.useState(false);
   const [json, setJson] = React.useState(`{"phrase_name": "test-phrase"}`);
   const columns: Column<any>[] = [
-    { key: "phrase_name", header: "Name", className: "font-mono text-xs", cell: (r: any) => r["phrase_name"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
+    { key: "phrase_name", header: "Name", className: "num", cell: (r: any) => r["phrase_name"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
     { key: "details", header: "Details", cell: (r: any) => <span className="text-muted-foreground text-xs break-all">{JSON.stringify(r).slice(0, 80)}</span> },
   ];
   const createFn = async () => {
