@@ -55,7 +55,7 @@ async def create_dialplan(
     context = payload.get("context") or f"{domain_id}"
     if not name:
         raise HTTPException(status_code=400, detail="name required")
-    d = Dialplan(name=name, context=context, enabled=payload.get("enabled", True), domain_id=domain_id, description=payload.get("description"))
+    d = Dialplan(name=name, context=context, enabled=payload.get("enabled", True), domain_id=domain_id, description=payload.get("description"), dialplan_continue=payload.get("dialplan_continue", payload.get("continue", False)), dialplan_order=payload.get("dialplan_order", payload.get("order", 100)), hostname=payload.get("hostname"), app_uuid=payload.get("app_uuid"))
     session.add(d)
     await session.flush()
     for idx, det in enumerate(payload.get("details", [])):
@@ -95,9 +95,14 @@ async def patch_dialplan(dialplan_uuid: UUID, payload: dict, session: AsyncSessi
     d = r.scalar_one_or_none()
     if not d:
         raise HTTPException(status_code=404, detail="Dialplan not found")
-    for k in ["name", "context", "enabled", "description"]:
+    for k in ["name", "context", "enabled", "description", "dialplan_continue", "dialplan_order", "hostname", "app_uuid"]:
         if k in payload:
             setattr(d, k, payload[k])
+    # handle alias continue/order
+    if "continue" in payload:
+        d.dialplan_continue = bool(payload["continue"])
+    if "order" in payload and "dialplan_order" not in payload:
+        d.dialplan_order = payload["order"]
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)

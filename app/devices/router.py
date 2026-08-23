@@ -22,7 +22,21 @@ async def list_devices(response: Response, page: int = Query(1, ge=1), per_page:
     await set_tenant(session, domain_id)
     total = (await session.execute(select(func.count()).select_from(select(Device).where(Device.domain_id == domain_id).subquery()))).scalar() or 0
     r = await session.execute(select(Device).where(Device.domain_id == domain_id).offset((page - 1) * per_page).limit(per_page))
-    data = [{"device_uuid": str(d.device_uuid), "mac": d.mac, "vendor": d.vendor, "model": d.model, "label": d.label, "enabled": d.enabled, "_links": {"self": {"href": f"/api/v1/devices/{d.device_uuid}"}}} for d in r.scalars().all()]
+    rows=r.scalars().all()
+    data=[]
+    for d in rows:
+        dd={c.name: getattr(d,c.name) for c in d.__table__.columns}
+        for k in ["device_uuid","domain_id","extension_uuid"]:
+            if dd.get(k) is not None:
+                dd[k]=str(dd[k])
+        for k in ["created_at","updated_at"]:
+            if dd.get(k):
+                try:
+                    dd[k]=dd[k].isoformat()
+                except Exception:
+                    pass
+        dd["_links"]={"self":{"href": f"/api/v1/devices/{d.device_uuid}"}}
+        data.append(dd)
     response.headers["X-Total-Count"] = str(total)
     if page * per_page < total:
         response.headers["Link"] = f'</api/v1/devices?page={page+1}&per_page={per_page}>; rel="next"'
@@ -33,10 +47,25 @@ async def list_devices(response: Response, page: int = Query(1, ge=1), per_page:
 async def create_device(payload: dict, response: Response, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("dialplan_view"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
-    # normalize mac
-    mac = payload.get("mac", "").lower()
-    vendor = payload.get("vendor", "poly")
-    d = Device(domain_id=domain_id, mac=mac, vendor=vendor, model=payload.get("model"), label=payload.get("label"), enabled=payload.get("enabled", True), extension_uuid=payload.get("extension_uuid"))
+    # normalize mac and build data from allowed columns
+    allowed={c.name for c in Device.__table__.columns} - {"device_uuid","created_at","updated_at","domain_id"}
+    data={k:v for k,v in payload.items() if k in allowed}
+    if "mac" in data and data["mac"]:
+        data["mac"]=data["mac"].lower()
+    data["domain_id"]=domain_id
+    if not data.get("mac"):
+        raise HTTPException(status_code=422, detail="mac is required")
+    if not data.get("vendor"):
+        data["vendor"]="poly"
+    # handle aliases: device_address -> mac, device_template etc already allowed
+    # ensure extension_uuid is UUID if provided
+    if "extension_uuid" in data and data["extension_uuid"] and isinstance(data["extension_uuid"], str):
+        try:
+            from uuid import UUID
+            data["extension_uuid"]=UUID(data["extension_uuid"])
+        except Exception:
+            pass
+    d = Device(**data)
     session.add(d)
     await session.commit()
     try:
@@ -56,7 +85,18 @@ async def get_device(device_uuid: UUID, session: AsyncSession = Depends(get_sess
     d = r.scalar_one_or_none()
     if not d:
         raise HTTPException(status_code=404, detail="Device not found")
-    return {"device_uuid": str(d.device_uuid), "mac": d.mac, "vendor": d.vendor, "model": d.model, "label": d.label, "enabled": d.enabled, "_links": {"self": {"href": f"/api/v1/devices/{d.device_uuid}"}}}
+    dd={c.name: getattr(d,c.name) for c in d.__table__.columns}
+    for k in ["device_uuid","domain_id","extension_uuid"]:
+        if dd.get(k) is not None:
+            dd[k]=str(dd[k])
+    for k in ["created_at","updated_at"]:
+        if dd.get(k):
+            try:
+                dd[k]=dd[k].isoformat()
+            except Exception:
+                pass
+    dd["_links"]={"self":{"href": f"/api/v1/devices/{d.device_uuid}"}}
+    return dd
 
 
 @router.patch("/{device_uuid}")
@@ -67,19 +107,37 @@ async def patch_device(device_uuid: UUID, payload: dict, session: AsyncSession =
     d = r.scalar_one_or_none()
     if not d:
         raise HTTPException(status_code=404, detail="Device not found")
-    for k in ["mac", "vendor", "model", "label", "enabled", "extension_uuid"]:
+    allowed={c.name for c in Device.__table__.columns} - {"device_uuid","created_at","updated_at","domain_id"}
+    for k in allowed:
         if k in payload:
-            # normalize mac lower
-            if k == "mac" and payload[k]:
-                payload[k] = payload[k].lower()
-            setattr(d, k, payload[k])
+            v=payload[k]
+            if k=="mac" and v:
+                v=v.lower()
+            if k=="extension_uuid" and v and isinstance(v, str):
+                try:
+                    from uuid import UUID
+                    v=UUID(v)
+                except Exception:
+                    pass
+            setattr(d, k, v)
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
     except Exception:
         pass
     await session.refresh(d)
-    return {"device_uuid": str(d.device_uuid), "mac": d.mac, "vendor": d.vendor, "model": d.model, "label": d.label, "enabled": d.enabled, "_links": {"self": {"href": f"/api/v1/devices/{d.device_uuid}"}}}
+    dd={c.name: getattr(d,c.name) for c in d.__table__.columns}
+    for k in ["device_uuid","domain_id","extension_uuid"]:
+        if dd.get(k) is not None:
+            dd[k]=str(dd[k])
+    for k in ["created_at","updated_at"]:
+        if dd.get(k):
+            try:
+                dd[k]=dd[k].isoformat()
+            except Exception:
+                pass
+    dd["_links"]={"self":{"href": f"/api/v1/devices/{d.device_uuid}"}}
+    return dd
 
 
 @router.delete("/{device_uuid}", status_code=204)

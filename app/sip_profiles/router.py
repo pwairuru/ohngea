@@ -17,7 +17,18 @@ async def list_profiles(response: Response, page: int = Query(1, ge=1), per_page
     await set_tenant(session, domain_id)
     total = (await session.execute(select(func.count()).select_from(select(SipProfile).where(SipProfile.domain_id == domain_id).subquery()))).scalar() or 0
     r = await session.execute(select(SipProfile).where(SipProfile.domain_id == domain_id).offset((page - 1) * per_page).limit(per_page))
-    data = [{"sip_profile_uuid": str(p.sip_profile_uuid), "name": p.name, "sip_port": p.sip_port, "sip_ip": p.sip_ip, "wss_port": p.wss_port, "wss_binding": p.wss_binding, "tls_cert_path": p.tls_cert_path, "tls_key_path": p.tls_key_path, "enabled": p.enabled, "_links": {"self": {"href": f"/api/v1/sip_profiles/{p.sip_profile_uuid}"}}} for p in r.scalars().all()]
+    rows=r.scalars().all()
+    data=[]
+    for p in rows:
+        d={c.name: getattr(p,c.name) for c in p.__table__.columns}
+        for k in ["sip_profile_uuid","domain_id"]:
+            if d.get(k): d[k]=str(d[k])
+        for k in ["created_at","updated_at"]:
+            if d.get(k):
+                try: d[k]=d[k].isoformat()
+                except Exception: pass
+        d["_links"]={"self":{"href": f"/api/v1/sip_profiles/{p.sip_profile_uuid}"}}
+        data.append(d)
     response.headers["X-Total-Count"] = str(total)
     if page * per_page < total:
         response.headers["Link"] = f'</api/v1/sip_profiles?page={page+1}&per_page={per_page}>; rel="next"'
@@ -28,7 +39,12 @@ async def list_profiles(response: Response, page: int = Query(1, ge=1), per_page
 async def create_profile(payload: dict, response: Response, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("gateway_view"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
-    p = SipProfile(domain_id=domain_id, name=payload.get("name"), enabled=payload.get("enabled", True), sip_port=payload.get("sip_port", 5060), sip_ip=payload.get("sip_ip"), wss_port=payload.get("wss_port"), wss_binding=payload.get("wss_binding"), tls_cert_path=payload.get("tls_cert_path"), tls_key_path=payload.get("tls_key_path"))
+    allowed={c.name for c in SipProfile.__table__.columns} - {"sip_profile_uuid","created_at","updated_at","domain_id"}
+    data={k:v for k,v in payload.items() if k in allowed}
+    data["domain_id"]=domain_id
+    if not data.get("name"):
+        raise HTTPException(status_code=422, detail="name required")
+    p = SipProfile(**data)
     session.add(p)
     await session.commit()
     try:
@@ -48,7 +64,15 @@ async def get_profile(sip_profile_uuid: UUID, session: AsyncSession = Depends(ge
     p = r.scalar_one_or_none()
     if not p:
         raise HTTPException(status_code=404, detail="SIP profile not found")
-    return {"sip_profile_uuid": str(p.sip_profile_uuid), "name": p.name, "sip_port": p.sip_port, "sip_ip": p.sip_ip, "wss_port": p.wss_port, "wss_binding": p.wss_binding, "tls_cert_path": p.tls_cert_path, "tls_key_path": p.tls_key_path, "enabled": p.enabled, "_links": {"self": {"href": f"/api/v1/sip_profiles/{p.sip_profile_uuid}"}}}
+    d={c.name: getattr(p,c.name) for c in p.__table__.columns}
+    for k in ["sip_profile_uuid","domain_id"]:
+        if d.get(k): d[k]=str(d[k])
+    for k in ["created_at","updated_at"]:
+        if d.get(k):
+            try: d[k]=d[k].isoformat()
+            except Exception: pass
+    d["_links"]={"self":{"href": f"/api/v1/sip_profiles/{p.sip_profile_uuid}"}}
+    return d
 
 
 @router.patch("/{sip_profile_uuid}")

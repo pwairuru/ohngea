@@ -17,9 +17,20 @@ class SipProfileBase(SQLModel):
     wss_binding: Optional[str] = Field(default=None, max_length=128)
     tls_cert_path: Optional[str] = Field(default=None, max_length=256)
     tls_key_path: Optional[str] = Field(default=None, max_length=256)
+    # full parity
+    sip_secure: Optional[bool] = Field(default=None)
+    rtp_ip: Optional[str] = Field(default=None, max_length=64)
+    rtp_port_range: Optional[str] = Field(default=None, max_length=32)
+    hold_music: Optional[str] = Field(default=None, max_length=128)
+    apply_inbound_acl: Optional[str] = Field(default=None, max_length=128)
+    local_network_acl: Optional[str] = Field(default=None, max_length=128)
+    record_path: Optional[str] = Field(default=None, max_length=256)
+    record_template: Optional[str] = Field(default=None, max_length=128)
+    description: Optional[str] = Field(default=None, max_length=512)
 
 
 class SipProfile(SipProfileBase, table=True):
     __tablename__ = "sip_profiles"
     sip_profile_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())

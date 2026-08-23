@@ -28,7 +28,12 @@ async def list_ivr(response: Response, page: int = Query(1, ge=1), per_page: int
 async def create_ivr(payload: dict, response: Response, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("dialplan_view"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
-    m = IvrMenu(domain_id=domain_id, name=payload.get("name"), extension=payload.get("extension"), enabled=payload.get("enabled", True))
+    allowed={c.name for c in IvrMenu.__table__.columns} - {"ivr_menu_uuid","created_at","updated_at","domain_id"}
+    data={k:v for k,v in payload.items() if k in allowed}
+    data["domain_id"]=domain_id
+    if not data.get("name"):
+        raise HTTPException(status_code=422, detail="name required")
+    m = IvrMenu(**data)
     session.add(m)
     await session.flush()
     for idx, opt in enumerate(payload.get("options", [])):

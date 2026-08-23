@@ -13,6 +13,11 @@ class DialplanBase(SQLModel):
     enabled: bool = Field(default=True)
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
     description: Optional[str] = Field(default=None)
+    # full parity
+    dialplan_continue: bool = Field(default=False, description="continue flag")
+    dialplan_order: Optional[int] = Field(default=100)
+    hostname: Optional[str] = Field(default=None, max_length=128)
+    app_uuid: Optional[str] = Field(default=None, max_length=64)
 
 
 class Dialplan(DialplanBase, table=True):

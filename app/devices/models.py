@@ -15,9 +15,52 @@ class DeviceBase(SQLModel):
     enabled: bool = Field(default=True)
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
     extension_uuid: Optional[UUID] = Field(default=None, foreign_key="extensions.extension_uuid")
+    # full parity hidden
+    device_address: Optional[str] = Field(default=None, max_length=32, description="alias for mac, legacy device_address")
+    device_label: Optional[str] = Field(default=None, max_length=128)
+    device_vendor: Optional[str] = Field(default=None, max_length=32)
+    device_model: Optional[str] = Field(default=None, max_length=64)
+    device_firmware_version: Optional[str] = Field(default=None, max_length=64)
+    device_template: Optional[str] = Field(default=None, max_length=128)
+    device_location: Optional[str] = Field(default=None, max_length=128)
+    device_serial_number: Optional[str] = Field(default=None, max_length=128)
+    device_description: Optional[str] = Field(default=None, max_length=512)
+    device_username: Optional[str] = Field(default=None, max_length=64)
+    device_password: Optional[str] = Field(default=None, max_length=64)
+    device_provisioned_date: Optional[datetime] = Field(default=None)
+    device_provisioned_ip: Optional[str] = Field(default=None, max_length=64)
+    device_provisioned_method: Optional[str] = Field(default=None, max_length=32)
 
 
 class Device(DeviceBase, table=True):
     __tablename__ = "devices"
     device_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+
+
+class DeviceLineBase(SQLModel):
+    domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
+    device_uuid: UUID = Field(foreign_key="devices.device_uuid", index=True, ondelete="CASCADE")
+    line_number: str = Field(default="1", max_length=8)
+    server_address: Optional[str] = Field(default=None, max_length=128)
+    server_address_primary: Optional[str] = Field(default=None, max_length=128)
+    server_address_secondary: Optional[str] = Field(default=None, max_length=128)
+    outbound_proxy_primary: Optional[str] = Field(default=None, max_length=128)
+    outbound_proxy_secondary: Optional[str] = Field(default=None, max_length=128)
+    label: Optional[str] = Field(default=None, max_length=128)
+    display_name: Optional[str] = Field(default=None, max_length=128)
+    user_id: Optional[str] = Field(default=None, max_length=64)
+    auth_id: Optional[str] = Field(default=None, max_length=64)
+    password: Optional[str] = Field(default=None, max_length=64)
+    sip_port: Optional[int] = Field(default=None)
+    sip_transport: Optional[str] = Field(default=None, max_length=32)
+    register_expires: Optional[int] = Field(default=None)
+    shared_line: Optional[str] = Field(default=None, max_length=32)
+    enabled: bool = Field(default=True)
+
+
+class DeviceLine(DeviceLineBase, table=True):
+    __tablename__ = "device_lines"
+    device_line_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
