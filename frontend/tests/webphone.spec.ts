@@ -24,17 +24,16 @@ async function loginViaAPI(page: Page) {
   return json.access_token;
 }
 
-test("webphone button visible and popup toggles", async ({ page }) => {
+test("webphone dock visible and popup toggles", async ({ page }) => {
   await loginViaAPI(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-  const btn = page.getByTestId("webphone-btn");
-  await expect(btn).toBeVisible();
-  // Phone icon present (lucide)
-  await expect(btn.locator("svg")).toBeVisible();
-  await btn.click();
+  const dock = page.getByTestId("webphone-dock");
+  await expect(dock).toBeVisible();
+  // dock has registration dot
+  await expect(page.getByTestId("webphone-dock-dot")).toBeVisible();
+  await dock.getByTestId("dock-expand").click();
   await expect(page.getByTestId("webphone-config-form").or(page.getByTestId("webphone-dialpad"))).toBeVisible();
-  // toggle closed via backdrop click or second toggle? use open state
   // ensure dialog is accessible
   await expect(page.locator('[role="dialog"]')).toBeVisible();
 });
@@ -42,7 +41,7 @@ test("webphone button visible and popup toggles", async ({ page }) => {
 test("dialpad call button requires input", async ({ page }) => {
   await loginViaAPI(page);
   await page.goto("/");
-  await page.getByTestId("webphone-btn").click();
+  await page.getByTestId("webphone-dock").getByTestId("dock-expand").click();
   const configForm = page.getByTestId("webphone-config-form");
   const dialpad = page.getByTestId("webphone-dialpad");
   await expect(configForm.or(dialpad)).toBeVisible();

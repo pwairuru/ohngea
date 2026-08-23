@@ -6,7 +6,6 @@ import { Toaster } from "./lib/toast";
 import { ConfirmProvider } from "./components/ui/confirm";
 import { FsStatus } from "./components/FsStatus";
 import { WebPhoneProvider } from "./context/WebPhoneContext";
-import { WebPhoneButton } from "./components/WebPhone/WebPhoneButton";
 import { WebPhonePopup } from "./components/WebPhone/WebPhonePopup";
 import { WebPhoneDock } from "./components/WebPhone/WebPhoneDock";
 import { Sidebar } from "./components/shell/Sidebar";
@@ -107,7 +106,6 @@ function Nav() {
         </div>
         <div className="flex items-center gap-2">
           <FsStatus />
-          <WebPhoneButton onOpen={() => setWebPhoneOpen(true)} />
           <WebPhonePopup open={webPhoneOpen} onOpenChange={setWebPhoneOpen} />
           <CommandPalette />
           <ThemeToggle />
