@@ -178,6 +178,7 @@ def include_routers():
     from app.contacts.router import router as contacts_router
     from app.webrtc_settings.router import router as webrtc_settings_router
     from app.webrtc.credentials_router import router as webrtc_credentials_router
+    from app.system.router import router as system_router
 
     app.include_router(auth_router)
     # also mount auth at /api/v1/auth for versioned consistency
@@ -235,6 +236,7 @@ def include_routers():
     app.include_router(cdr_router)
     app.include_router(recordings_router)
     app.include_router(fs_router)
+    app.include_router(system_router)
     app.include_router(fs_status_router)
     app.include_router(plugins_router)
     app.include_router(users_router)
