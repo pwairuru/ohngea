@@ -27,11 +27,15 @@ export function WebPhonePopup({open, onOpenChange}:{open:boolean; onOpenChange:(
   const isConfigured = !!config && registrationState!=="unconfigured";
 
   async function handleSave(){
-    // validate wss_url when in custom SIP mode
+    // validate wss_url when in custom SIP mode - allow ws:// for localhost dev, require wss:// otherwise
     if (!form.useExtension) {
       const urlToValidate = form.wss_url || settings?.wss_url || "";
-      if (urlToValidate && !urlToValidate.startsWith("wss://")) {
-        setError("WSS URL must start with wss://");
+      if (urlToValidate && !urlToValidate.startsWith("wss://") && !urlToValidate.startsWith("ws://")) {
+        setError("WSS URL must start with wss:// or ws://");
+        return;
+      }
+      if (urlToValidate.startsWith("ws://") && !urlToValidate.includes("localhost") && !urlToValidate.includes("127.0.0.1")) {
+        setError("ws:// only allowed for localhost — use wss:// for production");
         return;
       }
       if (!form.webrtc_user || !form.webrtc_pass) {

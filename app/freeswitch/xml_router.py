@@ -224,8 +224,37 @@ async def fs_xml(
             else:
                 rd = await session.execute(select(Dialplan).where(Dialplan.domain_id == dom.domain_id, Dialplan.enabled == True))
                 dialplans = rd.scalars().all()
-            # fetch details for each
+            # Fallback for default context: if no dialplans, provide generic local_extension bridge
+            # This ensures WebPhone and other SIP clients can reach extensions even when tenant dialplan is only for its domain context
+            # and the sofia profile's context is default.
+            if not dialplans and context == "default":
+                # try to reuse any existing local_extension as template
+                rd2 = await session.execute(select(Dialplan).where(Dialplan.name == "local_extension", Dialplan.enabled == True).limit(1))
+                tmpl = rd2.scalar_one_or_none()
+                if tmpl:
+                    # fetch its details
+                    det2 = await session.execute(select(DialplanDetail).where(DialplanDetail.dialplan_uuid == tmpl.dialplan_uuid).order_by(DialplanDetail.order))
+                    tmpl._details = det2.scalars().all()
+                    dialplans = [tmpl]
+                else:
+                    # synthetic in-memory dialplan
+                    from types import SimpleNamespace
+
+                    synthetic = SimpleNamespace(
+                        name="local_extension",
+                        context="default",
+                        dialplan_uuid="00000000-0000-0000-0000-000000000000",
+                    )
+                    synthetic._details = [
+                        SimpleNamespace(tag="condition", type="destination_number", data="^(\\d{3,4})$", order=0),
+                        SimpleNamespace(tag="action", type="bridge", data="user/$1@${domain_name}", order=1),
+                    ]
+                    dialplans = [synthetic]  # type: ignore
+            # fetch details for each (skip synthetic already has _details)
             for dp in dialplans:
+                if hasattr(dp, "_details") and dp._details is not None and len(dp._details) > 0 and hasattr(dp._details[0], "tag"):
+                    # already has details (synthetic or reused)
+                    continue
                 det = await session.execute(select(DialplanDetail).where(DialplanDetail.dialplan_uuid == dp.dialplan_uuid).order_by(DialplanDetail.order))
                 dp._details = det.scalars().all()
             xml = build_dialplan_xml(context, dialplans)

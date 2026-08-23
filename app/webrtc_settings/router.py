@@ -51,11 +51,19 @@ async def put_webrtc_settings(
     domain_id: UUID,
     payload: dict,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_permission("domain_edit")),
+    user: User = Depends(get_current_user),
 ):
     caller_domain = getattr(user, "_domain_id", user.domain_id)
     if str(caller_domain) != str(domain_id) and "superadmin" not in getattr(user, "_perms", []):
         raise HTTPException(status_code=403, detail="Domain mismatch")
+    # permission check: allow domain_edit, domain_add, or superadmin/wildcard
+    perms = getattr(user, "_perms", None)
+    if perms is None:
+        from app.auth.service import get_user_permissions
+
+        perms = await get_user_permissions(session, user)
+    if "*" not in perms and "domain_edit" not in perms and "domain_add" not in perms and "superadmin" not in perms:
+        raise HTTPException(status_code=403, detail="Missing permission: domain_edit")
     # validation via model
     from app.webrtc_settings.models import WebRTCSettingsBase
 

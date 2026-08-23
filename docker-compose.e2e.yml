@@ -14,6 +14,8 @@ services:
       - ./docker/freeswitch/conf:/etc/freeswitch
     ports:
       - "5060:5060/udp"
+      - "5066:5066"
+      - "7443:7443"
       - "8022:8021"
     depends_on:
       api:
