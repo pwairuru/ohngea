@@ -1,6 +1,6 @@
 import * as React from "react";
 
-export function DevicePicker(){
+export function DevicePicker({onOutputChange, onInputChange}:{onOutputChange?:(v:string)=>void; onInputChange?:(v:string)=>void}= {}){
   const [inputs,setInputs]=React.useState<MediaDeviceInfo[]>([]);
   const [outputs,setOutputs]=React.useState<MediaDeviceInfo[]>([]);
   const [outputId,setOutputId]=React.useState<string>("");
@@ -23,7 +23,7 @@ export function DevicePicker(){
           const raw=localStorage.getItem(key);
           if(raw){
             const parsed=JSON.parse(raw);
-            if(parsed.outputId) setOutputId(parsed.outputId);
+            if(parsed.outputId){ setOutputId(parsed.outputId); try{ const el=document.getElementById("webphone-remote-audio") as HTMLAudioElement|null; if(el && typeof (el as any).setSinkId==="function") (el as any).setSinkId(parsed.outputId).catch(()=>{}); }catch{} }
             if(parsed.inputId) setInputId(parsed.inputId);
           }
         }catch{}
@@ -49,16 +49,18 @@ export function DevicePicker(){
     const v=e.target.value;
     setOutputId(v);
     persist({outputId:v});
+    onOutputChange?.(v);
     try{
       const el=document.getElementById("webphone-remote-audio") as HTMLAudioElement|null;
       // @ts-ignore
-      if(el && typeof el.setSinkId==="function") el.setSinkId(v);
+      if(el && typeof el.setSinkId==="function") el.setSinkId(v).catch(()=>{});
     }catch{}
   }
   function handleInputChange(e:React.ChangeEvent<HTMLSelectElement>){
     const v=e.target.value;
     setInputId(v);
     persist({inputId:v});
+    onInputChange?.(v);
   }
 
   return (

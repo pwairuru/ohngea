@@ -72,6 +72,15 @@ export function WebPhonePanel({open, onOpenChange, embedded}:{open:boolean; onOp
     return ()=>{ cancelled=true; };
   },[open]);
 
+  React.useEffect(()=>{
+    const h=(e:KeyboardEvent)=>{
+      if((e.ctrlKey||e.metaKey)&&e.key==='k'){ e.preventDefault(); document.querySelector<HTMLInputElement>('[data-testid="dial-input"]')?.focus(); }
+      if(e.key==='Escape'&&callState!=="idle") hangup();
+    };
+    window.addEventListener("keydown",h);
+    return()=>window.removeEventListener("keydown",h);
+  },[callState]);
+
   function handleToggleFav(id:string){
     try{
       const token=localStorage.getItem("token");
@@ -163,7 +172,7 @@ export function WebPhonePanel({open, onOpenChange, embedded}:{open:boolean; onOp
           </div>
         </TabsContent>
         <TabsContent contentValue="history">
-          <HistoryView history={history} onRedial={handleRedial} onClear={clearHistory} />
+          <HistoryView history={history} contacts={contacts} onRedial={handleRedial} onClear={clearHistory} />
         </TabsContent>
         <TabsContent contentValue="contacts">
           <ContactsView contacts={contacts} onDial={handleContactDial} onToggleFav={handleToggleFav} />
