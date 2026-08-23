@@ -28,6 +28,7 @@ export function Extensions() {
   const [reloadKey, setReloadKey] = React.useState(0);
   const reload = () => setReloadKey((k) => k + 1);
   const [open, setOpen] = React.useState(false);
+  const [step, setStep] = React.useState(1);
   const [editing, setEditing] = React.useState<Ext | null>(null);
   const [form, setForm] = React.useState(blank);
   const [saving, setSaving] = React.useState(false);
@@ -48,7 +49,7 @@ export function Extensions() {
     },
   ];
 
-  const openCreate = () => { setEditing(null); setForm(blank); setOpen(true); };
+  const openCreate = () => { setEditing(null); setForm(blank); setStep(1); setOpen(true); };
   const openEdit = (r: Ext) => {
     setEditing(r);
     setForm({
@@ -57,6 +58,7 @@ export function Extensions() {
       effective_caller_id_number: r.effective_caller_id_number ?? "",
       enabled: !!r.enabled,
     });
+    setStep(1);
     setOpen(true);
   };
 
@@ -81,6 +83,7 @@ export function Extensions() {
         toast(`Extension ${form.extension} created`, { variant: "success" });
       }
       setOpen(false);
+      setStep(1);
       reload();
     } catch (err) {
       toastError(err);
@@ -161,19 +164,42 @@ export function Extensions() {
         )}
       />
 
-      <FormDialog open={open} onOpenChange={setOpen} title={editing ? `Edit ${editing.extension}` : "Add Extension"} onSubmit={save} pending={saving}>
-        <div><Label htmlFor="ext-num">Extension *</Label><Input id="ext-num" value={form.extension} onChange={(e) => setForm({ ...form, extension: e.target.value })} className="num" required /></div>
-        <div><Label htmlFor="ext-name">Caller ID Name</Label><Input id="ext-name" value={form.effective_caller_id_name} onChange={(e) => setForm({ ...form, effective_caller_id_name: e.target.value })} /></div>
-        <div><Label htmlFor="ext-cid">Caller ID Number</Label><Input id="ext-cid" value={form.effective_caller_id_number} onChange={(e) => setForm({ ...form, effective_caller_id_number: e.target.value })} className="num" /></div>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} /> Enabled</label>
-      </FormDialog>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setStep(1); }}>
+        <DialogHeader><DialogTitle>{editing ? "Edit Extension" : "Add Extension"} — Step {step} of 3</DialogTitle></DialogHeader>
+        <div className="flex gap-1 mb-4">
+          {[1, 2, 3].map((s) => <div key={s} className={`h-1 flex-1 rounded ${s <= step ? "bg-primary" : "bg-muted"}`} />)}
+        </div>
+        {step === 1 && (
+          <div className="space-y-3">
+            <div><Label>Extension *</Label><Input value={form.extension} onChange={(e) => setForm({ ...form, extension: e.target.value })} placeholder="1001" /></div>
+            <div><Label>Display Name *</Label><Input value={form.effective_caller_id_name} onChange={(e) => setForm({ ...form, effective_caller_id_name: e.target.value })} placeholder="Alice Smith" /></div>
+            <Button onClick={() => setStep(2)} className="w-full">Next: Caller ID</Button>
+          </div>
+        )}
+        {step === 2 && (
+          <div className="space-y-3">
+            <div><Label>Caller ID Number</Label><Input value={form.effective_caller_id_number} onChange={(e) => setForm({ ...form, effective_caller_id_number: e.target.value })} placeholder="+15551234567" /></div>
+            <div className="flex gap-2"><Button variant="outline" onClick={() => setStep(1)} className="flex-1">Back</Button><Button onClick={() => setStep(3)} className="flex-1">Next: Review</Button></div>
+          </div>
+        )}
+        {step === 3 && (
+          <div className="space-y-3">
+            <div className="text-sm space-y-1"><div>Extension: <span className="font-mono">{form.extension}</span></div><div>Name: {form.effective_caller_id_name}</div><div>Number: {form.effective_caller_id_number || "-"}</div></div>
+            <div className="flex gap-2"><Button variant="outline" onClick={() => setStep(2)} className="flex-1">Back</Button><Button onClick={save} disabled={saving} className="flex-1">{editing ? "Save" : "Create"}</Button></div>
+          </div>
+        )}
+      </Dialog>
 
       <Dialog open={csvOpen} onOpenChange={setCsvOpen}>
-        <DialogHeader><DialogTitle>CSV Import</DialogTitle></DialogHeader>
-        <textarea value={csvText} onChange={(e) => setCsvText(e.target.value)} rows={6} className="num w-full rounded-md border bg-background p-2 text-xs" />
-        <div className="mt-3 flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setCsvOpen(false)}>Cancel</Button>
-          <Button onClick={importCsv}>Import</Button>
+        <DialogHeader><DialogTitle>CSV Import Wizard</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="text-sm text-muted-foreground">Paste CSV with headers extension,name — preview below.</div>
+          <textarea value={csvText} onChange={(e) => setCsvText(e.target.value)} rows={6} className="w-full border rounded p-2 font-mono text-sm" />
+          <div className="rounded border p-2 bg-muted/30 max-h-32 overflow-auto text-xs">
+            <div className="font-medium mb-1">Preview (3 rows)</div>
+            {csvText.split("\n").slice(0, 4).map((l, i) => <div key={i} className={i === 0 ? "font-bold" : ""}>{l}</div>)}
+          </div>
+          <div className="flex gap-2"><Button variant="outline" onClick={() => setCsvOpen(false)} className="flex-1">Cancel</Button><Button onClick={importCsv} className="flex-1">Import</Button></div>
         </div>
       </Dialog>
     </>

@@ -88,11 +88,12 @@ function Nav() {
           </button>
           <Link to="/" className="font-bold text-lg">PBX</Link>
           <button
+            data-testid="palette-trigger"
             onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}
             className="hidden md:flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           >
             <Search className="h-4 w-4" />
-            <span>Search</span>
+            <span>Jump</span>
             <kbd className="rounded border bg-muted px-1.5 py-0.5 text-xs">Ctrl K</kbd>
           </button>
         </div>

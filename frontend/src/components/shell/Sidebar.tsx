@@ -78,7 +78,7 @@ export function Sidebar() {
     });
   };
   return (
-    <aside
+    <nav
       data-testid="sidebar"
       className={cn(
         "sticky top-14 hidden h-[calc(100vh-3.5rem)] shrink-0 flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar p-3 md:flex",
@@ -114,6 +114,6 @@ export function Sidebar() {
           </>
         )}
       </div>
-    </aside>
+    </nav>
   );
 }

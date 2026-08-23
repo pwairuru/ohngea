@@ -15,6 +15,13 @@ export function CommandPalette() {
   const { setTheme } = useTheme();
 
   React.useEffect(() => {
+    // handle pending Ctrl+K that fired before mount (e.g., test pressed immediately after navigation)
+    if ((window as any).__palettePending) {
+      setOpen(true);
+      setQ("");
+      setActive(0);
+      (window as any).__palettePending = false;
+    }
     const h = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -67,7 +74,7 @@ export function CommandPalette() {
             autoFocus
             value={q}
             onChange={(e) => { setQ(e.target.value); setActive(0); }}
-            placeholder="Search pages…"
+            placeholder="Jump to…"
             className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded border px-1.5 text-[10px] text-muted-foreground"><CornerDownLeft className="h-3 w-3" /> enter</kbd>

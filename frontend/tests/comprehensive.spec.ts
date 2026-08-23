@@ -288,9 +288,10 @@ test.describe("comprehensive interface", () => {
     // toggle back
     await page.locator('button:has-text("Disable"), button:has-text("Enable")').first().click();
     await page.waitForTimeout(800);
-    // Delete
     page.on("dialog", async (d) => await d.accept());
     await page.locator('button:has-text("Delete")').first().click();
+    // handle custom confirm dialog (useConfirm) if present
+    try { await expect(page.locator('[data-testid="confirm-ok"]')).toBeVisible({ timeout: 2000 }); await page.locator('[data-testid="confirm-ok"]').click(); } catch {}
     await page.waitForTimeout(800);
     // Verify gone: search again shows empty or not found
     await searchInput.fill(ext);
@@ -338,9 +339,9 @@ test.describe("comprehensive interface", () => {
     await expect(page.getByText("Edit Gateway")).toBeVisible();
     await page.click('button:has-text("Save")');
     await page.waitForTimeout(800);
-    // delete with confirm
     page.on("dialog", async (d) => await d.accept());
     await page.locator('button:has-text("Delete")').first().click();
+    try { await expect(page.locator('[data-testid="confirm-ok"]')).toBeVisible({ timeout: 2000 }); await page.locator('[data-testid="confirm-ok"]').click(); } catch {}
     await page.waitForTimeout(800);
   });
 
@@ -369,10 +370,12 @@ test.describe("comprehensive interface", () => {
       await expect(page.locator("pre").first()).toBeVisible({ timeout: 2000 }).catch(()=>{});
     }
     // cleanup delete
-    page.on("dialog", async (d)=> await d.accept());
     const delBtn = page.locator('button:has-text("Delete")').first();
+    page.on("dialog", async (d)=> await d.accept());
     if (await delBtn.count()>0) {
       await delBtn.click();
+      try { await expect(page.locator('[data-testid="confirm-ok"]')).toBeVisible({ timeout: 2000 }); await page.locator('[data-testid="confirm-ok"]').click(); } catch {}
+      page.on("dialog", async (d)=> await d.accept());
       await page.waitForTimeout(600);
     }
   });
@@ -441,6 +444,7 @@ test.describe("comprehensive interface", () => {
     await page.click('[data-testid="login-submit"]');
     await expect(page).toHaveURL(/\/$/);
     await page.setViewportSize({ width: 1280, height: 800 });
+    await page.click('button[aria-label="Account menu"]');
     await expect(page.locator('[data-testid="logout-btn"]')).toBeVisible();
     await page.click('[data-testid="logout-btn"]');
     await expect(page).toHaveURL(/\/login/);
