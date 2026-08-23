@@ -6,6 +6,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.voicemails.models import Voicemail, VoicemailDestination
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 
 
 async def create_voicemail(
@@ -125,6 +126,10 @@ async def create_voicemail(
                 session.add(dest)
 
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(vm)
     return vm
 

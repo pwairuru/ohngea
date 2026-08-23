@@ -4,6 +4,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.conference_profiles.models import ConferenceProfile, ConferenceProfileParam
 from app.conference_profiles.schemas import ConferenceProfileCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_profile(session: AsyncSession, data: ConferenceProfileCreate, domain_id: UUID):
     name=data.profile_name or data.name
     if not name:
@@ -21,6 +22,10 @@ async def create_profile(session: AsyncSession, data: ConferenceProfileCreate, d
             par=ConferenceProfileParam(conference_profile_uuid=obj.conference_profile_uuid, domain_id=domain_id, profile_param_name=p.get("profile_param_name") or p.get("name") or "param", profile_param_value=str(p.get("profile_param_value") or p.get("value") or ""), profile_param_enabled=p.get("profile_param_enabled", True))
             session.add(par)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 async def list_profiles(session: AsyncSession, domain_id: UUID, page:int, per_page:int, q:Optional[str]):

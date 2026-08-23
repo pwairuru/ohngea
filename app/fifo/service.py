@@ -4,6 +4,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.fifo.models import Fifo
 from app.fifo.schemas import FifoCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_fifo(session: AsyncSession, data: FifoCreate, domain_id: UUID):
     name=data.fifo_name or data.name
     if not name:
@@ -16,6 +17,10 @@ async def create_fifo(session: AsyncSession, data: FifoCreate, domain_id: UUID):
     obj=Fifo(domain_id=domain_id, fifo_name=name, fifo_extension=data.fifo_extension or data.extension, fifo_enabled=data.fifo_enabled if data.fifo_enabled is not None else (data.enabled if data.enabled is not None else True), fifo_description=data.fifo_description or data.description)
     session.add(obj)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 async def list_fifo(session: AsyncSession, domain_id: UUID, page:int, per_page:int, q:Optional[str]):

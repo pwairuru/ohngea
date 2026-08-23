@@ -4,6 +4,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.conference_controls.models import ConferenceControl, ConferenceControlDetail
 from app.conference_controls.schemas import ConferenceControlCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_control(session: AsyncSession, data: ConferenceControlCreate, domain_id: UUID):
     name=data.control_name or data.name
     if not name:
@@ -21,6 +22,10 @@ async def create_control(session: AsyncSession, data: ConferenceControlCreate, d
             det=ConferenceControlDetail(conference_control_uuid=obj.conference_control_uuid, domain_id=domain_id, control_digits=str(d.get("control_digits") or d.get("digits") or ""), control_action=d.get("control_action") or d.get("action") or "mute", control_data=d.get("control_data") or d.get("data"))
             session.add(det)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 async def list_controls(session: AsyncSession, domain_id: UUID, page:int, per_page:int, q:Optional[str]):

@@ -4,6 +4,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.phrases.models import Phrase, PhraseDetail
 from app.phrases.schemas import PhraseCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 
 async def create_phrase(session: AsyncSession, data: PhraseCreate, domain_id: UUID) -> Phrase:
     name = data.phrase_name or data.name
@@ -22,6 +23,10 @@ async def create_phrase(session: AsyncSession, data: PhraseCreate, domain_id: UU
             det = PhraseDetail(domain_id=domain_id, phrase_uuid=obj.phrase_uuid, phrase_detail_function=d.get("function") or d.get("phrase_detail_function"), phrase_detail_data=d.get("data") or d.get("phrase_detail_data"), phrase_detail_order=int(d.get("order",0) or 0))
             session.add(det)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 

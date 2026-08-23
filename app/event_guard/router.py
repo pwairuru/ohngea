@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.event_guard.models import EventGuardLog
 from app.event_guard.schemas import EventGuardLogCreate, EventGuardLogRead
 from app.event_guard.service import create_eg, list_eg

@@ -7,6 +7,7 @@ from app.domains.models import Domain, DomainSettings
 from app.domains.schemas import DomainCreate
 from app.auth.models import User, Group, Permission, GroupPermission, UserGroup
 from app.auth.service import hash_password
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 
 
 async def create_domain(session: AsyncSession, data: DomainCreate, admin_username: str = "admin", admin_password: str = "admin") -> Domain:
@@ -61,6 +62,10 @@ async def create_domain(session: AsyncSession, data: DomainCreate, admin_usernam
             session.add(SipProfile(domain_id=domain.domain_id, name=name, enabled=True, sip_port=port))
 
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(domain)
     return domain
 

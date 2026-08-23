@@ -3,6 +3,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.sofia_global_settings.models import SofiaGlobalSetting
 from app.sofia_global_settings.schemas import SofiaGlobalSettingCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_sgs(session: AsyncSession, data: SofiaGlobalSettingCreate):
     name=data.global_setting_name or data.name
     if not name:
@@ -15,6 +16,10 @@ async def create_sgs(session: AsyncSession, data: SofiaGlobalSettingCreate):
     obj=SofiaGlobalSetting(global_setting_name=name, global_setting_value=str(data.global_setting_value or data.value or ""), global_setting_enabled=data.global_setting_enabled if data.global_setting_enabled is not None else (data.enabled if data.enabled is not None else True), global_setting_description=data.global_setting_description or data.description)
     session.add(obj)
     await session.commit()
+    try:
+        await invalidate_fs_cache()
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 async def list_sgs(session: AsyncSession, page:int, per_page:int, q:Optional[str]):

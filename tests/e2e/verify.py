@@ -19,9 +19,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import httpx  # noqa: E402
 
 API = "http://localhost:8000"
-DOMAIN = "test.local"
-ADMIN = "admin"
-PASSWORD = "admin"
+DOMAIN = os.environ.get("E2E_DOMAIN", "test.example.com")
+ADMIN = os.environ.get("E2E_ADMIN", "admin")
+PASSWORD = os.environ.get("E2E_PASSWORD", "admin")
 DEST = "1002"
 TIMEOUT_S = 60
 

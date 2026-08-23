@@ -4,6 +4,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.pin_numbers.models import PinNumber
 from app.pin_numbers.schemas import PinNumberCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 
 async def create_pin(session: AsyncSession, data: PinNumberCreate, domain_id: UUID) -> PinNumber:
     pin = data.pin_number or data.number
@@ -17,6 +18,10 @@ async def create_pin(session: AsyncSession, data: PinNumberCreate, domain_id: UU
     obj = PinNumber(domain_id=domain_id, pin_number=str(pin), accountcode=data.accountcode, enabled=data.enabled if data.enabled is not None else True, description=data.description)
     session.add(obj)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 

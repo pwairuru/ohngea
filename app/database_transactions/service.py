@@ -4,10 +4,15 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database_transactions.models import DatabaseTransaction
 from app.database_transactions.schemas import DatabaseTransactionCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_dt(session: AsyncSession, data: DatabaseTransactionCreate, domain_id: UUID):
     obj=DatabaseTransaction(domain_id=domain_id, app_name=data.app_name, transaction_code=data.transaction_code, transaction_type=data.transaction_type or "add", transaction_address=data.transaction_address)
     session.add(obj)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 async def list_dt(session: AsyncSession, domain_id: UUID, page:int, per_page:int, q:Optional[str]):

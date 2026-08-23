@@ -34,6 +34,10 @@ export function Dashboard() {
   const [systemCounts, setSystemCounts] = React.useState<any>({});
   const [answerRate, setAnswerRate] = React.useState<any>({ answered: 0, missed: 0, answer_rate: 0 });
   const [sipStatus, setSipStatus] = React.useState<any>(null);
+  const [sysMetrics, setSysMetrics] = React.useState<any>(null);
+  const [liveActiveCalls, setLiveActiveCalls] = React.useState<number | null>(null);
+  const [liveRegs, setLiveRegs] = React.useState<number | null>(null);
+  const [liveUpdated, setLiveUpdated] = React.useState<Date | null>(null);
 
   React.useEffect(() => {
     apiFetch("/analytics/summary").then(setStats).catch(() => {});
@@ -52,12 +56,53 @@ export function Dashboard() {
           return { hour: r.hour, count: r.count };
         }
       });
-      // if already mapped 24 hours, keep sorted; otherwise just use mapped
       setHourly(mapped);
     }).catch(() => {});
     apiFetch("/analytics/system_counts").then(setSystemCounts).catch(() => {});
     apiFetch("/analytics/answer_rate").then(setAnswerRate).catch(() => {});
     apiFetch("/sip_profiles/status").then(setSipStatus).catch(() => {});
+    apiFetch("/system/metrics").then(setSysMetrics).catch(() => {});
+  }, []);
+
+  // Live system metrics polling (CPU/RAM/Disk) — 5s
+  React.useEffect(() => {
+    const loadSys = () => apiFetch("/system/metrics").then(setSysMetrics).catch(() => {});
+    const id = window.setInterval(() => { if (!document.hidden) loadSys(); }, 5000);
+    const onVis = () => { if (!document.hidden) loadSys(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { window.clearInterval(id); document.removeEventListener("visibilitychange", onVis); };
+  }, []);
+
+  // Live FreeSWITCH polling for Active Calls + Registrations (important numbers)
+  React.useEffect(() => {
+    const loadLive = async () => {
+      try {
+        const r: any = await apiFetch("/active_calls?per_page=1");
+        setLiveActiveCalls(r.total ?? r.data?.length ?? 0);
+      } catch {
+        setLiveActiveCalls(null);
+      }
+      try {
+        const r: any = await apiFetch("/registrations?per_page=1");
+        setLiveRegs(r.total ?? r.data?.length ?? 0);
+      } catch {
+        setLiveRegs(null);
+      }
+      setLiveUpdated(new Date());
+    };
+    loadLive();
+    const id = window.setInterval(() => {
+      if (document.hidden) return;
+      loadLive();
+    }, 10000);
+    const onVis = () => {
+      if (!document.hidden) loadLive();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, []);
 
   const directionData = byDirection.length ? byDirection : [];
@@ -82,7 +127,6 @@ export function Dashboard() {
   const sipProfileData = sipStatus?.profiles ? (() => {
     const running = sipStatus.profiles.filter((p: any) => p.running).length;
     const notRunning = sipStatus.profiles.length - running;
-    const unknown = sipStatus.connected === false ? sipStatus.profiles.length : 0;
     if (sipStatus.connected === false) return [{ name: "Unknown", value: sipStatus.profiles.length }];
     return [
       { name: "Running", value: running },
@@ -123,6 +167,77 @@ export function Dashboard() {
         <Card><CardHeader><CardTitle>Total Calls</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">{stats.total_calls ?? 0}</div><p className="text-xs text-muted-foreground">all time</p></CardContent></Card>
         <Card><CardHeader><CardTitle>Avg Duration</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">{Math.round(stats.avg_duration || 0)}s</div><p className="text-xs text-muted-foreground">avg · {Math.round(answerRate.avg_billsec || 0)}s billsec</p></CardContent></Card>
         <Card><CardHeader><CardTitle>Answer Rate</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">{answerRate.answer_rate != null ? `${Math.round(answerRate.answer_rate)}%` : "—"}</div><p className="text-xs text-muted-foreground">{answerRate.answered ?? 0} answered · {answerRate.missed ?? 0} missed</p></CardContent></Card>
+      </div>
+
+      {/* Live FreeSWITCH counts — important numbers, polled actively */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="cursor-pointer hover:bg-muted/50 border-l-4 border-l-green-500" onClick={() => navigate("/active_calls")} data-testid="dashboard-active-calls">
+          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center justify-between">Active Calls <span className={`h-2 w-2 rounded-full ${liveActiveCalls != null ? "bg-green-500 animate-pulse" : "bg-gray-300"}`} title={liveActiveCalls != null ? "Live polling" : "FS unavailable"} /></CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold" data-testid="dashboard-active-calls-count">{liveActiveCalls != null ? liveActiveCalls : "—"}</div>
+            <p className="text-xs text-muted-foreground">live from FreeSWITCH · `show channels` {liveUpdated ? `· ${liveUpdated.toLocaleTimeString()}` : ""} · polling 10s</p>
+          </CardContent>
+        </Card>
+        <Card className="cursor-pointer hover:bg-muted/50 border-l-4 border-l-blue-500" onClick={() => navigate("/registrations")} data-testid="dashboard-registrations">
+          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center justify-between">Registrations <span className={`h-2 w-2 rounded-full ${liveRegs != null ? "bg-blue-500 animate-pulse" : "bg-gray-300"}`} title={liveRegs != null ? "Live polling" : "FS unavailable"} /></CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold" data-testid="dashboard-registrations-count">
+              {liveRegs != null ? liveRegs : "—"}
+              {liveRegs != null && systemCounts.enabled_extensions != null ? <span className="text-lg font-normal text-muted-foreground"> / {systemCounts.enabled_extensions}</span> : ""}
+            </div>
+            <p className="text-xs text-muted-foreground">{liveRegs != null ? `${liveRegs} active` : "live"} · {systemCounts.extensions != null ? `${systemCounts.extensions} total extensions` : "loading…"} {liveUpdated ? `· ${liveUpdated.toLocaleTimeString()}` : ""} · sofia reg</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* System health — host metrics (CPU/RAM/Disk) — 5s live */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card className="cursor-pointer hover:bg-muted/50 border-l-4 border-l-amber-500" onClick={() => navigate("/system")} data-testid="dashboard-cpu">
+          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center justify-between">CPU <span className={`h-2 w-2 rounded-full ${sysMetrics ? "bg-amber-500 animate-pulse" : "bg-gray-300"}`} /></CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{sysMetrics?.cpu_total != null ? `${sysMetrics.cpu_total}%` : "—"} <span className="text-sm font-normal text-muted-foreground">{sysMetrics?.cpu_cores ? `${sysMetrics.cpu_cores} cores` : ""}</span></div>
+            <div className="mt-1 h-1.5 w-full rounded bg-muted overflow-hidden">
+              <div className="h-full bg-amber-500 transition-all" style={{ width: `${Math.min(100, sysMetrics?.cpu_total ?? 0)}%` }} />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 truncate">
+              {sysMetrics?.cpu_per_core?.length ? `per-core: ${sysMetrics.cpu_per_core.map((v:any)=>Math.round(v)).join("% ") + "%"}`
+                : sysMetrics?.load_avg ? `load ${sysMetrics.load_avg.map((v:any)=>v.toFixed(2)).join(" ")}` : "polling /system/metrics 5s"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="cursor-pointer hover:bg-muted/50 border-l-4 border-l-sky-500" onClick={() => navigate("/system")} data-testid="dashboard-memory">
+          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center justify-between">Memory <span className={`h-2 w-2 rounded-full ${sysMetrics?.memory ? "bg-sky-500 animate-pulse" : "bg-gray-300"}`} /></CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{sysMetrics?.memory?.percent != null ? `${Math.round(sysMetrics.memory.percent)}%` : "—"} <span className="text-sm font-normal text-muted-foreground">used</span></div>
+            <div className="mt-1 h-1.5 w-full rounded bg-muted overflow-hidden">
+              <div className="h-full bg-sky-500 transition-all" style={{ width: `${Math.min(100, sysMetrics?.memory?.percent ?? 0)}%` }} />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 truncate">
+              {sysMetrics?.memory ? `${((sysMetrics.memory.used ?? 0)/1024/1024/1024).toFixed(1)}G / ${((sysMetrics.memory.total ?? 0)/1024/1024/1024).toFixed(1)}G`
+                : "polling…" }
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="cursor-pointer hover:bg-muted/50 border-l-4 border-l-violet-500" onClick={() => navigate("/system")} data-testid="dashboard-disk">
+          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center justify-between">Disk <span className={`h-2 w-2 rounded-full ${sysMetrics?.disk_percent != null ? "bg-violet-500 animate-pulse" : "bg-gray-300"}`} /></CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{sysMetrics?.disk_percent != null ? `${Math.round(sysMetrics.disk_percent)}%` : "—"} <span className="text-sm font-normal text-muted-foreground">used</span></div>
+            <div className="mt-1 h-1.5 w-full rounded bg-muted overflow-hidden">
+              <div className="h-full bg-violet-500 transition-all" style={{ width: `${Math.min(100, sysMetrics?.disk_percent ?? 0)}%` }} />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 truncate">
+              {sysMetrics?.disks?.[0] ? `${sysMetrics.disks[0].mount} ${sysMetrics.disks[0].size || ""}` : sysMetrics?.uptime ? sysMetrics.uptime.slice(0,40) : "polling…"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="cursor-pointer hover:bg-muted/50 border-l-4 border-l-emerald-500" onClick={() => navigate("/system")} data-testid="dashboard-system">
+          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center justify-between">System <span className="text-[10px] text-muted-foreground">→ details</span></CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-sm font-mono truncate">{sysMetrics?.hostname || "—"}</div>
+            <p className="text-xs text-muted-foreground truncate">{sysMetrics?.load_avg ? `load ${sysMetrics.load_avg.join(" ")}` : "—"}</p>
+            <p className="text-xs text-muted-foreground truncate mt-1" title={sysMetrics?.uptime || ""}>{sysMetrics?.uptime ? sysMetrics.uptime.replace(/^.*up\s+/, "up ").slice(0,45) : "—"}</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* System counts row */}
@@ -185,7 +300,7 @@ export function Dashboard() {
               {directionData.length ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={directionData} dataKey="count" nameKey="direction" cx="50%" cy="50%" outerRadius={70} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                    <Pie data={directionData} dataKey="count" nameKey="direction" cx="50%" cy="50%" outerRadius={70} label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}>
                       {directionData.map((_: any, i: number) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                     </Pie>
                     <Tooltip />

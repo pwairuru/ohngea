@@ -3,10 +3,15 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.event_guard.models import EventGuardLog
 from app.event_guard.schemas import EventGuardLogCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_eg(session: AsyncSession, data: EventGuardLogCreate):
     obj=EventGuardLog(hostname=data.hostname, ip_address=data.ip_address, extension=data.extension, filter=data.filter, log_status=data.log_status)
     session.add(obj)
     await session.commit()
+    try:
+        await invalidate_fs_cache()
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 async def list_eg(session: AsyncSession, page:int, per_page:int, q:Optional[str]):

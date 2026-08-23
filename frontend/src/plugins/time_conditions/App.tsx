@@ -6,6 +6,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
+import { Trash2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from "lucide-react";
 
 export default function TimeConditionsPlugin() {
   const [items, setItems] = React.useState<any[]>([]);
@@ -195,9 +196,7 @@ export default function TimeConditionsPlugin() {
                       </TableCell>
                       <TableCell>{enabled ? <Badge>enabled</Badge> : <Badge className="bg-muted text-muted-foreground">disabled</Badge>}</TableCell>
                       <TableCell>
-                        <Button variant="outline" className="h-8" onClick={() => remove(id)}>
-                          Delete
-                        </Button>
+                        <Button variant="ghost" aria-label="Delete" title="Delete" className="h-9 w-9 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => remove(id)}><Trash2 className="h-4 w-4" /></Button>
                       </TableCell>
                     </TableRow>
                   );
@@ -226,17 +225,19 @@ export default function TimeConditionsPlugin() {
                   <div className="text-xs">
                     {tdest} → {fdest}
                   </div>
-                  <Button variant="outline" className="mt-2 w-full h-8" onClick={() => remove(id)}>Delete</Button>
+                  <Button variant="ghost" aria-label="Delete" title="Delete" className="mt-2 w-full h-9 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => remove(id)}><Trash2 className="h-4 w-4" /></Button>
                 </Card>
               );
             })}
             {items.length === 0 && <div className="text-center py-4 text-muted-foreground">No conditions</div>}
           </div>
           <div className="flex items-center justify-between mt-4 text-sm">
-            <span>Page {page} — {items.length} items</span>
-            <div className="flex gap-2">
-              <Button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</Button>
-              <Button onClick={() => setPage((p) => p + 1)}>Next</Button>
+            <span>Page {page} of {Math.max(1, Math.ceil(total / 20))} — {items.length} items</span>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" aria-label="First page" title="First page" className="h-9 w-9 p-0" disabled={page <= 1} onClick={() => setPage(1)}><ChevronsLeft className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label="Previous page" title="Previous page" className="h-9 w-9 p-0" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}><ChevronLeft className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label="Next page" title="Next page" className="h-9 w-9 p-0" disabled={page * 20 >= total} onClick={() => setPage((p) => p + 1)}><ChevronRight className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label="Last page" title="Last page" className="h-9 w-9 p-0" disabled={page * 20 >= total} onClick={() => setPage(Math.max(1, Math.ceil(total / 20)))}><ChevronsRight className="h-4 w-4" /></Button>
             </div>
           </div>
         </CardContent>

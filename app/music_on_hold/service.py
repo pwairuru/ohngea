@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.music_on_hold.models import MusicOnHold
 from app.music_on_hold.schemas import MusicOnHoldCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 
 
 async def create_moh(session: AsyncSession, data: MusicOnHoldCreate, domain_id: UUID) -> MusicOnHold:
@@ -29,6 +30,10 @@ async def create_moh(session: AsyncSession, data: MusicOnHoldCreate, domain_id: 
     )
     session.add(moh)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(moh)
     return moh
 

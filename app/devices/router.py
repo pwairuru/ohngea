@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.devices.models import Device
 from app.devices.provision import render_provision
 
@@ -38,6 +39,10 @@ async def create_device(payload: dict, response: Response, session: AsyncSession
     d = Device(domain_id=domain_id, mac=mac, vendor=vendor, model=payload.get("model"), label=payload.get("label"), enabled=payload.get("enabled", True), extension_uuid=payload.get("extension_uuid"))
     session.add(d)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(d)
     response.headers["Location"] = f"/api/v1/devices/{d.device_uuid}"
     return {"device_uuid": str(d.device_uuid), "mac": d.mac, "vendor": d.vendor, "_links": {"self": {"href": f"/api/v1/devices/{d.device_uuid}"}}}
@@ -69,6 +74,10 @@ async def patch_device(device_uuid: UUID, payload: dict, session: AsyncSession =
                 payload[k] = payload[k].lower()
             setattr(d, k, payload[k])
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(d)
     return {"device_uuid": str(d.device_uuid), "mac": d.mac, "vendor": d.vendor, "model": d.model, "label": d.label, "enabled": d.enabled, "_links": {"self": {"href": f"/api/v1/devices/{d.device_uuid}"}}}
 
@@ -83,6 +92,10 @@ async def delete_device(device_uuid: UUID, session: AsyncSession = Depends(get_s
         raise HTTPException(status_code=404, detail="Device not found")
     await session.delete(d)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)
 
 

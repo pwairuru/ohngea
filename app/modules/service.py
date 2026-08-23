@@ -3,6 +3,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.models import Module
 from app.modules.schemas import ModuleCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_mod(session: AsyncSession, data: ModuleCreate):
     label=data.module_label or data.label
     name=data.module_name or data.name
@@ -16,6 +17,10 @@ async def create_mod(session: AsyncSession, data: ModuleCreate):
     obj=Module(module_label=label or name, module_name=name, module_category=data.module_category, module_enabled=data.module_enabled if data.module_enabled is not None else (data.enabled if data.enabled is not None else True), module_description=data.module_description or data.description)
     session.add(obj)
     await session.commit()
+    try:
+        await invalidate_fs_cache()
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 async def list_mods(session: AsyncSession, page:int, per_page:int, q:Optional[str]):

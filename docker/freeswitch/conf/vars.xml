@@ -1,7 +1,7 @@
-<!-- Minimal vars for the E2E stack -->
+<!-- Minimal vars for the E2E stack. Domain names are NOT pinned here —
+     directory + dialplan come from the API keyed by whatever domain the
+     endpoints register with. -->
 <include>
   <X-PRE-PROCESS cmd="set" data="default_password=1234"/>
-  <X-PRE-PROCESS cmd="set" data="domain=test.local"/>
   <X-PRE-PROCESS cmd="set" data="sound_prefix=$${sounds_dir}/en/us/callie"/>
-  <X-PRE-PROCESS cmd="set" data="hold_music=/usr/share/freeswitch/sounds/music/8000/suite-fox-trot-2.wav"/>
 </include>

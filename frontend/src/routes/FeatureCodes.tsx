@@ -4,41 +4,157 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import {Pencil, Trash2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight} from "lucide-react";
+import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Dialog, DialogHeader, DialogTitle } from "../components/ui/dialog";
+
 export function FeatureCodes() {
   const [data, setData] = React.useState<any[]>([]);
   const [total, setTotal] = React.useState(0);
+  const [q, setQ] = React.useState("");
+  const [page, setPage] = React.useState(1);
   const [open, setOpen] = React.useState(false);
-  const [json, setJson] = React.useState(`{
-  "feature_code_name": "*99"
-}`);
-  const load = () => apiFetch("/feature_codes").then((r:any)=>{setData(r.data||[]); setTotal(r.total??r.data?.length??0)}).catch(()=>{});
-  React.useEffect(()=>{load()},[]);
-  const create = async () => {
-    try {
-      const body = JSON.parse(json);
-      await apiFetch("/feature_codes", { method: "POST", body: JSON.stringify(body) });
-      setOpen(false); load();
-    } catch (e:any) { alert(e.message); }
+  const [editing, setEditing] = React.useState<any | null>(null);
+  const [form, setForm] = React.useState({
+    feature_code_name: "test",
+    feature_code_value: "",
+    feature_code_enabled: true,
+    feature_code_description: ""
+  });
+
+  const load = React.useCallback(() => {
+    const params = new URLSearchParams({ page: String(page), per_page: "20" });
+    if (q) params.set("q", q);
+    apiFetch(`/feature_codes?${params.toString()}`)
+      .then((r: any) => {
+        setData(r.data || []);
+        setTotal(r.total ?? r.data?.length ?? 0);
+      })
+      .catch(() => {});
+  }, [page, q]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const startCreate = () => {
+    setEditing(null);
+    setForm({
+    feature_code_name: "test",
+    feature_code_value: "",
+    feature_code_enabled: true,
+    feature_code_description: ""
+    });
+    setOpen(true);
   };
+
+  const startEdit = (row: any) => {
+    setEditing(row);
+    setForm({
+      feature_code_name: row.feature_code_name ?? row["name"] ?? "",
+      feature_code_value: row.feature_code_value ?? row["value"] ?? "",
+      feature_code_enabled: row.feature_code_enabled ?? row["enabled"] ?? true,
+      feature_code_description: row.feature_code_description ?? row["description"] ?? "",
+    });
+    setOpen(true);
+  };
+
+  const createOrUpdate = async () => {
+    try {
+      const payload: any = {
+        feature_code_name: form.feature_code_name || null,
+        feature_code_value: form.feature_code_value || null,
+        feature_code_enabled: form.feature_code_enabled,
+        feature_code_description: form.feature_code_description || null,
+        name: form.feature_code_name || null,
+        value: form.feature_code_value || null,
+        enabled: form.feature_code_enabled || null,
+        description: form.feature_code_description || null,
+      };
+      if (editing) {
+        const uid = editing.feature_code_uuid || editing.id || editing.uuid;
+        await apiFetch(`/feature_codes/${uid}`, { method: "PATCH", body: JSON.stringify(payload) });
+      } else {
+        await apiFetch("/feature_codes", { method: "POST", body: JSON.stringify(payload) });
+      }
+      setOpen(false);
+      setEditing(null);
+      load();
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
+  const del = async (row: any) => {
+    const uid = row.feature_code_uuid || row.id || row.uuid;
+    const label = row.feature_code_name || uid;
+    if (!confirm(`Delete ${label}?`)) return;
+    try {
+      await apiFetch(`/feature_codes/${uid}`, { method: "DELETE" });
+      load();
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
   return (
     <div className="p-4 space-y-4">
-      <div className="flex justify-between items-center"><h1 className="text-2xl font-bold">Feature Codes</h1><div className="flex gap-2"><Badge>{total} total</Badge><Button onClick={() => setOpen(true)}>Add Feature Codes</Button></div></div>
+      <div className="flex justify-between items-center"><h1 className="text-2xl font-bold">Feature Codes</h1><div className="flex gap-2"><Badge>{total} total</Badge><Button onClick={startCreate}>Add Feature Codes</Button></div></div>
+
+      <div className="flex gap-2">
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search..." className="flex-1" />
+        <Button variant="outline" onClick={() => { setPage(1); load(); }}>Search</Button>
+      </div>
+
       <Card><CardHeader><CardTitle>Feature Codes</CardTitle></CardHeader><CardContent>
-          <div className="hidden md:block"><Table><TableHeader><TableRow><TableHead>Name / ID</TableHead><TableHead>Details</TableHead></TableRow></TableHeader><TableBody>
-                {data.map((d:any,i:number)=><TableRow key={i}><TableCell className="font-mono text-xs">{d["feature_code_name"] ?? d.name ?? JSON.stringify(d).slice(0,60)}</TableCell><TableCell className="text-xs text-muted-foreground">{JSON.stringify(d).slice(0,80)}</TableCell></TableRow>)}
-                {data.length===0 && <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground py-8">No feature_codes — create via Add button POST /api/v1/feature_codes</TableCell></TableRow>}
+          <div className="hidden md:block"><Table><TableHeader><TableRow><TableHead>Feature Code Name</TableHead><TableHead>Feature Code Value</TableHead><TableHead>Feature Code Description</TableHead><TableHead>Enabled</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader><TableBody>
+                {data.map((d: any, i: number) => {
+                  const uid = d.feature_code_uuid || d.id || i;
+                  return (
+                    <TableRow key={String(uid)}>
+                      <TableCell className="font-mono text-xs">{d.feature_code_name ?? d["name"] ?? "-"}</TableCell>
+                      <TableCell className="text-xs">{d.feature_code_value ?? "-"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate" title={d.feature_code_description || ""}>{d.feature_code_description ?? "-"}</TableCell>
+                      <TableCell>{(d.feature_code_enabled ?? true) ? <Badge>enabled</Badge> : <Badge className="bg-muted text-muted-foreground">disabled</Badge>}</TableCell>
+                      <TableCell><div className="flex gap-1"><Button variant="ghost" aria-label="Edit" title="Edit" className="h-9 w-9 p-0" onClick={() => startEdit(d)}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" aria-label="Delete" title="Delete" className="h-9 w-9 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => del(d)}><Trash2 className="h-4 w-4" /></Button></div></TableCell>
+                    </TableRow>
+                  );
+                })}
+                {data.length===0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No feature codes — create via Add button</TableCell></TableRow>}
               </TableBody></Table></div>
           <div className="md:hidden grid gap-3">
-            {data.map((d:any,i:number)=><Card key={i} className="p-3"><div className="font-mono text-xs break-all">{JSON.stringify(d).slice(0,120)}</div></Card>)}
-            {data.length===0 && <div className="text-center text-muted-foreground py-4">No feature_codes</div>}
+            {data.map((d: any, i: number) => {
+              const uid = d.feature_code_uuid || d.id || i;
+              return (
+                <Card key={String(uid)} className="p-3 space-y-1">
+                  <div className="flex justify-between items-start"><div className="font-mono font-bold">{d.feature_code_name ?? d["name"] ?? String(uid).slice(0,8)}</div><Badge>{(d.feature_code_enabled ?? true) ? "enabled" : "disabled"}</Badge></div>
+                  <div className="font-mono text-xs">{d.feature_code_name ?? d["name"]}</div>
+                  <div className="font-mono text-xs">{d.feature_code_value ?? d["value"]}</div>
+                  <div className="text-xs text-muted-foreground truncate">{d.feature_code_value ?? ""}</div>
+                  <div className="flex gap-2 mt-2"><Button variant="ghost" aria-label="Edit" title="Edit" className="flex-1 h-9" onClick={() => startEdit(d)}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" aria-label="Delete" title="Delete" className="flex-1 h-9 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => del(d)}><Trash2 className="h-4 w-4" /></Button></div>
+                </Card>
+              );
+            })}
+            {data.length===0 && <div className="text-center text-muted-foreground py-4">No feature codes</div>}
+          </div>
+          <div className="flex items-center justify-between mt-4 text-sm">
+            <span>Total: {total}</span>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" aria-label="First page" title="First page" className="h-9 w-9 p-0" disabled={page <= 1} onClick={() => setPage(1)}><ChevronsLeft className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label="Previous page" title="Previous page" className="h-9 w-9 p-0" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}><ChevronLeft className="h-4 w-4" /></Button>
+              <span className="px-2 text-sm">Page {page} of {Math.max(1, Math.ceil(total / 20))}</span>
+              <Button variant="ghost" size="icon" aria-label="Next page" title="Next page" className="h-9 w-9 p-0" disabled={page * 20 >= total} onClick={() => setPage((p) => p + 1)}><ChevronRight className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label="Last page" title="Last page" className="h-9 w-9 p-0" disabled={page * 20 >= total} onClick={() => setPage(Math.max(1, Math.ceil(total / 20)))}><ChevronsRight className="h-4 w-4" /></Button>
+            </div>
           </div>
         </CardContent></Card>
-      <Dialog open={open} onOpenChange={setOpen}><DialogHeader><DialogTitle>Add Feature Codes</DialogTitle></DialogHeader>
-        <div className="space-y-3"><div><Label>JSON payload *</Label><textarea value={json} onChange={(e)=>setJson(e.target.value)} rows={6} className="w-full rounded border p-2 font-mono text-xs" /></div>
-          <div className="text-xs text-muted-foreground">Required field shown above — edit JSON and press Create.</div>
-          <Button onClick={create} className="w-full">Create</Button></div></Dialog>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}><DialogHeader><DialogTitle>{editing ? "Edit Feature Codes" : "Add Feature Codes"}</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div><Label>Feature Code Name *</Label><Input value={form.feature_code_name} onChange={(e) => setForm({ ...form, feature_code_name: e.target.value })} placeholder="e.g., test" /></div>
+          <div><Label>Feature Code Value</Label><Input value={form.feature_code_value} onChange={(e) => setForm({ ...form, feature_code_value: e.target.value })} placeholder="feature_code_value" /></div>
+          <div className="flex items-center gap-2"><input type="checkbox" id="feature_code_enabled" checked={form.feature_code_enabled as boolean} onChange={(e) => setForm({ ...form, feature_code_enabled: e.target.checked })} className="h-4 w-4" /><Label htmlFor="feature_code_enabled" className="cursor-pointer">Feature Code Enabled</Label></div>
+          <div><Label>Feature Code Description</Label><Input value={form.feature_code_description} onChange={(e) => setForm({ ...form, feature_code_description: e.target.value })} placeholder="Description" /></div>
+          <Button onClick={createOrUpdate} className="w-full">{editing ? "Save" : "Create"}</Button>
+        </div></Dialog>
     </div>
   );
 }

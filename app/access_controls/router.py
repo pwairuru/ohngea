@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.access_controls.schemas import AccessControlCreate, AccessControlRead, AccessControlUpdate
 from app.access_controls.service import create_acl, list_acls, get_with_nodes
 router=APIRouter(prefix="/api/v1/access_controls", tags=["access_controls"])
@@ -52,6 +53,10 @@ async def patch_ep(uid:UUID, payload:AccessControlUpdate, session:AsyncSession=D
     for k,v in payload.model_dump(exclude_unset=True).items():
         setattr(acl,k,v)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(acl)
     _, nodes=await get_with_nodes(session,acl.access_control_uuid,domain_id)
     return _ser(acl, nodes)
@@ -63,4 +68,8 @@ async def delete_ep(uid:UUID, session:AsyncSession=Depends(get_session), user:Us
     if not acl: raise HTTPException(status_code=404, detail="Access control not found")
     await session.delete(acl)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

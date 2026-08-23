@@ -6,6 +6,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.time_conditions.models import TimeCondition
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 
 
 async def create_time_condition(
@@ -50,6 +51,10 @@ async def create_time_condition(
     session.add(tc)
     await session.flush()
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(tc)
     return tc
 

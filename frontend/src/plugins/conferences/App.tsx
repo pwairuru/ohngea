@@ -6,6 +6,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
+import {Trash2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight} from "lucide-react";
 
 export default function ConferencesPlugin() {
   const [items, setItems] = React.useState<any[]>([]);
@@ -208,9 +209,7 @@ export default function ConferencesPlugin() {
                       <TableCell className="text-xs">{flags}</TableCell>
                       <TableCell>{enabled ? <Badge>enabled</Badge> : <Badge className="bg-muted text-muted-foreground">disabled</Badge>}</TableCell>
                       <TableCell>
-                        <Button variant="outline" className="h-8" onClick={() => remove(id)}>
-                          Delete
-                        </Button>
+                        <Button variant="ghost" aria-label="Delete" title="Delete" className="h-9 w-9 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => remove(id)}><Trash2 className="h-4 w-4" /></Button>
                       </TableCell>
                     </TableRow>
                   );
@@ -237,7 +236,7 @@ export default function ConferencesPlugin() {
                   <div className="font-bold">{name} <span className="font-mono text-xs">({ext})</span></div>
                   <div className="text-xs">PIN {pin || "-"} • {prof}</div>
                   <div className="text-xs text-muted-foreground">{it.conference_description || it.description || ""}</div>
-                  <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => remove(id)}>Delete</Button>
+                  <Button variant="ghost" aria-label="Delete" title="Delete" className="w-full mt-2 h-9 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => remove(id)}><Trash2 className="h-4 w-4" /></Button>
                 </Card>
               );
             })}
@@ -245,10 +244,12 @@ export default function ConferencesPlugin() {
           </div>
           <div className="flex items-center justify-between mt-4 text-sm">
             <span>Total: {total}</span>
-            <div className="flex gap-2">
-              <Button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</Button>
-              <span className="py-2 px-2">Page {page}</span>
-              <Button onClick={() => setPage((p) => p + 1)} disabled={page * 20 >= total}>Next</Button>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" aria-label="First page" title="First page" className="h-9 w-9 p-0" disabled={page <= 1} onClick={() => setPage(1)}><ChevronsLeft className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label="Previous page" title="Previous page" className="h-9 w-9 p-0" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}><ChevronLeft className="h-4 w-4" /></Button>
+              <span className="px-2 text-sm">Page {page} of {Math.max(1, Math.ceil(total / 20))}</span>
+              <Button variant="ghost" size="icon" aria-label="Next page" title="Next page" className="h-9 w-9 p-0" disabled={page * 20 >= total} onClick={() => setPage((p) => p + 1)}><ChevronRight className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label="Last page" title="Last page" className="h-9 w-9 p-0" disabled={page * 20 >= total} onClick={() => setPage(Math.max(1, Math.ceil(total / 20)))}><ChevronsRight className="h-4 w-4" /></Button>
             </div>
           </div>
         </CardContent>

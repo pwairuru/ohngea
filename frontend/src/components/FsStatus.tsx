@@ -58,11 +58,11 @@ export function FsStatus() {
   if (!isChecking) {
     if (isConnected) {
       dotColor = "bg-green-500";
-      label = status?.latency_ms != null ? `FS Connected · ${status.latency_ms}ms` : "FS Connected";
+      label = status?.latency_ms != null ? `${status.latency_ms}ms` : "";
       aria = "freeswitch connected";
     } else {
       dotColor = "bg-red-500";
-      label = "FS Disconnected";
+      label = "";
       aria = "freeswitch disconnected";
     }
   }
@@ -91,7 +91,10 @@ export function FsStatus() {
         aria-hidden
         className={`inline-block h-2 w-2 rounded-full ${dotColor} ${isConnected ? "shadow-[0_0_6px_rgba(34,197,94,0.6)]" : ""} ${isChecking ? "animate-pulse" : ""}`}
       />
-      <span className="hidden sm:inline">{loading && status === null ? "Checking…" : label}</span>
+      {(() => {
+        const text = loading && status === null ? "Checking…" : label;
+        return text ? <span className="hidden sm:inline">{text}</span> : null;
+      })()}
       <span className="sm:hidden">{isChecking ? "…" : isConnected ? "●" : "○"}</span>
     </span>
   );

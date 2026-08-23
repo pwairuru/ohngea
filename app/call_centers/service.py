@@ -4,6 +4,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.call_centers.models import CallCenter, CallCenterAgent
 from app.call_centers.schemas import CallCenterCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_cc(session: AsyncSession, data: CallCenterCreate, domain_id: UUID):
     name=data.queue_name or data.name
     if not name:
@@ -21,6 +22,10 @@ async def create_cc(session: AsyncSession, data: CallCenterCreate, domain_id: UU
             ag=CallCenterAgent(domain_id=domain_id, call_center_queue_uuid=obj.call_center_queue_uuid, agent_name=a.get("agent_name") or a.get("name") or "agent", agent_type=a.get("agent_type","callback"), agent_contact=a.get("agent_contact") or a.get("contact"))
             session.add(ag)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 async def list_cc(session: AsyncSession, domain_id: UUID, page:int, per_page:int, q:Optional[str]):

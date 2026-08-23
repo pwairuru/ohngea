@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.call_flows.models import CallFlow
 from app.call_flows.schemas import CallFlowCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 
 
 async def create_call_flow(session: AsyncSession, data: CallFlowCreate) -> CallFlow:
@@ -30,6 +31,10 @@ async def create_call_flow(session: AsyncSession, data: CallFlowCreate) -> CallF
     )
     session.add(cf)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(cf)
     return cf
 

@@ -4,10 +4,15 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.emergency_logs.models import EmergencyLog
 from app.emergency_logs.schemas import EmergencyLogCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_log(session: AsyncSession, data: EmergencyLogCreate, domain_id: UUID):
     obj=EmergencyLog(domain_id=domain_id, extension=data.extension, event=data.event)
     session.add(obj)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 async def list_logs(session: AsyncSession, domain_id: UUID, page:int, per_page:int, q:Optional[str]):

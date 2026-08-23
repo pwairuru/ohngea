@@ -1,4 +1,4 @@
-# E2E overlay: real FreeSWITCH + SIPp endpoints wired to the API.
+# E2E overlay: real FreeSWITCH + scripted endpoints wired to the API.
 #
 #   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
 #
@@ -19,15 +19,21 @@ services:
       api:
         condition: service_healthy
 
-  sipp1001:
-    build: ./docker/sipp
-    command: ["-sf", "uas_register_answer.xml", "-inf", "users/1001.csv", "-trace_err", "freeswitch"]
+  phone1001:
+    build: ./docker/sipphone
+    restart: unless-stopped
+    environment:
+      SIP_EXT: "1001"
+      SIP_DOMAIN: test.example.com
     depends_on:
       - freeswitch
 
-  sipp1002:
-    build: ./docker/sipp
-    command: ["-sf", "uas_register_answer.xml", "-inf", "users/1002.csv", "-trace_err", "freeswitch"]
+  phone1002:
+    build: ./docker/sipphone
+    restart: unless-stopped
+    environment:
+      SIP_EXT: "1002"
+      SIP_DOMAIN: test.example.com
     depends_on:
       - freeswitch
 

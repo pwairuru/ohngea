@@ -10,6 +10,7 @@ from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
 from app.dialplans.models import Dialplan, DialplanDetail
+from app.freeswitch.cache import invalidate_fs_cache_for_session
 
 router = APIRouter(prefix="/api/v1/dialplans", tags=["dialplans"])
 
@@ -61,6 +62,10 @@ async def create_dialplan(
         dd = DialplanDetail(dialplan_uuid=d.dialplan_uuid, tag=det.get("tag", "condition"), type=det.get("type", ""), data=det.get("data", ""), order=det.get("order", idx))
         session.add(dd)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(d)
     response.headers["Location"] = f"/api/v1/dialplans/{d.dialplan_uuid}"
     # fetch details for return
@@ -94,6 +99,10 @@ async def patch_dialplan(dialplan_uuid: UUID, payload: dict, session: AsyncSessi
         if k in payload:
             setattr(d, k, payload[k])
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(d)
     return {"dialplan_uuid": str(d.dialplan_uuid), "name": d.name, "context": d.context, "enabled": d.enabled}
 
@@ -108,4 +117,8 @@ async def delete_dialplan(dialplan_uuid: UUID, session: AsyncSession = Depends(g
         raise HTTPException(status_code=404, detail="Dialplan not found")
     await session.delete(d)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

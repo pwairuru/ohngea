@@ -4,6 +4,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.extension_settings.models import ExtensionSetting
 from app.extension_settings.schemas import ExtensionSettingCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_es(session: AsyncSession, data: ExtensionSettingCreate, domain_id: UUID):
     if not data.extension_uuid:
         from fastapi import HTTPException
@@ -14,6 +15,10 @@ async def create_es(session: AsyncSession, data: ExtensionSettingCreate, domain_
     obj=ExtensionSetting(domain_id=domain_id, extension_uuid=data.extension_uuid, extension_setting_type=data.extension_setting_type, extension_setting_name=data.extension_setting_name or data.name, extension_setting_value=str(data.extension_setting_value or data.value or ""), extension_setting_enabled=data.extension_setting_enabled if data.extension_setting_enabled is not None else (data.enabled if data.enabled is not None else True), extension_setting_description=data.extension_setting_description or data.description)
     session.add(obj)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 async def list_es(session: AsyncSession, domain_id: UUID, page:int, per_page:int, q:Optional[str], extension_uuid: Optional[UUID]=None):

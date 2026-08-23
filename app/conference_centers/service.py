@@ -4,6 +4,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.conference_centers.models import ConferenceCenter
 from app.conference_centers.schemas import ConferenceCenterCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_center(session: AsyncSession, data: ConferenceCenterCreate, domain_id: UUID):
     name=data.conference_center_name or data.name
     if not name:
@@ -16,6 +17,10 @@ async def create_center(session: AsyncSession, data: ConferenceCenterCreate, dom
     obj=ConferenceCenter(domain_id=domain_id, conference_center_name=name, conference_center_extension=data.conference_center_extension or (str(data.extension) if data.extension else None), conference_center_pin_length=data.conference_center_pin_length or 6, conference_center_greeting=data.conference_center_greeting, conference_center_description=data.conference_center_description or data.description, conference_center_enabled=data.conference_center_enabled if data.conference_center_enabled is not None else (data.enabled if data.enabled is not None else True))
     session.add(obj)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 async def list_centers(session: AsyncSession, domain_id:UUID, page:int, per_page:int, q:Optional[str]):

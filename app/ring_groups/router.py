@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.ring_groups.models import RingGroup, RingGroupMember
 from app.ring_groups.schemas import RingGroupCreate, RingGroupRead, RingGroupUpdate, RingGroupDestinationRead
 from app.ring_groups.service import create_ring_group, list_ring_groups, get_ring_group_with_members
@@ -197,6 +198,10 @@ async def patch_rg(
                 except Exception:
                     continue
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(rg)
     _, members = await get_ring_group_with_members(session, rg.ring_group_uuid, domain_id)
     return _serialize(rg, members)
@@ -212,4 +217,8 @@ async def delete_rg(ring_group_uuid: UUID, session: AsyncSession = Depends(get_s
         raise HTTPException(status_code=404, detail="Ring group not found")
     await session.delete(rg)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

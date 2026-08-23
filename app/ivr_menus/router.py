@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.ivr_menus.models import IvrMenu, IvrMenuOption
 
 router = APIRouter(prefix="/api/v1/ivr_menus", tags=["ivr_menus"])
@@ -34,6 +35,10 @@ async def create_ivr(payload: dict, response: Response, session: AsyncSession = 
         o = IvrMenuOption(ivr_menu_uuid=m.ivr_menu_uuid, digits=opt.get("digits"), action=opt.get("action"), param=opt.get("param"), order=idx)
         session.add(o)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(m)
     response.headers["Location"] = f"/api/v1/ivr_menus/{m.ivr_menu_uuid}"
     return {"ivr_menu_uuid": str(m.ivr_menu_uuid), "name": m.name, "_links": {"self": {"href": f"/api/v1/ivr_menus/{m.ivr_menu_uuid}"}}}
@@ -72,6 +77,10 @@ async def patch_ivr(ivr_menu_uuid: UUID, payload: dict, session: AsyncSession = 
             o = IvrMenuOption(ivr_menu_uuid=m.ivr_menu_uuid, digits=opt.get("digits"), action=opt.get("action"), param=opt.get("param"), order=idx)
             session.add(o)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(m)
     return {"ivr_menu_uuid": str(m.ivr_menu_uuid), "name": m.name, "extension": m.extension, "enabled": m.enabled, "_links": {"self": {"href": f"/api/v1/ivr_menus/{m.ivr_menu_uuid}"}}}
 
@@ -86,4 +95,8 @@ async def delete_ivr(ivr_menu_uuid: UUID, session: AsyncSession = Depends(get_se
         raise HTTPException(status_code=404, detail="IVR not found")
     await session.delete(m)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

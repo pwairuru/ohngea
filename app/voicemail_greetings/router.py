@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.voicemail_greetings.models import VoicemailGreeting
 from app.voicemail_greetings.schemas import VoicemailGreetingCreate, VoicemailGreetingRead, VoicemailGreetingUpdate
 from app.voicemail_greetings.service import create_greeting, list_greetings
@@ -47,7 +48,11 @@ async def patch_ep(uid:UUID, payload:VoicemailGreetingUpdate, session:AsyncSessi
     o=r.scalar_one_or_none()
     if not o: raise HTTPException(status_code=404, detail="Voicemail greeting not found")
     for k,v in payload.model_dump(exclude_unset=True).items(): setattr(o,k,v)
-    await session.commit(); await session.refresh(o); return _ser(o)
+    await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass; await session.refresh(o); return _ser(o)
 @router.delete("/{uid}", status_code=204)
 async def delete_ep(uid:UUID, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("voicemail_add"))):
     domain_id=getattr(user,"_domain_id", user.domain_id)

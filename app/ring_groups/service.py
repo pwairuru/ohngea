@@ -6,6 +6,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ring_groups.models import RingGroup, RingGroupMember
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 
 
 async def create_ring_group(
@@ -86,6 +87,10 @@ async def create_ring_group(
                 continue
 
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(rg)
     return rg
 

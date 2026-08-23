@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.modules.models import Module
 from app.modules.schemas import ModuleCreate, ModuleRead, ModuleUpdate
 from app.modules.service import create_mod, list_mods
@@ -38,7 +39,11 @@ async def patch_ep(uid:UUID, payload:ModuleUpdate, session:AsyncSession=Depends(
     o=r.scalar_one_or_none()
     if not o: raise HTTPException(status_code=404, detail="Module not found")
     for k,v in payload.model_dump(exclude_unset=True).items(): setattr(o,k,v)
-    await session.commit(); await session.refresh(o); return _ser(o)
+    await session.commit()
+    try:
+        await invalidate_fs_cache()
+    except Exception:
+        pass; await session.refresh(o); return _ser(o)
 @router.delete("/{uid}", status_code=204)
 async def delete_ep(uid:UUID, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("module_add"))):
     r=await session.execute(select(Module).where(Module.module_uuid==uid))

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.destinations.models import Destination
 from app.destinations.schemas import DestinationCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 
 
 async def create_destination(session: AsyncSession, data: DestinationCreate, domain_id: UUID) -> Destination:
@@ -31,6 +32,10 @@ async def create_destination(session: AsyncSession, data: DestinationCreate, dom
     )
     session.add(dest)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(dest)
     return dest
 

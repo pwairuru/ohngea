@@ -4,42 +4,173 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import {Pencil, Trash2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight} from "lucide-react";
+import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Dialog, DialogHeader, DialogTitle } from "../components/ui/dialog";
+
 export function Fax() {
   const [data, setData] = React.useState<any[]>([]);
   const [total, setTotal] = React.useState(0);
+  const [q, setQ] = React.useState("");
+  const [page, setPage] = React.useState(1);
   const [open, setOpen] = React.useState(false);
-  const [json, setJson] = React.useState(`{
-  "fax_name": "fax1",
-  "fax_extension": "4001"
-}`);
-  const load = () => apiFetch("/fax").then((r:any)=>{setData(r.data||[]); setTotal(r.total??r.data?.length??0)}).catch(()=>{});
-  React.useEffect(()=>{load()},[]);
-  const create = async () => {
-    try {
-      const body = JSON.parse(json);
-      await apiFetch("/fax", { method: "POST", body: JSON.stringify(body) });
-      setOpen(false); load();
-    } catch (e:any) { alert(e.message); }
+  const [editing, setEditing] = React.useState<any | null>(null);
+  const [form, setForm] = React.useState({
+    fax_extension: "1001",
+    fax_name: "test",
+    fax_email: "",
+    fax_pin_number: "1001",
+    fax_caller_id_name: "test",
+    fax_caller_id_number: "1001",
+    fax_forward_number: "1001",
+    fax_toll_allow: ""
+  });
+
+  const load = React.useCallback(() => {
+    const params = new URLSearchParams({ page: String(page), per_page: "20" });
+    if (q) params.set("q", q);
+    apiFetch(`/fax?${params.toString()}`)
+      .then((r: any) => {
+        setData(r.data || []);
+        setTotal(r.total ?? r.data?.length ?? 0);
+      })
+      .catch(() => {});
+  }, [page, q]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const startCreate = () => {
+    setEditing(null);
+    setForm({
+    fax_extension: "1001",
+    fax_name: "test",
+    fax_email: "",
+    fax_pin_number: "1001",
+    fax_caller_id_name: "test",
+    fax_caller_id_number: "1001",
+    fax_forward_number: "1001",
+    fax_toll_allow: ""
+    });
+    setOpen(true);
   };
+
+  const startEdit = (row: any) => {
+    setEditing(row);
+    setForm({
+      fax_extension: row.fax_extension ?? row["extension"] ?? "",
+      fax_name: row.fax_name ?? row["name"] ?? "",
+      fax_email: row.fax_email ?? row["email"] ?? "",
+      fax_pin_number: row.fax_pin_number ?? row["number"] ?? "",
+      fax_caller_id_name: row.fax_caller_id_name ?? row["name"] ?? "",
+      fax_caller_id_number: row.fax_caller_id_number ?? row["number"] ?? "",
+      fax_forward_number: row.fax_forward_number ?? row["number"] ?? "",
+      fax_toll_allow: row.fax_toll_allow ?? row["allow"] ?? "",
+    });
+    setOpen(true);
+  };
+
+  const createOrUpdate = async () => {
+    try {
+      const payload: any = {
+        fax_extension: form.fax_extension || null,
+        fax_name: form.fax_name || null,
+        fax_email: form.fax_email || null,
+        fax_pin_number: form.fax_pin_number || null,
+        fax_caller_id_name: form.fax_caller_id_name || null,
+        fax_caller_id_number: form.fax_caller_id_number || null,
+        fax_forward_number: form.fax_forward_number || null,
+        fax_toll_allow: form.fax_toll_allow || null,
+        name: form.fax_name || null,
+      };
+      if (editing) {
+        const uid = editing.fax_uuid || editing.id || editing.uuid;
+        await apiFetch(`/fax/${uid}`, { method: "PATCH", body: JSON.stringify(payload) });
+      } else {
+        await apiFetch("/fax", { method: "POST", body: JSON.stringify(payload) });
+      }
+      setOpen(false);
+      setEditing(null);
+      load();
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
+  const del = async (row: any) => {
+    const uid = row.fax_uuid || row.id || row.uuid;
+    const label = row.fax_extension || uid;
+    if (!confirm(`Delete ${label}?`)) return;
+    try {
+      await apiFetch(`/fax/${uid}`, { method: "DELETE" });
+      load();
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
   return (
     <div className="p-4 space-y-4">
-      <div className="flex justify-between items-center"><h1 className="text-2xl font-bold">Fax</h1><div className="flex gap-2"><Badge>{total} total</Badge><Button onClick={() => setOpen(true)}>Add Fax</Button></div></div>
+      <div className="flex justify-between items-center"><h1 className="text-2xl font-bold">Fax</h1><div className="flex gap-2"><Badge>{total} total</Badge><Button onClick={startCreate}>Add Fax</Button></div></div>
+
+      <div className="flex gap-2">
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search..." className="flex-1" />
+        <Button variant="outline" onClick={() => { setPage(1); load(); }}>Search</Button>
+      </div>
+
       <Card><CardHeader><CardTitle>Fax</CardTitle></CardHeader><CardContent>
-          <div className="hidden md:block"><Table><TableHeader><TableRow><TableHead>Name / ID</TableHead><TableHead>Details</TableHead></TableRow></TableHeader><TableBody>
-                {data.map((d:any,i:number)=><TableRow key={i}><TableCell className="font-mono text-xs">{d["fax_name"] ?? d.name ?? JSON.stringify(d).slice(0,60)}</TableCell><TableCell className="text-xs text-muted-foreground">{JSON.stringify(d).slice(0,80)}</TableCell></TableRow>)}
-                {data.length===0 && <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground py-8">No fax — create via Add button POST /api/v1/fax</TableCell></TableRow>}
+          <div className="hidden md:block"><Table><TableHeader><TableRow><TableHead>Fax Extension</TableHead><TableHead>Fax Name</TableHead><TableHead>Fax Email</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader><TableBody>
+                {data.map((d: any, i: number) => {
+                  const uid = d.fax_uuid || d.id || i;
+                  return (
+                    <TableRow key={String(uid)}>
+                      <TableCell className="font-mono text-xs">{d.fax_extension ?? d["extension"] ?? "-"}</TableCell>
+                      <TableCell className="font-mono text-xs">{d.fax_name ?? d["name"] ?? "-"}</TableCell>
+                      <TableCell className="text-xs">{d.fax_email ?? "-"}</TableCell>
+                      <TableCell><div className="flex gap-1"><Button variant="ghost" aria-label="Edit" title="Edit" className="h-9 w-9 p-0" onClick={() => startEdit(d)}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" aria-label="Delete" title="Delete" className="h-9 w-9 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => del(d)}><Trash2 className="h-4 w-4" /></Button></div></TableCell>
+                    </TableRow>
+                  );
+                })}
+                {data.length===0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No fax — create via Add button</TableCell></TableRow>}
               </TableBody></Table></div>
           <div className="md:hidden grid gap-3">
-            {data.map((d:any,i:number)=><Card key={i} className="p-3"><div className="font-mono text-xs break-all">{JSON.stringify(d).slice(0,120)}</div></Card>)}
+            {data.map((d: any, i: number) => {
+              const uid = d.fax_uuid || d.id || i;
+              return (
+                <Card key={String(uid)} className="p-3 space-y-1">
+                  <div className="flex justify-between items-start"><div className="font-mono font-bold">{d.fax_extension ?? d["extension"] ?? String(uid).slice(0,8)}</div></div>
+                  <div className="font-mono text-xs">{d.fax_extension ?? d["extension"]}</div>
+                  <div className="font-mono text-xs">{d.fax_name ?? d["name"]}</div>
+                  <div className="text-xs text-muted-foreground truncate">{d.fax_name ?? ""}</div>
+                  <div className="flex gap-2 mt-2"><Button variant="ghost" aria-label="Edit" title="Edit" className="flex-1 h-9" onClick={() => startEdit(d)}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" aria-label="Delete" title="Delete" className="flex-1 h-9 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => del(d)}><Trash2 className="h-4 w-4" /></Button></div>
+                </Card>
+              );
+            })}
             {data.length===0 && <div className="text-center text-muted-foreground py-4">No fax</div>}
           </div>
+          <div className="flex items-center justify-between mt-4 text-sm">
+            <span>Total: {total}</span>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" aria-label="First page" title="First page" className="h-9 w-9 p-0" disabled={page <= 1} onClick={() => setPage(1)}><ChevronsLeft className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label="Previous page" title="Previous page" className="h-9 w-9 p-0" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}><ChevronLeft className="h-4 w-4" /></Button>
+              <span className="px-2 text-sm">Page {page} of {Math.max(1, Math.ceil(total / 20))}</span>
+              <Button variant="ghost" size="icon" aria-label="Next page" title="Next page" className="h-9 w-9 p-0" disabled={page * 20 >= total} onClick={() => setPage((p) => p + 1)}><ChevronRight className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label="Last page" title="Last page" className="h-9 w-9 p-0" disabled={page * 20 >= total} onClick={() => setPage(Math.max(1, Math.ceil(total / 20)))}><ChevronsRight className="h-4 w-4" /></Button>
+            </div>
+          </div>
         </CardContent></Card>
-      <Dialog open={open} onOpenChange={setOpen}><DialogHeader><DialogTitle>Add Fax</DialogTitle></DialogHeader>
-        <div className="space-y-3"><div><Label>JSON payload *</Label><textarea value={json} onChange={(e)=>setJson(e.target.value)} rows={6} className="w-full rounded border p-2 font-mono text-xs" /></div>
-          <div className="text-xs text-muted-foreground">Required field shown above — edit JSON and press Create.</div>
-          <Button onClick={create} className="w-full">Create</Button></div></Dialog>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}><DialogHeader><DialogTitle>{editing ? "Edit Fax" : "Add Fax"}</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div><Label>Fax Extension</Label><Input value={form.fax_extension} onChange={(e) => setForm({ ...form, fax_extension: e.target.value })} placeholder="1001" /></div>
+          <div><Label>Fax Name</Label><Input value={form.fax_name} onChange={(e) => setForm({ ...form, fax_name: e.target.value })} placeholder="e.g., test" /></div>
+          <div><Label>Fax Email</Label><Input value={form.fax_email} onChange={(e) => setForm({ ...form, fax_email: e.target.value })} placeholder="fax_email" /></div>
+          <div><Label>Fax Pin Number</Label><Input value={form.fax_pin_number} onChange={(e) => setForm({ ...form, fax_pin_number: e.target.value })} placeholder="1001" /></div>
+          <div><Label>Fax Caller Id Name</Label><Input value={form.fax_caller_id_name} onChange={(e) => setForm({ ...form, fax_caller_id_name: e.target.value })} placeholder="e.g., test" /></div>
+          <div><Label>Fax Caller Id Number</Label><Input value={form.fax_caller_id_number} onChange={(e) => setForm({ ...form, fax_caller_id_number: e.target.value })} placeholder="1001" /></div>
+          <div><Label>Fax Forward Number</Label><Input value={form.fax_forward_number} onChange={(e) => setForm({ ...form, fax_forward_number: e.target.value })} placeholder="1001" /></div>
+          <div><Label>Fax Toll Allow</Label><Input value={form.fax_toll_allow} onChange={(e) => setForm({ ...form, fax_toll_allow: e.target.value })} placeholder="fax_toll_allow" /></div>
+          <Button onClick={createOrUpdate} className="w-full">{editing ? "Save" : "Create"}</Button>
+        </div></Dialog>
     </div>
   );
 }

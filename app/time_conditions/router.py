@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.time_conditions.models import TimeCondition
 from app.time_conditions.schemas import TimeConditionCreate, TimeConditionRead, TimeConditionUpdate
 from app.time_conditions.service import create_time_condition, list_time_conditions, get_time_condition
@@ -172,6 +173,10 @@ async def patch_tc(
     from datetime import datetime
     tc.updated_at = datetime.utcnow()
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(tc)
     return _serialize(tc)
 
@@ -192,4 +197,8 @@ async def delete_tc(time_condition_uuid: UUID, session: AsyncSession = Depends(g
         raise HTTPException(status_code=404, detail="Time condition not found")
     await session.delete(tc)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

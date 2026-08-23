@@ -1,9 +1,9 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.auth.deps import get_current_user
+from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
-from app.db import get_session
+from app.db import get_session, set_tenant
 
 router = APIRouter(tags=["aliases"])
 
@@ -51,7 +51,7 @@ async def active_conferences_alias(request: Request, response: Response, page:in
         else:
             # fallback to DB conferences
             from app.conferences.service import list_conferences
-            from app.db import get_session as _gs
+            from app.db import get_session, set_tenant as _gs
             # need domain_id
             domain_id=getattr(user,"_domain_id", user.domain_id)
             from app.db import set_tenant
@@ -64,9 +64,8 @@ async def active_conferences_alias(request: Request, response: Response, page:in
     response.headers["X-Total-Count"]=str(total)
     return {"data": data, "total": total, "page": page, "per_page": per_page}
 
-# switch + system status (infra)
+# switch + system status (infra) — system/status now handled by app.system.router for full metrics
 @router.get("/api/v1/switch/status", response_model=dict)
-@router.get("/api/v1/system/status", response_model=dict)
 async def switch_system_status(user: User = Depends(get_current_user)):
     from app.freeswitch.status_router import _get_fs_status_cached
     fs=await _get_fs_status_cached()
@@ -75,7 +74,7 @@ async def switch_system_status(user: User = Depends(get_current_user)):
         import os
         load=os.getloadavg()[0] if hasattr(os, 'getloadavg') else None
     except: load=None
-    return {"freeswitch": fs, "system": {"hostname": platform.node(), "load_avg": load}, "_links": {"self": {"href": "/api/v1/switch/status"}}}
+    return {"freeswitch": fs, "system": {"hostname": platform.node(), "load_avg": load}, "_links": {"self": {"href": "/api/v1/switch/status"}, "system": {"href": "/api/v1/system/status"}}}
 
 # dialplan inbound/outbound aliases filtered wrappers
 @router.get("/api/v1/dialplan_inbound", response_model=dict)
@@ -114,6 +113,76 @@ async def dialplan_outbound_alias(request: Request, response: Response, page:int
     total_out=len(outbound) if outbound else total
     response.headers["X-Total-Count"]=str(total_out)
     return {"data": [{"dialplan_uuid": str(d.dialplan_uuid), "name": d.name, "context": getattr(d,"context",None)} for d in data], "total": total_out, "page": page, "per_page": per_page}
+
+# call_center_active + fifo_list live aliases (legacy active queues)
+@router.get("/api/v1/call_center_active", response_model=dict)
+@router.get("/api/v1/call_center_active/{queue}", response_model=dict)
+async def call_center_active_alias(request: Request, response: Response, queue: Optional[str]=None, page:int=Query(1,ge=1), per_page:int=Query(20,ge=1,le=100), q:Optional[str]=Query(None), session:AsyncSession=Depends(get_session), user:User=Depends(get_current_user)):
+    # Try ESL callcenter_config list agents, fallback to DB call_centers
+    try:
+        from app.freeswitch.esl_client import esl_command
+        raw=await esl_command("callcenter_config list agents" if not queue else f"callcenter_config list agents {queue}")
+        import json
+        if raw and "agents" in raw.lower():
+            # parse ESL json if available
+            data=[{"agent": raw[:200]}]
+            total=1
+            response.headers["X-Total-Count"]=str(total)
+            return {"data": data, "total": total, "page": page, "per_page": per_page, "_links": {"self": {"href": "/api/v1/call_center_active"}}}
+    except Exception:
+        pass
+    from app.call_centers.service import list_cc
+    from app.db import set_tenant
+    domain_id=getattr(user,"_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    items,total=await list_cc(session,domain_id,page,per_page,q)
+    response.headers["X-Total-Count"]=str(total)
+    return {"data": [{"queue_name": c.queue_name, "queue_extension": c.queue_extension, "queue_strategy": getattr(c,"queue_strategy",None)} for c in items], "total": total, "page": page, "per_page": per_page}
+
+@router.get("/api/v1/fifo_list", response_model=dict)
+async def fifo_list_alias(request: Request, response: Response, page:int=Query(1,ge=1), per_page:int=Query(20,ge=1,le=100), q:Optional[str]=Query(None), session:AsyncSession=Depends(get_session), user:User=Depends(get_current_user)):
+    from app.fifo.service import list_fifo
+    from app.db import set_tenant
+    domain_id=getattr(user,"_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    items,total=await list_fifo(session,domain_id,page,per_page,q)
+    response.headers["X-Total-Count"]=str(total)
+    return {"data": [{"fifo_name": c.fifo_name, "fifo_extension": getattr(c,"fifo_extension",None)} for c in items], "total": total, "page": page, "per_page": per_page}
+
+# call_forward -> follow_me (call_forward.php uses follow_me table)
+@router.get("/api/v1/call_forward", response_model=dict)
+async def call_forward_alias(request: Request, response: Response, page:int=Query(1,ge=1), per_page:int=Query(20,ge=1,le=100), q:Optional[str]=Query(None), session:AsyncSession=Depends(get_session), user:User=Depends(get_current_user)):
+    from app.follow_me.service import list_follow_me
+    from app.db import set_tenant
+    domain_id=getattr(user,"_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    items,total=await list_follow_me(session,domain_id,page,per_page,q)
+    response.headers["X-Total-Count"]=str(total)
+    return {"data": [{"follow_me_uuid": str(c.follow_me_uuid), "extension": getattr(c,"extension",None), "follow_me_enabled": getattr(c,"follow_me_enabled",None)} for c in items], "total": total, "page": page, "per_page": per_page}
+
+# call_recordings -> recordings (call_recordings uses recordings + cdr)
+@router.get("/api/v1/call_recordings", response_model=dict)
+async def call_recordings_alias(request: Request, response: Response, page:int=Query(1,ge=1), per_page:int=Query(20,ge=1,le=100), q:Optional[str]=Query(None), session:AsyncSession=Depends(get_session), user:User=Depends(get_current_user)):
+    from app.recordings.service import list_recordings
+    from app.db import set_tenant
+    domain_id=getattr(user,"_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    items,total=await list_recordings(session,domain_id,page,per_page,q)
+    response.headers["X-Total-Count"]=str(total)
+    return {"data": [{"recording_uuid": str(c.recording_uuid), "name": c.name, "file_path": c.file_path} for c in items], "total": total, "page": page, "per_page": per_page}
+
+# click_to_call -> operator_panel originate helper (legacy click_to_call.php dials via ESL originate)
+@router.get("/api/v1/click_to_call", response_model=dict)
+async def click_to_call_get(session:AsyncSession=Depends(get_session), user:User=Depends(get_current_user)):
+    return {"message": "POST /api/v1/click_to_call with {extension, number} to originate", "_links": {"originate": {"href": "/api/v1/operator_panel/originate"}, "self": {"href": "/api/v1/click_to_call"}}}
+
+@router.post("/api/v1/click_to_call", response_model=dict)
+async def click_to_call_post(payload: dict, session:AsyncSession=Depends(get_session), user:User=Depends(get_current_user)):
+    # delegate to operator_panel originate
+    from app.operator_panel.router import originate as _orig
+    ext=payload.get("extension") or payload.get("src") or "1001"
+    num=payload.get("number") or payload.get("dest") or payload.get("destination") or "1002"
+    return await _orig(payload={"source": ext, "destination": num}, session=session, user=user)
 
 # xml_cdr legacy alias -> cdr (Ohngea uses v_xml_cdr view, modern uses cdr HASH32)
 @router.get("/api/v1/xml_cdr", response_model=dict)

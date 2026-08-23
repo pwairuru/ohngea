@@ -4,6 +4,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.feature_codes.models import FeatureCode
 from app.feature_codes.schemas import FeatureCodeCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_fc(session: AsyncSession, data: FeatureCodeCreate, domain_id: UUID):
     name=data.feature_code_name or data.name
     val=data.feature_code_value or data.value
@@ -17,6 +18,10 @@ async def create_fc(session: AsyncSession, data: FeatureCodeCreate, domain_id: U
     obj=FeatureCode(domain_id=domain_id, feature_code_name=name, feature_code_value=str(val), feature_code_enabled=data.feature_code_enabled if data.feature_code_enabled is not None else (data.enabled if data.enabled is not None else True), feature_code_description=data.feature_code_description or data.description)
     session.add(obj)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 async def list_fc(session: AsyncSession, domain_id: UUID, page:int, per_page:int, q:Optional[str]):

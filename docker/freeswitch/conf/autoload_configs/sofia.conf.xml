@@ -1,22 +1,26 @@
 <configuration name="sofia.conf" description="sofia Endpoint">
   <profiles>
     <!-- E2E test profile. Extensions register here; directory comes from xml_curl.
-         Context matches the seeded domain name so the remote dialplan is used. -->
+         Registered channels carry user_context=<domain> from the directory, so the
+         remote dialplan is fetched for whatever domain the endpoints use. -->
     <profile name="internal">
       <settings>
-        <param name="sip-ip" value="$${local_ip_v4}"/>
+        <param name="sip-ip" value="0.0.0.0"/>
         <param name="ext-sip-ip" value="$${local_ip_v4}"/>
         <param name="rtp-ip" value="$${local_ip_v4}"/>
         <param name="sip-port" value="5060"/>
         <param name="dialplan" value="XML"/>
-        <param name="context" value="test.local"/>
-        <param name="realm" value="test.local"/>
+        <param name="context" value="default"/>
+        <param name="apply-inbound-acl" value="e2e-all"/>
         <param name="challenge-realm" value="auto_from"/>
         <param name="accept-blind-reg" value="false"/>
         <param name="inbound-late-negotiation" value="true"/>
         <param name="rtp-timer-name" value="soft"/>
         <param name="enable-100rel" value="false"/>
         <param name="disable-register" value="false"/>
+        <param name="NDLB-force-rport" value="true"/>
+        <param name="inbound-codec-prefs" value="PCMU,PCMA"/>
+        <param name="outbound-codec-prefs" value="PCMU,PCMA"/>
       </settings>
     </profile>
   </profiles>

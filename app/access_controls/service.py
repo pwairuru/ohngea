@@ -4,6 +4,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.access_controls.models import AccessControl, AccessControlNode
 from app.access_controls.schemas import AccessControlCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_acl(session: AsyncSession, data: AccessControlCreate, domain_id: UUID):
     name=data.access_control_name or data.name
     if not name:
@@ -21,6 +22,10 @@ async def create_acl(session: AsyncSession, data: AccessControlCreate, domain_id
             node=AccessControlNode(access_control_uuid=obj.access_control_uuid, domain_id=domain_id, node_type=n.get("node_type") or n.get("type") or "allow", node_cidr=n.get("node_cidr") or n.get("cidr") or "0.0.0.0/0", node_description=n.get("node_description") or n.get("description"))
             session.add(node)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 async def list_acls(session: AsyncSession, domain_id: UUID, page:int, per_page:int, q:Optional[str]):

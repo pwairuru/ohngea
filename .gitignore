@@ -1,21 +1,199 @@
-# new app build
+# =============================================================================
+# Python
+# =============================================================================
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-.venv/
-node_modules/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
 dist/
-.env
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
 .pytest_cache/
-uv.lock
-# legacy reference clone has its own repo - do not track as nested submodule
-ohngea/
-# test / build artifacts
-.playwright-mcp/
-test-results/
-frontend/test-results/
+nosetests.xml
+pytest.xml
+
+# Type checkers
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyright/
+.pyre/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+venv.bak/
+.env/
+.conda/
+
+# uv (Astral)
+.uv/
+# uv.lock — commit for apps (reproducible deploys), ignore for libraries
+# Uncomment next line if this is a library and you don't want to track the lock:
+# uv.lock
+.python-version
+
+# Celery / workers
+celerybeat-schedule
+celerybeat.pid
+
+# Alembic (keep versions tracked; ignore temp)
+# alembic/versions/*.pyc
+
+# Jupyter / IPython
+.ipynb_checkpoints
+*.ipynb
+
+# =============================================================================
+# Frontend — Node / React / Vite / TypeScript
+# =============================================================================
+# Dependencies
+node_modules/
+frontend/node_modules/
+.pnp/
+.pnp.js
+jspm_packages/
+
+# Build outputs
 frontend/dist/
-.playwright/
+frontend/build/
+dist/
+build/
+out/
+.next/
+.nuxt/
+.output/
+.storybook-static/
+static/assets/
+.vite/
+frontend/.vite/
+
+# Vite / TypeScript caches
 *.tsbuildinfo
 frontend/tsconfig.tsbuildinfo
 frontend/tsconfig.node.tsbuildinfo
+vite.config.*.timestamp-*.mjs
+vite.config.*.timestamp-*.js
+*.vite.ts
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Dependency directories
+.npm/
+.eslintcache
+.stylelintcache
+.parcel-cache/
+
+# Testing / coverage (JS)
 coverage/
+frontend/coverage/
+.nyc_output/
+junit.xml
+
+# Playwright / E2E
+.playwright/
+.playwright-mcp/
+test-results/
+frontend/test-results/
+frontend/playwright-report/
+playwright-report/
+blob-report/
+test-results.xml
+
+# Env files — keep .env.example tracked, ignore the rest
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+!.env.example
+
+# Package manager locks — keep npm lock for reproducible installs (uncomment to ignore)
+# package-lock.json
+# frontend/package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# OS / IDE
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# =============================================================================
+# Project-specific
+# =============================================================================
+# legacy reference clone — do not track as nested submodule
+ohngea/
+
+# Local overrides / secrets
+*.pem
+*.key
+*.cert
+
+# Misc artifacts
+*.tmp
+*.temp
+.dump.rdb

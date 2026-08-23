@@ -97,6 +97,9 @@ async def api_root():
             "logs": {"href": "/api/v1/logs"},
             "domain_limits": {"href": "/api/v1/domain_limits"},
             "devices": {"href": "/api/v1/devices"},
+            "groups": {"href": "/api/v1/groups"},
+            "permissions": {"href": "/api/v1/permissions"},
+            "users": {"href": "/api/v1/users"},
             "cdr": {"href": "/api/v1/cdr"},
             "xml_cdr": {"href": "/api/v1/xml_cdr"},
             "analytics": {"href": "/api/v1/analytics/summary"},
@@ -158,6 +161,7 @@ def include_routers():
     from app.freeswitch.status_router import router as fs_status_router, sip_status_router as sip_status_router
     from app.plugins.router import router as plugins_router
     from app.users.router import router as users_router
+    from app.groups.router import router as groups_router
     from app.webrtc_settings.router import router as webrtc_settings_router
     from app.webrtc.credentials_router import router as webrtc_credentials_router
 
@@ -218,6 +222,7 @@ def include_routers():
     app.include_router(fs_status_router)
     app.include_router(plugins_router)
     app.include_router(users_router)
+    app.include_router(groups_router)
     app.include_router(webrtc_settings_router)
     app.include_router(webrtc_credentials_router)
 

@@ -9,3 +9,6 @@ tests
 __pycache__
 .venv
 node_modules
+docker/freeswitch/conf/tls
+docker/freeswitch/conf/tls/*
+**/tls/

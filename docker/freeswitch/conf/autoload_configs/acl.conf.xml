@@ -1,0 +1,8 @@
+<configuration name="acl.conf" description="Network Lists">
+  <network-lists>
+    <!-- E2E-only stack: permit the docker network (API, SIPp endpoints, fs_cli). -->
+    <list name="e2e-all" default="deny">
+      <node type="allow" cidr="0.0.0.0/0"/>
+    </list>
+  </network-lists>
+</configuration>

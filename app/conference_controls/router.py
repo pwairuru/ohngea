@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.conference_controls.schemas import ConferenceControlCreate, ConferenceControlRead, ConferenceControlUpdate
 from app.conference_controls.service import create_control, list_controls, get_with_details
 router=APIRouter(prefix="/api/v1/conference_controls", tags=["conference_controls"])
@@ -52,6 +53,10 @@ async def patch_ep(uid:UUID, payload:ConferenceControlUpdate, session:AsyncSessi
     for k,v in payload.model_dump(exclude_unset=True).items():
         setattr(ctrl,k,v)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(ctrl)
     _, details=await get_with_details(session,ctrl.conference_control_uuid,domain_id)
     return _ser(ctrl, details)
@@ -63,4 +68,8 @@ async def delete_ep(uid:UUID, session:AsyncSession=Depends(get_session), user:Us
     if not ctrl: raise HTTPException(status_code=404, detail="Conference control not found")
     await session.delete(ctrl)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

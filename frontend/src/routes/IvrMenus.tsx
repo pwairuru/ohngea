@@ -7,6 +7,7 @@ import { Label } from "../components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Dialog, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Badge } from "../components/ui/badge";
+import { Pencil, Power, PowerOff, Trash2 } from "lucide-react";
 
 export function IvrMenus() {
   const [data, setData] = React.useState<any[]>([]);
@@ -54,13 +55,13 @@ export function IvrMenus() {
             <Table>
               <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Extension</TableHead><TableHead>Enabled</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
               <TableBody>
-                {data.map((m) => <TableRow key={m.ivr_menu_uuid}><TableCell>{m.name}</TableCell><TableCell className="font-mono">{m.extension || "-"}</TableCell><TableCell>{m.enabled ? <Badge>enabled</Badge> : <Badge className="bg-muted text-muted-foreground">disabled</Badge>}</TableCell><TableCell><div className="flex gap-1"><Button variant="outline" className="h-8" onClick={() => startEdit(m)}>Edit</Button><Button variant="outline" className="h-8" onClick={() => toggleEnabled(m)}>{m.enabled ? "Disable" : "Enable"}</Button><Button variant="outline" className="h-8 text-red-600 border-red-200" onClick={() => deleteIvr(m)}>Delete</Button></div></TableCell></TableRow>)}
+                {data.map((m) => <TableRow key={m.ivr_menu_uuid}><TableCell>{m.name}</TableCell><TableCell className="font-mono">{m.extension || "-"}</TableCell><TableCell>{m.enabled ? <Badge>enabled</Badge> : <Badge className="bg-muted text-muted-foreground">disabled</Badge>}</TableCell><TableCell><div className="flex gap-1"><Button variant="ghost" aria-label={`Edit ${m.name}`} title="Edit" className="h-9 w-9 p-0" onClick={() => startEdit(m)}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" aria-label={m.enabled ? `Disable ${m.name}` : `Enable ${m.name}`} title={m.enabled ? "Disable" : "Enable"} className="h-9 w-9 p-0" onClick={() => toggleEnabled(m)}>{m.enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}</Button><Button variant="ghost" aria-label={`Delete ${m.name}`} title="Delete" className="h-9 w-9 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deleteIvr(m)}><Trash2 className="h-4 w-4" /></Button></div></TableCell></TableRow>)}
                 {data.length===0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No IVR menus</TableCell></TableRow>}
               </TableBody>
             </Table>
           </div>
           <div className="md:hidden grid gap-3">
-            {data.map((m) => <Card key={m.ivr_menu_uuid} className="p-3"><div className="flex justify-between"><div className="font-bold">{m.name}</div><Badge className={m.enabled ? "" : "bg-muted text-muted-foreground"}>{m.enabled ? "enabled" : "disabled"}</Badge></div><div className="text-xs font-mono">{m.extension}</div><div className="flex gap-2 mt-2"><Button variant="outline" className="flex-1 h-8" onClick={() => startEdit(m)}>Edit</Button><Button variant="outline" className="flex-1 h-8" onClick={() => toggleEnabled(m)}>{m.enabled ? "Disable" : "Enable"}</Button><Button variant="outline" className="flex-1 h-8 text-red-600" onClick={() => deleteIvr(m)}>Delete</Button></div></Card>)}
+            {data.map((m) => <Card key={m.ivr_menu_uuid} className="p-3"><div className="flex justify-between"><div className="font-bold">{m.name}</div><Badge className={m.enabled ? "" : "bg-muted text-muted-foreground"}>{m.enabled ? "enabled" : "disabled"}</Badge></div><div className="text-xs font-mono">{m.extension}</div><div className="flex gap-2 mt-2"><Button variant="ghost" aria-label={`Edit ${m.name}`} title="Edit" className="flex-1 h-9" onClick={() => startEdit(m)}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" aria-label={m.enabled ? `Disable ${m.name}` : `Enable ${m.name}`} title={m.enabled ? "Disable" : "Enable"} className="flex-1 h-9" onClick={() => toggleEnabled(m)}>{m.enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}</Button><Button variant="ghost" aria-label={`Delete ${m.name}`} title="Delete" className="flex-1 h-9 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deleteIvr(m)}><Trash2 className="h-4 w-4" /></Button></div></Card>)}
             {data.length===0 && <div className="text-center text-muted-foreground py-4">No IVR</div>}
           </div>
         </CardContent>

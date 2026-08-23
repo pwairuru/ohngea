@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.fax.models import Fax
 from app.fax.schemas import FaxCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 
 
 async def create_fax(session: AsyncSession, data: FaxCreate) -> Fax:
@@ -36,6 +37,10 @@ async def create_fax(session: AsyncSession, data: FaxCreate) -> Fax:
     )
     session.add(fax)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(fax)
     return fax
 

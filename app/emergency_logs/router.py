@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.emergency_logs.models import EmergencyLog
 from app.emergency_logs.schemas import EmergencyLogCreate, EmergencyLogRead
 from app.emergency_logs.service import create_log, list_logs
@@ -48,4 +49,8 @@ async def delete_ep(uid:UUID, session:AsyncSession=Depends(get_session), user:Us
     if not o: raise HTTPException(status_code=404, detail="Emergency log not found")
     await session.delete(o)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

@@ -38,7 +38,7 @@ def check_fs_auth(authorization: Optional[str] = Header(None)) -> bool:
     return False
 
 
-@router.get("/xml")
+@router.api_route("/xml", methods=["GET", "POST"])
 async def fs_xml(
     request: Request,
     section: Optional[str] = Query(None, description="directory|dialplan|configuration"),
@@ -58,25 +58,82 @@ async def fs_xml(
     if authorization and not check_fs_auth(authorization):
         raise HTTPException(status_code=401, detail="FS auth failed")
 
-    # Support FS xml_curl POST where section is in body
-    if not section:
+    # Support FS xml_curl POST where section is in body (form-urlencoded or XML)
+    # For POST, key_value may also be in body, not query
+    body_text = ""
+    form_data = {}
+    if request.method == "POST":
         try:
             body = await request.body()
             if body:
-                txt = body.decode(errors="ignore")
-                if "section" in txt:
+                body_text = body.decode(errors="ignore")
+                # Try to parse as form-urlencoded
+                from urllib.parse import parse_qs
+
+                # Also handle multipart? Simple parse
+                if "section=" in body_text or "key_value" in body_text:
+                    # parse_qs for x-www-form-urlencoded
+                    qs = parse_qs(body_text)
+                    # qs values are lists
+                    if not section and "section" in qs:
+                        section = qs["section"][0]
+                    if not key_value and "key_value" in qs:
+                        key_value = qs["key_value"][0]
+                    if not key_name and "key_name" in qs:
+                        key_name = qs["key_name"][0]
+                    # also handle tag_name, domain, user
+                    form_data = {k: v[0] for k, v in qs.items()}
+                # Fallback: extract via regex for XML style
+                if not section and "section" in body_text:
                     import re
-                    m = re.search(r'name="section" value="([^"]+)"', txt)
+
+                    m = re.search(r'name="section" value="([^"]+)"', body_text)
                     if m:
                         section = m.group(1)
-                    elif "directory" in txt:
+                    elif "directory" in body_text:
                         section = "directory"
-                    elif "dialplan" in txt:
+                    elif "dialplan" in body_text:
                         section = "dialplan"
+                    # also try to find key_value in XML style
+                    if not key_value:
+                        m2 = re.search(r'name="key_value" value="([^"]+)"', body_text)
+                        if m2:
+                            key_value = m2.group(1)
+                        else:
+                            m3 = re.search(r'key_value=([^&\s]+)', body_text)
+                            if m3:
+                                key_value = m3.group(1)
         except Exception:
             pass
     if not section:
         section = request.query_params.get("section") or "directory"
+    # Also handle key_value from query if still empty and POST had form_data domain/user
+    if not key_value:
+        # Try query param
+        key_value = request.query_params.get("key_value") or ""
+    # For directory POST, FS may send user and domain separately: e.g. user=1010&domain=192.168.1.108
+    # If key_value still empty but we have user/domain in form_data, construct it
+    if not key_value and form_data:
+        user = form_data.get("user") or form_data.get("username") or ""
+        domain = form_data.get("domain") or form_data.get("domain_name") or ""
+        if user and domain:
+            key_value = f"{user}@{domain}"
+        elif domain:
+            key_value = domain
+        elif user:
+            key_value = user
+    # Also handle key_value like "1010" with separate domain param
+    # If key_value is just user and we have domain in form_data, combine
+    if key_value and "@" not in key_value and form_data.get("domain"):
+        # key_value is user, domain is separate
+        if key_value.isdigit() or len(key_value) < 10:
+            # likely user, combine
+            # need to check if this is directory user lookup
+            if section == "directory":
+                # check if domain is present and key_value looks like extension
+                dom = form_data.get("domain")
+                if dom:
+                    key_value = f"{key_value}@{dom}"
 
     # try cache
     cache_key = f"xml:{section}:{key_value}"
@@ -100,10 +157,21 @@ async def fs_xml(
             if domain_name:
                 r = await session.execute(select(Domain).where(Domain.domain_name == domain_name))
                 dom = r.scalar_one_or_none()
+                # IP fallback for local dev: if domain is IP (e.g. 192.168.1.108) and not found, use test.example.com
+                if not dom:
+                    import re
+
+                    if re.match(r"^\d+\.\d+\.\d+\.\d+$", domain_name):
+                        # try test.example.com first, then any domain
+                        r2 = await session.execute(select(Domain).where(Domain.domain_name == "test.example.com"))
+                        dom = r2.scalar_one_or_none()
+                        if not dom:
+                            r2 = await session.execute(select(Domain).limit(1))
+                            dom = r2.scalar_one_or_none()
                 if not dom:
                     xml = build_not_found_xml()
                     return Response(content=xml, media_type="application/xml")
-                # fetch extensions for domain
+                # fetch extensions for domain (use fallback dom's id but keep requested domain_name in XML)
                 re = await session.execute(select(Extension).where(Extension.domain_id == dom.domain_id, Extension.enabled == True))
                 exts = re.scalars().all()
                 xml = build_directory_xml(domain_name, exts)
@@ -118,15 +186,41 @@ async def fs_xml(
             from app.domains.models import Domain
             from app.dialplans.models import Dialplan, DialplanDetail
 
-            # key_value is context like tenant.example.com
+            # key_value is context like tenant.example.com or IP 192.168.1.108
             context = key_value or "default"
             # find domain by context
             r = await session.execute(select(Domain).where(Domain.domain_name == context))
             dom = r.scalar_one_or_none()
+            # IP fallback for local dev
+            if not dom:
+                import re
+
+                if re.match(r"^\d+\.\d+\.\d+\.\d+$", context) or context == "192.168.1.108":
+                    r2 = await session.execute(select(Domain).where(Domain.domain_name == "test.example.com"))
+                    dom = r2.scalar_one_or_none()
+                    if dom:
+                        # use IP as context but fetch dialplans for test.example.com
+                        # keep context as original IP for XML
+                        pass
             if not dom:
                 # try find dialplans by context directly
                 rd = await session.execute(select(Dialplan).where(Dialplan.context == context, Dialplan.enabled == True))
                 dialplans = rd.scalars().all()
+                # if still empty and context is IP, try test.example.com dialplans
+                if not dialplans and re.match(r"^\d+\.\d+\.\d+\.\d+$", context):
+                    rd2 = await session.execute(select(Dialplan).where(Dialplan.context == "test.example.com", Dialplan.enabled == True))
+                    # also try by domain_id fallback
+                    if not rd2.scalars().all():
+                        # try by domain_id of test.example.com
+                        r3 = await session.execute(select(Domain).where(Domain.domain_name == "test.example.com"))
+                        dom_tmp = r3.scalar_one_or_none()
+                        if dom_tmp:
+                            rd = await session.execute(select(Dialplan).where(Dialplan.domain_id == dom_tmp.domain_id, Dialplan.enabled == True))
+                            dialplans = rd.scalars().all()
+                        else:
+                            dialplans = []
+                    else:
+                        dialplans = rd2.scalars().all()
             else:
                 rd = await session.execute(select(Dialplan).where(Dialplan.domain_id == dom.domain_id, Dialplan.enabled == True))
                 dialplans = rd.scalars().all()

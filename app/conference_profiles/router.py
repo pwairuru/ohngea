@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.conference_profiles.models import ConferenceProfile
 from app.conference_profiles.schemas import ConferenceProfileCreate, ConferenceProfileRead, ConferenceProfileUpdate
 from app.conference_profiles.service import create_profile, list_profiles, get_with_params
@@ -54,6 +55,10 @@ async def patch_ep(uid:UUID, payload:ConferenceProfileUpdate, session:AsyncSessi
     for k,v in payload.model_dump(exclude_unset=True).items():
         setattr(prof,k,v)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(prof)
     _, params=await get_with_params(session,prof.conference_profile_uuid,domain_id)
     return _ser(prof, params)
@@ -65,4 +70,8 @@ async def delete_ep(uid:UUID, session:AsyncSession=Depends(get_session), user:Us
     if not prof: raise HTTPException(status_code=404, detail="Conference profile not found")
     await session.delete(prof)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

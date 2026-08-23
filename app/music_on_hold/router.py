@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.music_on_hold.models import MusicOnHold
 from app.music_on_hold.schemas import MusicOnHoldCreate, MusicOnHoldRead, MusicOnHoldUpdate
 from app.music_on_hold.service import create_moh, list_moh as service_list_moh
@@ -101,6 +102,10 @@ async def patch_moh(moh_uuid: UUID, payload: MusicOnHoldUpdate, session: AsyncSe
         else:
             setattr(m, k if hasattr(m, k) else k, v)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(m)
     return _serialize(m)
 
@@ -115,4 +120,8 @@ async def delete_moh(moh_uuid: UUID, session: AsyncSession = Depends(get_session
         raise HTTPException(status_code=404, detail="Music on hold not found")
     await session.delete(m)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

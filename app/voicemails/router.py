@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.voicemails.models import Voicemail, VoicemailDestination
 from app.voicemails.schemas import VoicemailCreate, VoicemailRead, VoicemailUpdate, VoicemailDestinationRead
 from app.voicemails.service import create_voicemail, list_voicemails, get_voicemail, get_voicemail_with_destinations
@@ -248,6 +249,10 @@ async def patch_vm(
 
     vm.updated_at = datetime.utcnow()
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(vm)
     _, dests = await get_voicemail_with_destinations(session, vm.voicemail_uuid, domain_id)
     return _serialize(vm, dests)
@@ -270,4 +275,8 @@ async def delete_vm(voicemail_uuid: UUID, session: AsyncSession = Depends(get_se
         raise HTTPException(status_code=404, detail="Voicemail not found")
     await session.delete(vm)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

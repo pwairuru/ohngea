@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.destinations.models import Destination
 from app.destinations.schemas import DestinationCreate, DestinationRead, DestinationUpdate
 from app.destinations.service import create_destination, list_destinations
@@ -78,6 +79,10 @@ async def patch_dest(dest_uuid: UUID, payload: DestinationUpdate, session: Async
         else:
             setattr(d, k, v)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(d)
     return _serialize(d)
 
@@ -92,4 +97,8 @@ async def delete_dest(dest_uuid: UUID, session: AsyncSession = Depends(get_sessi
         raise HTTPException(status_code=404, detail="Destination not found")
     await session.delete(d)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

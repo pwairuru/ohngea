@@ -1,4 +1,3 @@
-<!-- Local fallback only — real directory is served by the API via xml_curl. -->
-<include>
-  <domain name="test.local"/>
-</include>
+<!-- Local fallback only — real directory is served by the API via xml_curl.
+     Intentionally empty: no domain pinning, any tenant domain works. -->
+<include/>

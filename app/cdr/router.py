@@ -11,6 +11,7 @@ from app.auth.deps import get_current_user
 from app.auth.models import User
 from app.cdr.models import Cdr
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 
 router = APIRouter(prefix="/api/v1", tags=["cdr"])
 
@@ -78,6 +79,33 @@ def parse_cdr_xml(xml_str: str, default_domain_id: Optional[UUID] = None) -> dic
     return data
 
 
+def extract_cdr_body(body: bytes) -> bytes:
+    """Normalize mod_xml_cdr HTTP bodies to raw XML.
+
+    Depending on the ``encode`` setting mod_xml_cdr posts:
+      - raw XML (``encode=false``)
+      - URL-encoded form field ``cdr=<xml>`` (default)
+      - multipart/form-data wrapping the XML
+    """
+    if body.startswith(b"cdr="):
+        from urllib.parse import unquote_plus
+
+        inner = body[4:]
+        # mod_xml_cdr may send raw XML after "cdr=" or URL-encoded content;
+        # only decode when it does not already start with markup.
+        if not inner.lstrip().startswith(b"<"):
+            inner = unquote_plus(inner.decode("utf-8", errors="ignore")).encode("utf-8")
+        body = inner
+    idx = body.find(b"<?xml")
+    if idx > 0:
+        body = body[idx:]
+    # strip a trailing multipart boundary if present
+    end = body.find(b"\r\n--", body.find(b">") + 1)
+    if end != -1:
+        body = body[:end]
+    return body
+
+
 @router.post("/cdr/import", status_code=201)
 async def import_cdr(
     request: Request,
@@ -134,9 +162,9 @@ async def import_cdr(
         except Exception:
             pass
 
+    body = extract_cdr_body(body)
     if "xml" in content_type or body.strip().startswith(b"<"):
         data = parse_cdr_xml(body.decode("utf-8", errors="ignore"), domain_id)
-        # resolve domain_name-only CDRs (typical mod_xml_cdr) via domains table
         dom_name = data.pop("_domain_name", None)
         if not data.get("domain_id") and dom_name:
             from app.domains.models import Domain
@@ -177,6 +205,10 @@ async def import_cdr(
     cdr = Cdr(**data)
     session.add(cdr)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(cdr)
     location = f"/api/v1/cdr/{cdr.cdr_uuid}"
     response.headers["Location"] = location
@@ -285,7 +317,13 @@ async def get_cdr(cdr_uuid: UUID, session: AsyncSession = Depends(get_session), 
         "caller_id_number": c.caller_id_number,
         "destination_number": c.destination_number,
         "start_stamp": c.start_stamp.isoformat() if c.start_stamp else None,
+        "answer_stamp": c.answer_stamp.isoformat() if getattr(c, "answer_stamp", None) else None,
+        "end_stamp": c.end_stamp.isoformat() if getattr(c, "end_stamp", None) else None,
         "duration": c.duration,
+        "billsec": c.billsec,
+        "direction": c.direction,
+        "hangup_cause": c.hangup_cause,
+        "sip_call_id": c.sip_call_id,
         "_links": {"self": {"href": f"/api/v1/cdr/{c.cdr_uuid}"}},
     }
 

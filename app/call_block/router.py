@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.call_block.models import CallBlock
 from app.call_block.schemas import CallBlockCreate, CallBlockRead, CallBlockUpdate
 from app.call_block.service import create_call_block, list_call_block
@@ -79,6 +80,10 @@ async def patch_cb(cb_uuid: UUID, payload: CallBlockUpdate, session: AsyncSessio
         else:
             setattr(cb, k, v)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(cb)
     return _serialize(cb)
 
@@ -93,4 +98,8 @@ async def delete_cb(cb_uuid: UUID, session: AsyncSession = Depends(get_session),
         raise HTTPException(status_code=404, detail="Call block not found")
     await session.delete(cb)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.pin_numbers.models import PinNumber
 from app.pin_numbers.schemas import PinNumberCreate, PinNumberRead, PinNumberUpdate
 from app.pin_numbers.service import create_pin, list_pins
@@ -53,6 +54,10 @@ async def patch_pin(uid: UUID, payload: PinNumberUpdate, session: AsyncSession =
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(o, k if hasattr(o, k) else k, v)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(o)
     return _ser(o)
 @router.delete("/{uid}", status_code=204)
@@ -65,4 +70,8 @@ async def delete_pin(uid: UUID, session: AsyncSession = Depends(get_session), us
         raise HTTPException(status_code=404, detail="PIN not found")
     await session.delete(o)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

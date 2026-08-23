@@ -4,6 +4,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.vars.models import Var
 from app.vars.schemas import VarCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_var(session: AsyncSession, data: VarCreate, domain_id: UUID):
     name=data.var_name or data.name
     value=data.var_value or data.value
@@ -17,6 +18,10 @@ async def create_var(session: AsyncSession, data: VarCreate, domain_id: UUID):
     obj=Var(domain_id=domain_id, var_category=data.var_category or "Provision", var_name=name, var_value=str(value), var_enabled=data.var_enabled if data.var_enabled is not None else (data.enabled if data.enabled is not None else True), var_description=data.var_description or data.description)
     session.add(obj)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 async def list_vars(session: AsyncSession, domain_id:UUID, page:int, per_page:int, q:Optional[str]):

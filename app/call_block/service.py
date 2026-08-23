@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.call_block.models import CallBlock
 from app.call_block.schemas import CallBlockCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 
 
 async def create_call_block(session: AsyncSession, data: CallBlockCreate, domain_id: UUID) -> CallBlock:
@@ -28,6 +29,10 @@ async def create_call_block(session: AsyncSession, data: CallBlockCreate, domain
     )
     session.add(cb)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(cb)
     return cb
 

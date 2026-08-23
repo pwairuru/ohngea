@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.vars.models import Var
 from app.vars.schemas import VarCreate, VarRead, VarUpdate
 from app.vars.service import create_var, list_vars
@@ -49,6 +50,10 @@ async def patch_var(uid:UUID, payload:VarUpdate, session:AsyncSession=Depends(ge
     for k,v in payload.model_dump(exclude_unset=True).items():
         setattr(o,k,v)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(o)
     return _ser(o)
 @router.delete("/{uid}", status_code=204)
@@ -60,4 +65,8 @@ async def delete_var(uid:UUID, session:AsyncSession=Depends(get_session), user:U
     if not o: raise HTTPException(status_code=404, detail="Var not found")
     await session.delete(o)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

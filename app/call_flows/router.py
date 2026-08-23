@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.call_flows.models import CallFlow
 from app.call_flows.schemas import CallFlowCreate, CallFlowRead, CallFlowUpdate
 from app.call_flows.service import create_call_flow, list_call_flows
@@ -119,6 +120,10 @@ async def patch_cf(call_flow_uuid: UUID, payload: CallFlowUpdate, session: Async
         if k in update:
             setattr(cf, k, update[k])
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(cf)
     return _serialize(cf)
 
@@ -133,4 +138,8 @@ async def delete_cf(call_flow_uuid: UUID, session: AsyncSession = Depends(get_se
         raise HTTPException(status_code=404, detail="Call flow not found")
     await session.delete(cf)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)

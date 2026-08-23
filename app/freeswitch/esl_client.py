@@ -44,7 +44,7 @@ class ESLClient:
         self.timeout = timeout
 
     async def api(self, command: str) -> str:
-        """Send `api <command>` and return content."""
+        """Send `api <command>` and return content (header + body)."""
         try:
             reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(self.host, self.port), timeout=self.timeout
@@ -60,12 +60,48 @@ class ESLClient:
                 return f"auth failed: {resp.decode(errors='ignore')}"
             writer.write(f"api {command}\n\n".encode())
             await writer.drain()
-            # read response header + content
-            # ESL sends Content-Length
-            data = await asyncio.wait_for(reader.read(8192), timeout=5)
+            # read response header + content properly via Content-Length
+            # ESL sends: Content-Type: api/response\nContent-Length: N\n\n<body>
+            try:
+                header = await asyncio.wait_for(reader.readuntil(b"\n\n"), timeout=5)
+            except asyncio.IncompleteReadError as e:
+                # incomplete but got partial
+                header = e.partial
+            header_str = header.decode(errors="ignore")
+            # parse Content-Length
+            clen = None
+            m = re.search(r"Content-Length:\s*(\d+)", header_str, re.IGNORECASE)
+            if m:
+                try:
+                    clen = int(m.group(1))
+                except Exception:
+                    clen = None
+            body_bytes = b""
+            if clen is not None and clen > 0:
+                try:
+                    # read exactly clen bytes, but allow timeout
+                    body_bytes = await asyncio.wait_for(reader.readexactly(clen), timeout=5)
+                except asyncio.IncompleteReadError as e:
+                    body_bytes = e.partial or b""
+                except asyncio.TimeoutError:
+                    # fallback to read available
+                    try:
+                        body_bytes = await asyncio.wait_for(reader.read(clen), timeout=2)
+                    except Exception:
+                        body_bytes = b""
+            else:
+                # no length, read whatever available (8192)
+                try:
+                    body_bytes = await asyncio.wait_for(reader.read(8192), timeout=2)
+                except Exception:
+                    body_bytes = b""
             writer.close()
             await writer.wait_closed()
-            return data.decode(errors="ignore")
+            body = body_bytes.decode(errors="ignore")
+            # return header + body so callers can parse, but also handle body-only callers via _strip
+            if body:
+                return header_str + body
+            return header_str
         except asyncio.TimeoutError:
             return "timeout"
         except ConnectionRefusedError:
@@ -122,3 +158,71 @@ class ESLClient:
 
 # singleton
 esl_client = ESLClient()
+
+
+def _strip_esl_headers(raw: str) -> str:
+    """Strip ESL headers (Content-Type/Content-Length) and return body."""
+    if not raw:
+        return ""
+    low = raw.lower()
+    # sentinel errors already stripped — return as-is
+    if any(x in low for x in ("connection refused", "timeout", "error:", "auth failed")):
+        return raw.strip()
+    # ESL api response is "Content-Type: api/response\nContent-Length: N\n\n<body>"
+    # There may be multiple header blocks; take content after last double newline.
+    # Try \n\n split, fallback to \r\n\r\n
+    body = raw
+    # Normalize CRLF to LF for parsing
+    if "\r\n\r\n" in raw:
+        # split on CRLF double newline
+        parts = raw.split("\r\n\r\n")
+        body = parts[-1] if parts else raw
+    if "\n\n" in body:
+        # If still contains header-like prefix, split again
+        # Heuristic: if body still starts with Content-, take after last \n\n
+        if body.lstrip().lower().startswith("content-"):
+            body = body.split("\n\n", 1)[-1]
+        else:
+            # Could be "Content-Type: ...\nContent-Length: ...\n\n<body>"
+            # So split on first \n\n that precedes body
+            idx = raw.find("\n\n")
+            if idx != -1:
+                body = raw[idx + 2 :]
+                # if body again starts with Content-, recurse one more
+                if body.lstrip().lower().startswith("content-"):
+                    idx2 = body.find("\n\n")
+                    if idx2 != -1:
+                        body = body[idx2 + 2 :]
+    return body.strip()
+
+
+async def esl_command(command: str) -> str:
+    """Convenience wrapper used by routers: `await esl_command(\"show channels as json\")`.
+
+    Calls `esl_client.api()` and strips ESL headers, returning only the body.
+    On FS down, returns empty string or sentinel (caller checks falsy).
+    """
+    raw = await esl_client.api(command)
+    if not raw:
+        return ""
+    low = raw.lower() if isinstance(raw, str) else ""
+    if any(x in low for x in ("connection refused", "timeout", "error:", "auth failed")):
+        # propagate sentinel so caller can fallback to empty; keep original for logging
+        # but return empty to indicate no data
+        # Return raw so callers that check for sentinel can detect; however routers
+        # already swallow exceptions, so empty is safe. Return "" to signal no data,
+        # but include raw in logs if needed.
+        # We return "" to allow fallback behavior; the sentinel is still logged.
+        logger.debug(f"esl_command '{command}' failed: {raw[:200]}")
+        # For callers that explicitly check for truthiness, return ""
+        # If caller wants error, they can call esl_client.api directly
+        return ""
+    body = _strip_esl_headers(raw)
+    # Handle mock "+OK mock" which is not JSON
+    if body.strip() == "+OK mock":
+        return ""
+    return body
+
+
+# Back-compat alias for routers that might import directly
+__all__ = ["ESLClient", "esl_client", "esl_command", "parse_sofia_status", "_strip_esl_headers"]

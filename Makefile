@@ -41,10 +41,10 @@ install:
 format:
 	uv run ruff format app tests || true
 
-# --- E2E call test: real FreeSWITCH + SIPp, CDR round-trip (docs/e2e-testing.md) ---
+# --- E2E call test: real FreeSWITCH + scripted endpoints, CDR round-trip (docs/e2e-testing.md) ---
 
 e2e-up:
-	$(COMPOSE_E2E) up -d --build db valkey api freeswitch sipp1001 sipp1002
+	$(COMPOSE_E2E) up -d --build db valkey api freeswitch phone1001 phone1002
 	@sleep 5
 	$(MAKE) e2e-seed
 

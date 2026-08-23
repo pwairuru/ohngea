@@ -7,6 +7,7 @@ import { Label } from "../components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Dialog, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Badge } from "../components/ui/badge";
+import { Pencil, Power, PowerOff, Trash2 } from "lucide-react";
 
 export function SipProfiles() {
   const [data, setData] = React.useState<any[]>([]);
@@ -55,7 +56,7 @@ export function SipProfiles() {
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle>Sofia profiles — internal/external</CardTitle>
           <span data-testid="sip-fs-connected" className={`text-xs px-2 py-1 rounded-full border ${fsConnected === true ? "bg-green-50 text-green-700 border-green-200" : fsConnected === false ? "bg-red-50 text-red-700 border-red-200" : "bg-muted text-muted-foreground"}`}>
-            {fsConnected === true ? "FS Connected" : fsConnected === false ? "FS Disconnected" : "Checking…"}
+            {fsConnected === true ? "" : fsConnected === false ? "" : "Checking…"}
           </span>
         </CardHeader>
         <CardContent>
@@ -68,7 +69,7 @@ export function SipProfiles() {
             if (fsConnected === false) { dot = "bg-gray-300"; textColor = "text-muted-foreground"; }
             else if (running === true) { dot = "bg-green-500"; textColor = "text-green-700"; }
             else if (running === false && st) { dot = "bg-red-500"; textColor = "text-red-700"; }
-            return <TableRow key={p.sip_profile_uuid}><TableCell className="font-mono">{p.name}</TableCell><TableCell>{p.sip_port}</TableCell><TableCell>{p.enabled ? <Badge>enabled</Badge> : <Badge className="bg-muted text-muted-foreground">disabled</Badge>}</TableCell><TableCell><span data-testid={`sip-status-${p.name}`} className={`inline-flex items-center gap-1.5 text-xs ${textColor}`}><span className={`h-2 w-2 rounded-full ${dot} ${running ? "shadow-[0_0_4px_rgba(34,197,94,0.5)]" : ""}`} />{fsState}</span></TableCell><TableCell><div className="flex gap-1"><Button variant="outline" className="h-8" onClick={() => startEdit(p)}>Edit</Button><Button variant="outline" className="h-8" onClick={() => toggleEnabled(p)}>{p.enabled ? "Disable" : "Enable"}</Button><Button variant="outline" className="h-8 text-red-600 border-red-200 hover:bg-red-50" onClick={() => deleteProfile(p)}>Delete</Button></div></TableCell></TableRow>;
+            return <TableRow key={p.sip_profile_uuid}><TableCell className="font-mono">{p.name}</TableCell><TableCell>{p.sip_port}</TableCell><TableCell>{p.enabled ? <Badge>enabled</Badge> : <Badge className="bg-muted text-muted-foreground">disabled</Badge>}</TableCell><TableCell><span data-testid={`sip-status-${p.name}`} className={`inline-flex items-center gap-1.5 text-xs ${textColor}`}><span className={`h-2 w-2 rounded-full ${dot} ${running ? "shadow-[0_0_4px_rgba(34,197,94,0.5)]" : ""}`} />{fsState}</span></TableCell><TableCell><div className="flex gap-1"><Button variant="ghost" aria-label={`Edit ${p.name}`} title="Edit" className="h-9 w-9 p-0" onClick={() => startEdit(p)}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" aria-label={p.enabled ? `Disable ${p.name}` : `Enable ${p.name}`} title={p.enabled ? "Disable" : "Enable"} className="h-9 w-9 p-0" onClick={() => toggleEnabled(p)}>{p.enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}</Button><Button variant="ghost" aria-label={`Delete ${p.name}`} title="Delete" className="h-9 w-9 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deleteProfile(p)}><Trash2 className="h-4 w-4" /></Button></div></TableCell></TableRow>;
           })}{data.length===0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No profiles</TableCell></TableRow>}</TableBody></Table></div>
           <div className="md:hidden grid gap-2">{data.map((p) => {
             const st = statusMap[p.name] || statusMap[p.sip_profile_uuid];
@@ -77,7 +78,7 @@ export function SipProfiles() {
             let dot = "bg-gray-300";
             if (running === true) dot = "bg-green-500";
             else if (running === false && st) dot = "bg-red-500";
-            return <Card key={p.sip_profile_uuid} className="p-3"><div className="flex justify-between items-center"><div className="font-mono font-bold">{p.name}:{p.sip_port}</div><span className="inline-flex items-center gap-1 text-xs"><span className={`h-2 w-2 rounded-full ${dot}`} />{fsState}</span></div><div className="mt-1 flex gap-2"><Badge>{p.enabled ? "enabled" : "disabled"}</Badge></div><div className="flex gap-2 mt-2"><Button variant="outline" className="flex-1 h-8" onClick={() => startEdit(p)}>Edit</Button><Button variant="outline" className="flex-1 h-8" onClick={() => toggleEnabled(p)}>{p.enabled ? "Disable" : "Enable"}</Button><Button variant="outline" className="flex-1 h-8 text-red-600" onClick={() => deleteProfile(p)}>Delete</Button></div></Card>;
+            return <Card key={p.sip_profile_uuid} className="p-3"><div className="flex justify-between items-center"><div className="font-mono font-bold">{p.name}:{p.sip_port}</div><span className="inline-flex items-center gap-1 text-xs"><span className={`h-2 w-2 rounded-full ${dot}`} />{fsState}</span></div><div className="mt-1 flex gap-2"><Badge>{p.enabled ? "enabled" : "disabled"}</Badge></div><div className="flex gap-2 mt-2"><Button variant="ghost" aria-label={`Edit ${p.name}`} title="Edit" className="flex-1 h-9" onClick={() => startEdit(p)}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" aria-label={p.enabled ? `Disable ${p.name}` : `Enable ${p.name}`} title={p.enabled ? "Disable" : "Enable"} className="flex-1 h-9" onClick={() => toggleEnabled(p)}>{p.enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}</Button><Button variant="ghost" aria-label={`Delete ${p.name}`} title="Delete" className="flex-1 h-9 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deleteProfile(p)}><Trash2 className="h-4 w-4" /></Button></div></Card>;
           })}{data.length===0 && <div className="text-center py-4 text-muted-foreground">No profiles</div>}</div>
         </CardContent>
       </Card>

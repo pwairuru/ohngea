@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.follow_me.models import FollowMe, FollowMeDestination
 from app.follow_me.schemas import FollowMeCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 
 
 async def create_follow_me(session: AsyncSession, data: FollowMeCreate, domain_id: UUID):
@@ -38,6 +39,10 @@ async def create_follow_me(session: AsyncSession, data: FollowMeCreate, domain_i
                 )
                 session.add(d)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(fm)
     return fm
 

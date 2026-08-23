@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.conferences.models import Conference, ConferenceUser
 from app.conferences.schemas import ConferenceCreate, ConferenceRead, ConferenceUpdate
 from app.conferences.service import create_conference, list_conferences, get_conference
@@ -195,6 +196,10 @@ async def patch_conf(
 
     conf.updated_at = datetime.utcnow()
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(conf)
     return _serialize(conf)
 
@@ -216,6 +221,10 @@ async def delete_conf(conference_uuid: UUID, session: AsyncSession = Depends(get
         raise HTTPException(status_code=404, detail="Conference not found")
     await session.delete(conf)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)
 
 
@@ -254,5 +263,9 @@ async def add_conf_user(conference_uuid: UUID, payload: dict, session: AsyncSess
     cu = ConferenceUser(domain_id=domain_id, conference_uuid=conference_uuid, user_uuid=user_uuid)
     session.add(cu)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(cu)
     return {"conference_user_uuid": str(cu.conference_user_uuid), "conference_uuid": str(cu.conference_uuid), "domain_id": str(cu.domain_id), "user_uuid": str(cu.user_uuid)}

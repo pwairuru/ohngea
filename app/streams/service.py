@@ -4,6 +4,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.streams.models import Stream
 from app.streams.schemas import StreamCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 
 async def create_stream(session: AsyncSession, data: StreamCreate, domain_id: UUID) -> Stream:
     name=data.stream_name or data.name
@@ -17,6 +18,10 @@ async def create_stream(session: AsyncSession, data: StreamCreate, domain_id: UU
     obj=Stream(domain_id=domain_id, stream_name=name, stream_location=data.stream_location or data.location, stream_enabled=data.stream_enabled if data.stream_enabled is not None else (data.enabled if data.enabled is not None else True), stream_description=data.stream_description or data.description)
     session.add(obj)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 

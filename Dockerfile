@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1
 
 # ---------- Frontend builder (Vite + Tailwind) ----------
-FROM node:20-alpine AS frontend-builder
+FROM node:24-alpine AS frontend-builder
 WORKDIR /app
 COPY frontend ./frontend
 RUN if [ -f frontend/package.json ]; then \
-        cd frontend && npm install --legacy-peer-deps 2>&1 | tail -n 50; \
+        cd frontend && npm config set registry https://registry.npmmirror.com && npm install --legacy-peer-deps 2>&1 | tail -n 50; \
         echo "--- trying vite build ---" && npx vite build 2>&1 | tail -n 150 || npm run build 2>&1 | tail -n 150 || (echo "frontend build failed, creating placeholder" && mkdir -p /app/frontend/dist && echo '<html><body>PBX placeholder</body></html>' > /app/frontend/dist/index.html); \
         ls -la /app/frontend/dist || (mkdir -p /app/frontend/dist && echo '<html><body>PBX fallback</body></html>' > /app/frontend/dist/index.html); \
     else \
@@ -16,7 +16,9 @@ RUN if [ -f frontend/package.json ]; then \
 FROM python:3.14-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+    PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
 
 WORKDIR /app
 

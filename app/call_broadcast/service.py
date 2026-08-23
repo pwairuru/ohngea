@@ -4,6 +4,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.call_broadcast.models import CallBroadcast
 from app.call_broadcast.schemas import CallBroadcastCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_cb(session: AsyncSession, data: CallBroadcastCreate, domain_id: UUID):
     name=data.broadcast_name or data.name
     if not name:
@@ -16,6 +17,10 @@ async def create_cb(session: AsyncSession, data: CallBroadcastCreate, domain_id:
     obj=CallBroadcast(domain_id=domain_id, broadcast_name=name, broadcast_description=data.broadcast_description or data.description, broadcast_timeout=data.broadcast_timeout or 30, broadcast_concurrent_limit=data.broadcast_concurrent_limit or 1, broadcast_caller_id_name=data.broadcast_caller_id_name, broadcast_caller_id_number=data.broadcast_caller_id_number, broadcast_destination_type=data.broadcast_destination_type, broadcast_phone_numbers=data.broadcast_phone_numbers, broadcast_enabled=data.broadcast_enabled if data.broadcast_enabled is not None else (data.enabled if data.enabled is not None else True))
     session.add(obj)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 async def list_cb(session: AsyncSession, domain_id: UUID, page:int, per_page:int, q:Optional[str]):

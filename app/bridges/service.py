@@ -4,6 +4,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.bridges.models import Bridge
 from app.bridges.schemas import BridgeCreate
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_bridge(session: AsyncSession, data: BridgeCreate, domain_id: UUID) -> Bridge:
     name=data.bridge_name or data.name
     if not name:
@@ -16,6 +17,10 @@ async def create_bridge(session: AsyncSession, data: BridgeCreate, domain_id: UU
     obj=Bridge(domain_id=domain_id, bridge_name=name, bridge_destination=data.bridge_destination or data.destination, bridge_enabled=data.bridge_enabled if data.bridge_enabled is not None else (data.enabled if data.enabled is not None else True), bridge_description=data.bridge_description or data.description)
     session.add(obj)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(obj)
     return obj
 async def list_bridges(session: AsyncSession, domain_id:UUID, page:int, per_page:int, q:Optional[str]):

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
+from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.fax.models import Fax
 from app.fax.schemas import FaxCreate, FaxRead, FaxUpdate
 from app.fax.service import create_fax, list_faxes
@@ -120,6 +121,10 @@ async def patch_fax(fax_uuid: UUID, payload: FaxUpdate, session: AsyncSession = 
             raise HTTPException(status_code=409, detail="Fax extension already exists")
         fax.fax_extension = payload.fax_extension
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     await session.refresh(fax)
     return _serialize(fax)
 
@@ -134,4 +139,8 @@ async def delete_fax(fax_uuid: UUID, session: AsyncSession = Depends(get_session
         raise HTTPException(status_code=404, detail="Fax not found")
     await session.delete(fax)
     await session.commit()
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except Exception:
+        pass
     return Response(status_code=204)
