@@ -33,10 +33,34 @@ export function Users() {
     { key: "enabled", header: "Enabled", cell: (r) => <StatusBadge tone={r.enabled ? "ok" : "off"}>{r.enabled ? "enabled" : "disabled"}</StatusBadge> },
   ];
 
+  // password strength: length 12 + number/lower/upper/special (defaults 12/true/true/true/false per app_config:119)
+  const validatePassword = (pw: string) => {
+    const errs: string[] = [];
+    if (pw.length < 12) errs.push("at least 12 characters");
+    if (!/\d/.test(pw)) errs.push("one number");
+    if (!/[a-z]/.test(pw)) errs.push("one lowercase");
+    if (!/[A-Z]/.test(pw)) errs.push("one uppercase");
+    // special optional per default false, so not required unless enabled; keep check disabled by default
+    // if (!/[\W_]/.test(pw)) errs.push("one special");
+    return errs;
+  };
+  const pwErrors = React.useMemo(() => {
+    if (!form.password) return [];
+    return validatePassword(form.password);
+  }, [form.password]);
+  const isCreate = !editing;
+  const passwordRequired = isCreate && !form.password;
+  const isPasswordWeak = isCreate ? (passwordRequired || pwErrors.length > 0) : (form.password ? pwErrors.length > 0 : false);
+  const passwordScore = form.password ? 4 - pwErrors.length : 0;
+
   const startCreate = () => { setEditing(null); setForm({ username: "", email: "", password: "", enabled: true }); setOpen(true); };
   const startEdit = (u: any) => { setEditing(u); setForm({ username: u.username || "", email: u.email || "", password: "", enabled: !!u.enabled }); setOpen(true); };
 
   const saveFn = async () => {
+    if (isPasswordWeak) {
+      toastError(new Error(passwordRequired ? "password required" : `weak password: ${pwErrors.join(", ")}`));
+      return;
+    }
     try {
       if (editing) {
         const payload: any = { username: form.username, email: form.email, enabled: form.enabled };
@@ -85,10 +109,29 @@ export function Users() {
         )}
       />
       <Card><CardHeader><CardTitle>RBAC Groups</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">Groups: superadmin (all perms), user. Permissions: domain_view, extension_add, dialplan_view, gateway_view, etc. Stored in <code>groups</code> + <code>group_permissions</code>, checked via <code>require_permission</code> dep.</CardContent></Card>
-      <FormDialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }} title={editing ? "Edit User" : "Add User"} onSubmit={save} pending={saving} submitLabel={editing ? "Save" : "Create"}>
-        <div><Label>Username *</Label><Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="alice" /></div>
-        <div><Label>Email</Label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="alice@example.com" /></div>
-        <div><Label>{editing ? "New Password (leave blank to keep)" : "Password *"}</Label><Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>
+      <FormDialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }} title={editing ? "Edit User" : "Add User"} onSubmit={save} pending={saving} disabled={isPasswordWeak} submitLabel={editing ? "Save" : "Create"}>
+        <div><Label>Username *</Label><Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="alice" required /></div>
+        <div><Label>Email</Label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="alice@example.com" type="email" /></div>
+        <div>
+          <Label>{editing ? "New Password (leave blank to keep)" : "Password *"}</Label>
+          <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required={isCreate} placeholder={isCreate ? "min 12 chars, number, lower, upper" : ""} />
+          {form.password ? (
+            <div className="mt-2 space-y-1">
+              <div className="flex gap-1">
+                {[0,1,2,3].map((i) => (
+                  <div key={i} className={`h-1 flex-1 rounded ${i < passwordScore ? (passwordScore===4 ? "bg-green-500" : passwordScore>=2 ? "bg-yellow-500" : "bg-red-500") : "bg-muted"}`} />
+                ))}
+              </div>
+              {pwErrors.length > 0 ? (
+                <p className="text-xs text-destructive">Weak: missing {pwErrors.join(", ")}</p>
+              ) : (
+                <p className="text-xs text-green-600">Strong password</p>
+              )}
+            </div>
+          ) : isCreate ? (
+            <p className="text-xs text-muted-foreground mt-1">Password required — min 12 chars with number, lowercase, uppercase</p>
+          ) : null}
+        </div>
         <div className="flex items-center gap-2"><input type="checkbox" id="user-enabled" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} className="h-4 w-4" /><Label htmlFor="user-enabled" className="cursor-pointer">{form.enabled ? "Enabled" : "Disabled"}</Label></div>
       </FormDialog>
     </>

@@ -26,15 +26,22 @@ async def get_user_group_uuids(session, user):
 
 async def _get_domain_setting(session: AsyncSession, domain_id: UUID, category: str, subcategory: str, default=None):
     try:
-        r = await session.execute(select(DomainSettings).where(DomainSettings.domain_id == domain_id, DomainSettings.category == category, DomainSettings.subcategory == subcategory))
-        row = r.scalar_one_or_none()
-        if row:
-            return row.value
-        # also try key lookup for legacy
-        r2 = await session.execute(select(DomainSettings).where(DomainSettings.domain_id == domain_id, DomainSettings.category == category, DomainSettings.key == subcategory))
-        row2 = r2.scalar_one_or_none()
-        if row2:
-            return row2.value
+        # build variants for hyphen/underscore interchange (brief uses password-length, legacy may use password_length)
+        variants = {subcategory}
+        if "-" in subcategory:
+            variants.add(subcategory.replace("-", "_"))
+        if "_" in subcategory:
+            variants.add(subcategory.replace("_", "-"))
+        for var in variants:
+            r = await session.execute(select(DomainSettings).where(DomainSettings.domain_id == domain_id, DomainSettings.category == category, DomainSettings.subcategory == var))
+            row = r.scalar_one_or_none()
+            if row:
+                return row.value
+        for var in variants:
+            r2 = await session.execute(select(DomainSettings).where(DomainSettings.domain_id == domain_id, DomainSettings.category == category, DomainSettings.key == var))
+            row2 = r2.scalar_one_or_none()
+            if row2:
+                return row2.value
     except Exception:
         pass
     return default
