@@ -5,8 +5,11 @@ import { PageHeader } from "../components/shell/PageHeader";
 
 export function ActiveCalls() {
   const columns: Column<any>[] = [
-    { key: "name", header: "Name", className: "num", cell: (r: any) => r.name ?? r.id ?? JSON.stringify(r).slice(0,60) },
-    { key: "details", header: "Details", cell: (r: any) => <span className="text-muted-foreground text-xs break-all">{JSON.stringify(r).slice(0, 80)}</span> },
+    { key: "call_uuid", header: "Call UUID", className: "font-mono text-xs", cell: (r: any) => <span className="font-mono text-xs break-all">{r.call_uuid ?? r.uuid ?? "—"}</span> },
+    { key: "direction", header: "Dir", cell: (r: any) => r.direction ?? "—" },
+    { key: "cid_num", header: "Caller", className: "num", cell: (r: any) => r.cid_num ?? r.caller_id_number ?? "—" },
+    { key: "dest", header: "Destination", className: "num", cell: (r: any) => r.dest ?? r.destination_number ?? "—" },
+    { key: "state", header: "State", cell: (r: any) => r.state ?? r.callstate ?? "—" },
   ];
   return (
     <>

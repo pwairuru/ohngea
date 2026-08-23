@@ -5,8 +5,11 @@ import { PageHeader } from "../components/shell/PageHeader";
 
 export function Registrations() {
   const columns: Column<any>[] = [
-    { key: "name", header: "Name", className: "num", cell: (r: any) => r.name ?? r.id ?? JSON.stringify(r).slice(0,60) },
-    { key: "details", header: "Details", cell: (r: any) => <span className="text-muted-foreground text-xs break-all">{JSON.stringify(r).slice(0, 80)}</span> },
+    { key: "reg_user", header: "User", className: "num", cell: (r: any) => r.reg_user ?? r.user ?? r.sip_user ?? "—" },
+    { key: "realm", header: "Realm", cell: (r: any) => r.realm ?? r.domain ?? "—" },
+    { key: "network_ip", header: "Contact / IP", className: "font-mono text-xs", cell: (r: any) => <span className="font-mono text-xs break-all">{r.network_ip ?? r.contact ?? "—"}</span> },
+    { key: "status", header: "Status", cell: (r: any) => r.status ?? "Registered" },
+    { key: "expires", header: "Expires", cell: (r: any) => r.expires ?? "—" },
   ];
   return (
     <>
