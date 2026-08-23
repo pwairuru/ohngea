@@ -24,7 +24,7 @@ export function RingGroups() {
     try {
       const body = JSON.parse(json);
       await apiFetch("/ring_groups", { method: "POST", body: JSON.stringify(body) });
-      toast("RingGroups created", { variant: "success" });
+      toast("Ring group created", { variant: "success" });
       setOpen(false);
       reload();
     } catch (err) {

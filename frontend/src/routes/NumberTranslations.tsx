@@ -23,7 +23,7 @@ export function NumberTranslations() {
     try {
       const body = JSON.parse(json);
       await apiFetch("/number_translations", { method: "POST", body: JSON.stringify(body) });
-      toast("NumberTranslations created", { variant: "success" });
+      toast("Number translation created", { variant: "success" });
       setOpen(false);
       reload();
     } catch (err) {

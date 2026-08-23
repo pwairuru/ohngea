@@ -24,7 +24,7 @@ export function PinNumbers() {
     try {
       const body = JSON.parse(json);
       await apiFetch("/pin_numbers", { method: "POST", body: JSON.stringify(body) });
-      toast("PinNumbers created", { variant: "success" });
+      toast("PIN created", { variant: "success" });
       setOpen(false);
       reload();
     } catch (err) {

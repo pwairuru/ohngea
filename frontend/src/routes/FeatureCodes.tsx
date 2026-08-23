@@ -23,7 +23,7 @@ export function FeatureCodes() {
     try {
       const body = JSON.parse(json);
       await apiFetch("/feature_codes", { method: "POST", body: JSON.stringify(body) });
-      toast("FeatureCodes created", { variant: "success" });
+      toast("Feature code created", { variant: "success" });
       setOpen(false);
       reload();
     } catch (err) {

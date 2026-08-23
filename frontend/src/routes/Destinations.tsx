@@ -24,7 +24,7 @@ export function Destinations() {
     try {
       const body = JSON.parse(json);
       await apiFetch("/destinations", { method: "POST", body: JSON.stringify(body) });
-      toast("Destinations created", { variant: "success" });
+      toast("Destination created", { variant: "success" });
       setOpen(false);
       reload();
     } catch (err) {

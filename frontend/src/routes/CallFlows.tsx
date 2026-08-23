@@ -23,7 +23,7 @@ export function CallFlows() {
     try {
       const body = JSON.parse(json);
       await apiFetch("/call_flows", { method: "POST", body: JSON.stringify(body) });
-      toast("CallFlows created", { variant: "success" });
+      toast("Call flow created", { variant: "success" });
       setOpen(false);
       reload();
     } catch (err) {

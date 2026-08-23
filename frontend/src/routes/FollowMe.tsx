@@ -23,7 +23,7 @@ export function FollowMe() {
     try {
       const body = JSON.parse(json);
       await apiFetch("/follow_me", { method: "POST", body: JSON.stringify(body) });
-      toast("FollowMe created", { variant: "success" });
+      toast("Follow me created", { variant: "success" });
       setOpen(false);
       reload();
     } catch (err) {

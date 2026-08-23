@@ -23,7 +23,7 @@ export function CallBlock() {
     try {
       const body = JSON.parse(json);
       await apiFetch("/call_block", { method: "POST", body: JSON.stringify(body) });
-      toast("CallBlock created", { variant: "success" });
+      toast("Call block created", { variant: "success" });
       setOpen(false);
       reload();
     } catch (err) {

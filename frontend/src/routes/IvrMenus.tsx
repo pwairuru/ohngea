@@ -63,7 +63,7 @@ export function IvrMenus() {
 
   return (
     <>
-      <PageHeader title="IVR Menus" description="Interactive voice response menus" actions={<Button onClick={startCreate}>Add IVR</Button>} />
+      <PageHeader title="IVR Menus" description="Interactive voice response menus — digit maps to actions" actions={<Button onClick={startCreate}>Add IVR</Button>} />
       <DataTable
         resource="/ivr_menus"
         columns={columns}

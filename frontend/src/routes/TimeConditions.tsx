@@ -23,7 +23,7 @@ export function TimeConditions() {
     try {
       const body = JSON.parse(json);
       await apiFetch("/time_conditions", { method: "POST", body: JSON.stringify(body) });
-      toast("TimeConditions created", { variant: "success" });
+      toast("Time condition created", { variant: "success" });
       setOpen(false);
       reload();
     } catch (err) {

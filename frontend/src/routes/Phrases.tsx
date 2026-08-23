@@ -23,7 +23,7 @@ export function Phrases() {
     try {
       const body = JSON.parse(json);
       await apiFetch("/phrases", { method: "POST", body: JSON.stringify(body) });
-      toast("Phrases created", { variant: "success" });
+      toast("Phrase created", { variant: "success" });
       setOpen(false);
       reload();
     } catch (err) {
