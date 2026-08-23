@@ -35,6 +35,15 @@ All 60 legacy columns now present. Old `unique_id`/`dial_user`/`dial_domain`/`in
 
 ## Gateways — ✅ FIXED in 022_gateways_full
 
+## Devices/Dialplans/SIP/IVR — ✅ FIXED in 023
+
+| Entity | Legacy fields | New | Status |
+|---|---|---|---|
+| devices | device_address/label/vendor/model/firmware/template/location/serial/description/username/password + device_lines (server_address, user_id, auth_id, password, sip_port...) | ✅ expanded models + device_lines table | hidden advanced via API, provision `/provision/{mac}.cfg` uses DB |
+| dialplans | dialplan_continue/order, hostname, app_uuid + details | ✅ added | FS dialplan XML `app/dialplans` already supports details; continue/order now honoured |
+| sip_profiles | sip_secure, rtp_ip, hold_music, ACLs, record | ✅ expanded | FS sofia config via `GET /xml?section=configuration&key_value=sofia.conf` |
+| ivr_menus | greet_long/short, invalid/exit, confirm, timeout, tts | ✅ expanded | FS ivr config via DB |
+
 | Legacy | Modern (now 36 fields) | Status |
 |---|---|---|
 | gateway, username, password, proxy, register, enabled | ✅ |  |
