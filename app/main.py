@@ -58,6 +58,7 @@ async def api_root():
             "call_flows": {"href": "/api/v1/call_flows"},
             "music_on_hold": {"href": "/api/v1/music_on_hold"},
             "follow_me": {"href": "/api/v1/follow_me"},
+            "call_forward": {"href": "/api/v1/call_forward"},
             "call_block": {"href": "/api/v1/call_block"},
             "destinations": {"href": "/api/v1/destinations"},
             "pin_numbers": {"href": "/api/v1/pin_numbers"},
@@ -124,6 +125,7 @@ def include_routers():
     from app.call_flows.router import router as call_flows_router
     from app.music_on_hold.router import router as moh_router
     from app.follow_me.router import router as follow_me_router
+    from app.call_forward.router import router as call_forward_router
     from app.call_block.router import router as call_block_router
     from app.destinations.router import router as destinations_router
     from app.pin_numbers.router import router as pin_numbers_router
@@ -185,6 +187,7 @@ def include_routers():
     app.include_router(call_flows_router)
     app.include_router(moh_router)
     app.include_router(follow_me_router)
+    app.include_router(call_forward_router)
     app.include_router(call_block_router)
     app.include_router(destinations_router)
     app.include_router(pin_numbers_router)

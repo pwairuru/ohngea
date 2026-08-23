@@ -34,6 +34,7 @@ async def test_db():
     import app.auth.models  # noqa: F401
     import app.extensions.models  # noqa: F401
     import app.sip_profiles.models  # noqa: F401
+    import app.call_forward.models  # noqa: F401
     try:
         import app.webrtc.credentials_router  # noqa: F401
     except ImportError:

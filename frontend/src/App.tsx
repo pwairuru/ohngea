@@ -22,6 +22,7 @@ import { Phrases } from "./routes/Phrases";
 import { PinNumbers } from "./routes/PinNumbers";
 import { Destinations } from "./routes/Destinations";
 import { CallBlock } from "./routes/CallBlock";
+import { CallForward } from "./routes/CallForward";
 import { FollowMe } from "./routes/FollowMe";
 import { MusicOnHold } from "./routes/MusicOnHold";
 import { CallFlows } from "./routes/CallFlows";
@@ -103,6 +104,7 @@ function Nav() {
     { to: "/pin_numbers", label: "PINs", app: "pin_numbers" },
     { to: "/destinations", label: "Destinations", app: "destinations" },
     { to: "/follow_me", label: "FollowMe", app: "follow_me" },
+    { to: "/call_forward", label: "Call Forward", app: "call_forward" },
     { to: "/music_on_hold", label: "MOH", app: "music_on_hold" },
     { to: "/call_flows", label: "Call Flows", app: "call_flows" },
     { to: "/fax", label: "Fax", app: "fax" },
@@ -270,6 +272,7 @@ function Nav() {
             <Route path="/call_flows" element={<CallFlows />} />
             <Route path="/music_on_hold" element={<MusicOnHold />} />
             <Route path="/follow_me" element={<FollowMe />} />
+            <Route path="/call_forward" element={<CallForward />} />
             <Route path="/call_block" element={<CallBlock />} />
             <Route path="/pin_numbers" element={<PinNumbers />} />
             <Route path="/call_centers" element={<CallCenters />} />
