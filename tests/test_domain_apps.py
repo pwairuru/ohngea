@@ -46,3 +46,62 @@ async def test_enabled_app_still_200(client, domain, auth_headers):
     await client.put(f"/api/v1/domains/{domain.domain_id}/apps/fifo?enabled=true", headers=auth_headers)
     resp = await client.get("/api/v1/fifo", headers=auth_headers)
     assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_ivr_menus_gated_by_middleware(client, domain, auth_headers):
+    # ivr_menus enabled_by_default=true, so 200 initially
+    resp = await client.get("/api/v1/ivr_menus", headers=auth_headers)
+    assert resp.status_code == 200, resp.text
+    # disable via central gate
+    r = await client.put(f"/api/v1/domains/{domain.domain_id}/apps/ivr_menus?enabled=false", headers=auth_headers)
+    assert r.status_code == 200, r.text
+    resp = await client.get("/api/v1/ivr_menus", headers=auth_headers)
+    assert resp.status_code == 403, f"expected 403 got {resp.status_code} {resp.text}"
+    assert "disabled" in resp.json()["detail"].lower()
+    # re-enable
+    r = await client.put(f"/api/v1/domains/{domain.domain_id}/apps/ivr_menus?enabled=true", headers=auth_headers)
+    assert r.status_code == 200
+    resp = await client.get("/api/v1/ivr_menus", headers=auth_headers)
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_conferences_gated_by_middleware(client, domain, auth_headers):
+    # conferences enabled_by_default=false, so need to enable first to get 200
+    r = await client.put(f"/api/v1/domains/{domain.domain_id}/apps/conferences?enabled=true", headers=auth_headers)
+    assert r.status_code == 200, r.text
+    resp = await client.get("/api/v1/conferences", headers=auth_headers)
+    assert resp.status_code == 200, resp.text
+    # disable
+    r = await client.put(f"/api/v1/domains/{domain.domain_id}/apps/conferences?enabled=false", headers=auth_headers)
+    assert r.status_code == 200, r.text
+    resp = await client.get("/api/v1/conferences", headers=auth_headers)
+    assert resp.status_code == 403, f"expected 403 got {resp.status_code} {resp.text}"
+    assert "disabled" in resp.json()["detail"].lower()
+    r = await client.put(f"/api/v1/domains/{domain.domain_id}/apps/conferences?enabled=true", headers=auth_headers)
+    assert r.status_code == 200
+    resp = await client.get("/api/v1/conferences", headers=auth_headers)
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_always_enabled_not_gated(client, domain, auth_headers):
+    # 6 primary nav always enabled — even if DomainApp says disabled, middleware skips gate
+    for app_name, endpoint in [
+        ("extensions", "/api/v1/extensions"),
+        ("dialplans", "/api/v1/dialplans"),
+        ("gateways", "/api/v1/gateways"),
+        ("devices", "/api/v1/devices"),
+        ("cdr", "/api/v1/cdr"),
+        ("domains", "/api/v1/domains"),
+    ]:
+        r = await client.put(f"/api/v1/domains/{domain.domain_id}/apps/{app_name}?enabled=false", headers=auth_headers)
+        # some primary apps may have toggle allowed
+        assert r.status_code in (200, 409), r.text
+        # if toggle succeeded to false, still should be 200 via middleware skip
+        if r.status_code == 200 and r.json().get("enabled") is False:
+            resp = await client.get(endpoint, headers=auth_headers)
+            assert resp.status_code == 200, f"{app_name} should stay 200 despite disabled override but got {resp.status_code} {resp.text}"
+            # restore
+            await client.put(f"/api/v1/domains/{domain.domain_id}/apps/{app_name}?enabled=true", headers=auth_headers)

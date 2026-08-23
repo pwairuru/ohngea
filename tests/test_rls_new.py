@@ -1,6 +1,14 @@
 import pytest, uuid
+import jwt
 from httpx import ASGITransport, AsyncClient
 from app.main import app
+
+def _domain_id_from_token(tok: str) -> str:
+    try:
+        payload = jwt.decode(tok, options={"verify_signature": False})
+        return payload.get("domain_id")
+    except Exception:
+        return None
 
 @pytest.mark.asyncio
 async def test_rls_isolation_conference_centers_and_vars():
@@ -12,6 +20,14 @@ async def test_rls_isolation_conference_centers_and_vars():
             return r.json()["access_token"]
     t1=await tok("test.example.com")
     t2=await tok("second.example.com")
+    # ensure apps are enabled for both domains (central AppGateMiddleware gates disabled_by_default=false)
+    for tok_val in (t1, t2):
+        did = _domain_id_from_token(tok_val)
+        if did:
+            tr2=ASGITransport(app=app)
+            async with AsyncClient(transport=tr2, base_url="http://test") as ac2:
+                for app_name in ("conference_centers", "vars"):
+                    await ac2.put(f"/api/v1/domains/{did}/apps/{app_name}?enabled=true", headers={"Authorization": f"Bearer {tok_val}"})
     tr=ASGITransport(app=app)
     async with AsyncClient(transport=tr, base_url="http://test") as ac:
         n=f"rls-cc-{uuid.uuid4().hex[:6]}"

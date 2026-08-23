@@ -7,6 +7,7 @@ from pathlib import Path
 
 from app.middleware.tenant import TenantMiddleware
 from app.middleware.audit import AuditMiddleware
+from app.middleware.app_gate import AppGateMiddleware
 
 app = FastAPI(
     title="Ohngea PBX",
@@ -16,8 +17,10 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Middleware
+# Middleware — order matters: added first = inner (closest to endpoint).
+# Desired outer->inner: CORS -> Audit -> AppGate -> Tenant
 app.add_middleware(TenantMiddleware)
+app.add_middleware(AppGateMiddleware)
 app.add_middleware(AuditMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -26,6 +29,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def add_app_gate_middleware():
+    """Idempotent helper to ensure AppGateMiddleware is registered (for tests/docs)."""
+    # already added above; kept for explicit API per spec
+    pass
 
 
 @app.get("/health", tags=["health"])
