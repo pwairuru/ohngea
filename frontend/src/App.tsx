@@ -18,6 +18,7 @@ import { Dashboard } from "./routes/Dashboard";
 import { Extensions } from "./routes/Extensions";
 import { Gateways } from "./routes/Gateways";
 import { Cdr } from "./routes/Cdr";
+import { Phone } from "./routes/Phone";
 import { Dialplans } from "./routes/Dialplans";
 import { Devices } from "./routes/Devices";
 import { IvrMenus } from "./routes/IvrMenus";
@@ -125,6 +126,7 @@ function Nav() {
                 <Route path="/dialplans" element={<Dialplans />} />
                 <Route path="/gateways" element={<Gateways />} />
                 <Route path="/cdr" element={<Cdr />} />
+                <Route path="/phone" element={<Phone />} />
                 <Route path="/devices" element={<Devices />} />
                 <Route path="/ivr" element={<IvrMenus />} />
                 <Route path="/ring_groups" element={<RingGroups />} />

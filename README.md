@@ -66,6 +66,7 @@ ohngea-import --legacy-url postgresql://user:pass@host/legacy --dry-run
 - Primary nav 6: Dashboard, Extensions, Call Routing, Gateways, Devices, Reports. Advanced drawer: IVR, Users, Tenants, Plugins.
 - Mobile: drawer `md:hidden` 44px, tables `hidden md:block` vs cards `md:hidden`, `ThemeProvider` light/dark/system + tenant override.
 - Dashboard Recharts KPI, Extensions stepper + CSV wizard, Gateways form, Devices provision preview.
+- WebPhone: `WebPhoneButton` topnav + `WebPhoneDock` bottom-right + `/phone` full page `data-testid="phone-page"` `grid md:grid-cols-2` left `WebPhonePanel embedded` right placeholder `Queue controls coming Phase2`, dialpad/history/contacts/settings, `sip.js` 0.21 lazy behind `webrtc_settings.enabled`, 44px `data-testid="webphone-btn"/"webphone-panel"/"webphone-dock"/"phone-page"`.
 
 ## Tests
 ```bash

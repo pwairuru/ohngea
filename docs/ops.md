@@ -50,6 +50,7 @@ sofia profile internal wss-binding:7443 + cert
 ```
 - Vite does NOT proxy `/wss` (direct WSS to FreeSWITCH via `wss_url`); frontend `WSS URL must start with wss://` validated in `WebPhonePopup`.
 - Topnav `WebPhoneButton` (`data-testid="webphone-btn"`, `Phone` icon, registration dot `webphone-registration-dot` gray/yellow/green/red) + `Dialog` popup `webphone-config-form` vs `webphone-dialpad` (`dial-input`, `call-btn` disabled when empty, `hangup-btn`, `incoming-banner`, 44px touch).
+- `WebPhoneDock` fixed bottom-right `data-testid="webphone-dock"` (`dock-expand` collapsed timer/status) expands to panel via `onExpand`; full page `/phone` behind `RequireAuth` `data-testid="phone-page"` `grid md:grid-cols-2 gap-4` left `WebPhonePanel embedded` right placeholder `Queue controls coming Phase2 — see /call_centers for queue config. History summary + agent status here in Phase2.` (Phase2 queue/transfer deferred, no DB migration).
 
 ## Monitoring
 - `/health` liveness, `/api/v1/health` version, `/api/internal/freeswitch/health`.
