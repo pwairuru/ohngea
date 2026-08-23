@@ -1,4 +1,5 @@
 from uuid import UUID
+import re
 import uuid6
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -22,6 +23,42 @@ async def get_user_level(session, user) -> int:
 async def get_user_group_uuids(session, user):
     from app.groups.service import get_user_group_uuids as gugu
     return await gugu(session, user)
+
+async def _get_domain_setting(session: AsyncSession, domain_id: UUID, category: str, subcategory: str, default=None):
+    try:
+        r = await session.execute(select(DomainSettings).where(DomainSettings.domain_id == domain_id, DomainSettings.category == category, DomainSettings.subcategory == subcategory))
+        row = r.scalar_one_or_none()
+        if row:
+            return row.value
+        # also try key lookup for legacy
+        r2 = await session.execute(select(DomainSettings).where(DomainSettings.domain_id == domain_id, DomainSettings.category == category, DomainSettings.key == subcategory))
+        row2 = r2.scalar_one_or_none()
+        if row2:
+            return row2.value
+    except Exception:
+        pass
+    return default
+
+def _is_valid_email(email: str) -> bool:
+    if not email:
+        return False
+    return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email))
+
+def _validate_password_strength(password: str, length_req=12, need_number=True, need_lower=True, need_upper=True, need_special=False):
+    errors = []
+    if len(password) < length_req:
+        errors.append(f"password must be at least {length_req} characters")
+    if need_number and not re.search(r"\d", password):
+        errors.append("password must contain at least one number")
+    if need_lower and not re.search(r"[a-z]", password):
+        errors.append("password must contain at least one lowercase")
+    if need_upper and not re.search(r"[A-Z]", password):
+        errors.append("password must contain at least one uppercase")
+    if need_special and not re.search(r"[\W_]", password):
+        errors.append("password must contain at least one special character")
+    return errors
+
+_USERNAME_REGEX = re.compile(r"^[a-z0-9_-]{2,64}$")
 
 def user_links(uid: UUID):
     base = f"/api/v1/users/{uid}"
@@ -348,15 +385,23 @@ async def create_user(payload: dict, response: Response, session: AsyncSession=D
     username = payload.get("username") or payload.get("user_name")
     if not username:
         raise HTTPException(status_code=422, detail="username required")
-    # username format check from domain_settings users/username_format
-    ds = await session.execute(select(DomainSettings).where(DomainSettings.domain_id==target_domain_uuid, DomainSettings.category=="users", DomainSettings.subcategory=="username_format"))
-    # ignore for now
+    # username format check from domain_settings users/username_format (any/email/no_email)
+    username_format = await _get_domain_setting(session, target_domain_uuid, "users", "username_format", default="any")
+    # normalize: value may be "any"/"email"/"no_email"
+    if username_format and username_format != "any":
+        is_email = _is_valid_email(username)
+        if username_format == "email" and not is_email:
+            raise HTTPException(status_code=422, detail="username must be email")
+        if username_format == "no_email" and is_email:
+            raise HTTPException(status_code=422, detail="username must not be email")
+    # username length / chars? legacy not strict, but enforce max 64
+    if len(username) > 64 or len(username) < 2:
+        raise HTTPException(status_code=422, detail="username must be 2-64 characters")
     # unique check
     # check domain_settings users/unique global vs domain
     unique_global = False
-    ds2 = await session.execute(select(DomainSettings).where(DomainSettings.domain_id==target_domain_uuid, DomainSettings.category=="users", DomainSettings.subcategory=="unique"))
-    row = ds2.scalar_one_or_none()
-    if row and row.value=="global":
+    unique_val = await _get_domain_setting(session, target_domain_uuid, "users", "unique", default=None)
+    if unique_val == "global":
         unique_global = True
     if unique_global:
         r = await session.execute(select(User).where(User.username==username))
@@ -369,8 +414,31 @@ async def create_user(payload: dict, response: Response, session: AsyncSession=D
     password = payload.get("password")
     if not password:
         raise HTTPException(status_code=422, detail="password required")
-    # password requirements: check domain_settings
-    # For brevity skip strict validation, just length >= 8
+    # password requirements: fetch domain_settings or default 12/true/true/true/false
+    pw_len_val = await _get_domain_setting(session, target_domain_uuid, "users", "password_length", default="12")
+    try:
+        pw_len = int(pw_len_val) if pw_len_val is not None else 12
+    except:
+        pw_len = 12
+    pw_number = await _get_domain_setting(session, target_domain_uuid, "users", "password_number", default="true")
+    pw_lower = await _get_domain_setting(session, target_domain_uuid, "users", "password_lowercase", default="true")
+    pw_upper = await _get_domain_setting(session, target_domain_uuid, "users", "password_uppercase", default="true")
+    pw_special = await _get_domain_setting(session, target_domain_uuid, "users", "password_special", default="false")
+    def _to_bool(v):
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            return v.lower() in ("true", "1", "yes", "t")
+        return bool(v)
+    need_number = _to_bool(pw_number)
+    need_lower = _to_bool(pw_lower)
+    need_upper = _to_bool(pw_upper)
+    need_special = _to_bool(pw_special)
+    pw_errors = _validate_password_strength(password, length_req=pw_len, need_number=need_number, need_lower=need_lower, need_upper=need_upper, need_special=need_special)
+    if pw_errors:
+        raise HTTPException(status_code=422, detail="; ".join(pw_errors))
+    if payload.get("password_confirm") and password != payload.get("password_confirm"):
+        raise HTTPException(status_code=422, detail="Passwords mismatch")
     # limit check
     ls = await session.execute(select(DomainSettings).where(DomainSettings.domain_id==target_domain_uuid, DomainSettings.category=="limit", DomainSettings.subcategory=="users"))
     lim_row = ls.scalar_one_or_none()
@@ -385,7 +453,8 @@ async def create_user(payload: dict, response: Response, session: AsyncSession=D
         except:
             pass
     email = payload.get("user_email") or payload.get("email")
-    # email validation basic
+    if email and not _is_valid_email(email):
+        raise HTTPException(status_code=422, detail="invalid email")
     # create user
     u = User(domain_id=target_domain_uuid, username=username, email=email, password_hash=hash_password(password), enabled=payload.get("user_enabled", payload.get("enabled", True)), user_status=payload.get("user_status"), user_type=payload.get("user_type", "default"), api_key=payload.get("api_key"), user_totp_secret=payload.get("user_totp_secret"))
     # contact handling: if contact_uuid provided, link, else create contact if organization/name provided
@@ -508,11 +577,20 @@ async def patch_user(user_uuid: UUID, payload: dict, session: AsyncSession=Depen
     # update fields
     if "username" in payload and payload["username"]!=u.username:
         new_name = payload["username"]
+        # username format validation
+        username_format = await _get_domain_setting(session, u.domain_id, "users", "username_format", default="any")
+        if username_format and username_format != "any":
+            is_email = _is_valid_email(new_name)
+            if username_format == "email" and not is_email:
+                raise HTTPException(status_code=422, detail="username must be email")
+            if username_format == "no_email" and is_email:
+                raise HTTPException(status_code=422, detail="username must not be email")
+        if len(new_name) > 64 or len(new_name) < 2:
+            raise HTTPException(status_code=422, detail="username must be 2-64 characters")
         # unique check
         unique_global=False
-        ds2 = await session.execute(select(DomainSettings).where(DomainSettings.domain_id==u.domain_id, DomainSettings.category=="users", DomainSettings.subcategory=="unique"))
-        row = ds2.scalar_one_or_none()
-        if row and row.value=="global":
+        unique_val = await _get_domain_setting(session, u.domain_id, "users", "unique", default=None)
+        if unique_val == "global":
             unique_global=True
         if unique_global:
             chk = await session.execute(select(User).where(User.username==new_name, User.user_uuid!=user_uuid))
@@ -525,7 +603,10 @@ async def patch_user(user_uuid: UUID, payload: dict, session: AsyncSession=Depen
         u.username = new_name
     for k in ["email","user_email"]:
         if k in payload:
-            u.email = payload[k]
+            new_email = payload[k]
+            if new_email and not _is_valid_email(new_email):
+                raise HTTPException(status_code=422, detail="invalid email")
+            u.email = new_email
             break
     if "enabled" in payload or "user_enabled" in payload:
         u.enabled = payload.get("enabled", payload.get("user_enabled"))
@@ -544,11 +625,31 @@ async def patch_user(user_uuid: UUID, payload: dict, session: AsyncSession=Depen
     if "password" in payload and payload["password"]:
         if not ("*" in perms or "user_password" in perms or "domain_add" in perms):
             raise HTTPException(status_code=403, detail="Missing permission: user_password")
-        # password requirements check (simplified length 12 etc)
         pw = payload["password"]
         if payload.get("password_confirm") and pw != payload["password_confirm"]:
             raise HTTPException(status_code=422, detail="Passwords mismatch")
-        # length check from settings if present
+        pw_len_val = await _get_domain_setting(session, u.domain_id, "users", "password_length", default="12")
+        try:
+            pw_len = int(pw_len_val) if pw_len_val is not None else 12
+        except:
+            pw_len = 12
+        pw_number = await _get_domain_setting(session, u.domain_id, "users", "password_number", default="true")
+        pw_lower = await _get_domain_setting(session, u.domain_id, "users", "password_lowercase", default="true")
+        pw_upper = await _get_domain_setting(session, u.domain_id, "users", "password_uppercase", default="true")
+        pw_special = await _get_domain_setting(session, u.domain_id, "users", "password_special", default="false")
+        def _to_bool2(v):
+            if isinstance(v, bool):
+                return v
+            if isinstance(v, str):
+                return v.lower() in ("true", "1", "yes", "t")
+            return bool(v)
+        need_number = _to_bool2(pw_number)
+        need_lower = _to_bool2(pw_lower)
+        need_upper = _to_bool2(pw_upper)
+        need_special = _to_bool2(pw_special)
+        pw_errors = _validate_password_strength(pw, length_req=pw_len, need_number=need_number, need_lower=need_lower, need_upper=need_upper, need_special=need_special)
+        if pw_errors:
+            raise HTTPException(status_code=422, detail="; ".join(pw_errors))
         u.password_hash = hash_password(pw)
         # delete remember tokens? skip
         # send email? skip
@@ -577,6 +678,52 @@ async def patch_user(user_uuid: UUID, payload: dict, session: AsyncSession=Depen
                 u.contact_uuid = None
         except:
             raise HTTPException(status_code=422, detail="Invalid contact_uuid")
+    # contact organization/name/email linkage update parity
+    contact_fields = {}
+    # support nested contact dict like {"contact": {"organization": "NewOrg", "name": "..."}}
+    if "contact" in payload and isinstance(payload["contact"], dict):
+        cdict = payload["contact"]
+        if "organization" in cdict:
+            contact_fields["organization"] = cdict["organization"]
+        if "name" in cdict:
+            contact_fields["name"] = cdict["name"]
+        if "email" in cdict:
+            contact_fields["email"] = cdict["email"]
+    if "contact_organization" in payload:
+        contact_fields["organization"] = payload["contact_organization"]
+    elif "organization" in payload:
+        contact_fields["organization"] = payload["organization"]
+    if "contact_name" in payload:
+        contact_fields["name"] = payload["contact_name"]
+    elif "contact_name_given" in payload or "contact_name_family" in payload:
+        given = payload.get("contact_name_given") or ""
+        family = payload.get("contact_name_family") or ""
+        combined = f"{given} {family}".strip()
+        if combined:
+            contact_fields["name"] = combined
+    if "contact_email" in payload:
+        contact_fields["email"] = payload["contact_email"]
+    elif "contact_note" in payload:
+        contact_fields["email"] = payload["contact_note"]
+    if contact_fields:
+        # fetch or create contact
+        contact_obj = None
+        if u.contact_uuid:
+            cr = await session.execute(select(Contact).where(Contact.contact_uuid == u.contact_uuid))
+            contact_obj = cr.scalar_one_or_none()
+        if contact_obj:
+            for k, v in contact_fields.items():
+                setattr(contact_obj, k, v)
+        else:
+            # create new contact linked to user
+            c_uuid = uuid6.uuid7()
+            name_val = contact_fields.get("name") or u.username
+            org_val = contact_fields.get("organization")
+            email_val = contact_fields.get("email") or u.email
+            new_c = Contact(contact_uuid=c_uuid, domain_id=u.domain_id, name=name_val, number="", email=email_val, organization=org_val)
+            session.add(new_c)
+            await session.flush()
+            u.contact_uuid = c_uuid
     # user_settings updates
     if "user_language" in payload or "language" in payload:
         lang = payload.get("user_language") or payload.get("language")

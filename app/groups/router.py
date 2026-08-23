@@ -493,6 +493,13 @@ async def list_permissions_ep(session: AsyncSession=Depends(get_session), user: 
 
 @router.get("/groups/{group_uuid}/permissions", response_model=dict)
 async def get_group_permissions_ep(group_uuid: UUID, category: Optional[str]=Query(None), search: Optional[str]=Query(None), view: Optional[str]=Query(None), session: AsyncSession=Depends(get_session), user: User=Depends(get_current_user)):
+    # perm check: legacy requires group_permission_view or group_view
+    perms_check = getattr(user, "_perms", None)
+    if perms_check is None:
+        from app.auth.service import get_user_permissions as _gup
+        perms_check = await _gup(session, user)
+    if not ("*" in perms_check or "group_permission_view" in perms_check or "group_view" in perms_check or "group_permissions" in perms_check or "domain_add" in perms_check):
+        raise HTTPException(status_code=403, detail="Missing permission: group_permission_view")
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     g = await get_group(session, domain_id, group_uuid, show_all=True)
@@ -503,8 +510,6 @@ async def get_group_permissions_ep(group_uuid: UUID, category: Optional[str]=Que
     from sqlalchemy import select as sel
     r = await session.execute(sel(GroupPermission).where(GroupPermission.group_uuid==group_uuid))
     gp_map = {str(row.permission_uuid): row for row in r.scalars().all()}
-    # also need to join with v_permissions? we have permissions table only; legacy has v_permissions with application_name; we lack application_name, so category filter limited
-    # get all permissions with flags
     all_perms = await list_permissions(session)
     # filter
     result = []
@@ -521,9 +526,17 @@ async def get_group_permissions_ep(group_uuid: UUID, category: Optional[str]=Que
             continue
         if search and search.lower() not in p.name.lower():
             continue
-        # category: we don't have application_name; skip
+        # category filter: permission name prefix before "_" or application_name fallback
+        if category:
+            # category like "dialplan" should match "dialplan_view", "dialplan_add" etc
+            cat = category.lower()
+            if not (p.name.lower() == cat or p.name.lower().startswith(cat + "_") or p.name.lower().startswith(cat + ".")):
+                # also check description contains category
+                desc = (p.description or "").lower()
+                if cat not in desc:
+                    continue
         result.append({"permission_uuid": str(p.permission_uuid), "name": p.name, "description": p.description, "assigned": assigned, "protected": protected, "group_permission_uuid": str(gp.id) if gp else None})
-    # also sort by name
+    result.sort(key=lambda x: x["name"])
     return {"data": result, "total": len(result), "group_name": g.name, "group_uuid": str(g.group_uuid)}
 
 @router.put("/groups/{group_uuid}/permissions", response_model=dict)
@@ -541,7 +554,65 @@ async def put_group_permissions_ep(group_uuid: UUID, payload: GroupPermissionUpd
         raise HTTPException(status_code=404, detail="Group not found")
     perm_uuids: List[UUID]=[]
     protected_map = {}
-    if payload.permission_uuids:
+    # build protected_map from various payload shapes (plan task 5)
+    # support direct dicts: permission_protected / protected_map
+    if payload.protected_map and isinstance(payload.protected_map, dict):
+        protected_map.update({str(k): bool(v) for k, v in payload.protected_map.items()})
+    if payload.permission_protected and isinstance(payload.permission_protected, dict):
+        protected_map.update({str(k): bool(v) for k, v in payload.permission_protected.items()})
+    # support items/permissions_data as list of {permission_uuid/name, assigned, protected}
+    for attr in ["items", "permissions_data"]:
+        lst = getattr(payload, attr, None)
+        if lst and isinstance(lst, list):
+            for item in lst:
+                if isinstance(item, dict):
+                    key = item.get("permission_uuid") or item.get("permission_name") or item.get("name")
+                    if key and "protected" in item:
+                        protected_map[str(key)] = bool(item["protected"])
+                    if key and item.get("assigned"):
+                        # also collect uuid if assigned true and not already
+                        pass
+    # also check model_extra for legacy frontend sending {permissions: [{...}]}
+    extra = getattr(payload, "model_extra", None) or {}
+    if isinstance(extra, dict):
+        # frontend may send protected flags inside extra
+        for k, v in extra.items():
+            if k in ("protected", "permission_protected", "protected_map") and isinstance(v, dict):
+                protected_map.update({str(ik): bool(iv) for ik, iv in v.items()})
+        # if extra contains list of perms with protected, e.g., {"data": [...]} or {"permissions": [...]}
+        for key in ["permissions_data", "items", "permissions_with_protected", "data"]:
+            if key in extra and isinstance(extra[key], list):
+                for item in extra[key]:
+                    if isinstance(item, dict):
+                        ik = item.get("permission_uuid") or item.get("permission_name") or item.get("name")
+                        if ik and "protected" in item:
+                            protected_map[str(ik)] = bool(item["protected"])
+    # extract perm_uuids correctly, handling items with assigned flag
+    # if permissions_data/items provided, filter those assigned
+    assigned_uuids_from_items = None
+    for attr in ["items", "permissions_data"]:
+        lst = getattr(payload, attr, None)
+        if lst and isinstance(lst, list):
+            # if list contains dicts with assigned key, use those
+            if any(isinstance(x, dict) and "assigned" in x for x in lst):
+                assigned_uuids_from_items = []
+                for item in lst:
+                    if item.get("assigned"):
+                        key = item.get("permission_uuid") or item.get("permission_name") or item.get("name")
+                        if key:
+                            # resolve name to uuid if needed
+                            try:
+                                assigned_uuids_from_items.append(UUID(str(key)))
+                            except:
+                                # name case
+                                rtmp = await session.execute(select(Permission).where(Permission.name == str(key)))
+                                perm_obj = rtmp.scalar_one_or_none()
+                                if perm_obj:
+                                    assigned_uuids_from_items.append(perm_obj.permission_uuid)
+                break
+    if assigned_uuids_from_items is not None:
+        perm_uuids = assigned_uuids_from_items
+    elif payload.permission_uuids:
         perm_uuids = payload.permission_uuids
     elif payload.permission_names:
         names = payload.permission_names
@@ -551,6 +622,8 @@ async def put_group_permissions_ep(group_uuid: UUID, payload: GroupPermissionUpd
         if missing:
             raise HTTPException(status_code=404, detail=f"Permissions not found: {missing}")
         perm_uuids = [found[n] for n in names]
+        # also populate protected_map for names if protected_map uses names
+        # keep as is
     elif payload.permissions:
         names = payload.permissions
         r = await session.execute(select(Permission).where(Permission.name.in_(names)))
@@ -560,13 +633,24 @@ async def put_group_permissions_ep(group_uuid: UUID, payload: GroupPermissionUpd
             raise HTTPException(status_code=404, detail=f"Permissions not found: {missing}")
         perm_uuids = [found[n] for n in names]
     else:
-        # allow empty to clear
-        perm_uuids = []
-    # also handle protected flag if payload has extra field group_permissions with protected? payload extra?
-    # try to read raw body protected map from payload model_extra
-    if hasattr(payload, "model_extra") and payload.model_extra:
-        # may contain list of dicts with permission_protected
-        pass
+        # check if extra contains direct list like {"permissions": ["dialplan_view"]} or {"permission_uuids": [...]}
+        if "permission_uuids" in extra and isinstance(extra["permission_uuids"], list):
+            try:
+                perm_uuids = [UUID(str(x)) for x in extra["permission_uuids"]]
+            except:
+                pass
+        elif "permission_names" in extra and isinstance(extra["permission_names"], list):
+            names = extra["permission_names"]
+            r = await session.execute(select(Permission).where(Permission.name.in_(names)))
+            found = {p.name: p.permission_uuid for p in r.scalars().all()}
+            perm_uuids = [found[n] for n in names if n in found]
+        else:
+            # allow empty to clear
+            perm_uuids = []
+    # handle protected_map keys as names -> need to map to uuid strings for service
+    # service handles both name and uuid keys, so keep protected_map as is
+    # also handle case where frontend sent permsList filtered but we only have uuids: preserve protected flags for those uuids
+    # if protected_map empty but extra had protected flags keyed by name, they're already in map
     if perm_uuids:
         r = await session.execute(select(Permission).where(Permission.permission_uuid.in_(perm_uuids)))
         found_uuids = {p.permission_uuid for p in r.scalars().all()}

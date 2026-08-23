@@ -45,3 +45,9 @@ class GroupPermissionUpdate(BaseModel):
     permission_uuids: Optional[List[UUID]] = None
     permission_names: Optional[List[str]] = None
     permissions: Optional[List[str]] = None  # alias for names
+    # extended fields for protected parity (plan task 5)
+    permission_protected: Optional[dict] = None
+    protected_map: Optional[dict] = None
+    permissions_data: Optional[List[dict]] = None
+    # alternative: list of {permission_uuid/name, assigned, protected}
+    items: Optional[List[dict]] = None

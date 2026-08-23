@@ -76,9 +76,7 @@ async def get_user_permissions(session: AsyncSession, user: User) -> list[str]:
     )
     r = await session.execute(q)
     perms = [row[0] for row in r.all()]
-    # superadmin: if user is in superadmin group, return wildcard
     if not perms:
-        # Default permissive for dev: if no groups, allow domain admins basic perms
-        # Seed will create proper groups; fallback to allow all for initial admin
-        return ["*"]
+        return []
+    # if user has superadmin group with all perms, they will already have list; wildcard "*" only if explicitly stored as permission name "*"
     return perms

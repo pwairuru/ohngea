@@ -162,6 +162,7 @@ def include_routers():
     from app.plugins.router import router as plugins_router
     from app.users.router import router as users_router
     from app.groups.router import router as groups_router
+    from app.contacts.router import router as contacts_router
     from app.webrtc_settings.router import router as webrtc_settings_router
     from app.webrtc.credentials_router import router as webrtc_credentials_router
 
@@ -223,6 +224,7 @@ def include_routers():
     app.include_router(plugins_router)
     app.include_router(users_router)
     app.include_router(groups_router)
+    app.include_router(contacts_router)
     app.include_router(webrtc_settings_router)
     app.include_router(webrtc_credentials_router)
 
