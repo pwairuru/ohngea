@@ -20,8 +20,8 @@ import {
   Area,
 } from "recharts";
 
-const COLORS = ["hsl(var(--primary))", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899"];
-const PIE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#eab308", "#ec4899"];
+const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))", "#06b6d4", "#eab308", "#ec4899"];
+const PIE_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))", "#06b6d4", "#eab308", "#ec4899"];
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -206,8 +206,8 @@ export function Dashboard() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={answerData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={70} label>
-                      <Cell fill="#10b981" />
-                      <Cell fill="#ef4444" />
+                      <Cell fill="hsl(var(--chart-2))" />
+                      <Cell fill="hsl(var(--chart-5))" />
                     </Pie>
                     <Tooltip />
                     <Legend />
@@ -234,7 +234,7 @@ export function Dashboard() {
                     <XAxis type="number" tick={{ fontSize: 12 }} />
                     <YAxis dataKey="extension" type="category" tick={{ fontSize: 12 }} width={70} />
                     <Tooltip />
-                    <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="count" fill="hsl(var(--chart-1))" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -254,7 +254,7 @@ export function Dashboard() {
                     <XAxis dataKey="hangup_cause" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={60} />
                     <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip />
-                    <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="count" fill="hsl(var(--chart-4))" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -296,8 +296,8 @@ export function Dashboard() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={extensionStatusData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={70} label>
-                      <Cell fill="#10b981" />
-                      <Cell fill="#9ca3af" />
+                      <Cell fill="hsl(var(--chart-2))" />
+                      <Cell fill="hsl(var(--muted-foreground))" />
                     </Pie>
                     <Tooltip />
                     <Legend />
@@ -307,9 +307,9 @@ export function Dashboard() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={sipProfileData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={70} label>
-                      <Cell fill="#10b981" />
-                      <Cell fill="#ef4444" />
-                      <Cell fill="#9ca3af" />
+                      <Cell fill="hsl(var(--chart-2))" />
+                      <Cell fill="hsl(var(--chart-5))" />
+                      <Cell fill="hsl(var(--muted-foreground))" />
                     </Pie>
                     <Tooltip />
                     <Legend />
