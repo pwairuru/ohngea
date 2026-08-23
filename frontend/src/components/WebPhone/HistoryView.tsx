@@ -1,0 +1,4 @@
+export function HistoryView({history, onRedial, onClear}:{history:any[]; onRedial:(p:string)=>void; onClear:()=>void}){
+  if(!history.length) return <div className="py-8 text-center text-sm text-muted-foreground">No recent calls</div>;
+  return <div data-testid="history-list" className="flex flex-col gap-1">{history.slice().reverse().map((r:any)=><div data-testid={`history-item-${r.id}`} key={r.id} className="flex items-center justify-between border rounded px-3 py-2 text-sm"><span>{r.direction==="in"?"↙":"↗"} {r.peerName||r.peer} • {r.disposition} • {r.duration}s</span><button data-testid={`history-redial-${r.peer}`} onClick={()=>onRedial(r.peer)} className="underline min-h-[44px] min-w-[44px]">Redial</button></div>)}<button onClick={onClear} className="text-xs underline mt-2 min-h-[44px]">Clear history</button></div>;
+}
