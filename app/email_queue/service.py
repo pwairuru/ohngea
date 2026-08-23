@@ -17,6 +17,12 @@ async def create_eq(session: AsyncSession, data: EmailQueueCreate, domain_id: UU
     except Exception:
         pass
     await session.refresh(obj)
+    # enqueue celery task best-effort (non-blocking)
+    try:
+        from app.workers.celery_app import send_email_queue_task
+        send_email_queue_task.delay(str(obj.email_queue_uuid))
+    except Exception:
+        pass
     return obj
 async def list_eq(session: AsyncSession, domain_id: UUID, page:int, per_page:int, q:Optional[str]):
     query=select(EmailQueue).where(EmailQueue.domain_id==domain_id)

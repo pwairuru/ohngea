@@ -31,6 +31,24 @@ class Settings(BaseSettings):
     fs_xml_user: str = "freeswitch"
     fs_xml_password: str = "ClueCon"
 
+    # SMTP for email_queue worker
+    smtp_host: str = Field(default="localhost", validation_alias=AliasChoices("SMTP_HOST", "MAIL_HOST"))
+    smtp_port: int = Field(default=1025, validation_alias=AliasChoices("SMTP_PORT", "MAIL_PORT"))
+    smtp_user: str | None = Field(default=None, validation_alias=AliasChoices("SMTP_USER", "MAIL_USER"))
+    smtp_password: str | None = Field(default=None, validation_alias=AliasChoices("SMTP_PASSWORD", "MAIL_PASSWORD"))
+    smtp_use_tls: bool = Field(default=False, validation_alias=AliasChoices("SMTP_USE_TLS", "MAIL_TLS"))
+    smtp_from: str = Field(default="noreply@ohngea.local", validation_alias=AliasChoices("SMTP_FROM", "MAIL_FROM"))
+    # S3 / MinIO for recordings object store, partitioned by domain_id -> recordings/{domain_id}/...
+    s3_endpoint: str | None = Field(default=None, validation_alias=AliasChoices("S3_ENDPOINT", "MINIO_ENDPOINT"))
+    s3_bucket: str = Field(default="ohngea-recordings", validation_alias=AliasChoices("S3_BUCKET", "MINIO_BUCKET"))
+    s3_access_key: str | None = Field(default=None, validation_alias=AliasChoices("S3_ACCESS_KEY", "MINIO_ACCESS_KEY"))
+    s3_secret_key: str | None = Field(default=None, validation_alias=AliasChoices("S3_SECRET_KEY", "MINIO_SECRET_KEY"))
+    s3_region: str = Field(default="us-east-1", validation_alias=AliasChoices("S3_REGION", "MINIO_REGION"))
+    s3_use_ssl: bool = Field(default=False, validation_alias=AliasChoices("S3_USE_SSL", "MINIO_USE_SSL"))
+    s3_presign_ttl: int = Field(default=3600, validation_alias=AliasChoices("S3_PRESIGN_TTL"))
+    # Legacy recording base dir fallback (when S3 not configured)
+    recordings_base_dir: str = Field(default="/var/lib/freeswitch/recordings")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

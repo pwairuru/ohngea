@@ -112,6 +112,7 @@ async def api_root():
             "users": {"href": "/api/v1/users"},
             "cdr": {"href": "/api/v1/cdr"},
             "xml_cdr": {"href": "/api/v1/xml_cdr"},
+            "recordings": {"href": "/api/v1/recordings"},
             "analytics": {"href": "/api/v1/analytics/summary"},
         }
     }
@@ -168,6 +169,7 @@ def include_routers():
     from app.domain_limits.router import router as domain_limits_router
     from app.devices.router import router as devices_router, provision_router as provision_router
     from app.cdr.router import router as cdr_router
+    from app.recordings.router import router as recordings_router
     from app.freeswitch.xml_router import router as fs_router
     from app.freeswitch.status_router import router as fs_status_router, sip_status_router as sip_status_router
     from app.plugins.router import router as plugins_router
@@ -231,6 +233,7 @@ def include_routers():
     app.include_router(devices_router)
     app.include_router(provision_router)
     app.include_router(cdr_router)
+    app.include_router(recordings_router)
     app.include_router(fs_router)
     app.include_router(fs_status_router)
     app.include_router(plugins_router)
@@ -259,7 +262,7 @@ def include_routers():
                 except Exception:
                     pass
                 continue
-            if name in ("ring_groups", "time_conditions", "voicemail", "voicemails", "conferences", "fax", "call_flows", "music_on_hold"):
+            if name in ("ring_groups", "time_conditions", "voicemail", "voicemails", "conferences", "fax", "call_flows", "music_on_hold", "recordings"):
                 # core routers already mounted — skip mock plugin routers
                 continue
             # attempt dynamic import plugins.<name>.router

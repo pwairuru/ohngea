@@ -14,6 +14,12 @@ async def create_fq(session: AsyncSession, data: FaxQueueCreate, domain_id: UUID
     except Exception:
         pass
     await session.refresh(obj)
+    # enqueue fax send best-effort
+    try:
+        from app.workers.celery_app import fax_send_task
+        fax_send_task.delay(str(obj.fax_queue_uuid))
+    except Exception:
+        pass
     return obj
 async def list_fq(session: AsyncSession, domain_id: UUID, page:int, per_page:int, q:Optional[str]):
     query=select(FaxQueue).where(FaxQueue.domain_id==domain_id)

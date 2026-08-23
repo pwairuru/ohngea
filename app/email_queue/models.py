@@ -12,6 +12,8 @@ class EmailQueueBase(SQLModel):
     email_body: Optional[str]=Field(default=None)
     email_status: str = Field(default="waiting", max_length=32)
     email_retry_count: int = Field(default=0)
+    email_error: str | None = Field(default=None, max_length=512)
+    email_attempts: int = Field(default=0)
 class EmailQueue(EmailQueueBase, table=True):
     __tablename__="email_queue"
     email_queue_uuid: UUID = Field(default_factory=uuid7, primary_key=True)

@@ -38,6 +38,8 @@ dependencies = [
     "redis>=5.0",  # transitional: celery/kombu still require redis client to talk to valkey server; remove after kombu#2246 + celery#9300 merged
     "celery>=5.3",
     "email-validator>=2.2",
+    "boto3>=1.35",
+    "botocore>=1.35",
 ]
 
 [project.optional-dependencies]

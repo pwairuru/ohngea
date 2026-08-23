@@ -14,6 +14,9 @@ class RecordingBase(SQLModel):
     duration: Optional[int] = Field(default=None)
     file_size: Optional[int] = Field(default=None)
     created_by: Optional[UUID] = Field(default=None, foreign_key="users.user_uuid")
+    s3_bucket: Optional[str] = Field(default=None, max_length=128, description="S3 bucket override")
+    content_type: Optional[str] = Field(default=None, max_length=128)
+    storage_backend: str = Field(default="s3", max_length=32, description="s3|local")
 
 
 class Recording(RecordingBase, table=True):
