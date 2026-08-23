@@ -5,6 +5,7 @@ import type { Column } from "../components/types";
 import { PageHeader } from "../components/shell/PageHeader";
 import { Button } from "../components/ui/button";
 import { Label } from "../components/ui/label";
+import { Input } from "../components/ui/input";
 import { FormDialog } from "../components/FormDialog";
 import { toast, toastError } from "../lib/toast";
 import { useAsyncAction } from "../lib/useAsyncAction";
@@ -14,15 +15,14 @@ export function Phrases() {
   const [reloadKey, setReloadKey] = React.useState(0);
   const reload = () => setReloadKey((k) => k + 1);
   const [open, setOpen] = React.useState(false);
-  const [json, setJson] = React.useState(`{"phrase_name": "test-phrase"}`);
+  const [form,setForm]=React.useState({ phrase_name: "test-phrase", description: "" });
   const columns: Column<any>[] = [
     { key: "phrase_name", header: "Name", className: "num", cell: (r: any) => r["phrase_name"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
-    { key: "details", header: "Details", cell: (r: any) => <span className="text-muted-foreground text-xs break-all">{JSON.stringify(r).slice(0, 80)}</span> },
+    { key: "description", header: "Description", cell: (r:any) => (r as any).description || (r as any)["description"] || "—" }
   ];
   const createFn = async () => {
     try {
-      const body = JSON.parse(json);
-      await apiFetch("/phrases", { method: "POST", body: JSON.stringify(body) });
+      await apiFetch("/phrases", { method: "POST", body: JSON.stringify(form) });
       toast("Phrase created", { variant: "success" });
       setOpen(false);
       reload();
@@ -46,8 +46,8 @@ export function Phrases() {
         emptyAction={<Button onClick={() => setOpen(true)}><MessageSquare className="h-4 w-4" /> Add Phrases</Button>}
       />
       <FormDialog open={open} onOpenChange={setOpen} title="Add Phrases" onSubmit={create} pending={pending} submitLabel="Create" pendingLabel="Creating…">
-        <div><Label>JSON payload *</Label><textarea value={json} onChange={(e) => setJson(e.target.value)} rows={6} className="w-full rounded border p-2 font-mono text-xs" /></div>
-        <div className="text-xs text-muted-foreground">Required field shown above — edit JSON and press Create.</div>
+        <div><Label>Name *</Label><Input value={form.phrase_name} onChange={e=>setForm({...form,phrase_name:e.target.value})} placeholder="test-phrase" /></div>
+        <div><Label>Description</Label><Input value={form.description} onChange={e=>setForm({...form,description:e.target.value})} /></div>
       </FormDialog>
     </>
   );
