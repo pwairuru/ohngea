@@ -1,32 +1,38 @@
 import * as React from "react";
-import { apiFetch } from "../lib/api";
-import { Card } from "../components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { DataTable } from "../components/DataTable";
+import type { Column } from "../components/types";
+import { PageHeader } from "../components/shell/PageHeader";
+import { Phone } from "lucide-react";
+
+type CdrRow = {
+  cdr_uuid: string;
+  caller_id_number: string;
+  destination_number: string;
+  start_stamp: string;
+  duration: number;
+};
+
+const columns: Column<CdrRow>[] = [
+  { key: "caller_id_number", header: "Caller", sortable: true },
+  { key: "destination_number", header: "Destination", sortable: true },
+  { key: "start_stamp", header: "Start", className: "num", sortable: true, cell: (r) => (r.start_stamp ? new Date(r.start_stamp).toLocaleString() : "—") },
+  { key: "duration", header: "Duration", className: "num", sortable: true, cell: (r) => `${r.duration ?? 0}s` },
+];
 
 export function Cdr() {
-  const [data, setData] = React.useState<any[]>([]);
-  const [total, setTotal] = React.useState(0);
-  React.useEffect(() => {
-    apiFetch("/cdr?page=1&per_page=10").then((r) => { setData(r.data || []); setTotal(r.total || 0); }).catch(() => {});
-  }, []);
   return (
-    <div className="p-4 space-y-4">
-      <h1 className="text-2xl font-bold">Call Detail Records</h1>
-      <div className="hidden md:block">
-        <Card>
-          <Table>
-            <TableHeader><TableRow><TableHead>Caller</TableHead><TableHead>Destination</TableHead><TableHead>Start</TableHead><TableHead>Duration</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {data.map((c) => <TableRow key={c.cdr_uuid}><TableCell>{c.caller_id_number}</TableCell><TableCell>{c.destination_number}</TableCell><TableCell>{new Date(c.start_stamp).toLocaleString()}</TableCell><TableCell>{c.duration}s</TableCell></TableRow>)}
-              {data.length===0 && <TableRow><TableCell colSpan={4} className="text-center">No CDRs</TableCell></TableRow>}
-            </TableBody>
-          </Table>
-        </Card>
-      </div>
-      <div className="grid gap-3 md:hidden">
-        {data.map((c) => <Card key={c.cdr_uuid} className="p-3"><div className="font-mono">{c.caller_id_number} → {c.destination_number}</div><div className="text-xs text-muted-foreground">{c.start_stamp}</div></Card>)}
-        {data.length===0 && <Card className="p-4 text-center">No CDRs — total {total}</Card>}
-      </div>
-    </div>
+    <>
+      <PageHeader title="Call Detail Records" description="History of inbound and outbound calls" />
+      <DataTable<CdrRow>
+        resource="/cdr"
+        columns={columns}
+        rowKey={(r) => r.cdr_uuid}
+        perPage={20}
+        searchPlaceholder="Search CDR…"
+        emptyTitle="No CDRs"
+        emptyDescription="Call records will appear here once calls are made"
+        emptyIcon={Phone}
+      />
+    </>
   );
 }
