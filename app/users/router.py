@@ -2,7 +2,7 @@ from uuid import UUID
 import re
 import uuid6
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File, Request
 from sqlalchemy import select, func, or_, and_, text, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -347,6 +347,101 @@ async def bulk_users(payload: dict, session: AsyncSession=Depends(get_session), 
     except:
         pass
     return {"data": results, "total": len(results)}
+
+@router.post("/import", response_model=dict)
+async def import_users_endpoint(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    current: User = Depends(get_current_user),
+):
+    perms = getattr(current, "_perms", None)
+    if perms is None:
+        perms = await get_user_permissions(session, current)
+    if not ("*" in perms or "user_add" in perms or "domain_add" in perms):
+        raise HTTPException(status_code=403, detail="Missing permission: user_add")
+    domain_id = getattr(current, "_domain_id", current.domain_id)
+    await set_tenant(session, domain_id)
+    # support both JSON {"csv": "..."} and multipart file upload
+    content_type = request.headers.get("content-type", "")
+    csv_text = None
+    # try multipart
+    if "multipart/form-data" in content_type:
+        try:
+            form = await request.form()
+            # look for file field
+            for key in ["file", "csv", "import", "users"]:
+                if key in form:
+                    val = form[key]
+                    if hasattr(val, "read"):
+                        data = await val.read()
+                        csv_text = data.decode("utf-8", errors="ignore")
+                        break
+                    elif isinstance(val, str):
+                        csv_text = val
+                        break
+            if not csv_text:
+                # try any file part
+                for v in form.values():
+                    if hasattr(v, "read"):
+                        try:
+                            data = await v.read()
+                            csv_text = data.decode("utf-8", errors="ignore")
+                            break
+                        except:
+                            continue
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Failed to parse multipart: {e}")
+    else:
+        # JSON body
+        try:
+            payload = await request.json()
+        except:
+            payload = {}
+        if isinstance(payload, dict):
+            csv_text = payload.get("csv") or payload.get("data") or payload.get("content")
+            # also support direct users array
+            if not csv_text and "users" in payload and isinstance(payload["users"], list):
+                # convert users array to CSV-like rows via import_service helper
+                from app.users.import_service import _validate_and_create_user
+                imported = 0
+                errors = []
+                created = []
+                for idx, row in enumerate(payload["users"], start=1):
+                    try:
+                        user, err = await _validate_and_create_user(session, domain_id, row)
+                        if err:
+                            errors.append({"row": idx, "error": err, "data": row})
+                        else:
+                            imported += 1
+                            created.append({"user_uuid": str(user.user_uuid), "username": user.username})
+                    except Exception as e:
+                        errors.append({"row": idx, "error": str(e), "data": row})
+                await session.commit()
+                try:
+                    await invalidate_fs_cache_for_session(session, domain_id)
+                except:
+                    pass
+                return {"imported": imported, "errors": errors, "data": created, "total": imported}
+        # if csv_text still None, try raw body as csv
+        if not csv_text:
+            try:
+                body = await request.body()
+                if body:
+                    csv_text = body.decode("utf-8", errors="ignore")
+                    # heuristic: if not containing comma or newline, treat as not csv
+                    if "," not in csv_text and "\n" not in csv_text:
+                        csv_text = None
+            except:
+                pass
+    if not csv_text:
+        raise HTTPException(status_code=422, detail="CSV content required: provide JSON {'csv': 'username,password,email\\n...'} or multipart file")
+    from app.users.import_service import import_users_from_csv
+    result = await import_users_from_csv(session, domain_id, csv_text)
+    try:
+        await invalidate_fs_cache_for_session(session, domain_id)
+    except:
+        pass
+    return result
 
 @router.get("/{user_uuid}", response_model=dict)
 async def get_user(user_uuid: UUID, session: AsyncSession=Depends(get_session), current: User=Depends(get_current_user)):
