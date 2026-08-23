@@ -1,13 +1,18 @@
 import * as React from "react";
 import { apiFetch } from "../lib/api";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { DataTable } from "../components/DataTable";
+import type { Column } from "../components/types";
+import { FormDialog } from "../components/FormDialog";
+import { PageHeader } from "../components/shell/PageHeader";
+import { StatusBadge } from "../components/StatusBadge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Dialog, DialogHeader, DialogTitle } from "../components/ui/dialog";
-import { Badge } from "../components/ui/badge";
-import { Pencil, Power, PowerOff, Trash2, Eye } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { useConfirm } from "../components/ui/confirm";
+import { toast, toastError } from "../lib/toast";
+import { useAsyncAction } from "../lib/useAsyncAction";
+import { Pencil, Power, PowerOff, Trash2, Server } from "lucide-react";
 
 type GwForm = {
   gateway: string; proxy: string; username: string; password: string; register: boolean; enabled: boolean;
@@ -40,15 +45,28 @@ function toPayload(f: GwForm) {
   return p;
 }
 
+type GwRow = any;
+
 export function Gateways() {
-  const [data, setData] = React.useState<any[]>([]);
+  const confirm = useConfirm();
+  const [reloadKey, setReloadKey] = React.useState(0);
+  const reload = () => setReloadKey((k) => k + 1);
   const [open, setOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<any | null>(null);
   const [form, setForm] = React.useState<GwForm>(emptyGw);
   const [showAdvanced, setShowAdvanced] = React.useState(false);
   const [verifyXml, setVerifyXml] = React.useState("");
-  const load = () => apiFetch("/gateways").then((r) => setData(r.data || [])).catch(() => {});
-  React.useEffect(() => { load(); }, []);
+
+  const columns: Column<GwRow>[] = [
+    { key: "gateway", header: "Gateway", className: "font-mono font-medium" },
+    { key: "proxy", header: "Proxy" },
+    { key: "register", header: "Register", cell: (r) => (r.register ? "yes" : "no") },
+    {
+      key: "enabled",
+      header: "Status",
+      cell: (r) => <StatusBadge tone={r.enabled ? "ok" : "off"}>{r.enabled ? "enabled" : "disabled"}</StatusBadge>,
+    },
+  ];
 
   const startCreate = () => { setEditing(null); setForm(emptyGw); setOpen(true); setShowAdvanced(false); setVerifyXml(""); };
   const startEdit = (g: any) => {
@@ -63,17 +81,41 @@ export function Gateways() {
     });
     setOpen(true); setShowAdvanced(false);
   };
-  const createOrUpdate = async () => {
+
+  const saveFn = async () => {
     try {
       const payload = toPayload(form);
       if (editing && !form.password) delete payload.password;
-      if (editing) await apiFetch(`/gateways/${editing.gateway_uuid}`, { method: "PATCH", body: JSON.stringify(payload) });
-      else await apiFetch("/gateways", { method: "POST", body: JSON.stringify(payload) });
-      setOpen(false); setEditing(null); load();
-    } catch (e: any) { alert(e.message); }
+      if (editing) {
+        await apiFetch(`/gateways/${editing.gateway_uuid}`, { method: "PATCH", body: JSON.stringify(payload) });
+        toast(`Gateway ${form.gateway} updated`, { variant: "success" });
+      } else {
+        await apiFetch("/gateways", { method: "POST", body: JSON.stringify(payload) });
+        toast(`Gateway ${form.gateway} created`, { variant: "success" });
+      }
+      setOpen(false); setEditing(null); reload();
+    } catch (err) {
+      toastError(err);
+    }
   };
-  const toggleEnabled = async (g: any) => { try { await apiFetch(`/gateways/${g.gateway_uuid}`, { method: "PATCH", body: JSON.stringify({ enabled: !g.enabled }) }); load(); } catch (e: any) { alert(e.message); } };
-  const deleteGw = async (g: any) => { if (!confirm(`Delete gateway ${g.gateway}?`)) return; try { await apiFetch(`/gateways/${g.gateway_uuid}`, { method: "DELETE" }); load(); } catch (e: any) { alert(e.message); } };
+  const { run: save, pending: saving } = useAsyncAction(saveFn);
+
+  const toggleEnabled = async (g: any) => {
+    try {
+      await apiFetch(`/gateways/${g.gateway_uuid}`, { method: "PATCH", body: JSON.stringify({ enabled: !g.enabled }) });
+      toast(`Gateway ${g.gateway} ${!g.enabled ? "enabled" : "disabled"}`);
+      reload();
+    } catch (err) { toastError(err); }
+  };
+  const deleteGw = async (g: any) => {
+    const ok = await confirm({ title: `Delete gateway ${g.gateway}?`, description: "This cannot be undone.", confirmLabel: "Delete" });
+    if (!ok) return;
+    try {
+      await apiFetch(`/gateways/${g.gateway_uuid}`, { method: "DELETE" });
+      toast(`Gateway ${g.gateway} deleted`);
+      reload();
+    } catch (err) { toastError(err); }
+  };
   const fetchXml = async () => {
     try {
       const me = await apiFetch("/auth/me").catch(()=>({domain_name:"test.local"}));
@@ -84,39 +126,49 @@ export function Gateways() {
   };
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex justify-between items-center"><h1 className="text-2xl font-bold">Gateways / Trunks</h1><div className="flex gap-2"><Button variant="outline" onClick={fetchXml}>Verify Sofa XML</Button><Button onClick={startCreate}>Add Gateway</Button></div></div>
-      <Card>
-        <CardHeader><CardTitle>SIP Trunks — Sofia profiles</CardTitle></CardHeader>
-        <CardContent>
-          <div className="hidden md:block">
-            <Table>
-              <TableHeader><TableRow><TableHead>Gateway</TableHead><TableHead>Proxy</TableHead><TableHead>Register</TableHead><TableHead>Enabled</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
-              <TableBody>
-                {data.map((g) => <TableRow key={g.gateway_uuid}><TableCell className="font-mono font-bold">{g.gateway}</TableCell><TableCell>{g.proxy || "-"}</TableCell><TableCell>{g.register ? "yes" : "no"}</TableCell><TableCell>{g.enabled ? <Badge>enabled</Badge> : <Badge className="bg-muted text-muted-foreground">disabled</Badge>}</TableCell><TableCell><div className="flex gap-1"><Button variant="ghost" aria-label={`Edit ${g.gateway}`} title="Edit" className="h-9 w-9 p-0" onClick={() => startEdit(g)}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" aria-label={g.enabled ? `Disable ${g.gateway}` : `Enable ${g.gateway}`} title={g.enabled ? "Disable" : "Enable"} className="h-9 w-9 p-0" onClick={() => toggleEnabled(g)}>{g.enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}</Button><Button variant="ghost" aria-label={`Delete ${g.gateway}`} title="Delete" className="h-9 w-9 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deleteGw(g)}><Trash2 className="h-4 w-4" /></Button></div></TableCell></TableRow>)}
-                {data.length===0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No gateways — add SIP trunk via wizard</TableCell></TableRow>}
-              </TableBody>
-            </Table>
+    <>
+      <PageHeader
+        title="Gateways / Trunks"
+        description="SIP trunks and external carriers"
+        actions={
+          <>
+            <Button variant="outline" onClick={fetchXml}>Verify Sofa XML</Button>
+            <Button onClick={startCreate}>Add Gateway</Button>
+          </>
+        }
+      />
+      <DataTable<GwRow>
+        resource="/gateways"
+        columns={columns}
+        rowKey={(r) => r.gateway_uuid}
+        reloadKey={reloadKey}
+        perPage={20}
+        searchPlaceholder="Search gateways…"
+        emptyTitle="No gateways"
+        emptyDescription="Add your first SIP trunk"
+        emptyIcon={Server}
+        emptyAction={<Button onClick={startCreate}><Server className="h-4 w-4" /> Add Gateway</Button>}
+        rowActions={(g) => (
+          <div className="flex justify-end gap-1">
+            <Button variant="ghost" size="sm" aria-label={`Edit ${g.gateway}`} title="Edit" onClick={() => startEdit(g)}><Pencil className="h-4 w-4" /> Edit</Button>
+            <Button variant="ghost" size="sm" aria-label={g.enabled ? `Disable ${g.gateway}` : `Enable ${g.gateway}`} title={g.enabled ? "Disable" : "Enable"} onClick={() => toggleEnabled(g)}>{g.enabled ? <><PowerOff className="h-4 w-4" /> Disable</> : <><Power className="h-4 w-4" /> Enable</>}</Button>
+            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" aria-label={`Delete ${g.gateway}`} title="Delete" onClick={() => deleteGw(g)}><Trash2 className="h-4 w-4" /> Delete</Button>
           </div>
-          <div className="md:hidden grid gap-3">
-            {data.map((g) => <Card key={g.gateway_uuid} className="p-3"><div className="flex justify-between"><div className="font-mono font-bold">{g.gateway}</div><Badge className={g.enabled ? "" : "bg-muted text-muted-foreground"}>{g.enabled ? "enabled" : "disabled"}</Badge></div><div className="text-xs">{g.proxy}</div><div className="text-xs">register: {g.register ? "yes" : "no"}</div><div className="flex gap-2 mt-2"><Button variant="ghost" aria-label={`Edit ${g.gateway}`} title="Edit" className="flex-1 h-9" onClick={() => startEdit(g)}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" aria-label={g.enabled ? `Disable ${g.gateway}` : `Enable ${g.gateway}`} title={g.enabled ? "Disable" : "Enable"} className="flex-1 h-9" onClick={() => toggleEnabled(g)}>{g.enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}</Button><Button variant="ghost" aria-label={`Delete ${g.gateway}`} title="Delete" className="flex-1 h-9 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deleteGw(g)}><Trash2 className="h-4 w-4" /></Button></div></Card>)}
-            {data.length===0 && <div className="text-center text-muted-foreground py-4">No gateways</div>}
-          </div>
-        </CardContent>
-      </Card>
+        )}
+      />
       {verifyXml && <Card><CardHeader><CardTitle className="text-sm">Sofia Gateway XML — verifiable</CardTitle></CardHeader><CardContent><pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-64">{verifyXml}</pre><Button variant="outline" className="mt-2" onClick={()=>setVerifyXml("")}>Close</Button></CardContent></Card>}
       <Card>
         <CardHeader><CardTitle>Profiles</CardTitle></CardHeader>
         <CardContent className="text-sm text-muted-foreground">Sofia SIP profiles — internal/external — per domain, via <code>GET /api/v1/sip_profiles</code> → FS xml <code>sofia.conf</code> fallback.</CardContent>
       </Card>
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}>
-        <DialogHeader><DialogTitle>{editing ? "Edit Gateway" : "Add Gateway"}</DialogTitle></DialogHeader>
+
+      <FormDialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }} title={editing ? "Edit Gateway" : "Add Gateway"} onSubmit={save} pending={saving} submitLabel={editing ? "Save" : "Create"}>
         <div className="space-y-3 max-h-[65vh] overflow-auto pr-1">
           <div><Label>Gateway *</Label><Input value={form.gateway} onChange={(e) => setForm({ ...form, gateway: e.target.value })} placeholder="provider1" /></div>
           <div><Label>Proxy</Label><Input value={form.proxy} onChange={(e) => setForm({ ...form, proxy: e.target.value })} placeholder="sip.provider.com" /></div>
           <div className="grid grid-cols-2 gap-2"><div><Label>Username</Label><Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} /></div><div><Label>Password</Label><Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={editing ? "leave blank to keep" : ""} /></div></div>
           <div className="flex items-center gap-2"><input type="checkbox" id="gw-register" checked={form.register} onChange={(e) => setForm({ ...form, register: e.target.checked })} className="h-4 w-4" /><Label htmlFor="gw-register" className="cursor-pointer">Register</Label><span className="ml-4 flex items-center gap-2"><input type="checkbox" id="gw-enabled" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} className="h-4 w-4" /><Label htmlFor="gw-enabled" className="cursor-pointer">Enabled</Label></span></div>
-          <Button variant="outline" onClick={()=>setShowAdvanced(!showAdvanced)} className="w-full">{showAdvanced ? "Hide Advanced (30 fields)" : "Show Advanced (30 fields)"}</Button>
+          <Button variant="outline" onClick={()=>setShowAdvanced(!showAdvanced)} className="w-full" type="button">{showAdvanced ? "Hide Advanced (30 fields)" : "Show Advanced (30 fields)"}</Button>
           {showAdvanced && (
             <div className="space-y-3 border rounded p-3 bg-muted/20">
               <div className="text-xs font-semibold">Auth & From</div>
@@ -139,9 +191,8 @@ export function Gateways() {
               <Input placeholder="description" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/>
             </div>
           )}
-          <Button onClick={createOrUpdate} className="w-full">{editing ? "Save" : "Create"}</Button>
         </div>
-      </Dialog>
-    </div>
+      </FormDialog>
+    </>
   );
 }
