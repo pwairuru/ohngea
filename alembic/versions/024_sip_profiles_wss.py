@@ -1,7 +1,7 @@
 """add sip_profiles wss fields
 
 Revision ID: 024_sip_profiles_wss
-Revises: 023_groups_users_parity
+Revises: 020_webrtc_settings
 Create Date: 2026-08-22
 """
 from typing import Sequence, Union

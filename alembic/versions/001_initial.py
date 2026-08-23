@@ -72,7 +72,7 @@ def upgrade() -> None:
     op.create_table(
         "groups",
         sa.Column("group_uuid", sa.Uuid(), nullable=False),
-        sa.Column("domain_id", sa.Uuid(), nullable=False),
+        sa.Column("domain_id", sa.Uuid(), nullable=True),
         sa.Column("name", sa.String(length=64), nullable=False),
         sa.Column("description", sa.String(length=255), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),

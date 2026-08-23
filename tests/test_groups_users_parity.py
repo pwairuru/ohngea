@@ -312,6 +312,22 @@ async def test_group_permissions_view_and_assign(client, auth_headers, test_db):
     resp4 = await client.get(f"/api/v1/groups/{gid}/permissions?search={n1[:6]}", headers=auth_headers)
     assert any(x["name"] == n1 for x in resp4.json()["data"])
 
+async def test_delete_protected_group_blocked(client, test_db, domain, auth_headers):
+    # create protected group via API with protected=true
+    resp = await client.post("/api/v1/groups", json={"name": f"prot-{uuid4().hex[:4]}", "group_level": 10, "group_protected": True}, headers=auth_headers)
+    assert resp.status_code == 201, resp.text
+    gid = resp.json()["group_uuid"]
+    # make lvl 50 admin without *
+    _, token_low, _ = await _make_level_user(test_db, domain, f"admin50-{uuid4().hex[:4]}", 50)
+    headers_low = {"Authorization": f"Bearer {token_low}"}
+    # attempt DELETE as admin (lvl 50, no *) => 403
+    resp2 = await client.delete(f"/api/v1/groups/{gid}", headers=headers_low)
+    assert resp2.status_code == 403, f"expected 403 got {resp2.status_code} {resp2.text}"
+    # attempt DELETE as superadmin (*) => 204
+    resp3 = await client.delete(f"/api/v1/groups/{gid}", headers=auth_headers)
+    assert resp3.status_code == 204, resp3.text
+
+
 async def test_groups_show_all_requires_permission(client, test_db, domain, other_domain):
     # low user with only group_view (no group_all) cannot see other domain even with show=all
     _, token_low, _ = await _make_level_user(test_db, domain, f"low2-{uuid4().hex[:4]}", 10, perms=["group_view"])

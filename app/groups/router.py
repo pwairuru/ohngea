@@ -146,6 +146,8 @@ async def bulk_groups_ep(
         perms = await get_user_permissions(session, user)
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
+    is_superadmin = "*" in perms
+    caller_level = await get_user_level(session, user)
     action = payload.action
     ids = payload.ids
     if action not in ("copy","toggle","delete"):
@@ -156,18 +158,29 @@ async def bulk_groups_ep(
             if action == "copy":
                 if not ("*" in perms or "group_add" in perms or "domain_add" in perms):
                     raise HTTPException(status_code=403, detail="Missing permission: group_add")
-                ng = await copy_group(session, domain_id, gid, actor=user)
+                # hierarchy check
+                g = await get_group(session, domain_id, gid, show_all=True)
+                if not g:
+                    raise HTTPException(status_code=404, detail="Group not found")
+                if g.group_level is not None and g.group_level > caller_level and not is_superadmin:
+                    raise HTTPException(status_code=403, detail="Cannot copy group with higher level than your own")
+                ng = await copy_group(session, domain_id, gid, actor=user, is_superadmin=is_superadmin, caller_level=caller_level)
                 results.append({"group_uuid": str(ng.group_uuid), "action": "copied", "name": ng.name})
             elif action == "toggle":
                 if not ("*" in perms or "group_edit" in perms or "domain_add" in perms):
                     raise HTTPException(status_code=403, detail="Missing permission: group_edit")
-                ng = await toggle_group(session, domain_id, gid)
+                g = await get_group(session, domain_id, gid, show_all=True)
+                if not g:
+                    raise HTTPException(status_code=404, detail="Group not found")
+                if g.group_protected and not is_superadmin:
+                    raise HTTPException(status_code=403, detail="protected group")
+                ng = await toggle_group(session, domain_id, gid, actor=user, is_superadmin=is_superadmin)
                 results.append({"group_uuid": str(ng.group_uuid), "action": "toggled", "protected": ng.group_protected})
             elif action == "delete":
                 if not ("*" in perms or "group_delete" in perms or "domain_add" in perms):
                     raise HTTPException(status_code=403, detail="Missing permission: group_delete")
                 from app.groups.service import delete_group
-                await delete_group(session, domain_id, gid)
+                await delete_group(session, domain_id, gid, actor=user, is_superadmin=is_superadmin)
                 results.append({"group_uuid": str(gid), "action": "deleted"})
         except HTTPException as e:
             results.append({"group_uuid": str(gid), "error": e.detail})
@@ -272,7 +285,16 @@ async def copy_group_ep(group_uuid: UUID, session: AsyncSession=Depends(get_sess
         raise HTTPException(status_code=403, detail="Missing permission: group_add")
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
-    ng = await copy_group(session, domain_id, group_uuid, actor=user)
+    is_superadmin = "*" in perms
+    caller_level = await get_user_level(session, user)
+    # hierarchy check like create: if new_level > caller_level and not is_superadmin =>403
+    # fetch group first to check level
+    g = await get_group(session, domain_id, group_uuid, show_all=True)
+    if not g:
+        raise HTTPException(status_code=404, detail="Group not found")
+    if g.group_level is not None and g.group_level > caller_level and not is_superadmin:
+        raise HTTPException(status_code=403, detail="Cannot copy group with higher level than your own")
+    ng = await copy_group(session, domain_id, group_uuid, actor=user, is_superadmin=is_superadmin, caller_level=caller_level)
     return _ser(ng, member_count=0)
 
 @router.post("/groups/{group_uuid}/toggle", response_model=dict)
@@ -285,7 +307,16 @@ async def toggle_group_ep(group_uuid: UUID, session: AsyncSession=Depends(get_se
         raise HTTPException(status_code=403, detail="Missing permission: group_edit")
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
-    ng = await toggle_group(session, domain_id, group_uuid)
+    # protected guard before flip: if group_protected and not superadmin =>403
+    # Note: toggle flips protected flag, so only superadmin should toggle protected groups
+    # For now, if group is protected and caller not superadmin, block
+    g = await get_group(session, domain_id, group_uuid, show_all=True)
+    if not g:
+        raise HTTPException(status_code=404, detail="Group not found")
+    is_superadmin = "*" in perms
+    if g.group_protected and not is_superadmin:
+        raise HTTPException(status_code=403, detail="protected group")
+    ng = await toggle_group(session, domain_id, group_uuid, actor=user, is_superadmin=is_superadmin)
     return _ser(ng)
 
 @router.delete("/groups/{group_uuid}", status_code=204)
@@ -299,7 +330,8 @@ async def delete_group_ep(group_uuid: UUID, session: AsyncSession=Depends(get_se
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     from app.groups.service import delete_group
-    await delete_group(session, domain_id, group_uuid)
+    is_superadmin = "*" in perms
+    await delete_group(session, domain_id, group_uuid, actor=user, is_superadmin=is_superadmin)
     return Response(status_code=204)
 
 # membership
