@@ -1,4 +1,5 @@
 import * as React from "react";
+import { getDeviceKey } from "../../context/webphoneStore";
 
 export function DevicePicker({onOutputChange, onInputChange}:{onOutputChange?:(v:string)=>void; onInputChange?:(v:string)=>void}= {}){
   const [inputs,setInputs]=React.useState<MediaDeviceInfo[]>([]);
@@ -16,10 +17,8 @@ export function DevicePicker({onOutputChange, onInputChange}:{onOutputChange?:(v
         setInputs(ds.filter(d=>d.kind==="audioinput"));
         setOutputs(ds.filter(d=>d.kind==="audiooutput"));
         try{
-          const token=localStorage.getItem("token");
-          let domain="", user="";
-          try{ const p=JSON.parse(atob(token!.split(".")[1])); domain=p.domain_id; user=p.sub; }catch{}
-          const key=`webphone:devices:${domain}:${user}`;
+          const key=getDeviceKey();
+          if(!key) return;
           const raw=localStorage.getItem(key);
           if(raw){
             const parsed=JSON.parse(raw);
@@ -34,10 +33,8 @@ export function DevicePicker({onOutputChange, onInputChange}:{onOutputChange?:(v
 
   function persist(next:{outputId?:string; inputId?:string}){
     try{
-      const token=localStorage.getItem("token");
-      let domain="", user="";
-      try{ const p=JSON.parse(atob(token!.split(".")[1])); domain=p.domain_id; user=p.sub; }catch{}
-      const key=`webphone:devices:${domain}:${user}`;
+      const key=getDeviceKey();
+      if(!key) return;
       const raw=localStorage.getItem(key);
       let cur:any={}; try{ if(raw) cur=JSON.parse(raw);}catch{}
       const merged={...cur, ...next};

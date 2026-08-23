@@ -16,6 +16,7 @@ export function CommandPalette() {
 
   React.useEffect(() => {
     const h = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setOpen((v) => !v);

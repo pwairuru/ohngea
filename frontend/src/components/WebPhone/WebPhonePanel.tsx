@@ -74,7 +74,10 @@ export function WebPhonePanel({open, onOpenChange, embedded}:{open:boolean; onOp
 
   React.useEffect(()=>{
     const h=(e:KeyboardEvent)=>{
-      if((e.ctrlKey||e.metaKey)&&e.key==='k'){ e.preventDefault(); document.querySelector<HTMLInputElement>('[data-testid="dial-input"]')?.focus(); }
+      if((e.ctrlKey||e.metaKey)&&e.key==='k'){
+        const dial=document.querySelector<HTMLInputElement>('[data-testid="dial-input"]');
+        if(dial){ e.preventDefault(); (e as any).stopImmediatePropagation?.(); dial.focus(); }
+      }
       if(e.key==='Escape'&&callState!=="idle") hangup();
     };
     window.addEventListener("keydown",h);

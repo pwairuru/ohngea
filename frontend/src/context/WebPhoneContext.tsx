@@ -1,6 +1,6 @@
 import * as React from "react";
 import { apiFetch } from "../lib/api";
-import { reducer, initial, historyKey } from "./webphoneStore";
+import { reducer, initial, historyKey, getDeviceKey } from "./webphoneStore";
 import type { CallRecord, Contact } from "./webphoneStore";
 
 export type RegistrationState = "unconfigured"|"connecting"|"registered"|"unregistered"|"failed";
@@ -184,10 +184,8 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
           el.srcObject = stream;
           // apply persisted output device via setSinkId if supported
           try{
-            const token=localStorage.getItem("token");
-            let domain="", user="";
-            try{ const p=JSON.parse(atob(token!.split(".")[1])); domain=p.domain_id; user=p.sub; }catch{}
-            const key=`webphone:devices:${domain}:${user}`;
+            const key=getDeviceKey();
+            if(!key) throw new Error("no key");
             const raw=localStorage.getItem(key);
             if(raw){ const d=JSON.parse(raw); if(d.outputId && typeof (el as any).setSinkId==="function") (el as any).setSinkId(d.outputId).catch(()=>{}); }
           }catch{}
@@ -296,12 +294,11 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
     if(!uri) throw new Error("bad dest");
     let audioConstraint: any = true;
     try{
-      const token=localStorage.getItem("token");
-      let domain="", user="";
-      try{ const p=JSON.parse(atob(token!.split(".")[1])); domain=p.domain_id; user=p.sub; }catch{}
-      const key=`webphone:devices:${domain}:${user}`;
-      const raw=localStorage.getItem(key);
-      if(raw){ const d=JSON.parse(raw); if(d.inputId) audioConstraint = { deviceId: { exact: d.inputId } }; }
+      const key=getDeviceKey();
+      if(key){
+        const raw=localStorage.getItem(key);
+        if(raw){ const d=JSON.parse(raw); if(d.inputId) audioConstraint = { deviceId: { ideal: d.inputId } }; }
+      }
     }catch{}
     const inv = new Inviter(uaRef.current, uri, { sessionDescriptionHandlerOptions: { constraints: {audio: audioConstraint, video:false}}});
     sessionRef.current=inv;
