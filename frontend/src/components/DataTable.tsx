@@ -80,7 +80,6 @@ export function DataTable<T extends Record<string, any>>({
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input value={qInput} onChange={(e) => setQInput(e.target.value)} placeholder={searchPlaceholder} className="pl-8" />
         </div>
-        <Button variant="outline" onClick={() => { setQ(qInput); setPage(1); }}>Search</Button>
         {toolbarActions}
       </div>
 

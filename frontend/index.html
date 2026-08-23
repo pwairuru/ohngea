@@ -7,15 +7,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      // capture Ctrl+K before React mounts so palette can open even if key pressed early
-      window.__palettePending = false;
-      window.addEventListener("keydown", function(e){
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-          window.__palettePending = true;
-        }
-      });
-    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

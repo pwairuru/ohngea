@@ -4,36 +4,23 @@ import { Search, CornerDownLeft, Phone } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { flatNav } from "../../lib/navConfig";
 import { useTheme } from "../theme/ThemeProvider";
+import { usePalette } from "./paletteContext";
 
 type Entry = { to?: string; label: string; icon?: React.ComponentType<{ className?: string }>; run?: () => void };
 
 export function CommandPalette() {
-  const [open, setOpen] = React.useState(false);
+  const { open, setOpen } = usePalette();
   const [q, setQ] = React.useState("");
   const [active, setActive] = React.useState(0);
   const nav = useNavigate();
   const { setTheme } = useTheme();
 
   React.useEffect(() => {
-    // handle pending Ctrl+K that fired before mount (e.g., test pressed immediately after navigation)
-    if ((window as any).__palettePending) {
-      setOpen(true);
+    if (open) {
       setQ("");
       setActive(0);
-      (window as any).__palettePending = false;
     }
-    const h = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setOpen((v) => !v);
-        setQ("");
-        setActive(0);
-      }
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, []);
+  }, [open]);
 
   const entries = React.useMemo<Entry[]>(
     () => [

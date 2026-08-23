@@ -8,6 +8,7 @@ import { FsStatus } from "./components/FsStatus";
 import { Sidebar } from "./components/shell/Sidebar";
 import { MobileDrawer } from "./components/shell/MobileDrawer";
 import { CommandPalette } from "./components/shell/CommandPalette";
+import { PaletteProvider, usePalette } from "./components/shell/paletteContext";
 import { UserMenu } from "./components/shell/UserMenu";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Dashboard } from "./routes/Dashboard";
@@ -72,6 +73,21 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function PaletteTrigger() {
+  const { setOpen } = usePalette();
+  return (
+    <button
+      data-testid="palette-trigger"
+      onClick={() => setOpen(true)}
+      className="hidden md:flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+    >
+      <Search className="h-4 w-4" />
+      <span>Jump</span>
+      <kbd className="rounded border bg-muted px-1.5 py-0.5 text-xs">Ctrl K</kbd>
+    </button>
+  );
+}
+
 function Nav() {
   const [open, setOpen] = React.useState(false);
   return (
@@ -87,15 +103,7 @@ function Nav() {
             ☰
           </button>
           <Link to="/" className="font-bold text-lg">PBX</Link>
-          <button
-            data-testid="palette-trigger"
-            onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}
-            className="hidden md:flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          >
-            <Search className="h-4 w-4" />
-            <span>Jump</span>
-            <kbd className="rounded border bg-muted px-1.5 py-0.5 text-xs">Ctrl K</kbd>
-          </button>
+          <PaletteTrigger />
         </div>
         <div className="flex items-center gap-2">
           <FsStatus />
@@ -177,19 +185,21 @@ export default function App() {
       <ConfirmProvider>
         <Toaster />
         <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/setup" element={<Setup />} />
-          <Route
-            path="/*"
-            element={
-              <RequireAuth>
-                <Nav />
-              </RequireAuth>
-            }
-          />
-        </Routes>
-      </BrowserRouter>
+          <PaletteProvider>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/setup" element={<Setup />} />
+              <Route
+                path="/*"
+                element={
+                  <RequireAuth>
+                    <Nav />
+                  </RequireAuth>
+                }
+              />
+            </Routes>
+          </PaletteProvider>
+        </BrowserRouter>
       </ConfirmProvider>
     </ThemeProvider>
   );
