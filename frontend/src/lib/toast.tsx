@@ -1,5 +1,4 @@
 import * as React from "react";
-import { flushSync } from "react-dom";
 import { cn } from "./utils";
 
 export type ToastVariant = "default" | "success" | "error";
@@ -9,11 +8,21 @@ let items: ToastItem[] = [];
 let listeners: Array<() => void> = [];
 let seq = 1;
 
+function subscribe(cb: () => void) {
+  listeners.push(cb);
+  return () => {
+    listeners = listeners.filter((l) => l !== cb);
+  };
+}
+
+function getSnapshot() {
+  return items;
+}
+
 function emit() {
-  if (!listeners.length) return;
-  flushSync(() => {
-    listeners.forEach((l) => l());
-  });
+  // notify without flushSync to stay compatible with concurrent rendering
+  // use queueMicrotask-like sync notification; useSyncExternalStore handles batching
+  listeners.forEach((l) => l());
 }
 
 export function dismiss(id: number) {
@@ -40,21 +49,11 @@ export function toastError(err: unknown) {
 }
 
 export function Toaster() {
-  const [, force] = React.useReducer((x: number) => x + 1, 0);
-  const ref = React.useRef<(() => void) | null>(null);
-  if (!ref.current) {
-    ref.current = () => force();
-    listeners.push(ref.current);
-  }
-  React.useLayoutEffect(() => {
-    return () => {
-      if (ref.current) listeners = listeners.filter((x) => x !== ref.current);
-    };
-  }, []);
-  if (!items.length) return null;
+  const toasts = React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  if (!toasts.length) return null;
   return (
     <div data-testid="toaster" className="fixed z-[70] flex flex-col gap-2 bottom-4 right-4 left-auto max-md:left-4">
-      {items.map((t) => (
+      {toasts.map((t) => (
         <div
           key={t.id}
           data-testid="toast"

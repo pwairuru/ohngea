@@ -118,10 +118,10 @@ export function Gateways() {
   };
   const fetchXml = async () => {
     try {
-      const me = await apiFetch("/auth/me").catch(()=>({domain_name:"test.local"}));
-      const domain = (me as any).domain_name || "test.local";
-      const res = await fetch(`/api/internal/freeswitch/xml?section=configuration&key_value=sofia.conf&domain=${domain}`, { headers: { "Authorization": "Basic "+btoa("freeswitch:ClueCon") }});
-      setVerifyXml((await res.text()).slice(0,4000));
+      // Use authenticated backend proxy — no secrets in bundle. Previously used Basic ClueCon in browser which leaks creds.
+      const data = await apiFetch("/freeswitch/status");
+      const text = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+      setVerifyXml(text.slice(0, 4000));
     } catch(e:any){ setVerifyXml("Failed "+e.message); }
   };
 
@@ -132,7 +132,7 @@ export function Gateways() {
         description="SIP trunks and external carriers"
         actions={
           <>
-            <Button variant="outline" onClick={fetchXml}>Verify Sofa XML</Button>
+            <Button variant="outline" onClick={fetchXml}>Verify FS Status</Button>
             <Button onClick={startCreate}>Add Gateway</Button>
           </>
         }
@@ -156,7 +156,7 @@ export function Gateways() {
           </div>
         )}
       />
-      {verifyXml && <Card><CardHeader><CardTitle className="text-sm">Sofia Gateway XML — verifiable</CardTitle></CardHeader><CardContent><pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-64">{verifyXml}</pre><Button variant="outline" className="mt-2" onClick={()=>setVerifyXml("")}>Close</Button></CardContent></Card>}
+      {verifyXml && <Card><CardHeader><CardTitle className="text-sm">FreeSWITCH Status — verifiable</CardTitle></CardHeader><CardContent><pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-64">{verifyXml}</pre><Button variant="outline" className="mt-2" onClick={()=>setVerifyXml("")}>Close</Button></CardContent></Card>}
       <Card>
         <CardHeader><CardTitle>Profiles</CardTitle></CardHeader>
         <CardContent className="text-sm text-muted-foreground">Sofia SIP profiles — internal/external — per domain, via <code>GET /api/v1/sip_profiles</code> → FS xml <code>sofia.conf</code> fallback.</CardContent>

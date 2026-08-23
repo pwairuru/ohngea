@@ -4,30 +4,23 @@ import { Search, CornerDownLeft, Phone } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { flatNav } from "../../lib/navConfig";
 import { useTheme } from "../theme/ThemeProvider";
+import { usePalette } from "./paletteContext";
 
 type Entry = { to?: string; label: string; icon?: React.ComponentType<{ className?: string }>; run?: () => void };
 
 export function CommandPalette() {
-  const [open, setOpen] = React.useState(false);
+  const { open, setOpen } = usePalette();
   const [q, setQ] = React.useState("");
   const [active, setActive] = React.useState(0);
   const nav = useNavigate();
   const { setTheme } = useTheme();
 
   React.useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (e.defaultPrevented) return;
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setOpen((v) => !v);
-        setQ("");
-        setActive(0);
-      }
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, []);
+    if (open) {
+      setQ("");
+      setActive(0);
+    }
+  }, [open]);
 
   const entries = React.useMemo<Entry[]>(
     () => [
@@ -68,7 +61,7 @@ export function CommandPalette() {
             autoFocus
             value={q}
             onChange={(e) => { setQ(e.target.value); setActive(0); }}
-            placeholder="Search pages…"
+            placeholder="Jump to…"
             className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded border px-1.5 text-[10px] text-muted-foreground"><CornerDownLeft className="h-3 w-3" /> enter</kbd>

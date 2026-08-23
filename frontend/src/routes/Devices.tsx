@@ -101,7 +101,7 @@ export function Devices() {
 
   const preview = async (mac: string, vendor: string) => {
     try {
-      const txt = await fetch(`/provision/${mac}.cfg`).then((r) => r.text());
+      const txt = await fetch(`/provision/${encodeURIComponent(mac)}.cfg`).then((r) => r.text());
       setProvision(txt);
     } catch {
       setProvision(`# Provision for ${vendor} mac ${mac}\n(preview fallback)`);

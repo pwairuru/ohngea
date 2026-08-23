@@ -1,8 +1,22 @@
 export const API_BASE = "/api/v1";
 
 export function authHeaders(): HeadersInit {
-  const token = localStorage.getItem("token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  try {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
+export class ApiError extends Error {
+  status: number;
+  body: string;
+  constructor(status: number, body: string) {
+    super(`${status} ${body}`);
+    this.status = status;
+    this.body = body;
+  }
 }
 
 export async function apiFetch(path: string, opts: RequestInit = {}) {
@@ -15,18 +29,9 @@ export async function apiFetch(path: string, opts: RequestInit = {}) {
   const res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
   if (!res.ok) {
     const txt = await res.text();
-    if (res.status === 401) {
-      // clear stale token and redirect to login if not already there
-      const isLogin = window.location.pathname === "/login" || window.location.pathname === "/setup";
-      if (!isLogin) {
-        localStorage.removeItem("token");
-        // allow caller to handle, but also redirect
-        // use location to avoid React Router hook outside component
-        const next = encodeURIComponent(window.location.pathname + window.location.search);
-        window.location.href = `/login?next=${next}`;
-      }
-    }
-    throw new Error(`${res.status} ${txt}`);
+    // Do not redirect here — let callers/UI handle 401 (e.g., RequireAuth, toast, or explicit navigation).
+    // Previously this did window.location.href = "/login?next=..."; removed to avoid side effect in data layer.
+    throw new ApiError(res.status, txt);
   }
   // handle 204
   if (res.status === 204) return null;

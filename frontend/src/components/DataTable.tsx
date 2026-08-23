@@ -129,7 +129,7 @@ export function DataTable<T extends Record<string, any>>({
         </Table>
       </div>
 
-      <div className="grid gap-3 md:hidden">
+      <div className="grid gap-3 md:hidden" data-testid={resource === "/extensions" ? "extensions-cards" : undefined}>
         {rows.map((row, i) => (
           <Card key={rowKey ? rowKey(row) : i}>
             <CardContent className="flex items-start justify-between gap-2 p-3">

@@ -54,31 +54,46 @@ function NavSection({ loc, rail, openGroups, toggleGroup }: { loc: { pathname: s
   );
 }
 
+function safeGet(key: string): string | null {
+  try {
+    return typeof window !== "undefined" ? localStorage.getItem(key) : null;
+  } catch {
+    return null;
+  }
+}
+function safeSet(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // ignore quota or SSR
+  }
+}
+
 export function Sidebar() {
   const loc = useLocation();
-  const [rail, setRail] = React.useState(() => localStorage.getItem("nav-rail") === "1");
+  const [rail, setRail] = React.useState(() => safeGet("nav-rail") === "1");
   const [openGroups, setOpenGroups] = React.useState<string[]>(() => {
     try {
-      return JSON.parse(localStorage.getItem("nav-open-groups") || '["Call Routing"]');
+      return JSON.parse(safeGet("nav-open-groups") || '["Call Routing"]');
     } catch {
       return ["Call Routing"];
     }
   });
   const toggleRail = () => {
     setRail((v) => {
-      localStorage.setItem("nav-rail", v ? "0" : "1");
+      safeSet("nav-rail", v ? "0" : "1");
       return !v;
     });
   };
   const toggleGroup = (label: string) => {
     setOpenGroups((prev) => {
       const next = prev.includes(label) ? prev.filter((g) => g !== label) : [...prev, label];
-      localStorage.setItem("nav-open-groups", JSON.stringify(next));
+      safeSet("nav-open-groups", JSON.stringify(next));
       return next;
     });
   };
   return (
-    <aside
+    <nav
       data-testid="sidebar"
       className={cn(
         "sticky top-14 hidden h-[calc(100vh-3.5rem)] shrink-0 flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar p-3 md:flex",
@@ -114,6 +129,6 @@ export function Sidebar() {
           </>
         )}
       </div>
-    </aside>
+    </nav>
   );
 }
