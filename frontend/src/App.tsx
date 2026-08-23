@@ -59,6 +59,7 @@ import { Apps } from "./routes/Apps";
 import { WebPhoneProvider } from "./context/WebPhoneContext";
 import { WebPhoneButton } from "./components/WebPhone/WebPhoneButton";
 import { WebPhonePopup } from "./components/WebPhone/WebPhonePopup";
+import { WebPhoneDock } from "./components/WebPhone/WebPhoneDock";
 import { useEnabledApps } from "./lib/apps";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -182,6 +183,7 @@ function Nav() {
           </button>
         </div>
       </header>
+      <WebPhoneDock onExpand={()=>setWebPhoneOpen(true)} />
       <div className="flex">
         {/* Desktop sidebar — 6 primary items per spec, sticky + thin hover scrollbar */}
         <nav className="hidden md:flex w-56 shrink-0 flex-col border-r bg-background sticky top-14 h-[calc(100vh-3.5rem)] overflow-hidden">
