@@ -1,4 +1,6 @@
 import * as React from "react";
+import { EmptyState } from "../../components/ui/empty-state";
+import { toast, toastError } from "../../lib/toast";
 import { apiFetch } from "../../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
@@ -22,8 +24,8 @@ export default function ContactsPlugin() {
         <Button onClick={create} className="w-full">Create</Button>
       </CardContent></Card>
       <Card><CardHeader><CardTitle>Contacts</CardTitle></CardHeader><CardContent>
-        <div className="hidden md:block"><Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Number</TableHead><TableHead>Email</TableHead></TableRow></TableHeader><TableBody>{items.map((it) => <TableRow key={it.id}><TableCell>{it.name}</TableCell><TableCell className="font-mono">{it.number}</TableCell><TableCell>{it.email || "-"}</TableCell></TableRow>)}{items.length===0 && <TableRow><TableCell colSpan={3} className="text-center py-6 text-muted-foreground">No contacts</TableCell></TableRow>}</TableBody></Table></div>
-        <div className="md:hidden grid gap-2">{items.map((it) => <Card key={it.id} className="p-3"><div className="font-bold">{it.name}</div><div className="font-mono text-xs">{it.number}</div><div className="text-xs">{it.email}</div></Card>)}{items.length===0 && <div className="text-center py-4 text-muted-foreground">No contacts</div>}</div>
+        <div className="hidden md:block"><Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Number</TableHead><TableHead>Email</TableHead></TableRow></TableHeader><TableBody>{items.map((it) => <TableRow key={it.id}><TableCell>{it.name}</TableCell><TableCell className="font-mono">{it.number}</TableCell><TableCell>{it.email || "-"}</TableCell></TableRow>)}{items.length===0 && <TableRow><TableCell colSpan={3}><EmptyState title="No contacts" /></TableCell></TableRow>}</TableBody></Table></div>
+        <div className="md:hidden grid gap-2">{items.map((it) => <Card key={it.id} className="p-3"><div className="font-bold">{it.name}</div><div className="font-mono text-xs">{it.number}</div><div className="text-xs">{it.email}</div></Card>)}{items.length===0 && <EmptyState title="No contacts" />}</div>
       </CardContent></Card>
     </div>
   );

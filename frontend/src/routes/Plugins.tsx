@@ -3,6 +3,7 @@ import { apiFetch } from "../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
+import { toast } from "../lib/toast";
 
 export function Plugins() {
   const [plugins, setPlugins] = React.useState<any[]>([]);
@@ -31,7 +32,10 @@ export function Plugins() {
   }, [selectedDomain]);
 
   const toggle = async (name: string, enabled: boolean) => {
-    if (!selectedDomain) return alert("Pick domain first");
+    if (!selectedDomain) {
+      toast("Pick domain first", { variant: "error" });
+      return;
+    }
     await apiFetch(`/domains/${selectedDomain}/plugins/${name}?enabled=${!enabled}`, { method: "PUT" });
     const updated = await apiFetch(`/domains/${selectedDomain}/plugins`);
     setDomainPlugins(updated || []);

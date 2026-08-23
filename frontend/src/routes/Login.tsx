@@ -2,6 +2,7 @@ import * as React from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
+import { toast, toastError } from "../lib/toast";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 
@@ -57,12 +58,14 @@ export function Login() {
       }
       const token = data.access_token;
       if (!token) throw new Error("no token in response");
+      toast("Signed in", { variant: "success" });
       localStorage.setItem("token", token);
       // also store domain for convenience
       if (form.domain) localStorage.setItem("domain", form.domain);
       nav("/");
     } catch (err: any) {
       setError(err.message || "Login failed");
+      toastError(err);
     }
   };
 

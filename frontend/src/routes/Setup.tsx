@@ -2,6 +2,7 @@ import * as React from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
+import { toast, toastError } from "../lib/toast";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 
@@ -39,12 +40,14 @@ export function Setup() {
         throw new Error(txt || "bootstrap failed");
       }
       const data = await r.json();
+      toast(`Domain ${data.domain_name} created`, { variant: "success" });
       setInfo(`Domain ${data.domain_name} created — you can now sign in as ${form.admin_username}`);
       // store domain for login convenience
       localStorage.setItem("domain", form.domain_name);
       setTimeout(() => nav("/login"), 1500);
     } catch (err: any) {
       setError(err.message);
+      toastError(err);
     }
   };
 

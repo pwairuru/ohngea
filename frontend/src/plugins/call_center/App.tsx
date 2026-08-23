@@ -1,4 +1,6 @@
 import * as React from "react";
+import { EmptyState } from "../../components/ui/empty-state";
+import { toast, toastError } from "../../lib/toast";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -20,6 +22,7 @@ export default function CallCenterPlugin() {
           </CardContent></Card>
         ))}
       </div>
+      {queues.length===0 && <EmptyState title="No queues" />}
       <Card><CardHeader><CardTitle>AMEYO wallboard KPI grid</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">Queue wallboard — agents, waiting calls, avg wait, SLA — per tenant, data from `call_center` plugin `GET /api/v1/call_center` partitioned by domain_id.</CardContent></Card>
     </div>
   );

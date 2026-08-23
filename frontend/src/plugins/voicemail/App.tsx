@@ -1,4 +1,7 @@
 import * as React from "react";
+import { EmptyState } from "../../components/ui/empty-state";
+import { toast, toastError } from "../../lib/toast";
+import { useConfirm } from "../../components/ui/confirm";
 import { apiFetch } from "../../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
@@ -9,6 +12,7 @@ import { Label } from "../../components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 
 export default function VoicemailPlugin() {
+  const confirm = useConfirm();
   const [items, setItems] = React.useState<any[]>([]);
   const [total, setTotal] = React.useState(0);
   const [page, setPage] = React.useState(1);
@@ -86,7 +90,8 @@ export default function VoicemailPlugin() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Delete voicemail?")) return;
+    const ok = await confirm({ title: "Delete voicemail?", confirmLabel: "Delete" });
+    if (!ok) return;
     try {
       await apiFetch(`/voicemails/${id}`, { method: "DELETE" });
       load();
@@ -207,9 +212,7 @@ export default function VoicemailPlugin() {
                 })}
                 {items.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
-                      No mailboxes — create one above or check RLS tenant
-                    </TableCell>
+                    <TableCell colSpan={8}><EmptyState title="No mailboxes" /></TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -230,7 +233,7 @@ export default function VoicemailPlugin() {
                 </Card>
               );
             })}
-            {items.length === 0 && <div className="text-center py-4 text-muted-foreground">No mailboxes</div>}
+            {items.length === 0 && <EmptyState title="No mailboxes" />}
           </div>
           <div className="flex items-center justify-between mt-4 text-sm">
             <span>Total: {total}</span>

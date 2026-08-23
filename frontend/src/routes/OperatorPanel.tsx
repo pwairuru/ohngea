@@ -2,17 +2,19 @@ import * as React from "react";
 import { apiFetch } from "../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
-import { Badge } from "../components/ui/badge";
+import { PageHeader } from "../components/shell/PageHeader";
+import { toastError } from "../lib/toast";
+
 export function OperatorPanel() {
   const [data, setData] = React.useState<any[]>([]);
   const [total, setTotal] = React.useState(0);
-  const load = () => apiFetch("/operator_panel").then((r:any)=>{setData(r.data||[]); setTotal(r.total??r.data?.length??0)}).catch(()=>{});
+  const load = () => apiFetch("/operator_panel").then((r:any)=>{setData(r.data||[]); setTotal(r.total??r.data?.length??0)}).catch((err)=>{ toastError(err); });
   React.useEffect(()=>{load()},[]);
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex justify-between items-center"><h1 className="text-2xl font-bold">Operator Panel</h1><Badge>{total} total</Badge></div>
+    <>
+      <PageHeader title="Operator Panel" description="Operator presence and call state" />
       <Card>
-        <CardHeader><CardTitle>Operator Panel</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Operator Panel — {total} total</CardTitle></CardHeader>
         <CardContent>
           <div className="hidden md:block">
             <Table>
@@ -29,6 +31,6 @@ export function OperatorPanel() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </>
   );
 }

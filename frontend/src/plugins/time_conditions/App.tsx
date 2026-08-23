@@ -1,4 +1,7 @@
 import * as React from "react";
+import { EmptyState } from "../../components/ui/empty-state";
+import { toast, toastError } from "../../lib/toast";
+import { useConfirm } from "../../components/ui/confirm";
 import { apiFetch } from "../../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
@@ -9,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Trash2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from "lucide-react";
 
 export default function TimeConditionsPlugin() {
+  const confirm = useConfirm();
   const [items, setItems] = React.useState<any[]>([]);
   const [total, setTotal] = React.useState(0);
   const [page, setPage] = React.useState(1);
@@ -75,7 +79,8 @@ export default function TimeConditionsPlugin() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Delete time condition?")) return;
+    const ok = await confirm({ title: "Delete time condition?", confirmLabel: "Delete" });
+    if (!ok) return;
     try {
       await apiFetch(`/time_conditions/${id}`, { method: "DELETE" });
       load();
@@ -203,9 +208,7 @@ export default function TimeConditionsPlugin() {
                 })}
                 {items.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
-                      No conditions — create one above or check RLS tenant
-                    </TableCell>
+                    <TableCell colSpan={6}><EmptyState title="No conditions" /></TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -229,7 +232,7 @@ export default function TimeConditionsPlugin() {
                 </Card>
               );
             })}
-            {items.length === 0 && <div className="text-center py-4 text-muted-foreground">No conditions</div>}
+            {items.length === 0 && <EmptyState title="No conditions" />}
           </div>
           <div className="flex items-center justify-between mt-4 text-sm">
             <span>Page {page} of {Math.max(1, Math.ceil(total / 20))} — {items.length} items</span>

@@ -1,156 +1,55 @@
 import * as React from "react";
 import { apiFetch } from "../lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
-import { Badge } from "../components/ui/badge";
+import { DataTable } from "../components/DataTable";
+import type { Column } from "../components/types";
+import { PageHeader } from "../components/shell/PageHeader";
 import { Button } from "../components/ui/button";
-import {Pencil, Trash2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight} from "lucide-react";
-import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Dialog, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { FormDialog } from "../components/FormDialog";
+import { toast, toastError } from "../lib/toast";
+import { useAsyncAction } from "../lib/useAsyncAction";
+import { Users } from "lucide-react";
 
 export function RingGroups() {
-  const [data, setData] = React.useState<any[]>([]);
-  const [total, setTotal] = React.useState(0);
-  const [q, setQ] = React.useState("");
-  const [page, setPage] = React.useState(1);
+  const [reloadKey, setReloadKey] = React.useState(0);
+  const reload = () => setReloadKey((k) => k + 1);
   const [open, setOpen] = React.useState(false);
-  const [editing, setEditing] = React.useState<any | null>(null);
-  const [form, setForm] = React.useState({ name: "sales-ring", extension: "2000", strategy: "simultaneous", timeout: "30", members: "1001,1002,1003", description: "", enabled: true });
-
-  const load = React.useCallback(() => {
-    const params = new URLSearchParams({ page: String(page), per_page: "20" });
-    if (q) params.set("q", q);
-    apiFetch(`/ring_groups?${params.toString()}`)
-      .then((r: any) => { setData(r.data || []); setTotal(r.total ?? r.data?.length ?? 0); })
-      .catch(() => {});
-  }, [page, q]);
-
-  React.useEffect(() => { load(); }, [load]);
-
-  const startCreate = () => {
-    setEditing(null);
-    setForm({ name: "sales-ring", extension: "2000", strategy: "simultaneous", timeout: "30", members: "1001,1002,1003", description: "", enabled: true });
-    setOpen(true);
-  };
-
-  const startEdit = (row: any) => {
-    setEditing(row);
-    const members = row.members || row.destinations || [];
-    const memberStr = Array.isArray(members) ? members.map((m: any) => m.destination_number || m).join(", ") : row.members_str || "";
-    setForm({
-      name: row.name || row.ring_group_name || "",
-      extension: row.extension || row.ring_group_extension || "",
-      strategy: row.strategy || row.ring_group_strategy || "simultaneous",
-      timeout: row.timeout != null ? String(row.timeout) : "30",
-      members: memberStr,
-      description: row.description || row.ring_group_description || "",
-      enabled: row.enabled ?? row.ring_group_enabled ?? true,
-    });
-    setOpen(true);
-  };
-
-  const createOrUpdate = async () => {
+  const [json, setJson] = React.useState(`{"ring_group_name": "rg1",
+  "ring_group_extension": "2001"}`);
+  const columns: Column<any>[] = [
+    { key: "ring_group_name", header: "Name", className: "num", cell: (r: any) => r["ring_group_name"] ?? r.name ?? JSON.stringify(r).slice(0, 60) },
+    { key: "details", header: "Details", cell: (r: any) => <span className="text-muted-foreground text-xs break-all">{JSON.stringify(r).slice(0, 80)}</span> },
+  ];
+  const createFn = async () => {
     try {
-      const members = form.members.split(",").map((s) => s.trim()).filter(Boolean);
-      const payload: any = {
-        name: form.name || null,
-        extension: form.extension || null,
-        strategy: form.strategy || null,
-        timeout: form.timeout ? Number(form.timeout) : 30,
-        enabled: form.enabled,
-        description: form.description || null,
-        members,
-        destinations: members,
-      };
-      if (editing) {
-        const uid = editing.ring_group_uuid || editing.id || editing.uuid;
-        await apiFetch(`/ring_groups/${uid}`, { method: "PATCH", body: JSON.stringify(payload) });
-      } else {
-        await apiFetch("/ring_groups", { method: "POST", body: JSON.stringify(payload) });
-      }
-      setOpen(false); setEditing(null); load();
-    } catch (e: any) { alert(e.message); }
+      const body = JSON.parse(json);
+      await apiFetch("/ring_groups", { method: "POST", body: JSON.stringify(body) });
+      toast("Ring group created", { variant: "success" });
+      setOpen(false);
+      reload();
+    } catch (err) {
+      toastError(err);
+    }
   };
-
-  const del = async (row: any) => {
-    const uid = row.ring_group_uuid || row.id || row.uuid;
-    const label = row.name || row.ring_group_name || uid;
-    if (!confirm(`Delete ring group ${label}?`)) return;
-    try { await apiFetch(`/ring_groups/${uid}`, { method: "DELETE" }); load(); } catch (e: any) { alert(e.message); }
-  };
-
+  const { run: create, pending } = useAsyncAction(createFn);
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex justify-between items-center"><h1 className="text-2xl font-bold">Ring Groups</h1><div className="flex gap-2"><Badge>{total} total</Badge><Button onClick={startCreate}>Add Ring Group</Button></div></div>
-
-      <div className="flex gap-2">
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, extension, strategy..." className="flex-1" />
-        <Button variant="outline" onClick={() => { setPage(1); load(); }}>Search</Button>
-      </div>
-
-      <Card><CardHeader><CardTitle>Ring Groups — hunt groups</CardTitle></CardHeader><CardContent>
-          <div className="hidden md:block"><Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Extension</TableHead><TableHead>Strategy</TableHead><TableHead>Timeout</TableHead><TableHead>Members</TableHead><TableHead>Enabled</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader><TableBody>
-                {data.map((d: any) => {
-                  const uid = d.ring_group_uuid || d.id;
-                  const members = d.members || d.destinations || [];
-                  const memberStr = Array.isArray(members) ? members.map((m: any) => m.destination_number || m).join(", ") : "";
-                  return (
-                    <TableRow key={String(uid)}>
-                      <TableCell className="font-mono font-bold">{d.name ?? d.ring_group_name ?? "-"}</TableCell>
-                      <TableCell className="font-mono text-xs">{d.extension ?? d.ring_group_extension ?? "-"}</TableCell>
-                      <TableCell><Badge>{d.strategy ?? d.ring_group_strategy ?? "-"}</Badge></TableCell>
-                      <TableCell>{d.timeout ?? "-"}</TableCell>
-                      <TableCell className="font-mono text-xs max-w-[200px] truncate" title={memberStr}>{memberStr || "-"}</TableCell>
-                      <TableCell>{(d.enabled ?? d.ring_group_enabled ?? true) ? <Badge>enabled</Badge> : <Badge className="bg-muted text-muted-foreground">disabled</Badge>}</TableCell>
-                      <TableCell><div className="flex gap-1"><Button variant="ghost" aria-label="Edit" title="Edit" className="h-9 w-9 p-0" onClick={() => startEdit(d)}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" aria-label="Delete" title="Delete" className="h-9 w-9 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => del(d)}><Trash2 className="h-4 w-4" /></Button></div></TableCell>
-                    </TableRow>
-                  );
-                })}
-                {data.length===0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No ring groups — create via Add button</TableCell></TableRow>}
-              </TableBody></Table></div>
-          <div className="md:hidden grid gap-3">
-            {data.map((d: any) => {
-              const uid = d.ring_group_uuid || d.id;
-              const members = d.members || d.destinations || [];
-              const memberStr = Array.isArray(members) ? members.map((m: any) => m.destination_number || m).join(", ") : "";
-              return (
-                <Card key={String(uid)} className="p-3 space-y-1">
-                  <div className="flex justify-between"><div className="font-mono font-bold">{d.name ?? d.ring_group_name} <span className="text-xs">({d.extension ?? d.ring_group_extension})</span></div><Badge>{(d.enabled ?? true) ? "enabled" : "disabled"}</Badge></div>
-                  <div className="text-xs"><Badge>{d.strategy ?? d.ring_group_strategy}</Badge> timeout {d.timeout}</div>
-                  <div className="font-mono text-xs text-muted-foreground truncate">{memberStr || "no members"}</div>
-                  <div className="flex gap-2 mt-2"><Button variant="ghost" aria-label="Edit" title="Edit" className="flex-1 h-9" onClick={() => startEdit(d)}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" aria-label="Delete" title="Delete" className="flex-1 h-9 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => del(d)}><Trash2 className="h-4 w-4" /></Button></div>
-                </Card>
-              );
-            })}
-            {data.length===0 && <div className="text-center text-muted-foreground py-4">No ring groups</div>}
-          </div>
-          <div className="flex items-center justify-between mt-4 text-sm">
-            <span>Total: {total}</span>
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon" aria-label="First page" title="First page" className="h-9 w-9 p-0" disabled={page <= 1} onClick={() => setPage(1)}><ChevronsLeft className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="icon" aria-label="Previous page" title="Previous page" className="h-9 w-9 p-0" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}><ChevronLeft className="h-4 w-4" /></Button>
-              <span className="px-2 text-sm">Page {page} of {Math.max(1, Math.ceil(total / 20))}</span>
-              <Button variant="ghost" size="icon" aria-label="Next page" title="Next page" className="h-9 w-9 p-0" disabled={page * 20 >= total} onClick={() => setPage((p) => p + 1)}><ChevronRight className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="icon" aria-label="Last page" title="Last page" className="h-9 w-9 p-0" disabled={page * 20 >= total} onClick={() => setPage(Math.max(1, Math.ceil(total / 20)))}><ChevronsRight className="h-4 w-4" /></Button>
-            </div>
-          </div>
-        </CardContent></Card>
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}><DialogHeader><DialogTitle>{editing ? "Edit Ring Group" : "Add Ring Group"}</DialogTitle></DialogHeader>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <div><Label>Name *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="sales-ring" /></div>
-            <div><Label>Extension *</Label><Input value={form.extension} onChange={(e) => setForm({ ...form, extension: e.target.value })} placeholder="2000" /></div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div><Label>Strategy</Label><select value={form.strategy} onChange={(e) => setForm({ ...form, strategy: e.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[44px]"><option value="simultaneous">simultaneous</option><option value="enterprise">enterprise</option><option value="sequence">sequence</option><option value="rollover">rollover</option><option value="random">random</option><option value="hunt">hunt</option></select></div>
-            <div><Label>Timeout</Label><Input type="number" value={form.timeout} onChange={(e) => setForm({ ...form, timeout: e.target.value })} placeholder="30" /></div>
-          </div>
-          <div><Label>Members (comma separated)</Label><Input value={form.members} onChange={(e) => setForm({ ...form, members: e.target.value })} placeholder="1001,1002,1003" /></div>
-          <div><Label>Description</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Sales ring" /></div>
-          <div className="flex items-center gap-2"><input type="checkbox" id="rg-enabled" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} className="h-4 w-4" /><Label htmlFor="rg-enabled" className="cursor-pointer">Enabled</Label></div>
-          <Button onClick={createOrUpdate} className="w-full">{editing ? "Save" : "Create"}</Button>
-        </div></Dialog>
-    </div>
+    <>
+      <PageHeader title="Ring Groups" description="Hunt groups for incoming calls" actions={<Button onClick={() => setOpen(true)}>Add Ring Groups</Button>} />
+      <DataTable
+        resource="/ring_groups"
+        columns={columns}
+        reloadKey={reloadKey}
+        perPage={20}
+        searchPlaceholder="Search ring groups…"
+        emptyTitle="No ring groups"
+        emptyDescription="Create your first ring groups entry"
+        emptyIcon={Users}
+        emptyAction={<Button onClick={() => setOpen(true)}><Users className="h-4 w-4" /> Add Ring Groups</Button>}
+      />
+      <FormDialog open={open} onOpenChange={setOpen} title="Add Ring Groups" onSubmit={create} pending={pending} submitLabel="Create" pendingLabel="Creating…">
+        <div><Label>JSON payload *</Label><textarea value={json} onChange={(e) => setJson(e.target.value)} rows={6} className="w-full rounded border p-2 font-mono text-xs" /></div>
+        <div className="text-xs text-muted-foreground">Required field shown above — edit JSON and press Create.</div>
+      </FormDialog>
+    </>
   );
 }
