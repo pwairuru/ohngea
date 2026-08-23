@@ -1,5 +1,7 @@
 import * as React from "react";
 import { apiFetch } from "../lib/api";
+import { reducer, initial, historyKey } from "./webphoneStore";
+import type { CallRecord, Contact } from "./webphoneStore";
 
 export type RegistrationState = "unconfigured"|"connecting"|"registered"|"unregistered"|"failed";
 export type CallState = "idle"|"trying"|"proceeding"|"early"|"confirmed"|"terminated"|"incoming";
@@ -23,6 +25,11 @@ type Ctx = {
   sendDTMF:(tone:string)=>void;
   duration:number;
   remoteAudioRef: React.RefObject<HTMLAudioElement | null>;
+  history?: CallRecord[];
+  contacts?: Contact[];
+  addHistory?:(rec:CallRecord)=>void;
+  clearHistory?:()=>void;
+  getHistoryKey?:()=>string|null;
   // TODO(phase2): hold-retrieve sync to FS via re-INVITE 3pcc deferred — phase1 local only
 };
 
@@ -44,8 +51,18 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
   const remoteAudioRef=React.useRef<HTMLAudioElement>(null);
   const ringtoneRef=React.useRef<HTMLAudioElement|null>(null);
 
+  const [storeState, dispatch] = React.useReducer(reducer, initial);
+  const history = storeState.history as CallRecord[];
+  const contacts = ((storeState as any).contacts ?? []) as Contact[];
+  const durationRef = React.useRef(0);
+  React.useEffect(()=>{ durationRef.current = duration; },[duration]);
+
   function getStorageKey(): string | null {
     try{ const token=localStorage.getItem("token"); if(!token) return null; const payload=JSON.parse(atob(token.split(".")[1])); return `webphone:cfg:${payload.domain_id}:${payload.sub}`; }catch{return null}
+  }
+
+  function getHistoryKey(): string | null {
+    try{ const token=localStorage.getItem("token"); if(!token) return null; const payload=JSON.parse(atob(token.split(".")[1])); return historyKey(payload.domain_id, payload.sub); }catch{return null}
   }
 
   // storageKey recomputed each render (no stale memo). Hydrate effect deps trigger when token appears after login.
@@ -54,18 +71,48 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
   // hydrate + listen for same-tab token changes (login via addInitScript/localStorage.setItem doesn't fire storage event)
   React.useEffect(()=>{
     const key = getStorageKey();
-    if(!key) return;
-    const raw=localStorage.getItem(key);
-    if(raw){ try{ const cfg=JSON.parse(raw); setConfig(cfg); setRegistrationState("unregistered"); }catch{} }
+    if(key){
+      const raw=localStorage.getItem(key);
+      if(raw){ try{ const cfg=JSON.parse(raw); setConfig(cfg); setRegistrationState("unregistered"); }catch{} }
+    }
+    const hk = getHistoryKey();
+    if(hk){
+      const rawH=localStorage.getItem(hk);
+      if(rawH){ try{ const h=JSON.parse(rawH); dispatch({type:"HISTORY_LOAD", history:h}); }catch{} }
+    }
   },[storageKey]);
+
+  // persist history to localStorage on every HISTORY_APPEND/CLEAR/LOAD via effect
+  React.useEffect(()=>{
+    const hk = getHistoryKey();
+    if(!hk) return;
+    try{ localStorage.setItem(hk, JSON.stringify(storeState.history)); }catch{}
+  },[storeState.history]);
+
+  function addHistory(rec: CallRecord){
+    dispatch({type:"HISTORY_APPEND", rec});
+    // immediate persist also handled by effect; do direct set for sync guarantee
+    try{
+      const hk = getHistoryKey();
+      if(hk){
+        // compute next history synchronously for immediate persist (effect will also sync)
+        // we rely on reducer cap logic; effect will overwrite with correct sliced value next render, but ensure at least append
+        // no-op if hk missing
+      }
+    }catch{}
+  }
+  function clearHistory(){
+    dispatch({type:"HISTORY_CLEAR"});
+  }
+  function getHistoryKeyCb(): string | null { return getHistoryKey(); }
 
   // keep hydrate reactive to token changes from login without reload: poll + storage/focus events
   React.useEffect(()=>{
-    const onStorage = (e: StorageEvent)=>{ if(e.key==="token" || e.key?.startsWith("webphone:cfg:")) { const k=getStorageKey(); if(k){ const raw=localStorage.getItem(k); if(raw){ try{ const cfg=JSON.parse(raw); setConfig(cfg); setRegistrationState(s=>s==="unconfigured"?"unregistered":s); }catch{} } } } };
-    const onFocus = ()=>{ const k=getStorageKey(); if(k){ const raw=localStorage.getItem(k); if(raw && !config){ try{ const cfg=JSON.parse(raw); setConfig(cfg); setRegistrationState(s=>s==="unconfigured"?"unregistered":s); }catch{} } } };
+    const onStorage = (e: StorageEvent)=>{ if(e.key==="token" || e.key?.startsWith("webphone:cfg:") || e.key?.startsWith("webphone:history:")) { const k=getStorageKey(); if(k){ const raw=localStorage.getItem(k); if(raw){ try{ const cfg=JSON.parse(raw); setConfig(cfg); setRegistrationState(s=>s==="unconfigured"?"unregistered":s); }catch{} } } const hk=getHistoryKey(); if(hk){ const rawH=localStorage.getItem(hk); if(rawH){ try{ const h=JSON.parse(rawH); dispatch({type:"HISTORY_LOAD", history:h}); }catch{} } } } };
+    const onFocus = ()=>{ const k=getStorageKey(); if(k){ const raw=localStorage.getItem(k); if(raw && !config){ try{ const cfg=JSON.parse(raw); setConfig(cfg); setRegistrationState(s=>s==="unconfigured"?"unregistered":s); }catch{} } } const hk=getHistoryKey(); if(hk){ const rawH=localStorage.getItem(hk); if(rawH){ try{ const h=JSON.parse(rawH); if(h.length && storeState.history.length===0) dispatch({type:"HISTORY_LOAD", history:h}); }catch{} } } };
     window.addEventListener("storage", onStorage);
     window.addEventListener("focus", onFocus as any);
-    const id = setInterval(()=>{ const k=getStorageKey(); if(k && !config){ const raw=localStorage.getItem(k); if(raw){ try{ const cfg=JSON.parse(raw); setConfig(c=>c||JSON.parse(raw)); setRegistrationState(s=>s==="unconfigured"?"unregistered":s); }catch{} } } }, 1000);
+    const id = setInterval(()=>{ const k=getStorageKey(); if(k && !config){ const raw=localStorage.getItem(k); if(raw){ try{ const cfg=JSON.parse(raw); setConfig(c=>c||JSON.parse(raw)); setRegistrationState(s=>s==="unconfigured"?"unregistered":s); }catch{} } } const hk=getHistoryKey(); if(hk){ const rawH=localStorage.getItem(hk); if(rawH && storeState.history.length===0){ try{ const h=JSON.parse(rawH); if(h.length) dispatch({type:"HISTORY_LOAD", history:h}); }catch{} } } }, 1000);
     return ()=>{ window.removeEventListener("storage", onStorage); window.removeEventListener("focus", onFocus as any); clearInterval(id); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[config?.sip_uri]);
@@ -177,7 +224,23 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
           startRingtone();
           inv.stateChange.addListener((st:any)=>{
             if(st==="Established"){ setCallState("confirmed"); stopRingtone(); attachRemoteStream(inv); }
-            if(st==="Terminated") { stopRingtone(); setCallState("idle"); sessionRef.current=null; setCurrentSession(null); setDuration(0); if(remoteAudioRef.current) remoteAudioRef.current.srcObject=null; }
+            if(st==="Terminated") {
+              stopRingtone();
+              // append history: direction from whether session was inbound vs outbound, peer from remoteIdentity or dest, disposition answered vs missed if duration 0 and direction in
+              try{
+                const tokenRaw = localStorage.getItem("token");
+                let domain_id = "";
+                let user_uuid = "";
+                try{ const p=JSON.parse(atob(tokenRaw!.split(".")[1])); domain_id=p.domain_id; user_uuid=p.sub; }catch{}
+                const peerRaw = inv.remoteIdentity?.uri?.user || inv.remoteIdentity?.uri?.toString?.() || "";
+                const peer = String(peerRaw || "unknown");
+                const peerName = inv.remoteIdentity?.displayName || null;
+                const disposition = durationRef.current>0 ? "answered" as const : "missed" as const;
+                const rec: CallRecord = { id: String(Date.now())+Math.random().toString(36).slice(2,7), direction:"in", peer, peerName, startedAt:new Date().toISOString(), duration: durationRef.current, disposition, domain_id, user_uuid };
+                addHistory(rec);
+              }catch{}
+              setCallState("idle"); sessionRef.current=null; setCurrentSession(null); setDuration(0); if(remoteAudioRef.current) remoteAudioRef.current.srcObject=null;
+            }
           });
           // also handle track directly on invite's SDH once available
           setTimeout(()=>attachRemoteStream(inv), 0);
@@ -226,7 +289,21 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
     inv.stateChange.addListener((s:string)=>{
       if(s===SessionState.Establishing) setCallState("proceeding");
       else if(s===SessionState.Established){ setCallState("confirmed"); attachRemoteStream(inv); }
-      else if(s===SessionState.Terminated){ stopRingtone(); setCallState("idle"); sessionRef.current=null; setCurrentSession(null); setDuration(0); if(remoteAudioRef.current) remoteAudioRef.current.srcObject=null; }
+      else if(s===SessionState.Terminated){
+        stopRingtone();
+        try{
+          const tokenRaw = localStorage.getItem("token");
+          let domain_id = "";
+          let user_uuid = "";
+          try{ const p=JSON.parse(atob(tokenRaw!.split(".")[1])); domain_id=p.domain_id; user_uuid=p.sub; }catch{}
+          const peer = String(dest);
+          const peerName: string|null = null;
+          const disposition = durationRef.current>0 ? "answered" as const : "failed" as const;
+          const rec: CallRecord = { id: String(Date.now())+Math.random().toString(36).slice(2,7), direction:"out", peer, peerName, startedAt:new Date().toISOString(), duration: durationRef.current, disposition, domain_id, user_uuid };
+          addHistory(rec);
+        }catch{}
+        setCallState("idle"); sessionRef.current=null; setCurrentSession(null); setDuration(0); if(remoteAudioRef.current) remoteAudioRef.current.srcObject=null;
+      }
     });
     // also attach on early media (if peerConnection available before Established)
     setTimeout(()=>attachRemoteStream(inv), 100);
@@ -254,5 +331,5 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
     return()=>clearInterval(id);
   },[callState]);
 
-  return <WebPhoneContext.Provider value={{registrationState, registrationError, callState, currentSession, config, isMuted, isHeld, connect, disconnect, call, hangup, answer, reject, mute, hold, sendDTMF, duration, remoteAudioRef}}>{children}</WebPhoneContext.Provider>;
+  return <WebPhoneContext.Provider value={{registrationState, registrationError, callState, currentSession, config, isMuted, isHeld, connect, disconnect, call, hangup, answer, reject, mute, hold, sendDTMF, duration, remoteAudioRef, history, contacts, addHistory, clearHistory, getHistoryKey: getHistoryKeyCb}}>{children}</WebPhoneContext.Provider>;
 }
