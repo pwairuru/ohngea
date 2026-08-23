@@ -2,6 +2,7 @@ import * as React from "react";
 import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate, Navigate } from "react-router-dom";
 import { ThemeProvider, ThemeToggle } from "./components/theme/ThemeProvider";
 import { Toaster } from "./lib/toast";
+import { ConfirmProvider } from "./components/ui/confirm";
 import { FsStatus } from "./components/FsStatus";
 import { Dashboard } from "./routes/Dashboard";
 import { Extensions } from "./routes/Extensions";
@@ -285,8 +286,9 @@ function Nav() {
 export default function App() {
   return (
     <ThemeProvider>
-      <Toaster />
-      <BrowserRouter>
+      <ConfirmProvider>
+        <Toaster />
+        <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/setup" element={<Setup />} />
@@ -300,6 +302,7 @@ export default function App() {
           />
         </Routes>
       </BrowserRouter>
+      </ConfirmProvider>
     </ThemeProvider>
   );
 }
