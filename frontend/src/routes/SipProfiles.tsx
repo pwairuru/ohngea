@@ -8,8 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Dialog, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Badge } from "../components/ui/badge";
 import { Pencil, Power, PowerOff, Trash2, RefreshCw } from "lucide-react";
+import { useConfirm } from "../components/ui/confirm";
+import { toast, toastError } from "../lib/toast";
 
 export function SipProfiles() {
+  const confirm = useConfirm();
   const [data, setData] = React.useState<any[]>([]);
   const [open, setOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<any | null>(null);
@@ -64,17 +67,19 @@ export function SipProfiles() {
     try {
       if (editing) await apiFetch(`/sip_profiles/${editing.sip_profile_uuid}`, { method: "PATCH", body: JSON.stringify(form) });
       else await apiFetch("/sip_profiles", { method: "POST", body: JSON.stringify(form) });
+      toast(`SIP profile ${form.name} ${editing ? "updated" : "created"}`, { variant: "success" });
       setOpen(false); setEditing(null); load(); loadStatus();
       // give FS a moment to restart profile
       setTimeout(loadStatus, 3000);
-    } catch (e: any) { alert(e.message); }
+    } catch (err: any) { toastError(err); }
   };
   const toggleEnabled = async (p: any) => {
-    try { await apiFetch(`/sip_profiles/${p.sip_profile_uuid}`, { method: "PATCH", body: JSON.stringify({ enabled: !p.enabled }) }); load(); loadStatus(); } catch (e: any) { alert(e.message); }
+    try { await apiFetch(`/sip_profiles/${p.sip_profile_uuid}`, { method: "PATCH", body: JSON.stringify({ enabled: !p.enabled }) }); toast(`SIP profile ${p.name} ${!p.enabled ? "enabled" : "disabled"}`); load(); loadStatus(); } catch (err: any) { toastError(err); }
   };
   const deleteProfile = async (p: any) => {
-    if (!confirm(`Delete SIP profile ${p.name}?`)) return;
-    try { await apiFetch(`/sip_profiles/${p.sip_profile_uuid}`, { method: "DELETE" }); load(); loadStatus(); } catch (e: any) { alert(e.message); }
+    const ok = await confirm({ title: `Delete SIP profile ${p.name}?`, description: "This cannot be undone.", confirmLabel: "Delete" });
+    if (!ok) return;
+    try { await apiFetch(`/sip_profiles/${p.sip_profile_uuid}`, { method: "DELETE" }); toast(`SIP profile ${p.name} deleted`); load(); loadStatus(); } catch (err: any) { toastError(err); }
   };
 
   return (

@@ -5,6 +5,9 @@ import { ThemeProvider, ThemeToggle } from "./components/theme/ThemeProvider";
 import { Toaster } from "./lib/toast";
 import { ConfirmProvider } from "./components/ui/confirm";
 import { FsStatus } from "./components/FsStatus";
+import { WebPhoneProvider } from "./context/WebPhoneContext";
+import { WebPhonePopup } from "./components/WebPhone/WebPhonePopup";
+import { WebPhoneDock } from "./components/WebPhone/WebPhoneDock";
 import { Sidebar } from "./components/shell/Sidebar";
 import { MobileDrawer } from "./components/shell/MobileDrawer";
 import { CommandPalette } from "./components/shell/CommandPalette";
@@ -15,6 +18,9 @@ import { Dashboard } from "./routes/Dashboard";
 import { Extensions } from "./routes/Extensions";
 import { Gateways } from "./routes/Gateways";
 import { Cdr } from "./routes/Cdr";
+import { Phone } from "./routes/Phone";
+import { System } from "./routes/System";
+import { Apps } from "./routes/Apps";
 import { Dialplans } from "./routes/Dialplans";
 import { Devices } from "./routes/Devices";
 import { IvrMenus } from "./routes/IvrMenus";
@@ -90,6 +96,7 @@ function PaletteTrigger() {
 
 function Nav() {
   const [open, setOpen] = React.useState(false);
+  const [webPhoneOpen, setWebPhoneOpen] = React.useState(false);
   return (
     <>
       <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background px-4 md:px-6">
@@ -107,11 +114,13 @@ function Nav() {
         </div>
         <div className="flex items-center gap-2">
           <FsStatus />
+          <WebPhonePopup open={webPhoneOpen} onOpenChange={setWebPhoneOpen} />
           <CommandPalette />
           <ThemeToggle />
           <UserMenu />
         </div>
       </header>
+      <WebPhoneDock onExpand={() => setWebPhoneOpen(true)} />
       <div className="flex">
         <Sidebar />
         <MobileDrawer open={open} onClose={() => setOpen(false)} />
@@ -124,6 +133,7 @@ function Nav() {
                 <Route path="/dialplans" element={<Dialplans />} />
                 <Route path="/gateways" element={<Gateways />} />
                 <Route path="/cdr" element={<Cdr />} />
+                <Route path="/phone" element={<Phone />} />
                 <Route path="/devices" element={<Devices />} />
                 <Route path="/ivr" element={<IvrMenus />} />
                 <Route path="/ring_groups" element={<RingGroups />} />
@@ -162,11 +172,13 @@ function Nav() {
                 <Route path="/operator_panel" element={<OperatorPanel />} />
                 <Route path="/logs" element={<Logs />} />
                 <Route path="/domain_limits" element={<DomainLimits />} />
+                <Route path="/system" element={<System />} />
                 <Route path="/vars" element={<Vars />} />
                 <Route path="/destinations" element={<Destinations />} />
                 <Route path="/users" element={<Users />} />
                 <Route path="/domains" element={<Domains />} />
                 <Route path="/sip_profiles" element={<SipProfiles />} />
+                <Route path="/apps" element={<Apps />} />
                 <Route path="/plugins" element={<Plugins />} />
                 <Route path="/plugins/:name" element={<PluginDetail />} />
                 <Route path="*" element={<div className="p-4">Not found</div>} />
@@ -182,10 +194,11 @@ function Nav() {
 export default function App() {
   return (
     <ThemeProvider>
-      <ConfirmProvider>
-        <Toaster />
-        <BrowserRouter>
-          <PaletteProvider>
+      <WebPhoneProvider>
+        <ConfirmProvider>
+          <Toaster />
+          <BrowserRouter>
+            <PaletteProvider>
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/setup" element={<Setup />} />
@@ -198,9 +211,10 @@ export default function App() {
                 }
               />
             </Routes>
-          </PaletteProvider>
-        </BrowserRouter>
-      </ConfirmProvider>
+            </PaletteProvider>
+          </BrowserRouter>
+        </ConfirmProvider>
+      </WebPhoneProvider>
     </ThemeProvider>
   );
 }

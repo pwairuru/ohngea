@@ -37,13 +37,8 @@ export function System() {
   const loadMetrics = React.useCallback(() => {
     apiFetch("/system/metrics").then((d: any) => {
       setMetrics(d);
-      // also keep info cpu fresh if info already loaded
-      if (info) {
-        // not needed
-      }
     }).catch(() => {});
-    // also refresh full info occasionally for os details
-  }, [info]);
+  }, []);
 
   React.useEffect(() => { loadInfo(); }, [loadInfo]);
   React.useEffect(() => {

@@ -40,8 +40,8 @@ async def test_rls_isolation_conference_centers_and_vars():
         ext=str(7000+int(uuid.uuid4().hex[:3],16)%500)
         r=await ac.post("/api/v1/conference_centers", json={"conference_center_name": n, "conference_center_extension": ext}, headers={"Authorization": f"Bearer {t1}"})
         assert r.status_code in (200,201), r.text
-        r1=await ac.get("/api/v1/conference_centers", headers={"Authorization": f"Bearer {t1}"})
-        r2=await ac.get("/api/v1/conference_centers", headers={"Authorization": f"Bearer {t2}"})
+        r1=await ac.get("/api/v1/conference_centers?per_page=100", headers={"Authorization": f"Bearer {t1}"})
+        r2=await ac.get("/api/v1/conference_centers?per_page=100", headers={"Authorization": f"Bearer {t2}"})
         d1=[d.get("conference_center_name") for d in r1.json().get("data",[])]
         d2=[d.get("conference_center_name") for d in r2.json().get("data",[])]
         assert n in d1 and n not in d2
@@ -49,8 +49,8 @@ async def test_rls_isolation_conference_centers_and_vars():
         vn=f"rls-v-{uuid.uuid4().hex[:6]}"
         r=await ac.post("/api/v1/vars", json={"var_name": vn, "var_value":"x","var_category":"testing"}, headers={"Authorization": f"Bearer {t1}"})
         assert r.status_code in (200,201), r.text
-        r1=await ac.get("/api/v1/vars", headers={"Authorization": f"Bearer {t1}"})
-        r2=await ac.get("/api/v1/vars", headers={"Authorization": f"Bearer {t2}"})
+        r1=await ac.get("/api/v1/vars?per_page=100", headers={"Authorization": f"Bearer {t1}"})
+        r2=await ac.get("/api/v1/vars?per_page=100", headers={"Authorization": f"Bearer {t2}"})
         v1=[d.get("var_name") for d in r1.json().get("data",[])]
         v2=[d.get("var_name") for d in r2.json().get("data",[])]
         assert vn in v1 and vn not in v2
