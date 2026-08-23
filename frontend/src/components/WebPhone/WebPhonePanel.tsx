@@ -55,14 +55,12 @@ export function WebPhonePanel({open, onOpenChange, embedded}:{open:boolean; onOp
         const mappedUsers=userData.map((u:any)=>({ id:u.user_uuid || u.id, kind:"user", primary:u.username || u.extension || u.primary, name:u.contact_name || u.username || u.primary, favorite: favSet.has(u.user_uuid || u.id), domain_id: u.domain_id || domain }));
         const merged=[...mappedExt, ...mappedUsers].filter((c:any)=>c.primary).map((c:any)=>({...c, favorite: favSet.has(c.id)}));
         if(cancelled) return;
-        setContacts(prev=>{
-          if(cancelled) return prev;
+        setContacts(()=>{
+          if(cancelled) return [];
           let latestIds:string[]=[];
           try{ const raw=localStorage.getItem(favKey); if(raw) latestIds=JSON.parse(raw); }catch{}
           const latestSet=new Set(latestIds);
-          const withLatest=merged.map((c:any)=>({...c, favorite: latestSet.has(c.id)}));
-          if(prev.length===0) return withLatest;
-          return prev.map((p:any)=>({...p, favorite: latestSet.has(p.id)}));
+          return merged.map((c:any)=>({...c, favorite: latestSet.has(c.id)}));
         });
       }catch{
         if(!cancelled) setContacts([]);
@@ -80,8 +78,8 @@ export function WebPhonePanel({open, onOpenChange, embedded}:{open:boolean; onOp
       }
       if(e.key==='Escape'&&callState!=="idle") hangup();
     };
-    window.addEventListener("keydown",h);
-    return()=>window.removeEventListener("keydown",h);
+    window.addEventListener("keydown",h,true);
+    return()=>window.removeEventListener("keydown",h,true);
   },[callState]);
 
   function handleToggleFav(id:string){

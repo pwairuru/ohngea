@@ -89,12 +89,17 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
     try{ localStorage.setItem(hk, JSON.stringify(storeState.history)); }catch{}
   },[storeState.history]);
 
+  // TODO(phase2): BroadcastChannel single-UA enforcement — parked per final review.
   function addHistory(rec: CallRecord){
     try{
       const hk = getHistoryKey();
       if(hk){
-        const next = reducer(storeState, {type:"HISTORY_APPEND", rec} as any);
-        try{ localStorage.setItem(hk, JSON.stringify(next.history)); }catch{}
+        try{
+          const raw = localStorage.getItem(hk);
+          const current: CallRecord[] = raw ? JSON.parse(raw) : [];
+          const next = [...current, rec].slice(-100);
+          localStorage.setItem(hk, JSON.stringify(next));
+        }catch{}
       }
     }catch{}
     dispatch({type:"HISTORY_APPEND", rec});
