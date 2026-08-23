@@ -1,8 +1,11 @@
+import re
 from typing import Optional, List
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, Request
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+
+_GROUP_NAME_RE = re.compile(r"^[a-z0-9_-]{2,64}$")
 
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User, Group, Permission, GroupPermission, UserGroup
@@ -111,6 +114,12 @@ async def create_group_ep(
     name = payload.name.strip()
     if len(name) > 64:
         raise HTTPException(status_code=422, detail="name too long")
+    # group_name regex ^[a-z0-9_-]{2,64}$ lower like legacy
+    if not _GROUP_NAME_RE.match(name.lower()):
+        raise HTTPException(status_code=422, detail="group_name must match ^[a-z0-9_-]{2,64}$")
+    # normalize to lower? legacy preserves case but tests use lower; keep as provided lowercased?
+    # keep original but ensure duplicate check uses exact name
+    name = name.lower()
     # determine target domain: None for global
     target_domain = payload.domain_id
     # if payload.domain_id is explicitly None and user wants global, check permission group_global
@@ -225,12 +234,23 @@ async def patch_group_ep(group_uuid: UUID, payload: GroupUpdate, session: AsyncS
         raise HTTPException(status_code=404, detail="Group not found")
     # check level hierarchy for edit
     lvl = await get_user_level(session, user)
-    if g.group_level is not None and g.group_level > lvl and lvl < 80:
+    is_superadmin = "*" in perms
+    if g.group_level is not None and g.group_level > lvl and not is_superadmin:
         raise HTTPException(status_code=403, detail="Group level too high to edit")
+    # protected guard: only superadmin can patch protected groups' level/protected fields
+    if g.group_protected and not is_superadmin:
+        if payload.group_protected is not None or payload.group_level is not None:
+            raise HTTPException(status_code=403, detail="protected group")
+    # only superadmin can change protected flag
+    if payload.group_protected is not None and not is_superadmin:
+        raise HTTPException(status_code=403, detail="protected group")
     if payload.name is not None:
         name = payload.name.strip()
         if not name:
             raise HTTPException(status_code=422, detail="name cannot be empty")
+        if not _GROUP_NAME_RE.match(name.lower()):
+            raise HTTPException(status_code=422, detail="group_name must match ^[a-z0-9_-]{2,64}$")
+        name = name.lower()
         if name != g.name:
             # duplicate check
             if g.domain_id is None:
@@ -253,7 +273,7 @@ async def patch_group_ep(group_uuid: UUID, payload: GroupUpdate, session: AsyncS
     if payload.group_level is not None:
         if payload.group_level not in [10,20,30,40,50,60,70,80,90]:
             raise HTTPException(status_code=422, detail="Invalid group_level")
-        if payload.group_level > lvl and lvl < 80:
+        if payload.group_level > lvl and not is_superadmin:
             raise HTTPException(status_code=403, detail="Cannot set level higher than your own")
         g.group_level = payload.group_level
     if payload.group_protected is not None:

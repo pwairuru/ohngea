@@ -46,6 +46,10 @@ def upgrade() -> None:
         op.create_index("ix_groups_group_level", "groups", ["group_level"])
     except Exception:
         pass
+    try:
+        op.create_index("ix_groups_domain_id", "groups", ["domain_id"])
+    except Exception:
+        pass
     # set defaults for existing superadmin-ish groups: try to set levels based on name
     try:
         op.execute("UPDATE groups SET group_level = 80 WHERE name = 'superadmin'")
@@ -71,10 +75,6 @@ def upgrade() -> None:
     # users: add legacy parity cols
     try:
         op.add_column("users", sa.Column("contact_uuid", sa.Uuid(), nullable=True))
-    except Exception:
-        pass
-    try:
-        op.create_foreign_key("fk_users_contact_uuid", "users", "contacts", ["contact_uuid"], ["contact_uuid"], ondelete="SET NULL")
     except Exception:
         pass
     try:
@@ -213,15 +213,15 @@ def downgrade() -> None:
         op.drop_column("user_groups", "group_name")
     except Exception:
         pass
-    try:
-        op.drop_constraint("fk_users_contact_uuid", "users", type_="foreignkey")
-    except Exception:
-        pass
     for c in ["user_totp_secret", "api_key", "user_type", "user_status", "contact_uuid"]:
         try:
             op.drop_column("users", c)
         except Exception:
             pass
+    try:
+        op.drop_index("ix_groups_domain_id", table_name="groups")
+    except Exception:
+        pass
     try:
         op.drop_index("ix_groups_group_level", table_name="groups")
     except Exception:

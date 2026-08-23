@@ -1,11 +1,18 @@
 from typing import Optional, List
 from uuid import UUID, uuid4
 import uuid6
-from sqlalchemy import select, func, or_, and_, text
+from sqlalchemy import select, func, or_, and_, text, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
 from app.auth.models import Group, User, UserGroup, Permission, GroupPermission
 from app.freeswitch.cache import invalidate_fs_cache_for_session
+
+
+def _is_superadmin(user) -> bool:
+    perms = getattr(user, "_perms", None)
+    if perms is not None:
+        return "*" in perms
+    return False
 
 def uuid7():
     return uuid6.uuid7()
@@ -73,7 +80,8 @@ async def create_group(session: AsyncSession, domain_id: Optional[UUID], name: s
     # hierarchy check: cannot create group with level higher than your own unless superadmin?
     if creator is not None:
         lvl = await get_user_level(session, creator)
-        if group_level > lvl and lvl < 80:
+        is_super = _is_superadmin(creator)
+        if group_level > lvl and not is_super:
             raise HTTPException(status_code=403, detail="Cannot create group with higher level than your own")
     g = Group(domain_id=domain_id, name=name, description=description, group_level=group_level, group_protected=group_protected)
     session.add(g)
@@ -139,10 +147,9 @@ async def add_user_to_group(session: AsyncSession, domain_id: UUID, group_uuid: 
         raise HTTPException(status_code=404, detail="User not found")
     # ensure user domain matches target_domain unless show_all (simplify enforce)
     if str(user.domain_id) != str(target_domain):
-        # allow cross-domain if superadmin? check actor level 80
+        # allow cross-domain if superadmin? check actor is superadmin via "*"
         if actor:
-            lvl = await get_user_level(session, actor)
-            if lvl < 80:
+            if not _is_superadmin(actor):
                 raise HTTPException(status_code=403, detail="Cannot add user from different domain")
         else:
             raise HTTPException(status_code=404, detail="User not found in domain")
@@ -154,7 +161,7 @@ async def add_user_to_group(session: AsyncSession, domain_id: UUID, group_uuid: 
         actor_level = await get_user_level(session, actor)
         my_groups = await get_user_group_uuids(session, actor)
         if grp.group_level is not None and grp.group_level >= actor_level and grp.group_uuid not in my_groups:
-            if actor_level < 80:
+            if not _is_superadmin(actor):
                 raise HTTPException(status_code=403, detail="Cannot assign group at your level or higher unless you are member")
         # superadmin group protection: only superadmin can manage superadmin members (legacy group_members.php:37)
         if grp.name == "superadmin":
@@ -166,7 +173,7 @@ async def add_user_to_group(session: AsyncSession, domain_id: UUID, group_uuid: 
                 if n == "superadmin":
                     is_super = True
                     break
-            if not is_super and actor_level < 80:
+            if not is_super and not _is_superadmin(actor):
                 raise HTTPException(status_code=403, detail="Only superadmin can manage superadmin group")
     ug = UserGroup(user_uuid=user_uuid, group_uuid=group_uuid, domain_id=target_domain, group_name=grp.name)
     session.add(ug)
@@ -188,13 +195,11 @@ async def remove_user_from_group(session: AsyncSession, domain_id: UUID, group_u
     # check domain mismatch: if ug domain != caller domain and not superadmin, deny
     if str(ug.domain_id) != str(domain_id):
         if actor:
-            lvl = await get_user_level(session, actor)
-            if lvl < 80:
+            if not _is_superadmin(actor):
                 raise HTTPException(status_code=403, detail="Cannot remove cross-domain membership")
     # superadmin protection
     if grp and grp.name == "superadmin" and actor:
-        lvl = await get_user_level(session, actor)
-        is_super = lvl >= 80
+        is_super = _is_superadmin(actor)
         if not is_super:
             # check membership
             my_groups = await get_user_group_uuids(session, actor)
@@ -300,17 +305,11 @@ async def toggle_group(session: AsyncSession, domain_id: UUID, group_uuid: UUID,
     g = await get_group(session, domain_id, group_uuid, show_all=True)
     if not g:
         raise HTTPException(status_code=404, detail="Group not found")
-    # protected guard: only superadmin can toggle protected groups? For now allow toggling but ensure guard if needed
-    # If group is protected and caller not superadmin, block toggle (legacy group_protected handling)
-    # We check is_superadmin; if not supplied and actor provided, derive
+    # protected guard: only superadmin can toggle protected groups (service-level guard)
     if not is_superadmin and actor is not None:
-        perms = getattr(actor, "_perms", None)
-        if perms is not None:
-            is_superadmin = "*" in perms
-        else:
-            lvl = await get_user_level(session, actor)
-            if lvl >= 80:
-                is_superadmin = True
+        is_superadmin = _is_superadmin(actor)
+    if g.group_protected and not is_superadmin:
+        raise HTTPException(status_code=403, detail="protected group")
     # toggle flips correctly
     g.group_protected = not g.group_protected
     await session.commit()
@@ -326,19 +325,16 @@ async def delete_group(session: AsyncSession, domain_id: UUID, group_uuid: UUID,
     g = await get_group(session, domain_id, group_uuid, show_all=True)
     if not g:
         raise HTTPException(status_code=404, detail="Group not found")
-    # protected guard: if group_protected and not superadmin => 403
-    # derive is_superadmin if not supplied but actor given
+    # derive is_superadmin if not supplied but actor given — only via "*" not level
     if not is_superadmin and actor is not None:
-        perms = getattr(actor, "_perms", None)
-        if perms is not None:
-            is_superadmin = "*" in perms
-        else:
-            lvl = await get_user_level(session, actor)
-            if lvl >= 80:
-                is_superadmin = True
+        is_superadmin = _is_superadmin(actor)
     if g.group_protected and not is_superadmin:
         raise HTTPException(status_code=403, detail="protected group")
-    # also delete permissions cascade handled but we delete explicit
+    # permission_protected filter: non-superadmin only removes non-protected assignments
+    if is_superadmin:
+        await session.execute(delete(GroupPermission).where(GroupPermission.group_uuid == group_uuid))
+    else:
+        await session.execute(delete(GroupPermission).where(GroupPermission.group_uuid == group_uuid, GroupPermission.permission_protected == False))
     await session.delete(g)
     await session.commit()
     try:

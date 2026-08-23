@@ -79,6 +79,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("group_uuid"),
         sa.ForeignKeyConstraint(["domain_id"], ["domains.domain_id"], ondelete="CASCADE"),
     )
+    op.create_index("ix_groups_domain_id", "groups", ["domain_id"])
 
     op.create_table(
         "users",
