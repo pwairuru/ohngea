@@ -1,7 +1,7 @@
 # Task 6 Report — Contacts Linkage + User Import/Profile Gaps
 
 **Status:** Done
-**Commit:** 7e91bac6191347b11811c8e61ca86a35ba4baac0 fix(contacts): link user contact CRUD, add import stub, wire contacts router
+**Commit:** 45f4893ed67c0fbe66ba42a3ab9b0f0007bbda4f fix(contacts): link user contact CRUD, add import stub, wire contacts router
 **Branch:** master
 **Base HEAD:** 100178bc05e7a962f4c6435c99b90fa38e5a9bc4
 **Global Constraints Verified:** users.contact_uuid nullable no FK (app/auth/models.py:24, alembic 023 no FK), groups.domain_id nullable for global groups (001_initial + RLS groups policy `domain_id IS NULL OR domain_id = current_setting`), * is superadmin via get_user_permissions/app/auth/service.py and users router perm checks, RLS for contacts already enabled via alembic 002 (ENABLE ROW LEVEL SECURITY + tenant_isolation policy), domain isolation via set_tenant
