@@ -1,7 +1,5 @@
-# grandstream provision
-# MAC: {{ mac }}
-# Domain: {{ domain }}
-# Extension: {{ extension }}
-<device vendor="grandstream" mac="{{ mac }}">
-  <account extension="{{ extension }}" domain="{{ domain }}" />
+# Grandstream provision — collapsed matrix ({{ model|default("base") }})
+# MAC: {{ mac }} Model: {{ model|default("") }}
+<device vendor="grandstream" mac="{{ mac }}" model="{{ model|default("") }}">
+  <account extension="{{ extension }}" domain="{{ domain }}" password="{{ password|default("") }}" />
 </device>

@@ -220,31 +220,91 @@ def build_acl_xml(acls) -> bytes:
 
 
 def build_gateway_xml(gateways, domain_name: str = "") -> bytes:
-    """Build sofia.conf gateway XML. FS expects <gateways><X-PRE-PROCESS ...> or <gateway name=>."""
+    """Build sofia.conf gateway XML for mod_xml_curl.
+
+    FS expects document type freeswitch/xml -> section configuration
+    -> configuration name=sofia.conf -> gateways -> gateway name=.
+    All 30 legacy fields are rendered when present, matching
+    ohngea/resources/switch.php save_gateway_xml() plus extended
+    ping/channel/codec fields.
+    """
     root = etree.Element("document", type="freeswitch/xml")
     section = etree.SubElement(root, "section", name="configuration")
     conf = etree.SubElement(section, "configuration", name="sofia.conf", description="Sofia Gateways")
-    # gateways container (some FS versions use <gateways>, others use <profiles>)
     gateways_el = etree.SubElement(conf, "gateways")
     for gw in gateways:
         name = getattr(gw, "gateway", None) or getattr(gw, "name", "gw")
-        proxy = getattr(gw, "proxy", None) or ""
-        username = getattr(gw, "username", None) or ""
-        password = getattr(gw, "password", None) or ""
-        register = getattr(gw, "register", True)
-        enabled = getattr(gw, "enabled", True)
         g_el = etree.SubElement(gateways_el, "gateway", name=str(name))
-        # only include enabled gateways; disabled still rendered but FS will ignore via register=false
-        if proxy:
-            etree.SubElement(g_el, "param", name="proxy", value=str(proxy))
-        if username:
-            etree.SubElement(g_el, "param", name="username", value=str(username))
-        if password:
-            etree.SubElement(g_el, "param", name="password", value=str(password))
-        etree.SubElement(g_el, "param", name="register", value="true" if register else "false")
-        etree.SubElement(g_el, "param", name="enabled", value="true" if enabled else "false")
+
+        def _bool_str(v):
+            if isinstance(v, bool):
+                return "true" if v else "false"
+            if v is None:
+                return None
+            s = str(v).lower()
+            if s in ("true", "false", "1", "0", "t", "f"):
+                return "true" if s in ("true", "1", "t") else "false"
+            return str(v)
+
+        # helper to add param if value present
+        def _add(param, value, is_bool=False):
+            if value is None or value == "":
+                return
+            if is_bool:
+                bv = _bool_str(value)
+                if bv is None:
+                    return
+                etree.SubElement(g_el, "param", name=param, value=bv)
+            else:
+                etree.SubElement(g_el, "param", name=param, value=str(value))
+
+        # core auth
+        _add("username", getattr(gw, "username", None))
+        _add("password", getattr(gw, "password", None))
+        _add("auth-username", getattr(gw, "auth_username", None))
+        _add("realm", getattr(gw, "realm", None))
+        _add("distinct-to", getattr(gw, "distinct_to", None), is_bool=True)
+        _add("from-user", getattr(gw, "from_user", None))
+        _add("from-domain", getattr(gw, "from_domain", None))
+        # proxy / transport
+        _add("proxy", getattr(gw, "proxy", None))
+        _add("register-proxy", getattr(gw, "register_proxy", None))
+        _add("outbound-proxy", getattr(gw, "outbound_proxy", None))
+        _add("register-transport", getattr(gw, "register_transport", None))
+        _add("contact-params", getattr(gw, "contact_params", None))
+        _add("extension", getattr(gw, "extension", None))
+        _add("extension-in-contact", getattr(gw, "extension_in_contact", None))
+        # timers
+        _add("expire-seconds", getattr(gw, "expire_seconds", None))
+        _add("retry-seconds", getattr(gw, "retry_seconds", None))
+        _add("ping", getattr(gw, "ping", None))
+        _add("ping-min", getattr(gw, "ping_min", None))
+        _add("ping-max", getattr(gw, "ping_max", None))
+        # booleans
+        _add("contact-in-ping", getattr(gw, "contact_in_ping", None), is_bool=True)
+        _add("caller-id-in-from", getattr(gw, "caller_id_in_from", None), is_bool=True)
+        _add("supress-cng", getattr(gw, "supress_cng", None), is_bool=True)
+        # sip / codec
+        _add("sip-cid-type", getattr(gw, "sip_cid_type", None))
+        # codec-prefs legacy is space/comma list
+        _add("codec-prefs", getattr(gw, "codec_prefs", None))
+        _add("channels", getattr(gw, "channels", None))
+        # context/profile
+        _add("context", getattr(gw, "context", None))
+        # profile is not a gateway param but useful for debugging; FS uses directory profile separation externally
+        # keep hostname as comment param if present (not standard FS param but helpful)
+        _add("hostname", getattr(gw, "hostname", None))
+
+        # register / enabled always
+        # gateway_register is SA column "register"; property .register proxies it
+        reg = getattr(gw, "gateway_register", None)
+        if reg is None:
+            reg = getattr(gw, "register", True)
+        _add("register", reg, is_bool=True)
+        # Note: enabled is DB gating; disabled gateways still rendered but register false; keep param for visibility
+        _add("enabled", getattr(gw, "enabled", True), is_bool=True)
         if domain_name:
-            etree.SubElement(g_el, "param", name="domain", value=str(domain_name))
+            _add("domain", domain_name)
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", pretty_print=True)
 
 

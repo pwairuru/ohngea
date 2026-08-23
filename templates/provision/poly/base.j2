@@ -1,8 +1,6 @@
-# Poly provision
-# MAC: {{ mac }}
-# Domain: {{ domain }}
-# Extension: {{ extension }}
+# Poly provision — collapsed matrix ({{ model|default("base") }})
+# MAC: {{ mac }} Model: {{ model|default("") }}
 <poly>
-  <device mac="{{ mac }}" vendor="poly" />
-  <line extension="{{ extension }}" domain="{{ domain }}" />
+  <device mac="{{ mac }}" vendor="poly" model="{{ model|default("") }}" />
+  <line extension="{{ extension }}" domain="{{ domain }}" password="{{ password|default("") }}" />
 </poly>

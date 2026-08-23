@@ -14,17 +14,41 @@ env = Environment(
 )
 
 
+_VENDOR_ALIASES = {
+    "polycom": ["poly", "polycom"],
+    "poly": ["poly", "polycom"],
+}
+
+def _vendor_candidates(vendor: str) -> list[str]:
+    vendor = vendor.lower().strip()
+    if vendor in _VENDOR_ALIASES:
+        return _VENDOR_ALIASES[vendor]
+    return [vendor]
+
+
 def render_provision(vendor: str, context: dict, model: str | None = None) -> str:
-    """Render provision template for vendor (+ optional model)."""
-    vendor = vendor.lower()
+    """Render provision template for vendor (+ optional model) — collapsed matrix.
+
+    Collapsed matrix: each vendor has base.j2 plus optional model-specific
+    overrides (e.g. yealink/T46S.j2). Vendors like poly/polycom share aliases.
+    """
+    raw_vendor = vendor or context.get("vendor") or "poly"
+    vendor_variants = _vendor_candidates(str(raw_vendor))
+    vendor_primary = vendor_variants[0]
     model = (model or context.get("model") or "").strip()
+    # ensure context has normalized vendor/model for templates
+    context = dict(context)
+    context.setdefault("vendor", vendor_primary)
+    context.setdefault("model", model)
+    # also expose vendor alias for templates
     candidates: list[str] = []
-    if model:
-        # model-specific first: e.g. poly/VVX450.j2, poly/vvx450.j2, yealink/T46S.j2
-        m = model.strip()
-        candidates.extend([f"{vendor}/{m}.j2", f"{vendor}/{m.lower()}.j2", f"{vendor}/{m.upper()}.j2"])
-    # fallback to vendor base
-    candidates.extend([f"{vendor}/base.j2", f"{vendor}.j2", "base.j2"])
+    for v in vendor_variants:
+        if model:
+            m = model.strip()
+            candidates.extend([f"{v}/{m}.j2", f"{v}/{m.lower()}.j2", f"{v}/{m.upper()}.j2"])
+    for v in vendor_variants:
+        candidates.extend([f"{v}/base.j2", f"{v}.j2"])
+    candidates.append("base.j2")
     last_err = None
     for name in candidates:
         try:
@@ -37,10 +61,10 @@ def render_provision(vendor: str, context: dict, model: str | None = None) -> st
     mac = context.get("mac", "")
     ext = context.get("extension", "")
     domain = context.get("domain", "")
-    return f"# Provision for {vendor}\nmac={mac}\nextension={ext}\ndomain={domain}\n"
+    return f"# Provision for {vendor_primary}\nmac={mac}\nextension={ext}\ndomain={domain}\n"
 
 
 def available_vendors() -> list[str]:
     if not TEMPLATE_DIR.exists():
         return ["poly", "yealink"]
-    return [p.name for p in TEMPLATE_DIR.iterdir() if p.is_dir()]
+    return sorted([p.name for p in TEMPLATE_DIR.iterdir() if p.is_dir()])

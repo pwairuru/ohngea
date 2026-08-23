@@ -159,26 +159,41 @@ async def delete_device(device_uuid: UUID, session: AsyncSession = Depends(get_s
 
 @provision_router.get("/provision/{mac}.cfg", response_class=PlainTextResponse)
 async def get_provision(mac: str, session: AsyncSession = Depends(get_session)):
-    # provision is unauthenticated but scoped to device lookup; for now render generic
-    # try find device by mac
+    # provision is unauthenticated but scoped to device lookup; Jinga collapsed vendor matrix
     from sqlalchemy import select
+
     r = await session.execute(select(Device).where(Device.mac.ilike(mac)))
     device = r.scalar_one_or_none()
-    ctx = {"mac": mac, "vendor": device.vendor if device else "poly", "extension": "", "domain": ""}
+    vendor = (device.vendor if device and device.vendor else "poly")
+    model = (device.model if device and device.model else "")
+    # prefer device_vendor/device_model legacy aliases if vendor not set
+    if device and not vendor and getattr(device, "device_vendor", None):
+        vendor = device.device_vendor
+    if device and not model and getattr(device, "device_model", None):
+        model = device.device_model
+    ctx = {"mac": mac, "vendor": vendor, "model": model, "extension": "", "domain": ""}
     if device:
-        # fetch extension if linked
+        # include device meta for templates
+        ctx["label"] = getattr(device, "label", "") or ""
+        ctx["device_template"] = getattr(device, "device_template", "") or ""
         if device.extension_uuid:
             from app.extensions.models import Extension
+
             re = await session.execute(select(Extension).where(Extension.extension_uuid == device.extension_uuid))
             ext = re.scalar_one_or_none()
             if ext:
                 ctx["extension"] = ext.extension
                 ctx["domain"] = str(ext.domain_id)
-                # fetch domain name
                 from app.domains.models import Domain
+
                 rd = await session.execute(select(Domain).where(Domain.domain_id == ext.domain_id))
                 dom = rd.scalar_one_or_none()
                 if dom:
                     ctx["domain"] = dom.domain_name
-    out = render_provision(ctx["vendor"], ctx)
+                ctx["password"] = getattr(ext, "password", "") or ""
+                ctx["effective_caller_id_name"] = getattr(ext, "effective_caller_id_name", "") or ""
+    # include normalized mac variants for templates
+    ctx["mac_upper"] = mac.upper()
+    ctx["mac_lower"] = mac.lower()
+    out = render_provision(vendor, ctx, model=model)
     return PlainTextResponse(out, media_type="text/plain")

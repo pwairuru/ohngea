@@ -1,7 +1,13 @@
-# Yealink provision
-# MAC: {{ mac }}
+# Yealink provision — collapsed matrix ({{ model|default("base") }})
+# MAC: {{ mac }}  Model: {{ model|default("") }}
+account.1.enable = 1
+account.1.label = {{ extension }}
+account.1.display_name = {{ extension }}
 account.1.sip_server_host = {{ domain }}
+account.1.sip_server_port = 5060
 account.1.user_name = {{ extension }}
 account.1.auth_name = {{ extension }}
+{% if password %}account.1.password = {{ password }}{% endif %}
+account.1.sip_transp = 0
 #!version:1.0.0.1
 mac={{ mac }}

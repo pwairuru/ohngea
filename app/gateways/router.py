@@ -10,6 +10,18 @@ from app.db import get_session, set_tenant
 from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 from app.gateways.models import Gateway
 
+
+async def _sofia_rescan(profile: str | None):
+    """Best-effort ESL sofia profile rescan, mirrors legacy gateway_edit.php."""
+    if not profile:
+        profile = "external"
+    try:
+        from app.freeswitch.esl_client import esl_client
+
+        await esl_client.sofia_rescan(profile)
+    except Exception:
+        pass
+
 router = APIRouter(prefix="/api/v1/gateways", tags=["gateways"])
 
 
@@ -67,6 +79,8 @@ async def create_gateway(payload: dict, response: Response, session: AsyncSessio
         await invalidate_fs_cache_for_session(session, domain_id)
     except Exception:
         pass
+    # ESL sofia rescan for profile (legacy: sofia profile external rescan)
+    await _sofia_rescan(getattr(gw, "profile", None) or data.get("profile") or "external")
     await session.refresh(gw)
     response.headers["Location"] = f"/api/v1/gateways/{gw.gateway_uuid}"
     # return full
@@ -120,6 +134,7 @@ async def patch_gateway(gateway_uuid: UUID, payload: dict, session: AsyncSession
         await invalidate_fs_cache_for_session(session, domain_id)
     except Exception:
         pass
+    await _sofia_rescan(getattr(g, "profile", None) or "external")
     await session.refresh(g)
     d = {c.name: getattr(g, c.name) for c in g.__table__.columns}
     for k in ["gateway_uuid","domain_id"]:
@@ -139,10 +154,13 @@ async def delete_gateway(gateway_uuid: UUID, session: AsyncSession = Depends(get
     g = r.scalar_one_or_none()
     if not g:
         raise HTTPException(status_code=404, detail="Gateway not found")
+    # capture profile before delete for rescan
+    _profile = getattr(g, "profile", None)
     await session.delete(g)
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
     except Exception:
         pass
+    await _sofia_rescan(_profile or "external")
     return Response(status_code=204)
