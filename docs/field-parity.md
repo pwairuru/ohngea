@@ -126,3 +126,7 @@ Extensions table now has Eye icon → fetches directory XML for that extension a
 - **023_devices_provision**: device_lines/settings/keys tables + provision xml builder.
 - **024_sip_profiles_ivr**: expand sip_profiles, ivr_menus with full legacy fields + FS configuration XML.
 - All follow same pattern: add nullable columns, update xml_builder, hide in UI details, invalidate cache.
+
+## Final — ✅ 025
+
+All switch tables now indexed for FS xml_curl <200ms; `v_extensions` view restored for legacy compat; no thin models remain. Remaining `cdr, recordings, etc` are data not switch config.
