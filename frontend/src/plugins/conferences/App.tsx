@@ -1,4 +1,6 @@
 import * as React from "react";
+import { EmptyState } from "../../components/ui/empty-state";
+import { toast, toastError } from "../../lib/toast";
 import { apiFetch } from "../../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
@@ -217,9 +219,7 @@ export default function ConferencesPlugin() {
                 })}
                 {items.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
-                      No conferences — create one above or check RLS tenant
-                    </TableCell>
+                    <TableCell colSpan={7}><EmptyState title="No conferences" /></TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -241,7 +241,7 @@ export default function ConferencesPlugin() {
                 </Card>
               );
             })}
-            {items.length === 0 && <div className="text-center py-4 text-muted-foreground">No conferences</div>}
+            {items.length === 0 && <EmptyState title="No conferences" />}
           </div>
           <div className="flex items-center justify-between mt-4 text-sm">
             <span>Total: {total}</span>

@@ -1,4 +1,6 @@
 import * as React from "react";
+import { EmptyState } from "../../components/ui/empty-state";
+import { toast, toastError } from "../../lib/toast";
 import { apiFetch } from "../../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
@@ -206,9 +208,7 @@ export default function VoicemailPlugin() {
                 })}
                 {items.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
-                      No mailboxes — create one above or check RLS tenant
-                    </TableCell>
+                    <TableCell colSpan={8}><EmptyState title="No mailboxes" /></TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -229,7 +229,7 @@ export default function VoicemailPlugin() {
                 </Card>
               );
             })}
-            {items.length === 0 && <div className="text-center py-4 text-muted-foreground">No mailboxes</div>}
+            {items.length === 0 && <EmptyState title="No mailboxes" />}
           </div>
           <div className="flex items-center justify-between mt-4 text-sm">
             <span>Total: {total}</span>

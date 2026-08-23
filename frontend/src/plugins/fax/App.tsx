@@ -1,4 +1,6 @@
 import * as React from "react";
+import { EmptyState } from "../../components/ui/empty-state";
+import { toast, toastError } from "../../lib/toast";
 import { apiFetch } from "../../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
@@ -24,7 +26,7 @@ export default function FaxPlugin() {
     const me: any = await apiFetch("/auth/me");
     const domain_id = me.domain_id;
     if (!domain_id) {
-      alert("No domain found — create domain first");
+      toastError(new Error("No domain found — create domain first"));
       return;
     }
     await apiFetch("/fax", {
@@ -49,8 +51,8 @@ export default function FaxPlugin() {
         <Button onClick={create} className="w-full">Create</Button>
       </CardContent></Card>
       <Card><CardHeader><CardTitle>Fax Extensions — total {total}</CardTitle></CardHeader><CardContent>
-        <div className="hidden md:block"><Table><TableHeader><TableRow><TableHead>Extension</TableHead><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>{items.map((it: any) => <TableRow key={it.fax_uuid}><TableCell className="font-mono">{it.fax_extension}</TableCell><TableCell>{it.fax_name}</TableCell><TableCell>{it.fax_email || "-"}</TableCell><TableCell><Badge>{it.enabled ? "enabled" : "disabled"}</Badge></TableCell></TableRow>)}{items.length===0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">No fax extensions — total {total}</TableCell></TableRow>}</TableBody></Table></div>
-        <div className="md:hidden grid gap-2">{items.map((it: any) => <Card key={it.fax_uuid} className="p-3"><div className="font-mono font-bold">{it.fax_extension}</div><div className="text-sm">{it.fax_name}</div><div className="text-xs text-muted-foreground">{it.fax_email}</div><Badge>{it.enabled ? "enabled" : "disabled"}</Badge></Card>)}{items.length===0 && <div className="text-center text-muted-foreground py-4">No faxes</div>}</div>
+        <div className="hidden md:block"><Table><TableHeader><TableRow><TableHead>Extension</TableHead><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>{items.map((it: any) => <TableRow key={it.fax_uuid}><TableCell className="font-mono">{it.fax_extension}</TableCell><TableCell>{it.fax_name}</TableCell><TableCell>{it.fax_email || "-"}</TableCell><TableCell><Badge>{it.enabled ? "enabled" : "disabled"}</Badge></TableCell></TableRow>)}{items.length===0 && <TableRow><TableCell colSpan={4}><EmptyState title="No fax extensions" /></TableCell></TableRow>}</TableBody></Table></div>
+        <div className="md:hidden grid gap-2">{items.map((it: any) => <Card key={it.fax_uuid} className="p-3"><div className="font-mono font-bold">{it.fax_extension}</div><div className="text-sm">{it.fax_name}</div><div className="text-xs text-muted-foreground">{it.fax_email}</div><Badge>{it.enabled ? "enabled" : "disabled"}</Badge></Card>)}{items.length===0 && <EmptyState title="No faxes" />}</div>
       </CardContent></Card>
     </div>
   );

@@ -1,45 +1,51 @@
 import * as React from "react";
 import { apiFetch } from "../lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
-import { Badge } from "../components/ui/badge";
+import { DataTable } from "../components/DataTable";
+import type { Column } from "../components/types";
+import { PageHeader } from "../components/shell/PageHeader";
 import { Button } from "../components/ui/button";
 import { Label } from "../components/ui/label";
 import { Dialog, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { toast, toastError } from "../lib/toast";
+import { useAsyncAction } from "../lib/useAsyncAction";
+
 export function SofiaGlobalSettings() {
-  const [data, setData] = React.useState<any[]>([]);
-  const [total, setTotal] = React.useState(0);
   const [open, setOpen] = React.useState(false);
   const [json, setJson] = React.useState(`{
   "global_setting_name": "sip-trace",
   "global_setting_value": "false"
 }`);
-  const load = () => apiFetch("/sofia_global_settings").then((r:any)=>{setData(r.data||[]); setTotal(r.total??r.data?.length??0)}).catch(()=>{});
-  React.useEffect(()=>{load()},[]);
-  const create = async () => {
+  const [reloadKey, setReloadKey] = React.useState(0);
+  const reload = () => setReloadKey((k) => k + 1);
+
+  const { run: create, pending } = useAsyncAction(async () => {
     try {
-      const body = JSON.parse(json);
-      await apiFetch("/sofia_global_settings", { method: "POST", body: JSON.stringify(body) });
-      setOpen(false); load();
-    } catch (e:any) { alert(e.message); }
-  };
+      await apiFetch("/sofia_global_settings", { method: "POST", body: JSON.stringify(JSON.parse(json)) });
+      toast("Sofia setting created", { variant: "success" });
+      setOpen(false);
+      reload();
+    } catch (err) {
+      toastError(err);
+    }
+  });
+
+  const columns: Column<any>[] = [
+    { key: "global_setting_name", header: "Name", className: "num", cell: (r: any) => r["global_setting_name"] ?? r["global_setting_value"] ?? r.name ?? JSON.stringify(r).slice(0,60) },
+    { key: "details", header: "Details", cell: (r: any) => <span className="text-muted-foreground text-xs break-all">{JSON.stringify(r).slice(0, 80)}</span> },
+  ];
+
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex justify-between items-center"><h1 className="text-2xl font-bold">Sofia Global Settings</h1><div className="flex gap-2"><Badge>{total} total</Badge><Button onClick={() => setOpen(true)}>Add Sofia Global Settings</Button></div></div>
-      <Card><CardHeader><CardTitle>Sofia Global Settings</CardTitle></CardHeader><CardContent>
-          <div className="hidden md:block"><Table><TableHeader><TableRow><TableHead>Name / ID</TableHead><TableHead>Details</TableHead></TableRow></TableHeader><TableBody>
-                {data.map((d:any,i:number)=><TableRow key={i}><TableCell className="font-mono text-xs">{d["global_setting_name"] ?? d.name ?? JSON.stringify(d).slice(0,60)}</TableCell><TableCell className="text-xs text-muted-foreground">{JSON.stringify(d).slice(0,80)}</TableCell></TableRow>)}
-                {data.length===0 && <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground py-8">No sofia_global_settings — create via Add button POST /api/v1/sofia_global_settings</TableCell></TableRow>}
-              </TableBody></Table></div>
-          <div className="md:hidden grid gap-3">
-            {data.map((d:any,i:number)=><Card key={i} className="p-3"><div className="font-mono text-xs break-all">{JSON.stringify(d).slice(0,120)}</div></Card>)}
-            {data.length===0 && <div className="text-center text-muted-foreground py-4">No sofia_global_settings</div>}
-          </div>
-        </CardContent></Card>
-      <Dialog open={open} onOpenChange={setOpen}><DialogHeader><DialogTitle>Add Sofia Global Settings</DialogTitle></DialogHeader>
-        <div className="space-y-3"><div><Label>JSON payload *</Label><textarea value={json} onChange={(e)=>setJson(e.target.value)} rows={6} className="w-full rounded border p-2 font-mono text-xs" /></div>
+    <>
+      <PageHeader title="Sofia Global Settings" description="Global Sofia SIP stack tuning" actions={<Button onClick={() => setOpen(true)}>Add Sofia Global Settings</Button>} />
+      <DataTable resource="/sofia_global_settings" columns={columns} perPage={20} reloadKey={reloadKey} searchPlaceholder="Search sofia global settings…" emptyTitle="No sofia global settings" emptyDescription="Create via Add button" />
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogHeader><DialogTitle>Add Sofia Global Settings</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div><Label>JSON payload *</Label><textarea value={json} onChange={(e) => setJson(e.target.value)} rows={6} className="w-full rounded border p-2 font-mono text-xs" /></div>
           <div className="text-xs text-muted-foreground">Required field shown above — edit JSON and press Create.</div>
-          <Button onClick={create} className="w-full">Create</Button></div></Dialog>
-    </div>
+          <Button onClick={create} disabled={pending} className="w-full">{pending ? "Creating…" : "Create"}</Button>
+        </div>
+      </Dialog>
+    </>
   );
 }

@@ -1,4 +1,6 @@
 import * as React from "react";
+import { EmptyState } from "../../components/ui/empty-state";
+import { toast, toastError } from "../../lib/toast";
 import { apiFetch } from "../../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
@@ -119,7 +121,7 @@ export default function RingGroupsPlugin() {
               </TableRow>
             );
           })}
-          {items.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">No ring groups</TableCell></TableRow>}
+          {items.length === 0 && <TableRow><TableCell colSpan={7}><EmptyState title="No ring groups" /></TableCell></TableRow>}
         </TableBody></Table></div>
         <div className="md:hidden grid gap-2">
           {items.map((it) => {
@@ -135,7 +137,7 @@ export default function RingGroupsPlugin() {
               </Card>
             );
           })}
-          {items.length === 0 && <div className="text-center py-4 text-muted-foreground">No groups</div>}
+          {items.length === 0 && <EmptyState title="No groups" />}
         </div>
         <div className="flex items-center justify-between mt-4 text-sm">
           <span>Total: {total}</span>

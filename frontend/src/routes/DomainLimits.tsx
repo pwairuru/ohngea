@@ -1,34 +1,17 @@
 import * as React from "react";
-import { apiFetch } from "../lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
-import { Badge } from "../components/ui/badge";
+import { DataTable } from "../components/DataTable";
+import type { Column } from "../components/types";
+import { PageHeader } from "../components/shell/PageHeader";
+
 export function DomainLimits() {
-  const [data, setData] = React.useState<any[]>([]);
-  const [total, setTotal] = React.useState(0);
-  const load = () => apiFetch("/domain_limits").then((r:any)=>{setData(r.data||[]); setTotal(r.total??r.data?.length??0)}).catch(()=>{});
-  React.useEffect(()=>{load()},[]);
+  const columns: Column<any>[] = [
+    { key: "name", header: "Name", className: "num", cell: (r: any) => r.name ?? r.id ?? JSON.stringify(r).slice(0,60) },
+    { key: "details", header: "Details", cell: (r: any) => <span className="text-muted-foreground text-xs break-all">{JSON.stringify(r).slice(0, 80)}</span> },
+  ];
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex justify-between items-center"><h1 className="text-2xl font-bold">Domain Limits</h1><Badge>{total} total</Badge></div>
-      <Card>
-        <CardHeader><CardTitle>Domain Limits</CardTitle></CardHeader>
-        <CardContent>
-          <div className="hidden md:block">
-            <Table>
-              <TableHeader><TableRow><TableHead>Name / ID</TableHead><TableHead>Details</TableHead></TableRow></TableHeader>
-              <TableBody>
-                {data.map((d:any,i:number)=><TableRow key={i}><TableCell className="font-mono text-xs">{JSON.stringify(d).slice(0,80)}</TableCell><TableCell className="text-xs text-muted-foreground">{d._links ? "•" : ""}</TableCell></TableRow>)}
-                {data.length===0 && <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground py-8">No domain limits — create via API POST /api/v1/domain_limits</TableCell></TableRow>}
-              </TableBody>
-            </Table>
-          </div>
-          <div className="md:hidden grid gap-3">
-            {data.map((d:any,i:number)=><Card key={i} className="p-3"><div className="font-mono text-xs break-all">{JSON.stringify(d).slice(0,120)}</div></Card>)}
-            {data.length===0 && <div className="text-center text-muted-foreground py-4">No domain limits</div>}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    <>
+      <PageHeader title="Domain Limits" description="Per-tenant resource limits" />
+      <DataTable resource="/domain_limits" columns={columns} perPage={20} searchPlaceholder="Search domain limits…" emptyTitle="No domain limits" />
+    </>
   );
 }
