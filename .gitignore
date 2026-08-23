@@ -197,3 +197,4 @@ ohngea/
 *.tmp
 *.temp
 .dump.rdb
+.worktrees/
