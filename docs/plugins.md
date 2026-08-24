@@ -1,4 +1,4 @@
-# Plugins — per-tenant toggleable
+# Plugins — Ohngea PBX per-tenant toggleable
 
 Each plugin is a Python package under `plugins/<name>/` with:
 

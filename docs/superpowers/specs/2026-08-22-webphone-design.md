@@ -6,7 +6,7 @@ Scope: Add web-based SIP client — topnav button, popup (config vs call), regis
 
 ## Overview
 
-Add browser-native phone to Ohngea Modern. Topnav phone button (`frontend/src/App.tsx:157` header next to `FsStatus` `frontend/src/components/FsStatus.tsx:13`) opens popup. If unconfigured → config form; if configured → dialpad + call controls + inbound banner. Registration dot always visible in topnav (green=registered, yellow=connecting, red=failed, grey=unconfigured/disabled). Both inbound and outbound via SIP over Secure WebSocket (WSS) to FreeSWITCH `mod_sofia`. Tenant-level setting controls auth mode.
+Add browser-native phone to Ohngea PBX. Topnav phone button (`frontend/src/App.tsx:157` header next to `FsStatus` `frontend/src/components/FsStatus.tsx:13`) opens popup. If unconfigured → config form; if configured → dialpad + call controls + inbound banner. Registration dot always visible in topnav (green=registered, yellow=connecting, red=failed, grey=unconfigured/disabled). Both inbound and outbound via SIP over Secure WebSocket (WSS) to FreeSWITCH `mod_sofia`. Tenant-level setting controls auth mode.
 
 Why WSS: browsers cannot open raw SIP UDP/TCP sockets. WebRTC SIP stacks (`sip.js`, `jssip`) speak SIP over WebSocket (RFC 7118). FreeSWITCH must expose `wss-binding` (or WS behind TLS proxy). This design adds tenant `wss_url` and FS plumbing, plus persistent `WebPhoneContext` so registration survives popup close and route navigation.
 

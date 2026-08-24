@@ -1,4 +1,4 @@
-# E2E Call Test — real FreeSWITCH, your own data
+# E2E Call Test — Ohngea PBX real FreeSWITCH, your own data
 
 Proves the whole loop with no manual steps: API-seeded config → FreeSWITCH pulls
 directory/dialplan over `mod_xml_curl` → two scripted endpoints register as

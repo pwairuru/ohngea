@@ -16,7 +16,7 @@
 - Tagline `Speak. Connect. Ohngea.` — used in README/OpenAPI secondary only, not everywhere
 - Logo Bubble Wave: Ink `#0F172A`, Teal `#14B8A6`, Amber `#F59E0B`, `theme_color #14B8A6`, dark-mode bubble inverts to white via `currentColor` / `.dark` class, must be legible at 16px
 - Legacy `ohngea/` stays on disk but added to `.gitignore`, not tracked
-- Hard purge: `rg -i ohngea` outside `.git/` and ignored `ohngea/` must be 0; `rg -i "Ohngea Modern"` 0
+- Hard purge: `rg -i ohngea` outside `.git/` and ignored `ohngea/` must be 0; `rg -i "Ohngea PBX"` 0
 - Git history rewrite destructive: requires `pre-ohngea-rebrand` tag backup, dry-run in `/tmp`, `git push --force --all --tags`, team re-clone
 - No new runtime deps; PNG generation via `sharp` optional or manual raster; keep `ThemeProvider` light/dark/system + tenant override unchanged
 - Tests must pass: `pytest -q`, `npm run build`, `npx playwright test --headed`
@@ -58,8 +58,8 @@
 - `.env.example` — DATABASE_URL, S3_BUCKET, SMTP_FROM, header comment
 - `README.md` — title, tagline, source reference, quick start DB, ops notes
 - `docs/api.md`, `docs/ops.md`, `docs/plugins.md`, `docs/e2e-testing.md`, `docs/field-parity.md` — purge
-- `docs/superpowers/specs/2026-08-21-ohngea-modern-clone-design.md` → renamed to `2026-08-21-ohngea-modern-clone-design.md`
-- `docs/superpowers/plans/2026-08-21-ohngea-modern-clone.md` → renamed to `2026-08-21-ohngea-modern-clone.md` (if contains string)
+- `docs/superpowers/specs/2026-08-21-ohngea-pbx-clone-design.md` → renamed to `2026-08-21-ohngea-modern-clone-design.md`
+- `docs/superpowers/plans/2026-08-21-ohngea-pbx-clone.md` → renamed to `2026-08-21-ohngea-modern-clone.md` (if contains string)
 - `.superpowers/sdd/**` — content purge via filter-repo or manual sed
 - `frontend/dist/*` — rebuilt output (not committed ideally, but verify)
 
@@ -110,7 +110,7 @@ test("index.html has Ohngea favicon and title", async ({ page }) => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `npx playwright test frontend/tests/branding.spec.ts --headed 2>&1 | head -n 30`
-Expected: FAIL — `logo.svg` not found, title is `Ohngea Modern`
+Expected: FAIL — `logo.svg` not found, title is `Ohngea PBX`
 
 - [ ] **Step 3: Create backup tag and update .gitignore**
 
@@ -236,7 +236,7 @@ test("header shows Ohngea lockup", async ({ page }) => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `npx playwright test frontend/tests/branding.spec.ts --headed`
-Expected: FAIL — `manifest.name` is `Ohngea Modern`, `getByText("Sign in to Ohngea PBX")` not found
+Expected: FAIL — `manifest.name` is `Ohngea PBX`, `getByText("Sign in to Ohngea PBX")` not found
 
 - [ ] **Step 3: Edit `frontend/index.html`**
 
@@ -418,7 +418,7 @@ def test_cli_help_mentions_ohngea():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_ohngea_branding.py -v 2>&1 | tail -n 20`
-Expected: FAIL — app.title == "Ohngea Modern", database_url contains "ohngea", celery_app.main == "ohngea"
+Expected: FAIL — app.title == "Ohngea PBX", database_url contains "ohngea", celery_app.main == "ohngea"
 
 - [ ] **Step 3: Edit `pyproject.toml`**
 
@@ -570,8 +570,8 @@ git commit -m "feat(brand): rebrand backend+DB to Ohngea PBX (package, API title
 - Modify: `docs/plugins.md`
 - Modify: `docs/e2e-testing.md` (if contains branding)
 - Modify: `docs/field-parity.md`
-- Rename: `docs/superpowers/specs/2026-08-21-ohngea-modern-clone-design.md` → `2026-08-21-ohngea-modern-clone-design.md` (via git mv + content sed)
-- Rename: `docs/superpowers/plans/2026-08-21-ohngea-modern-clone.md` → `...ohngea...`
+- Rename: `docs/superpowers/specs/2026-08-21-ohngea-pbx-clone-design.md` → `2026-08-21-ohngea-modern-clone-design.md` (via git mv + content sed)
+- Rename: `docs/superpowers/plans/2026-08-21-ohngea-pbx-clone.md` → `...ohngea...`
 - Modify: `.superpowers/sdd/**` — content purge
 - Test: `rg -i ohngea docs/ --glob '!*.png'` should be 0 after
 
@@ -631,7 +631,7 @@ Or `pg_dumpall | sed s/ohngea/ohngea/g | psql`.
 
 For each, sed:
 ```bash
-sed -i 's/Ohngea Modern/Ohngea PBX/g; s/ohngea-modern/ohngea-pbx/g; s/ohngea/ohngea/g; s/Ohngea/Ohngea PBX/g' docs/api.md docs/ops.md docs/plugins.md
+sed -i 's/Ohngea PBX/Ohngea PBX/g; s/ohngea-pbx/ohngea-pbx/g; s/ohngea/ohngea/g; s/Ohngea/Ohngea PBX/g' docs/api.md docs/ops.md docs/plugins.md
 # then manually fix over-replacements like DATABASE_URL should be ohngea correctly (it will be)
 # also fix docker cp lines: docker cp frontend/dist/. ohngea-api-1:/app/static/
 ```
@@ -641,16 +641,16 @@ Review `docs/ops.md` healthcheck: `pg_isready -U ohngea`, `DATABASE_URL` with oh
 - [ ] **Step 5: Rename spec/plan files**
 
 ```bash
-git mv docs/superpowers/specs/2026-08-21-ohngea-modern-clone-design.md docs/superpowers/specs/2026-08-21-ohngea-modern-clone-design.md
-git mv docs/superpowers/plans/2026-08-21-ohngea-modern-clone.md docs/superpowers/plans/2026-08-21-ohngea-modern-clone.md
+git mv docs/superpowers/specs/2026-08-21-ohngea-pbx-clone-design.md docs/superpowers/specs/2026-08-21-ohngea-modern-clone-design.md
+git mv docs/superpowers/plans/2026-08-21-ohngea-pbx-clone.md docs/superpowers/plans/2026-08-21-ohngea-modern-clone.md
 # for any other file with ohngea in name:
 for f in docs/superpowers/specs/*ohngea* docs/superpowers/plans/*ohngea* .superpowers/sdd/*ohngea*; do [ -e "$f" ] && git mv "$f" "${f//ohngea/ohngea}"; done
 ```
 
 Then inside those renamed files:
 ```bash
-sed -i 's/Ohngea Modern/Ohngea PBX/g; s/Ohngea/Ohngea/g; s/ohngea/ohngea/g' docs/superpowers/specs/2026-08-21-ohngea-modern-clone-design.md
-sed -i 's/Ohngea Modern/Ohngea PBX/g; s/Ohngea/Ohngea/g; s/ohngea/ohngea/g' docs/superpowers/plans/2026-08-21-ohngea-modern-clone.md
+sed -i 's/Ohngea PBX/Ohngea PBX/g; s/Ohngea/Ohngea/g; s/ohngea/ohngea/g' docs/superpowers/specs/2026-08-21-ohngea-modern-clone-design.md
+sed -i 's/Ohngea PBX/Ohngea PBX/g; s/Ohngea/Ohngea/g; s/ohngea/ohngea/g' docs/superpowers/plans/2026-08-21-ohngea-modern-clone.md
 ```
 
 - [ ] **Step 6: Purge `.superpowers/sdd/**` content (historical)**
@@ -771,11 +771,11 @@ regex:ohngea==>ohngea
 regex:Ohngea==>Ohngea
 regex:OHNGEA==>OHNGEA
 regex:Ohngea==>Ohngea
-regex:ohngea-modern==>ohngea-pbx
-regex:Ohngea Modern==>Ohngea PBX
+regex:ohngea-pbx==>ohngea-pbx
+regex:Ohngea PBX==>Ohngea PBX
 EOF
 
-git filter-repo --replace-text /tmp/replacements.txt --message-callback 'return message.replace(b"ohngea", b"ohngea").replace(b"Ohngea", b"Ohngea").replace(b"ohngea-modern", b"ohngea-pbx").replace(b"Ohngea Modern", b"Ohngea PBX")' --force
+git filter-repo --replace-text /tmp/replacements.txt --message-callback 'return message.replace(b"ohngea", b"ohngea").replace(b"Ohngea", b"Ohngea").replace(b"ohngea-pbx", b"ohngea-pbx").replace(b"Ohngea PBX", b"Ohngea PBX")' --force
 
 echo "== verify dry-run =="
 git log --oneline --all | rg -i ohngea | wc -l  # expect 0
@@ -804,11 +804,11 @@ regex:ohngea==>ohngea
 regex:Ohngea==>Ohngea
 regex:OHNGEA==>OHNGEA
 regex:Ohngea==>Ohngea
-regex:ohngea-modern==>ohngea-pbx
-regex:Ohngea Modern==>Ohngea PBX
+regex:ohngea-pbx==>ohngea-pbx
+regex:Ohngea PBX==>Ohngea PBX
 EOF
 
-git filter-repo --replace-text /tmp/replacements.txt --message-callback 'return message.replace(b"ohngea", b"ohngea").replace(b"Ohngea", b"Ohngea").replace(b"ohngea-modern", b"ohngea-pbx").replace(b"Ohngea Modern", b"Ohngea PBX")' --force
+git filter-repo --replace-text /tmp/replacements.txt --message-callback 'return message.replace(b"ohngea", b"ohngea").replace(b"Ohngea", b"Ohngea").replace(b"ohngea-pbx", b"ohngea-pbx").replace(b"Ohngea PBX", b"Ohngea PBX")' --force
 ```
 
 Note: `filter-repo` removes `origin`, so re-add:

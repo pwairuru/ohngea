@@ -10,7 +10,7 @@
 
 ## 1. Context & Goals
 
-Current app is clean-room **Ohngea Modern** (FastAPI + SQLModel + PostgreSQL RLS hash partitioning + React Vite + Tailwind + FreeSWITCH mod_xml_curl). Goal: debrand to **Ohngea PBX** for new product identity. User requires:
+Current app is clean-room **Ohngea PBX** (FastAPI + SQLModel + PostgreSQL RLS hash partitioning + React Vite + Tailwind + FreeSWITCH mod_xml_curl). Goal: debrand to **Ohngea PBX** for new product identity. User requires:
 
 - Frontend fully branded Ohngea PBX
 - Modern simple SVG logo + favicon (dark-mode safe)
@@ -21,7 +21,7 @@ Current app is clean-room **Ohngea Modern** (FastAPI + SQLModel + PostgreSQL RLS
 
 Success criteria:
 - `rg -i ohngea --hidden` outside `.git/` and `ohngea/` ignored dir returns 0
-- `rg -i "Ohngea Modern"` returns 0
+- `rg -i "Ohngea PBX"` returns 0
 - Titles, manifest, OpenAPI, Docker, env, package metadata all show Ohngea PBX
 - Logo renders at 16px favicon through 512px PWA, light + dark
 - `pytest -q`, `npm run build`, `playwright --headed` pass with updated strings
@@ -39,8 +39,8 @@ Non-goals (explicit out of scope):
 ~437 matches in 152 files (measured pre-rebrand). Key spots:
 
 **Frontend:**
-- `frontend/index.html:6` `<title>Ohngea Modern</title>`
-- `frontend/vite.config.ts:11` PWA `name: "Ohngea Modern"`, `short_name: "PBX"`, `theme_color "#3b82f6"`
+- `frontend/index.html:6` `<title>Ohngea PBX</title>`
+- `frontend/vite.config.ts:11` PWA `name: "Ohngea PBX"`, `short_name: "PBX"`, `theme_color "#3b82f6"`
 - `frontend/dist/index.html`, `manifest.webmanifest` (build output)
 - `frontend/src/App.tsx:112` header `<Link>PBX</Link>`
 - `frontend/src/shell/Sidebar.tsx:127` `PBX v1.0.0`
@@ -49,9 +49,9 @@ Non-goals (explicit out of scope):
 - No dedicated logo file yet; icons are generic `/icon-192.png` placeholders
 
 **Backend / Config / Infra:**
-- `pyproject.toml:2` `name = "ohngea-modern"`, `description`, `authors`, `keywords = ["ohngea", ...]`
-- `app/__init__.py:1` docstring `Ohngea Modern`
-- `app/main.py:12` `FastAPI(title="Ohngea Modern")`, `openapi_schema["info"]["description"]` line
+- `pyproject.toml:2` `name = "ohngea-pbx"`, `description`, `authors`, `keywords = ["ohngea", ...]`
+- `app/__init__.py:1` docstring `Ohngea PBX`
+- `app/main.py:12` `FastAPI(title="Ohngea PBX")`, `openapi_schema["info"]["description"]` line
 - `app/config.py:13` `database_url = "postgresql+asyncpg://ohngea:ohngea@localhost:5432/ohngea"`, `smtp_from="noreply@ohngea.local"`, `s3_bucket="ohngea-recordings"` (if any), defaults for `fs_xml_user/password` remain but those are FreeSWITCH creds not branding
 - `app/workers/celery_app.py:19` `Celery("ohngea", ...)`
 - `app/cli/import_legacy.py:1` `ohngea-import` CLI, description "Import legacy Ohngea"
@@ -192,7 +192,7 @@ Existing `Tailwind` + `shadcn/ui` + `Inter` stays. No font change. Header logo r
 
 - `README.md`: Title `Ohngea PBX`, subtitle tagline, stack line keeps FreeSWITCH mention but not Ohngea except maybe one line `Successor to Ohngea concepts, clean-room implementation` if needed — for hard purge remove entirely. Source reference line: `Source reference: legacy system at ohngea/ (separate clone, ignored) — read-only.` Change to `legacy PBX`.
 - `docs/api.md`, `docs/ops.md`, `docs/plugins.md`, `docs/e2e-testing.md`, `docs/field-parity.md`: Replace `Ohngea` → `Ohngea PBX` or `legacy PBX` where historical.
-- `docs/superpowers/specs/*.md` (historical): Rewrite via git filter-repo (or manual sed) for consistency. Note: historical specs like `2026-08-21-ohngea-modern-clone-design.md` → rename file to `2026-08-21-ohngea-modern-clone-design.md` via `git mv`, content purge.
+- `docs/superpowers/specs/*.md` (historical): Rewrite via git filter-repo (or manual sed) for consistency. Note: historical specs like `2026-08-21-ohngea-pbx-clone-design.md` → rename file to `2026-08-21-ohngea-modern-clone-design.md` via `git mv`, content purge.
 - `docs/superpowers/plans/*.md` similarly.
 
 ### 4.5 .gitignore
@@ -235,7 +235,7 @@ regex:Ohngea==>Ohngea
 regex:OHNGEA==>OHNGEA
 regex:Ohngea==>Ohngea
 ```
-Plus case for `ohngea-modern` → `ohngea-pbx`, `ohngea_modern` → `ohngea_pbx` if any.
+Plus case for `ohngea-pbx` → `ohngea-pbx`, `ohngea_modern` → `ohngea_pbx` if any.
 
 3. **Commit message callback** — `filter-repo` can use `--message-callback` Python to replace same patterns in commit messages. Also rename `ohngea-import` → `ohngea-import` in messages.
 
@@ -248,7 +248,7 @@ git push -u origin main
 ```
 For `pr-*` branches: keep names but their commit messages will be cleaned by filter; optionally rename to remove `pr-` prefix? Decision: keep `pr-parity` etc as is (no ohngea string). No rename needed.
 
-5. **File rename** — specs/plans with `ohngea` in filename: handled by content replace? Need explicit `git mv` before filter or filter will handle content but filename remains. Add step: `git mv docs/superpowers/specs/2026-08-21-ohngea-modern-clone-design.md docs/superpowers/specs/2026-08-21-ohngea-modern-clone-design.md` and similarly `plans/`. Do before filter-repo commit.
+5. **File rename** — specs/plans with `ohngea` in filename: handled by content replace? Need explicit `git mv` before filter or filter will handle content but filename remains. Add step: `git mv docs/superpowers/specs/2026-08-21-ohngea-pbx-clone-design.md docs/superpowers/specs/2026-08-21-ohngea-modern-clone-design.md` and similarly `plans/`. Do before filter-repo commit.
 
 6. **Execute:**
 ```bash
@@ -279,7 +279,7 @@ Alternative if user later revokes git rewrite approval: skip filter-repo, only r
 
 - **Existing .env with old DB:** App will fail to connect if `.env` still points to `ohngea` DB after image update. Mitigate: `app/config.py` could support fallback alias for one release, but hard purge says no fallback — document migration. Error will be `asyncpg InvalidPasswordError / database does not exist` — clear enough.
 - **Existing PG volume:** `docker compose down -v` required for dev; for prod note `pg_dumpall` migration.
-- **PWA cached manifest:** Users with old PWA installed will have stale `Ohngea Modern` manifest until refresh. Service worker `autoUpdate` will prompt update; ensure new `manifest.webmanifest` has `name` change so update triggers.
+- **PWA cached manifest:** Users with old PWA installed will have stale `Ohngea PBX` manifest until refresh. Service worker `autoUpdate` will prompt update; ensure new `manifest.webmanifest` has `name` change so update triggers.
 - **Import CLI:** Users calling `ohngea-import` will get `command not found`. Document `ohngea-import` in README. Could keep shim script `ohngea-import` that execs `ohngea-import` with deprecation warning, but hard purge says remove — decide to remove shim to meet zero-string goal; accept break.
 - **Logo fallback:** If `favicon.svg` not supported, `favicon.ico` fallback ensures visibility.
 - **Case sensitivity in filter:** Must handle all case variants; regex list covers.
