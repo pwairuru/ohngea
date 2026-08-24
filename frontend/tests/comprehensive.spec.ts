@@ -187,8 +187,7 @@ test.describe("comprehensive interface", () => {
     await loginViaAPI(page);
     for (const [route, heading] of ROUTES) {
       await page.goto(route);
-      // wait for content
-      await page.waitForTimeout(400);
+      await expect(page.locator("h1").first()).toBeVisible({ timeout: 5000 });
       // check not "Not found" and still authenticated (not redirected to login)
       const url = page.url();
       expect(url).not.toContain("/login");
@@ -240,7 +239,7 @@ test.describe("comprehensive interface", () => {
     ];
     for (const link of advancedLinks) {
       await page.goto(link);
-      await page.waitForTimeout(200);
+      await expect(page.locator("h1").first()).toBeVisible({ timeout: 5000 });
       await expect(page.locator("body")).toBeVisible();
       expect(page.url()).toContain(link);
       // should not be login redirect
@@ -257,12 +256,12 @@ test.describe("comprehensive interface", () => {
     const searchInput = page.locator('input[placeholder*="Search"]');
     await expect(searchInput).toBeVisible();
     await searchInput.fill("nonexistent12345");
-    await page.waitForTimeout(800);
-    // should show empty state - use first() to avoid strict violation (table + cards)
-    await expect(page.getByText("No extensions").first()).toBeVisible();
+    await page.waitForResponse((r) => r.url().includes("/extensions") && r.request().method() === "GET", { timeout: 5000 }).catch(() => {});
+    await expect(page.getByText("No extensions").first()).toBeVisible({ timeout: 5000 });
     // clear search
     await searchInput.fill("");
-    await page.waitForTimeout(800);
+    await page.waitForResponse((r) => r.url().includes("/extensions") && r.request().method() === "GET", { timeout: 5000 }).catch(() => {});
+    await expect(page.getByRole("heading", { name: "Extensions", exact: true })).toBeVisible();
 
     // Create extension via dialog
     const ext = `99${Math.floor(Math.random() * 900 + 100)}`; // 99100-99999
@@ -276,12 +275,13 @@ test.describe("comprehensive interface", () => {
     await page.click('button:has-text("Next: Review")');
     await expect(page.getByText("Extension:")).toBeVisible();
     await page.click('button:has-text("Create")');
-    await page.waitForTimeout(1000);
+    await page.waitForResponse((r) => r.url().includes("/extensions") && r.request().method() === "POST", { timeout: 5000 }).catch(() => {});
+    await expect(page.getByText("Add Extension — Step 1 of 3")).toBeHidden({ timeout: 5000 }).catch(() => {});
     // Should appear in table (hidden md:block) or cards
     // Search for it
     await searchInput.fill(ext);
-    await page.waitForTimeout(800);
-    await expect(page.locator(`text=${ext}`).first()).toBeVisible({ timeout: 5000 });
+    await page.waitForResponse((r) => r.url().includes("/extensions") && r.request().method() === "GET", { timeout: 5000 }).catch(() => {});
+    await expect(page.locator(`text=${ext}`).first()).toBeVisible({ timeout: 8000 });
     // Edit
     // find row with extension and click Edit
     const editBtn = page.locator('button:has-text("Edit")').first();
@@ -290,24 +290,26 @@ test.describe("comprehensive interface", () => {
     await page.click('button:has-text("Next: Caller ID")');
     await page.click('button:has-text("Next: Review")');
     await page.click('button:has-text("Save")');
-    await page.waitForTimeout(800);
+    await page.waitForResponse((r) => r.url().includes("/extensions") && r.request().method() === "PATCH", { timeout: 5000 }).catch(() => {});
+    await expect(page.getByText("Edit Extension")).toBeHidden({ timeout: 5000 }).catch(() => {});
+    await expect(page.getByRole("heading", { name: "Extensions", exact: true })).toBeVisible();
     // Disable toggle
     const toggleBtn = page.locator('button:has-text("Disable"), button:has-text("Enable")').first();
-    const beforeText = await toggleBtn.textContent();
     await toggleBtn.click();
-    await page.waitForTimeout(800);
+    await page.waitForResponse((r) => r.url().includes("/extensions"), { timeout: 5000 }).catch(() => {});
+    await expect(page.locator("body")).toBeVisible();
     // toggle back
     await page.locator('button:has-text("Disable"), button:has-text("Enable")').first().click();
-    await page.waitForTimeout(800);
+    await page.waitForResponse((r) => r.url().includes("/extensions"), { timeout: 5000 }).catch(() => {});
     page.on("dialog", async (d) => await d.accept());
     await page.locator('button:has-text("Delete")').first().click();
     // handle custom confirm dialog (useConfirm) if present
     try { await expect(page.locator('[data-testid="confirm-ok"]')).toBeVisible({ timeout: 2000 }); await page.locator('[data-testid="confirm-ok"]').click(); } catch {}
-    await page.waitForTimeout(800);
+    await page.waitForResponse((r) => r.url().includes("/extensions") && r.request().method() === "DELETE", { timeout: 5000 }).catch(() => {});
     // Verify gone: search again shows empty or not found
     await searchInput.fill(ext);
-    await page.waitForTimeout(800);
-    await expect(page.getByText("No extensions").first()).toBeVisible();
+    await page.waitForResponse((r) => r.url().includes("/extensions") && r.request().method() === "GET", { timeout: 5000 }).catch(() => {});
+    await expect(page.getByText("No extensions").first()).toBeVisible({ timeout: 5000 });
   });
 
   test("extensions CSV import wizard", async ({ page }) => {
@@ -327,7 +329,8 @@ test.describe("comprehensive interface", () => {
     const csv = `extension,name\n98${Math.floor(Math.random()*90+10)},CsvUserA\n98${Math.floor(Math.random()*90+10)},CsvUserB`;
     await page.fill("textarea", csv);
     await page.locator('.fixed.z-50 button:has-text("Import")').click();
-    await page.waitForTimeout(1200);
+    await page.waitForResponse((r) => r.url().includes("/extensions"), { timeout: 5000 }).catch(() => {});
+    await expect(page.getByText("CSV Import Wizard")).toBeHidden({ timeout: 5000 }).catch(() => {});
     // after import, data should reload; check total or extension visible
     await expect(page.getByRole("heading", { name: "Extensions", exact: true })).toBeVisible();
   });
@@ -342,17 +345,19 @@ test.describe("comprehensive interface", () => {
     const gw = `gw${Math.floor(Math.random()*10000)}`;
     await page.fill('input[placeholder="provider1"]', gw);
     await page.click('button:has-text("Create")');
-    await page.waitForTimeout(1000);
-    await expect(page.locator(`text=${gw}`).first()).toBeVisible({ timeout: 5000 });
+    await page.waitForResponse((r) => r.url().includes("/gateways") && r.request().method() === "POST", { timeout: 5000 }).catch(() => {});
+    await expect(page.getByRole("heading", { name: "Add Gateway" })).toBeHidden({ timeout: 5000 }).catch(() => {});
+    await expect(page.locator(`text=${gw}`).first()).toBeVisible({ timeout: 8000 });
     // edit
     await page.locator('button:has-text("Edit")').first().click();
     await expect(page.getByText("Edit Gateway")).toBeVisible();
     await page.click('button:has-text("Save")');
-    await page.waitForTimeout(800);
+    await page.waitForResponse((r) => r.url().includes("/gateways"), { timeout: 5000 }).catch(() => {});
+    await expect(page.getByText("Edit Gateway")).toBeHidden({ timeout: 5000 }).catch(() => {});
     page.on("dialog", async (d) => await d.accept());
     await page.locator('button:has-text("Delete")').first().click();
     try { await expect(page.locator('[data-testid="confirm-ok"]')).toBeVisible({ timeout: 2000 }); await page.locator('[data-testid="confirm-ok"]').click(); } catch {}
-    await page.waitForTimeout(800);
+    await page.waitForResponse((r) => r.url().includes("/gateways") && r.request().method() === "DELETE", { timeout: 5000 }).catch(() => {});
   });
 
   test("devices add + provision preview", async ({ page }) => {
@@ -365,9 +370,10 @@ test.describe("comprehensive interface", () => {
     const mac = `00:11:22:${String(Math.floor(Math.random()*90+10)).padStart(2,"0")}:${String(Math.floor(Math.random()*90+10)).padStart(2,"0")}:${String(Math.floor(Math.random()*90+10)).padStart(2,"0")}`;
     await page.fill('input[placeholder="00:11:22:33:44:55"]', mac);
     await page.click('button:has-text("Create")');
-    await page.waitForTimeout(1000);
+    await page.waitForResponse((r) => r.url().includes("/devices") && r.request().method() === "POST", { timeout: 5000 }).catch(() => {});
+    await expect(page.getByRole("heading", { name: "Add Device" })).toBeHidden({ timeout: 5000 }).catch(() => {});
     // Try to find mac
-    await expect(page.locator(`text=${mac}`.slice(0,20)).first()).toBeVisible({ timeout: 5000 }).catch(async ()=> {
+    await expect(page.locator(`text=${mac}`.slice(0,20)).first()).toBeVisible({ timeout: 8000 }).catch(async ()=> {
       // fallback: check table has at least one device
       await expect(page.locator("table").first()).toBeVisible();
     });
@@ -375,9 +381,7 @@ test.describe("comprehensive interface", () => {
     const previewBtn = page.locator('button:has-text("Preview")').first();
     if (await previewBtn.count() > 0) {
       await previewBtn.click();
-      await page.waitForTimeout(600);
-      // provision pre should appear or fallback text
-      await expect(page.locator("pre").first()).toBeVisible({ timeout: 2000 }).catch(()=>{});
+      await expect(page.locator("pre").first()).toBeVisible({ timeout: 5000 }).catch(()=>{});
     }
     // cleanup delete
     const delBtn = page.locator('button:has-text("Delete")').first();
@@ -386,7 +390,7 @@ test.describe("comprehensive interface", () => {
       await delBtn.click();
       try { await expect(page.locator('[data-testid="confirm-ok"]')).toBeVisible({ timeout: 2000 }); await page.locator('[data-testid="confirm-ok"]').click(); } catch {}
       page.on("dialog", async (d)=> await d.accept());
-      await page.waitForTimeout(600);
+      await page.waitForResponse((r) => r.url().includes("/devices") && r.request().method() === "DELETE", { timeout: 5000 }).catch(() => {});
     }
   });
 
@@ -407,10 +411,8 @@ test.describe("comprehensive interface", () => {
   test("dialplans page", async ({ page }) => {
     await loginViaAPI(page);
     await page.goto("/dialplans");
-    await page.waitForTimeout(600);
-    // heading may be "Dialplans" or "Call Routing"
+    await expect(page.locator("h1").first()).toBeVisible({ timeout: 5000 });
     const heading = page.locator("h1").first();
-    await expect(heading).toBeVisible();
     const txt = await heading.textContent();
     expect(txt?.toLowerCase()).toMatch(/dial|routing/);
   });
@@ -421,15 +423,13 @@ test.describe("comprehensive interface", () => {
     await expect(page.getByRole("heading", { name: "Plugins" })).toBeVisible({ timeout: 5000 }).catch(async ()=> {
       await expect(page.locator("h1").first()).toBeVisible();
     });
-    // wait for plugins data
-    await page.waitForTimeout(800);
+    await page.waitForResponse((r) => r.url().includes("/plugins"), { timeout: 5000 }).catch(() => {});
     // check at least one plugin card or table
     await expect(page.locator("body")).toContainText(/plugin/i);
     // click first plugin if exists
     const link = page.locator('a[href^="/plugins/"]').first();
     if (await link.count() > 0) {
       await link.click();
-      await page.waitForTimeout(600);
       await expect(page.locator("body")).toBeVisible();
       expect(page.url()).toContain("/plugins/");
     }
@@ -439,8 +439,7 @@ test.describe("comprehensive interface", () => {
     await loginViaAPI(page);
     for (const p of ["/sip_profiles", "/ring_groups", "/ivr"]) {
       await page.goto(p);
-      await page.waitForTimeout(400);
-      await expect(page.locator("h1").first()).toBeVisible();
+      await expect(page.locator("h1").first()).toBeVisible({ timeout: 5000 });
       expect(page.url()).not.toContain("/login");
     }
   });
@@ -503,12 +502,12 @@ test.describe("comprehensive interface", () => {
     await expect.poll(async () => await dot.getAttribute("class"), { timeout: 5000 }).toMatch(/bg-(green|red)-500/);
     const cls = await dot.getAttribute("class");
     expect(cls).toMatch(/bg-(green|red)-500/);
-    // toggle theme twice and check html class flips
+    // toggle theme and check html class flips via expect.poll instead of fixed timeout
     await page.click('[data-testid="theme-toggle"]');
-    await page.waitForTimeout(200);
+    await expect.poll(async () => await page.locator("html").evaluate((el) => el.className), { timeout: 2000 }).not.toEqual("");
     const hasDark = await page.locator("html").evaluate((el) => el.classList.contains("dark"));
     await page.click('[data-testid="theme-toggle"]');
-    await page.waitForTimeout(200);
+    await expect.poll(async () => await page.locator("html").evaluate((el) => el.classList.contains("dark")), { timeout: 2000 }).not.toEqual(hasDark);
     const hasDark2 = await page.locator("html").evaluate((el) => el.classList.contains("dark"));
     expect(hasDark).not.toBe(hasDark2);
   });
@@ -521,7 +520,7 @@ test.describe("comprehensive interface", () => {
     });
     page.on("pageerror", (err) => errors.push(err.message));
     await page.goto("/");
-    await page.waitForTimeout(1500);
+    await expect(page.locator('[data-testid="fs-status"]')).toBeVisible({ timeout: 5000 });
     // filter out known 401 logs from apiFetch? they throw but not console error
     const critical = errors.filter((e) => !e.includes("Failed to load resource") && !e.includes("401"));
     expect(critical.length).toBe(0);

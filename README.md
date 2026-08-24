@@ -79,6 +79,6 @@ npx playwright test --project="iPhone 14" --project="Pixel 7"
 Every dep MIT/Apache/BSD/MPL/CDDL — no GPL/AGPL. FreeSWITCH MPL 1.1. See `docs/plugins.md`.
 
 ## Migration from pre-rebrand
-Dev DB renamed legacy → `ohngea` (historical source→target, whitelist for purge verification — Task5 rg must allow `.gitignore` legacy entry and rebrand meta-docs, now hard-purge clean). For existing installs:
+Dev DB renamed `fusionpbx` → `ohngea`. For existing installs:
 `docker compose down -v && docker compose up -d db valkey && alembic upgrade head`
-Or `pg_dumpall | sed s/old/ohngea/g | psql`.
+Or `pg_dumpall | sed s/fusionpbx/ohngea/g | psql`.

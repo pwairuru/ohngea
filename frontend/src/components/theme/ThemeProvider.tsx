@@ -30,12 +30,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!data) return;
+        // validate primary_color before injection (hex #rrggbb or hsl)
+        const isHex = typeof data.primary_color === "string" && /^#[0-9a-fA-F]{6}$/.test(data.primary_color);
+        const isHsl = typeof data.primary_color === "string" && /^hsl\(/i.test(data.primary_color);
+        if (data.primary_color && !isHex && !isHsl) {
+          console.warn("Theme fetch: invalid primary_color", data.primary_color);
+          return;
+        }
         const style = document.getElementById("tenant-theme") || document.createElement("style");
         style.id = "tenant-theme";
         style.textContent = `:root{--primary:${data.primary_color};--background:${data.background};--radius:${data.radius}}`;
         document.head.appendChild(style);
       })
-      .catch(() => {});
+      .catch((e) => console.warn("Theme fetch failed", e));
   }, []);
 
   return <ThemeContext.Provider value={{ theme, setTheme }}>{children}</ThemeContext.Provider>;

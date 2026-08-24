@@ -124,7 +124,7 @@ export function Sidebar() {
       <div className="mt-auto pt-4 text-[11px] text-muted-foreground">
         {!rail ? (
           <div className="flex items-center gap-2 px-3 py-2">
-            <img src="/logo.svg" alt="Ohngea" className="h-6 w-6 text-foreground" />
+            <img src="/logo.svg" alt="Ohngea" className="h-6 w-6 text-foreground" style={{ color: "currentColor" }} />
             <div className="text-xs leading-none">
               <div className="font-semibold">Ohngea PBX</div>
               <div className="text-muted-foreground">v1.0.0</div>
@@ -133,7 +133,7 @@ export function Sidebar() {
           </div>
         ) : (
           <div className="flex justify-center py-2">
-            <img src="/logo.svg" alt="Ohngea" className="h-6 w-6 text-foreground" />
+            <img src="/logo.svg" alt="Ohngea" className="h-6 w-6 text-foreground" style={{ color: "currentColor" }} />
           </div>
         )}
         {!rail && <div className="px-3 text-[11px]">REST /api/v1</div>}

@@ -16,7 +16,7 @@ export function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => 
       <div data-testid="mobile-drawer" className="flex h-full flex-col">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/logo.svg" alt="Ohngea PBX" className="h-6 w-6" />
+            <img src="/logo.svg" alt="Ohngea PBX" className="h-6 w-6 text-foreground" style={{ color: "currentColor" }} />
             <span className="font-bold">Ohngea PBX</span>
           </div>
           <button

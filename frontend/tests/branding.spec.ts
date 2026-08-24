@@ -2,13 +2,7 @@ import { test, expect } from "@playwright/test";
 import fs from "fs";
 
 test("logo and favicon assets exist", async () => {
-  const candidates = [
-    "frontend/public/logo.svg",
-    "public/logo.svg",
-    "frontend/public/favicon.svg",
-    "public/favicon.svg",
-  ];
-  const logoPath = fs.existsSync("frontend/public/logo.svg") ? "frontend/public/logo.svg" : fs.existsSync("public/logo.svg") ? "public/logo.svg" : "frontend/public/logo.svg";
+  const logoPath = fs.existsSync("frontend/public/logo.svg") ? "frontend/public/logo.svg" : "public/logo.svg";
   const faviconPath = fs.existsSync("frontend/public/favicon.svg") ? "frontend/public/favicon.svg" : "public/favicon.svg";
   const icon192Path = fs.existsSync("frontend/public/icon-192.png") ? "frontend/public/icon-192.png" : "public/icon-192.png";
   const icon512Path = fs.existsSync("frontend/public/icon-512.png") ? "frontend/public/icon-512.png" : "public/icon-512.png";
