@@ -26,7 +26,7 @@ def test_extension_enabled_default():
 
 
 def test_extension_update_accepts_password():
-    """PATCH must allow setting the SIP password (legacy Ohngea parity)."""
+    """PATCH must allow setting the SIP password (legacy PBX parity)."""
     u = ExtensionUpdate(password="1234")
     assert u.password == "1234"
 

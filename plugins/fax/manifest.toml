@@ -1,7 +1,7 @@
 name = "fax"
 version = "1.0.0"
 license = "MIT"
-description = "Ohngea fax plugin — per-tenant toggleable"
+description = "Ohngea PBX fax plugin — per-tenant toggleable"
 routes = ["/fax"]
 permissions = ["fax_view", "fax_edit"]
 category = "advanced"

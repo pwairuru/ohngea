@@ -379,7 +379,7 @@ export function Users() {
   return (
     <div className="p-4 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Users & Groups <span className="text-sm font-normal text-muted-foreground">parity with ohngea/core/groups + core/users</span></h1>
+        <h1 className="text-2xl font-bold">Users & Groups <span className="text-sm font-normal text-muted-foreground">parity with legacy PBX core/groups + core/users</span></h1>
         <div className="text-xs font-mono text-muted-foreground hidden md:block">{me ? `${me.username} — ${me.user_uuid} — ${me.domain_id}` : "not logged"}</div>
       </div>
 
