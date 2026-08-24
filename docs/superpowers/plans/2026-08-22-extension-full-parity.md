@@ -8,7 +8,7 @@
 
 **Tech Stack:** FastAPI + SQLModel + Alembic + lxml + pydantic-xml + valkey/redis + FreeSWITCH mod_xml_curl + React Vite
 
-**Spec:** docs/superpowers/specs/2026-08-21-ohngea-pbx-clone-design.md + ohngea/app/extensions/app_config.php + ohngea/app/extensions/resources/classes/extension.php
+**Spec:** docs/superpowers/specs/2026-08-21-ohngea-modern-clone-design.md + ohngea/app/extensions/app_config.php + ohngea/app/extensions/resources/classes/extension.php
 
 ## Global Constraints
 

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.12, FastAPI, SQLModel, SQLAlchemy 2 async, asyncpg, Alembic, pydantic-xml, lxml, Jinja2, Celery+Redis, PostgreSQL 16 + RLS + native declarative partitioning (HASH domain_id), PgBouncer, React 19, TypeScript, Vite, Tailwind CSS, shadcn/ui/Radix, TanStack Query/Table/Form, Recharts, gunicorn+uvicorn, Docker, pytest, vitest, playwright headed + mobile viewports.
 
-**Spec:** `docs/superpowers/specs/2026-08-21-ohngea-pbx-clone-design.md`
+**Spec:** `docs/superpowers/specs/2026-08-21-ohngea-modern-clone-design.md`
 
 ## Global Constraints
 

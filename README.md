@@ -1,8 +1,8 @@
 # Ohngea PBX
 
-Clean-room replacement for Ohngea — FastAPI + SQLModel + pydantic-xml + PostgreSQL (native HASH partitioning `domain_id` + RLS `FORCE`) + React Vite + Tailwind shadcn + FreeSWITCH `mod_xml_curl` — full REST `/api/v1`, mobile-compatible themable PWA, per-tenant plugins.
+Speak. Connect. Ohngea. — Modern PBX for teams. Clean-room successor to legacy PBX concepts — FastAPI + SQLModel + PostgreSQL (HASH partitioning + RLS) + React Vite + Tailwind + FreeSWITCH `mod_xml_curl` — full REST `/api/v1`, mobile PWA, per-tenant plugins.
 
-Source reference: legacy Ohngea at `ohngea/` (separate git clone, ignored) — read-only.
+Source reference: legacy system at `legacy/` (separate git clone, ignored) — read-only.
 
 ## Stack
 - **Control:** Python 3.14, FastAPI, SQLModel, asyncpg, Alembic, pydantic-xml, lxml, Jinja2, PyJWT, bcrypt, uuid6, Valkey, Celery
@@ -77,3 +77,8 @@ npx playwright test --project="iPhone 14" --project="Pixel 7"
 
 ## License
 Every dep MIT/Apache/BSD/MPL/CDDL — no GPL/AGPL. FreeSWITCH MPL 1.1. See `docs/plugins.md`.
+
+## Migration from pre-rebrand
+Dev DB renamed to `ohngea`. For existing installs:
+`docker compose down -v && docker compose up -d db valkey && alembic upgrade head`
+Or `pg_dumpall | sed s/old/ohngea/g | psql`.
