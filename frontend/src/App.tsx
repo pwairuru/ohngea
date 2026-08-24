@@ -109,7 +109,12 @@ function Nav() {
           >
             ☰
           </button>
-          <Link to="/" className="font-bold text-lg">PBX</Link>
+          <Link to="/" className="flex items-center gap-2 font-bold text-lg">
+            <span className="text-foreground">
+              <img src="/logo.svg" alt="Ohngea PBX" className="h-7 w-7 text-foreground" style={{ color: "currentColor" }} />
+            </span>
+            <span className="tracking-tight">Ohngea<span className="font-light text-muted-foreground"> PBX</span></span>
+          </Link>
           <PaletteTrigger />
         </div>
         <div className="flex items-center gap-2">

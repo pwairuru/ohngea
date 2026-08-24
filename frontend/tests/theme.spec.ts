@@ -7,14 +7,17 @@ async function login(page: any) {
   const json = await res.json();
   const token = json.access_token;
   await page.addInitScript((t: string) => localStorage.setItem("token", t), token);
+  await page.addInitScript(() => localStorage.setItem("theme", "light"));
 }
 
 test("theme toggle + mobile drawer", async ({ page }) => {
   await login(page);
   await page.setViewportSize({ width: 390, height: 844 }); // iPhone 14
   await page.goto("/");
+  await expect(page).toHaveTitle(/Ohngea PBX/);
   // theme toggle is in header — test it before opening drawer (drawer covers header)
   await expect(page.locator('[data-testid="theme-toggle"]')).toBeVisible();
+  await expect(page.locator('[data-testid="theme-select"]')).toBeVisible();
   await page.click('[data-testid="theme-toggle"]');
   await expect(page.locator("html")).toHaveClass(/dark/);
   // then test drawer
@@ -43,7 +46,8 @@ test("dashboard loads", async ({ page }) => {
 
 test("login UI works", async ({ page }) => {
   await page.goto("/login");
-  await expect(page.getByText("Sign in to PBX")).toBeVisible();
+  await expect(page).toHaveTitle(/Ohngea PBX/);
+  await expect(page.getByText("Sign in to Ohngea PBX")).toBeVisible();
   await page.fill('[data-testid="login-domain"]', "test.example.com");
   await page.fill('[data-testid="login-username"]', "admin");
   await page.fill('[data-testid="login-password"]', "admin");

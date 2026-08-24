@@ -122,12 +122,21 @@ export function Sidebar() {
       )}
       {!rail && <NavSection loc={loc} rail={rail} openGroups={openGroups} toggleGroup={toggleGroup} />}
       <div className="mt-auto pt-4 text-[11px] text-muted-foreground">
-        {!rail && (
-          <>
-            <div>PBX v1.0.0</div>
-            <div>REST /api/v1</div>
-          </>
+        {!rail ? (
+          <div className="flex items-center gap-2 px-3 py-2">
+            <img src="/logo.svg" alt="Ohngea" className="h-6 w-6 text-foreground" />
+            <div className="text-xs leading-none">
+              <div className="font-semibold">Ohngea PBX</div>
+              <div className="text-muted-foreground">v1.0.0</div>
+              <div className="text-[10px] tracking-widest text-teal-600 dark:text-teal-400">SPEAK · CONNECT</div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-center py-2">
+            <img src="/logo.svg" alt="Ohngea" className="h-6 w-6 text-foreground" />
+          </div>
         )}
+        {!rail && <div className="px-3 text-[11px]">REST /api/v1</div>}
       </div>
     </nav>
   );

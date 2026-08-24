@@ -15,7 +15,10 @@ export function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => 
     <Sheet open={open} onOpenChange={(v) => !v && onClose()} side="left">
       <div data-testid="mobile-drawer" className="flex h-full flex-col">
         <div className="mb-4 flex items-center justify-between">
-          <span className="font-bold">Menu</span>
+          <div className="flex items-center gap-2">
+            <img src="/logo.svg" alt="Ohngea PBX" className="h-6 w-6" />
+            <span className="font-bold">Ohngea PBX</span>
+          </div>
           <button
             onClick={onClose}
             aria-label="Close menu"

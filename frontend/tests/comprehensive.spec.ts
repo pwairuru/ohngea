@@ -15,16 +15,19 @@ async function loginViaAPI(page: Page) {
     expect(r2.ok()).toBeTruthy();
     const j2 = await r2.json();
     await page.addInitScript((t: string) => localStorage.setItem("token", t), j2.access_token);
+    await page.addInitScript(() => localStorage.setItem("theme", "light"));
     return j2.access_token;
   }
   const json = await res.json();
   await page.addInitScript((t: string) => localStorage.setItem("token", t), json.access_token);
+  await page.addInitScript(() => localStorage.setItem("theme", "light"));
   return json.access_token;
 }
 
 async function loginViaUI(page: Page) {
   await page.goto("/login");
-  await expect(page.getByText("Sign in to PBX")).toBeVisible();
+  await expect(page).toHaveTitle(/Ohngea PBX/);
+  await expect(page.getByText("Sign in to Ohngea PBX")).toBeVisible();
   await page.fill('[data-testid="login-domain"]', DOMAIN);
   await page.fill('[data-testid="login-username"]', USER);
   await page.fill('[data-testid="login-password"]', PASS);
@@ -94,7 +97,8 @@ test.describe("comprehensive interface", () => {
   test("unauthenticated redirect to login", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/login/);
-    await expect(page.getByText("Sign in to PBX")).toBeVisible();
+    await expect(page.getByText("Sign in to Ohngea PBX")).toBeVisible();
+    await expect(page).toHaveTitle(/Ohngea PBX/);
   });
 
   test("dashboard loads with KPIs and charts", async ({ page }) => {
@@ -120,16 +124,25 @@ test.describe("comprehensive interface", () => {
   test("header nav and theme toggle", async ({ page }) => {
     await loginViaAPI(page);
     await page.goto("/");
+    await expect(page).toHaveTitle(/Ohngea PBX/);
     await expect(page.locator('[data-testid="fs-status"]')).toBeVisible();
     await expect(page.locator('[data-testid="theme-toggle"]')).toBeVisible();
-    // toggle dark
+    await expect(page.locator('[data-testid="theme-select"]')).toBeVisible();
+    // header lockup check
+    await expect(page.getByText("Ohngea").first()).toBeVisible();
+    // toggle dark (light -> dark)
     await page.click('[data-testid="theme-toggle"]');
     await expect(page.locator("html")).toHaveClass(/dark/);
-    // toggle back
+    // toggle to ohngea (dark -> ohngea)
     await page.click('[data-testid="theme-toggle"]');
-    // Light should not have dark
-    // depending on implementation double toggle returns to light
-    // not strict
+    await expect(page.locator("html")).toHaveClass(/theme-ohngea/);
+    // toggle to ohngea-dark
+    await page.click('[data-testid="theme-toggle"]');
+    await expect(page.locator("html")).toHaveClass(/theme-ohngea-dark/);
+    // toggle to system
+    await page.click('[data-testid="theme-toggle"]');
+    // system may resolve to light or dark depending on prefers; at least not ohngea
+    await expect(page.locator("html")).not.toHaveClass(/theme-ohngea/);
     await expect(page.locator('[data-testid="logout-btn"]')).toBeVisible({ timeout: 5000 }).catch(() => {});
   });
 
@@ -140,6 +153,7 @@ test.describe("comprehensive interface", () => {
     await expect(page.locator('[data-testid="mobile-nav-toggle"]')).toBeVisible();
     await page.click('[data-testid="mobile-nav-toggle"]');
     await expect(page.locator('[data-testid="mobile-drawer"]')).toBeVisible();
+    await expect(page.locator('[data-testid="mobile-drawer"]')).toContainText("Ohngea PBX");
     await page.click('[data-testid="mobile-drawer"] >> text=✕');
     await expect(page.locator('[data-testid="mobile-drawer"]')).toBeHidden();
     // test drawer links navigate
@@ -239,18 +253,16 @@ test.describe("comprehensive interface", () => {
     await loginViaAPI(page);
     await page.goto("/extensions");
     await expect(page.getByRole("heading", { name: "Extensions", exact: true })).toBeVisible();
-    // Search box
+    // Search box - DataTable auto-searches with debounce (no Search button)
     const searchInput = page.locator('input[placeholder*="Search"]');
     await expect(searchInput).toBeVisible();
     await searchInput.fill("nonexistent12345");
-    await page.click('button:has-text("Search")');
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(800);
     // should show empty state - use first() to avoid strict violation (table + cards)
     await expect(page.getByText("No extensions").first()).toBeVisible();
     // clear search
     await searchInput.fill("");
-    await page.click('button:has-text("Search")');
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(800);
 
     // Create extension via dialog
     const ext = `99${Math.floor(Math.random() * 900 + 100)}`; // 99100-99999
@@ -268,7 +280,6 @@ test.describe("comprehensive interface", () => {
     // Should appear in table (hidden md:block) or cards
     // Search for it
     await searchInput.fill(ext);
-    await page.click('button:has-text("Search")');
     await page.waitForTimeout(800);
     await expect(page.locator(`text=${ext}`).first()).toBeVisible({ timeout: 5000 });
     // Edit
@@ -295,8 +306,7 @@ test.describe("comprehensive interface", () => {
     await page.waitForTimeout(800);
     // Verify gone: search again shows empty or not found
     await searchInput.fill(ext);
-    await page.click('button:has-text("Search")');
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(800);
     await expect(page.getByText("No extensions").first()).toBeVisible();
   });
 

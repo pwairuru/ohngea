@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { toast, toastError } from "../lib/toast";
 import { Input } from "../components/ui/input";
@@ -75,7 +75,8 @@ export function Login() {
     <div className="min-h-screen flex items-center justify-center bg-muted/20 p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl">Sign in to PBX</CardTitle>
+          <CardTitle className="text-2xl">Sign in to Ohngea PBX</CardTitle>
+          <CardDescription className="text-xs tracking-widest text-muted-foreground">SPEAK · CONNECT · OHNGEA</CardDescription>
           <p className="text-sm text-muted-foreground">Enter your credentials and domain to continue</p>
         </CardHeader>
         <CardContent>

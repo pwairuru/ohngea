@@ -1,6 +1,6 @@
 import * as React from "react";
 
-type Theme = "light" | "dark" | "system";
+type Theme = "light" | "dark" | "system" | "ohngea" | "ohngea-dark";
 
 const ThemeContext = React.createContext<{ theme: Theme; setTheme: (t: Theme) => void }>({ theme: "system", setTheme: () => {} });
 
@@ -9,9 +9,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     const root = document.documentElement;
-    const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const isDark = theme === "dark" || (theme === "system" && systemDark);
-    root.classList.toggle("dark", isDark);
+    root.classList.remove("dark", "theme-ohngea", "theme-ohngea-dark");
+    if (theme === "ohngea") {
+      root.classList.add("theme-ohngea");
+    } else if (theme === "ohngea-dark") {
+      root.classList.add("theme-ohngea-dark");
+    } else {
+      const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const isDark = theme === "dark" || (theme === "system" && systemDark);
+      if (isDark) root.classList.add("dark");
+    }
     localStorage.setItem("theme", theme);
   }, [theme]);
 
@@ -40,14 +47,35 @@ export function useTheme() {
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+  const order: Theme[] = ["light", "dark", "ohngea", "ohngea-dark", "system"];
+  const cycle = () => {
+    const idx = order.indexOf(theme);
+    const next = order[(idx + 1) % order.length];
+    setTheme(next);
+  };
   return (
-    <button
-      data-testid="theme-toggle"
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-md border min-h-[44px] min-w-[44px]"
-      aria-label="Toggle theme"
-    >
-      {theme === "dark" ? "☀️" : "🌙"}
-    </button>
+    <div className="flex items-center gap-1">
+      <button
+        data-testid="theme-toggle"
+        onClick={cycle}
+        className="inline-flex h-10 w-10 items-center justify-center rounded-md border min-h-[44px] min-w-[44px]"
+        aria-label="Toggle theme"
+      >
+        {theme === "dark" ? "☀️" : theme === "ohngea" ? "🟦" : theme === "ohngea-dark" ? "🌊" : theme === "system" ? "💻" : "🌙"}
+      </button>
+      <select
+        aria-label="Theme"
+        data-testid="theme-select"
+        value={theme}
+        onChange={(e) => setTheme(e.target.value as Theme)}
+        className="h-10 rounded-md border bg-background px-2 text-sm"
+      >
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+        <option value="ohngea">Ohngea</option>
+        <option value="ohngea-dark">Ohngea Dark</option>
+        <option value="system">System</option>
+      </select>
+    </div>
   );
 }
