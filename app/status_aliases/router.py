@@ -184,7 +184,7 @@ async def click_to_call_post(payload: dict, session:AsyncSession=Depends(get_ses
     num=payload.get("number") or payload.get("dest") or payload.get("destination") or "1002"
     return await _orig(payload={"source": ext, "destination": num}, session=session, user=user)
 
-# xml_cdr legacy alias -> cdr (Ohngea uses v_xml_cdr view, modern uses cdr HASH32)
+# xml_cdr legacy alias -> cdr (legacy uses v_xml_cdr view, modern uses cdr HASH32)
 @router.get("/api/v1/xml_cdr", response_model=dict)
 async def xml_cdr_list_alias(request: Request, response: Response, page:int=Query(1,ge=1), per_page:int=Query(20,ge=1,le=100), filter_extension: Optional[str]=Query(None, alias="filter[extension]"), filter_caller: Optional[str]=Query(None, alias="filter[caller_id_number]"), sort: str=Query("start_stamp"), order: str=Query("desc"), q:Optional[str]=Query(None), session:AsyncSession=Depends(get_session), user:User=Depends(get_current_user)):
     from app.cdr.router import list_cdr

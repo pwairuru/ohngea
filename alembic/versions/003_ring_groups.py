@@ -57,7 +57,7 @@ def upgrade() -> None:
     op.create_index("ix_ring_group_members_domain_id", "ring_group_members", ["domain_id"])
     op.create_index("ix_ring_group_members_ring_group_uuid", "ring_group_members", ["ring_group_uuid"])
 
-    # compatibility view/table for legacy Ohngea: ring_group_destinations
+    # compatibility view/table for legacy PBX: ring_group_destinations
     # Create a VIEW that mirrors ring_group_members with destination-style column names
     # This allows legacy queries SELECT * FROM ring_group_destinations to work.
     # Also create ring_group_destinations as alias table for ORM compatibility if view not enough,

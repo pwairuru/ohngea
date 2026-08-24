@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Application settings — 12-factor via environment.
+    """Ohngea PBX — 12-factor config.
 
     All fields have sane defaults for local dev; override via .env or env vars.
     See .env.example for documentation.

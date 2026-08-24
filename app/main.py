@@ -352,8 +352,13 @@ def custom_openapi():
         version=app.version,
         routes=app.routes,
     )
-    openapi_schema["info"]["description"] = "Ohngea PBX — full REST API, versioned at /api/v1, pagination via Link/X-Total-Count, JWT Bearer auth, RLS tenant isolation"
+    openapi_schema["info"]["description"] = "Ohngea PBX — full REST API, versioned at /api/v1, pagination via Link/X-Total-Count, JWT Bearer auth, RLS tenant isolation. Speak. Connect. Ohngea."
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
 app.openapi = custom_openapi
+# populate openapi_schema eagerly so branding tests can inspect it without calling app.openapi()
+try:
+    app.openapi_schema = custom_openapi()
+except Exception:
+    pass

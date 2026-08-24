@@ -1,14 +1,10 @@
 """ohngea-import — ETL legacy v_ schema to new clean schema.
-
-Reads legacy Ohngea Postgres (v_extensions etc) from ohngea/ or from
-a dump, maps to new tables (extensions, domains etc) via domain_uuid -> domain_id.
-
-Usage:
-  python -m app.cli.import_legacy --legacy-url postgresql://user:pass@host/legacy --dry-run
-  ohngea-import --help
+Reads legacy PBX Postgres (v_extensions etc) from legacy source
 """
+
 import argparse
 import asyncio
+import os
 from uuid import UUID
 
 from sqlalchemy import text
@@ -117,13 +113,11 @@ async def import_legacy(legacy_url: str, target_url: str, dry_run: bool = False)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Import legacy Ohngea v_ schema")
-    parser.add_argument("--legacy-url", required=True, help="Legacy DB URL (postgresql+asyncpg://...)")
+    parser = argparse.ArgumentParser(description="Import legacy PBX v_ schema into Ohngea PBX")
+    parser.add_argument("--legacy-url", default=os.getenv("DATABASE_URL") or "postgresql+asyncpg://ohngea:ohngea@localhost:5432/ohngea", help="Legacy DB URL (postgresql+asyncpg://...)")
     parser.add_argument("--target-url", default=None, help="Target DB URL (defaults to DATABASE_URL env)")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
-
-    import os
 
     target = args.target_url or os.getenv("DATABASE_URL") or "postgresql+asyncpg://ohngea:ohngea@localhost:5432/ohngea"
     # asyncpg URL required for async engine; allow sync url conversion

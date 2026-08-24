@@ -62,6 +62,6 @@ class RingGroupMember(RingGroupMemberBase, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
 
 
-# Compatibility alias — legacy Ohngea uses v_ring_group_destinations.
+# Compatibility alias — legacy PBX uses v_ring_group_destinations.
 # We use ring_group_members as primary; a VIEW ring_group_destinations
 # is created in migration for drop-in queries without needing a second model.

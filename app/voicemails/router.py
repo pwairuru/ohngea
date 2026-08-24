@@ -31,7 +31,7 @@ def _serialize(vm: Voicemail, destinations: list[VoicemailDestination] | None = 
         d.setdefault("forward_destinations", [])
         d.setdefault("destinations", d["forward_destinations"])
     d["_links"] = _links(vm)
-    # legacy aliases for drop-in Ohngea compatibility
+    # legacy aliases for Ohngea PBX compatibility
     d["voicemail_uuid"] = str(vm.voicemail_uuid)
     d["domain_uuid"] = str(vm.domain_id)
     d["domain_id"] = str(vm.domain_id)

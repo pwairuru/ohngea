@@ -57,7 +57,7 @@ def upgrade() -> None:
     op.create_index("ix_voicemail_destinations_voicemail_uuid", "voicemail_destinations", ["voicemail_uuid"])
     op.create_index("ix_voicemail_destinations_copy_uuid", "voicemail_destinations", ["voicemail_uuid_copy"])
 
-    # legacy view aliases for drop-in compatibility (Ohngea uses v_voicemails)
+    # legacy view aliases for Ohngea PBX (originally v_voicemails)
     op.execute("""
         CREATE VIEW v_voicemails AS
         SELECT

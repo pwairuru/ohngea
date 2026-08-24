@@ -225,7 +225,7 @@ def build_gateway_xml(gateways, domain_name: str = "") -> bytes:
     FS expects document type freeswitch/xml -> section configuration
     -> configuration name=sofia.conf -> gateways -> gateway name=.
     All 30 legacy fields are rendered when present, matching
-    ohngea/resources/switch.php save_gateway_xml() plus extended
+    legacy PBX resources/switch.php save_gateway_xml() plus extended
     ping/channel/codec fields.
     """
     root = etree.Element("document", type="freeswitch/xml")

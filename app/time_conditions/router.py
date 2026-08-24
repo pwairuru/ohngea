@@ -24,7 +24,7 @@ def _links(tc: TimeCondition):
 def _serialize(tc: TimeCondition):
     d = TimeConditionRead.model_validate(tc, from_attributes=True).model_dump(mode="json")
     d["_links"] = _links(tc)
-    # legacy / Ohngea compatibility keys
+    # legacy compatibility keys
     d["time_condition_uuid"] = str(tc.time_condition_uuid)
     d["dialplan_uuid"] = str(tc.dialplan_uuid) if tc.dialplan_uuid else None
     d["time_condition_name"] = tc.name

@@ -62,7 +62,7 @@ def upgrade() -> None:
     op.create_index("ix_conference_users_conference_uuid", "conference_users", ["conference_uuid"])
     op.create_index("ix_conference_users_user_uuid", "conference_users", ["user_uuid"])
 
-    # legacy views for drop-in Ohngea compatibility
+    # legacy views for Ohngea PBX compatibility
     op.execute("""
         CREATE VIEW v_conferences AS
         SELECT

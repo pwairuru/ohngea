@@ -1,12 +1,12 @@
 [project]
 name = "ohngea-pbx"
 version = "0.1.0"
-description = "Ohngea PBX Clone — FastAPI + SQLModel + PostgreSQL RLS + per-tenant partitioning"
+description = "Ohngea PBX — FastAPI + SQLModel + PostgreSQL RLS + per-tenant partitioning — Speak. Connect. Ohngea."
 readme = "README.md"
 requires-python = ">=3.14"
 license = { text = "MIT" }
 authors = [{ name = "Ohngea PBX" }]
-keywords = ["ohngea", "fastapi", "voip", "freeswitch"]
+keywords = ["ohngea", "pbx", "fastapi", "voip", "freeswitch"]
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
