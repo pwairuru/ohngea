@@ -43,11 +43,11 @@ def upgrade() -> None:
     except Exception:
         pass
     try:
-        op.create_index("ix_groups_group_level", "groups", ["group_level"])
+        op.execute("CREATE INDEX IF NOT EXISTS ix_groups_group_level ON groups (group_level)")
     except Exception:
         pass
     try:
-        op.create_index("ix_groups_domain_id", "groups", ["domain_id"])
+        op.execute("CREATE INDEX IF NOT EXISTS ix_groups_domain_id ON groups (domain_id)")
     except Exception:
         pass
     # set defaults for existing superadmin-ish groups: try to set levels based on name
@@ -142,11 +142,11 @@ def upgrade() -> None:
     except Exception:
         pass
     try:
-        op.create_index("ix_group_permissions_group_name", "group_permissions", ["group_name"])
+        op.execute("CREATE INDEX IF NOT EXISTS ix_group_permissions_group_name ON group_permissions (group_name)")
     except Exception:
         pass
     try:
-        op.create_index("ix_group_permissions_permission_name", "group_permissions", ["permission_name"])
+        op.execute("CREATE INDEX IF NOT EXISTS ix_group_permissions_permission_name ON group_permissions (permission_name)")
     except Exception:
         pass
 
@@ -170,19 +170,19 @@ def upgrade() -> None:
     except Exception:
         pass
     try:
-        op.create_index("ix_user_settings_user_uuid", "user_settings", ["user_uuid"])
+        op.execute("CREATE INDEX IF NOT EXISTS ix_user_settings_user_uuid ON user_settings (user_uuid)")
     except Exception:
         pass
     try:
-        op.create_index("ix_user_settings_domain_id", "user_settings", ["domain_id"])
+        op.execute("CREATE INDEX IF NOT EXISTS ix_user_settings_domain_id ON user_settings (domain_id)")
     except Exception:
         pass
     try:
-        op.create_index("ix_user_settings_category", "user_settings", ["user_setting_category"])
+        op.execute("CREATE INDEX IF NOT EXISTS ix_user_settings_category ON user_settings (user_setting_category)")
     except Exception:
         pass
     try:
-        op.create_index("ix_user_settings_subcategory", "user_settings", ["user_setting_subcategory"])
+        op.execute("CREATE INDEX IF NOT EXISTS ix_user_settings_subcategory ON user_settings (user_setting_subcategory)")
     except Exception:
         pass
 

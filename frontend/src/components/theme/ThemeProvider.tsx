@@ -30,10 +30,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!data) return;
-        // validate primary_color before injection (hex #rrggbb or hsl)
+        // validate primary_color before injection (hex #rrggbb, hsl(), or bare triple "174 72% 40%")
         const isHex = typeof data.primary_color === "string" && /^#[0-9a-fA-F]{6}$/.test(data.primary_color);
         const isHsl = typeof data.primary_color === "string" && /^hsl\(/i.test(data.primary_color);
-        if (data.primary_color && !isHex && !isHsl) {
+        const isHslTriple = typeof data.primary_color === "string" && /^\d+(\.\d+)?\s+\d+(\.\d+)?%\s+\d+(\.\d+)?%$/.test(data.primary_color.trim());
+        if (data.primary_color && !isHex && !isHsl && !isHslTriple) {
           console.warn("Theme fetch: invalid primary_color", data.primary_color);
           return;
         }
