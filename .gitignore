@@ -186,7 +186,7 @@ Desktop.ini
 # Project-specific
 # =============================================================================
 # Legacy reference clone — keep on disk, not tracked
-ohngea/
+fusionpbx/
 .superpowers/brainstorm/
 
 # Local overrides / secrets

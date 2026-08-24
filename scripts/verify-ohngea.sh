@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -e
-echo "== rg ohngea (allow .gitignore only) =="
+echo "== rg fusionpbx (allow .gitignore only) =="
 # Prefer ripgrep if available; fallback to grep for environments without rg
 if command -v rg >/dev/null 2>&1; then
-  RG_OUT=$(rg -i ohngea --hidden --glob '!.git/' --glob '!ohngea/' --glob '!.venv/' --glob '!node_modules/' 2>&1 || true)
+  RG_OUT=$(rg -i fusionpbx --hidden --glob '!.git/' --glob '!fusionpbx/' --glob '!.venv/' --glob '!node_modules/' 2>&1 || true)
 else
-  RG_OUT=$(grep -R -I -i ohngea --exclude-dir=.git --exclude-dir=ohngea --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=.pytest_cache --exclude-dir=.worktrees --exclude-dir=__pycache__ --exclude-dir=.playwright-mcp . 2>&1 || true)
+  RG_OUT=$(grep -R -I -i fusionpbx --exclude-dir=.git --exclude-dir=fusionpbx --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=.pytest_cache --exclude-dir=.worktrees --exclude-dir=__pycache__ --exclude-dir=.playwright-mcp . 2>&1 || true)
 fi
 # whitelist: .gitignore (single line), .dockerignore (docker build ignore), pre-ohngea tag,
 # rebrand meta-docs (audit trail), README migration note (historical sed), .superpowers (ignored),
@@ -14,10 +14,10 @@ FILTERED=$(echo "$RG_OUT" | grep -v ".gitignore" | grep -v ".dockerignore" | gre
 # also filter empty/whitespace only
 if [ -n "$(echo "$FILTERED" | tr -d '[:space:]')" ]; then
   echo "$FILTERED"
-  echo "FAIL: still have ohngea refs"
+  echo "FAIL: still have fusionpbx refs"
   exit 1
 else
-  echo "PASS: no ohngea refs"
+  echo "PASS: no fusionpbx refs"
 fi
 echo "== npm build =="
 cd frontend && npm run build 2>&1 | tail -n 20
