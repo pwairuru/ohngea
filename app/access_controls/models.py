@@ -23,3 +23,4 @@ class AccessControlNode(AccessControlNodeBase, table=True):
     __tablename__="access_control_nodes"
     access_control_node_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())

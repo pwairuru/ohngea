@@ -11,6 +11,8 @@ class VoicemailGreetingBase(SQLModel):
     greeting_filename: Optional[str]=Field(default=None, max_length=512)
     greeting_description: Optional[str]=Field(default=None, max_length=512)
     greeting_base64: Optional[str]=Field(default=None)
+    greeting_voice: Optional[str]=Field(default=None, max_length=32, description="TTS voice for greeting")
+    greeting_message: Optional[str]=Field(default=None, max_length=1024, description="Text for TTS greeting message")
 class VoicemailGreeting(VoicemailGreetingBase, table=True):
     __tablename__="voicemail_greetings"
     voicemail_greeting_uuid: UUID = Field(default_factory=uuid7, primary_key=True)

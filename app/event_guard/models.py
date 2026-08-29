@@ -11,7 +11,9 @@ class EventGuardLogBase(SQLModel):
     extension: Optional[str]=Field(default=None, max_length=32)
     user_agent: Optional[str]=Field(default=None, max_length=512)
     log_status: Optional[str]=Field(default=None, max_length=32)
+    insert_user: Optional[UUID]=Field(default=None)
 class EventGuardLog(EventGuardLogBase, table=True):
     __tablename__="event_guard_logs"
     event_guard_log_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())

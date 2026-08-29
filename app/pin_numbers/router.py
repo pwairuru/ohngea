@@ -44,7 +44,7 @@ async def get_pin(uid: UUID, session: AsyncSession = Depends(get_session), user:
         raise HTTPException(status_code=404, detail="PIN not found")
     return _ser(o)
 @router.patch("/{uid}", response_model=dict)
-async def patch_pin(uid: UUID, payload: PinNumberUpdate, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("pin_number_add"))):
+async def patch_pin(uid: UUID, payload: PinNumberUpdate, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("pin_number_edit"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(PinNumber).where(PinNumber.pin_number_uuid == uid, PinNumber.domain_id == domain_id))
@@ -61,7 +61,7 @@ async def patch_pin(uid: UUID, payload: PinNumberUpdate, session: AsyncSession =
     await session.refresh(o)
     return _ser(o)
 @router.delete("/{uid}", status_code=204)
-async def delete_pin(uid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("pin_number_add"))):
+async def delete_pin(uid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("pin_number_delete"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(PinNumber).where(PinNumber.pin_number_uuid == uid, PinNumber.domain_id == domain_id))

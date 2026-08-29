@@ -21,6 +21,10 @@ async def create_recording(session: AsyncSession, data, domain_id: UUID, user_id
         s3_bucket = data.get("s3_bucket")
         content_type = data.get("content_type") or "audio/wav"
         storage_backend = data.get("storage_backend") or "s3"
+        recording_voice = data.get("recording_voice")
+        recording_speed = data.get("recording_speed")
+        recording_message = data.get("recording_message")
+        recording_base64 = data.get("recording_base64")
     else:
         name = data.name
         file_path = data.file_path
@@ -29,6 +33,10 @@ async def create_recording(session: AsyncSession, data, domain_id: UUID, user_id
         s3_bucket = data.s3_bucket
         content_type = data.content_type or "audio/wav"
         storage_backend = data.storage_backend or "s3"
+        recording_voice = getattr(data, "recording_voice", None)
+        recording_speed = getattr(data, "recording_speed", None)
+        recording_message = getattr(data, "recording_message", None)
+        recording_base64 = getattr(data, "recording_base64", None)
     if not file_path:
         # generate partitioned key
         suffix = "wav"
@@ -50,6 +58,10 @@ async def create_recording(session: AsyncSession, data, domain_id: UUID, user_id
         s3_bucket=s3_bucket,
         content_type=content_type,
         storage_backend=storage_backend,
+        recording_voice=recording_voice,
+        recording_speed=recording_speed,
+        recording_message=recording_message,
+        recording_base64=recording_base64,
         created_by=user_id,
     )
     # allow manual uuid for deterministic key alignment

@@ -44,3 +44,52 @@ class NumberTranslationUpdate(BaseModel):
     number_translation_replace: Optional[str]=None
     number_translation_enabled: Optional[bool]=None
     number_translation_description: Optional[str]=None
+
+# --- child: number_translation_details ---
+class NumberTranslationDetailCreate(BaseModel):
+    model_config=ConfigDict(extra="allow", populate_by_name=True)
+    domain_id: Optional[UUID]=None
+    number_translation_uuid: Optional[UUID]=None
+    number_translation_detail_regex: Optional[str]=None
+    regex: Optional[str]=None
+    number_translation_detail_replace: Optional[str]=None
+    replace: Optional[str]=None
+    number_translation_detail_order: Optional[int]=None
+    order: Optional[int]=None
+    @model_validator(mode="before")
+    @classmethod
+    def map_aliases(cls,data):
+        if isinstance(data, dict):
+            if "regex" in data and "number_translation_detail_regex" not in data: data["number_translation_detail_regex"]=data.pop("regex")
+            if "replace" in data and "number_translation_detail_replace" not in data: data["number_translation_detail_replace"]=data.pop("replace")
+            if "order" in data and "number_translation_detail_order" not in data: data["number_translation_detail_order"]=data.pop("order")
+            if "domain_uuid" in data and "domain_id" not in data: data["domain_id"]=data.pop("domain_uuid")
+        return data
+
+class NumberTranslationDetailRead(BaseModel):
+    model_config=ConfigDict(from_attributes=True)
+    number_translation_detail_uuid: UUID
+    domain_id: UUID
+    number_translation_uuid: UUID
+    number_translation_detail_regex: str
+    number_translation_detail_replace: str
+    number_translation_detail_order: int
+    created_at: datetime
+    updated_at: datetime
+
+class NumberTranslationDetailUpdate(BaseModel):
+    model_config=ConfigDict(extra="allow", populate_by_name=True)
+    number_translation_detail_regex: Optional[str]=None
+    regex: Optional[str]=None
+    number_translation_detail_replace: Optional[str]=None
+    replace: Optional[str]=None
+    number_translation_detail_order: Optional[int]=None
+    order: Optional[int]=None
+    @model_validator(mode="before")
+    @classmethod
+    def map_aliases(cls,data):
+        if isinstance(data, dict):
+            if "regex" in data and "number_translation_detail_regex" not in data: data["number_translation_detail_regex"]=data.pop("regex")
+            if "replace" in data and "number_translation_detail_replace" not in data: data["number_translation_detail_replace"]=data.pop("replace")
+            if "order" in data and "number_translation_detail_order" not in data: data["number_translation_detail_order"]=data.pop("order")
+        return data

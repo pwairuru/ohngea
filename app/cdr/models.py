@@ -20,6 +20,23 @@ class CdrBase(SQLModel):
     direction: Optional[str] = Field(default=None, max_length=16)
     sip_call_id: Optional[str] = Field(default=None, max_length=128)
     hangup_cause: Optional[str] = Field(default=None, max_length=64)
+    # parity additions — at least 15 critical nullable columns
+    accountcode: Optional[str] = Field(default=None, max_length=64)
+    context: Optional[str] = Field(default=None, max_length=128)
+    leg: Optional[str] = Field(default=None, max_length=16, description="a-leg or b-leg")
+    status: Optional[str] = Field(default=None, max_length=32)
+    billmsec: Optional[int] = Field(default=None, description="billing milliseconds")
+    mduration: Optional[int] = Field(default=None, description="media duration")
+    hold_accum_seconds: Optional[int] = Field(default=None)
+    bridge_uuid: Optional[str] = Field(default=None, max_length=128)
+    conference_id: Optional[str] = Field(default=None, max_length=128)
+    record_path: Optional[str] = Field(default=None, max_length=512)
+    record_name: Optional[str] = Field(default=None, max_length=255)
+    json_text: Optional[str] = Field(default=None, description="json payload")
+    xml_text: Optional[str] = Field(default=None, description="xml cdr payload")
+    processed: Optional[bool] = Field(default=None)
+    caller_extension: Optional[str] = Field(default=None, max_length=32)
+    destination_extension: Optional[str] = Field(default=None, max_length=32)
 
 
 class Cdr(CdrBase, table=True):

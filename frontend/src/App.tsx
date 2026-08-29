@@ -65,10 +65,15 @@ import { DatabaseTransactions } from "./routes/DatabaseTransactions";
 import { EventGuard } from "./routes/EventGuard";
 import { Modules } from "./routes/Modules";
 import { ActiveCalls } from "./routes/ActiveCalls";
+import { ActiveConferences } from "./routes/ActiveConferences";
+import { CallCenterActive } from "./routes/CallCenterActive";
+import { FifoList } from "./routes/FifoList";
+import { ClickToCall } from "./routes/ClickToCall";
 import { Registrations } from "./routes/Registrations";
 import { OperatorPanel } from "./routes/OperatorPanel";
 import { Logs } from "./routes/Logs";
 import { DomainLimits } from "./routes/DomainLimits";
+import { Groups } from "./routes/Groups";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -173,10 +178,16 @@ function Nav() {
                 <Route path="/event_guard" element={<EventGuard />} />
                 <Route path="/modules" element={<Modules />} />
                 <Route path="/active_calls" element={<ActiveCalls />} />
+                <Route path="/active_conferences" element={<ActiveConferences />} />
+                <Route path="/conferences_active" element={<ActiveConferences />} />
+                <Route path="/call_center_active" element={<CallCenterActive />} />
+                <Route path="/fifo_list" element={<FifoList />} />
+                <Route path="/click_to_call" element={<ClickToCall />} />
                 <Route path="/registrations" element={<Registrations />} />
                 <Route path="/operator_panel" element={<OperatorPanel />} />
                 <Route path="/logs" element={<Logs />} />
                 <Route path="/domain_limits" element={<DomainLimits />} />
+                <Route path="/groups" element={<Groups />} />
                 <Route path="/system" element={<System />} />
                 <Route path="/vars" element={<Vars />} />
                 <Route path="/destinations" element={<Destinations />} />

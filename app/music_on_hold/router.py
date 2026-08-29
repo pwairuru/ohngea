@@ -38,7 +38,7 @@ async def list_moh(
     order: str = Query("asc", pattern="^(asc|desc)$"),
     q: Optional[str] = Query(None),
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("music_on_hold_view")),
 ):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
@@ -72,7 +72,7 @@ async def create_moh_ep(payload: MusicOnHoldCreate, response: Response, session:
 
 
 @router.get("/{moh_uuid}", response_model=dict)
-async def get_moh(moh_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+async def get_moh(moh_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("music_on_hold_view"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(MusicOnHold).where(MusicOnHold.music_on_hold_uuid == moh_uuid, MusicOnHold.domain_id == domain_id))
@@ -83,7 +83,7 @@ async def get_moh(moh_uuid: UUID, session: AsyncSession = Depends(get_session), 
 
 
 @router.patch("/{moh_uuid}", response_model=dict)
-async def patch_moh(moh_uuid: UUID, payload: MusicOnHoldUpdate, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("music_on_hold_add"))):
+async def patch_moh(moh_uuid: UUID, payload: MusicOnHoldUpdate, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("music_on_hold_edit"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(MusicOnHold).where(MusicOnHold.music_on_hold_uuid == moh_uuid, MusicOnHold.domain_id == domain_id))
@@ -111,7 +111,7 @@ async def patch_moh(moh_uuid: UUID, payload: MusicOnHoldUpdate, session: AsyncSe
 
 
 @router.delete("/{moh_uuid}", status_code=204)
-async def delete_moh(moh_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("music_on_hold_add"))):
+async def delete_moh(moh_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("music_on_hold_delete"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(MusicOnHold).where(MusicOnHold.music_on_hold_uuid == moh_uuid, MusicOnHold.domain_id == domain_id))

@@ -53,7 +53,7 @@ async def get_ep(uid:UUID, session:AsyncSession=Depends(get_session), user:User=
     if not o: raise HTTPException(status_code=404, detail="Email queue not found")
     return _ser(o)
 @router.patch("/{uid}", response_model=dict)
-async def patch_ep(uid:UUID, payload:EmailQueueUpdate, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("email_queue_add"))):
+async def patch_ep(uid:UUID, payload:EmailQueueUpdate, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("email_queue_edit"))):
     domain_id=getattr(user,"_domain_id", user.domain_id)
     await set_tenant(session,domain_id)
     r=await session.execute(select(EmailQueue).where(EmailQueue.email_queue_uuid==uid, EmailQueue.domain_id==domain_id))
@@ -89,7 +89,7 @@ async def retry_ep(uid:UUID, session:AsyncSession=Depends(get_session), user:Use
     return _ser(o)
 
 @router.delete("/{uid}", status_code=204)
-async def delete_ep(uid:UUID, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("email_queue_add"))):
+async def delete_ep(uid:UUID, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("email_queue_delete"))):
     domain_id=getattr(user,"_domain_id", user.domain_id)
     await set_tenant(session,domain_id)
     r=await session.execute(select(EmailQueue).where(EmailQueue.email_queue_uuid==uid, EmailQueue.domain_id==domain_id))

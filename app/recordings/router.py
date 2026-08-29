@@ -6,7 +6,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.deps import get_current_user
+from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
 from app.recordings.models import Recording
@@ -42,7 +42,7 @@ async def list_ep(
     sort: str = Query("created_at"),
     order: str = Query("desc"),
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("recording_view")),
 ):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
@@ -78,7 +78,7 @@ async def list_ep(
     return {"data": [_ser(x) for x in items], "total": total, "page": page, "per_page": per_page, "_links": {"self": {"href": "/api/v1/recordings"}}}
 
 @router.post("", response_model=dict, status_code=201)
-async def create_ep(payload: RecordingCreate, response: Response, request: Request, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+async def create_ep(payload: RecordingCreate, response: Response, request: Request, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("recording_add"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     if payload.domain_id and str(payload.domain_id) != str(domain_id):
         raise HTTPException(status_code=403, detail="Domain mismatch")
@@ -89,7 +89,7 @@ async def create_ep(payload: RecordingCreate, response: Response, request: Reque
     return _ser(obj, include_presigned=True)
 
 @router.get("/{uid}", response_model=dict)
-async def get_ep(uid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+async def get_ep(uid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("recording_view"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(Recording).where(Recording.recording_uuid == uid, Recording.domain_id == domain_id))
@@ -99,7 +99,7 @@ async def get_ep(uid: UUID, session: AsyncSession = Depends(get_session), user: 
     return _ser(obj, include_presigned=True)
 
 @router.get("/{uid}/playback")
-async def playback_ep(uid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user), expires: int = Query(3600, ge=60, le=86400)):
+async def playback_ep(uid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("recording_view")), expires: int = Query(3600, ge=60, le=86400)):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(Recording).where(Recording.recording_uuid == uid, Recording.domain_id == domain_id))
@@ -111,7 +111,7 @@ async def playback_ep(uid: UUID, session: AsyncSession = Depends(get_session), u
     return RedirectResponse(url=url, status_code=302)
 
 @router.get("/{uid}/presign", response_model=dict)
-async def presign_ep(uid: UUID, expires: int = Query(3600, ge=60, le=86400), session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+async def presign_ep(uid: UUID, expires: int = Query(3600, ge=60, le=86400), session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("recording_view"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(Recording).where(Recording.recording_uuid == uid, Recording.domain_id == domain_id))
@@ -122,7 +122,7 @@ async def presign_ep(uid: UUID, expires: int = Query(3600, ge=60, le=86400), ses
     return {"recording_uuid": str(uid), "file_path": obj.file_path, "presigned_url": url, "expires_in": expires, "_links": _links(obj)}
 
 @router.patch("/{uid}", response_model=dict)
-async def patch_ep(uid: UUID, payload: RecordingUpdate, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+async def patch_ep(uid: UUID, payload: RecordingUpdate, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("recording_edit"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(Recording).where(Recording.recording_uuid == uid, Recording.domain_id == domain_id))
@@ -136,7 +136,7 @@ async def patch_ep(uid: UUID, payload: RecordingUpdate, session: AsyncSession = 
     return _ser(obj, include_presigned=True)
 
 @router.delete("/{uid}", status_code=204)
-async def delete_ep(uid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+async def delete_ep(uid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("recording_delete"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(Recording).where(Recording.recording_uuid == uid, Recording.domain_id == domain_id))

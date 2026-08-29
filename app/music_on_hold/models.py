@@ -18,8 +18,11 @@ class MusicOnHoldBase(SQLModel):
     music_timer_name: Optional[str] = Field(default=None, max_length=64)
     music_chime_list: Optional[str] = Field(default=None, max_length=512)
     music_chime_freq: Optional[str] = Field(default=None, max_length=64)
+    music_chime_max: Optional[int] = Field(default=None)
     enabled: bool = Field(default=True)
     description: Optional[str] = Field(default=None, max_length=512)
+    insert_user: Optional[UUID] = Field(default=None)
+    update_user: Optional[UUID] = Field(default=None)
 
 
 class MusicOnHold(MusicOnHoldBase, table=True):

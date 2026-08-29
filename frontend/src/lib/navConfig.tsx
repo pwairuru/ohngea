@@ -8,6 +8,7 @@ import {
   Cable, Globe, ArrowLeftRight, Shield,
   Activity, UserCheck, MonitorSpeaker, ScrollText, Siren, BellRing,
   Building2, Users, Puzzle, Boxes, Variable, Settings, Database, Mail, Gauge, Server,
+  PhoneCall, UsersRound, List, PhoneOutgoing,
 } from "lucide-react";
 
 export type NavItem = { to: string; label: string; icon: ComponentType<{ className?: string }> };
@@ -70,6 +71,10 @@ export const advancedNav: NavGroup[] = [
     label: "Status",
     items: [
       { to: "/active_calls", label: "Active Calls", icon: Activity },
+      { to: "/active_conferences", label: "Active Conferences", icon: UsersRound },
+      { to: "/call_center_active", label: "Call Center Active", icon: PhoneCall },
+      { to: "/fifo_list", label: "FIFO List", icon: List },
+      { to: "/click_to_call", label: "Click to Call", icon: PhoneOutgoing },
       { to: "/registrations", label: "Registrations", icon: UserCheck },
       { to: "/operator_panel", label: "Operator Panel", icon: MonitorSpeaker },
       { to: "/logs", label: "Logs", icon: ScrollText },
@@ -82,6 +87,7 @@ export const advancedNav: NavGroup[] = [
     items: [
       { to: "/domains", label: "Tenants", icon: Building2 },
       { to: "/users", label: "Users & Groups", icon: Users },
+      { to: "/groups", label: "Groups", icon: Shield },
       { to: "/plugins", label: "Plugins", icon: Puzzle },
       { to: "/modules", label: "Modules", icon: Boxes },
       { to: "/vars", label: "Vars", icon: Variable },

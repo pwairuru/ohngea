@@ -15,7 +15,7 @@ async def create_var(session: AsyncSession, data: VarCreate, domain_id: UUID):
     if existing.scalar_one_or_none():
         from fastapi import HTTPException
         raise HTTPException(status_code=409, detail="Var already exists")
-    obj=Var(domain_id=domain_id, var_category=data.var_category or "Provision", var_name=name, var_value=str(value), var_enabled=data.var_enabled if data.var_enabled is not None else (data.enabled if data.enabled is not None else True), var_description=data.var_description or data.description)
+    obj=Var(domain_id=domain_id, var_category=data.var_category or "Provision", var_name=name, var_value=str(value), var_enabled=data.var_enabled if data.var_enabled is not None else (data.enabled if data.enabled is not None else True), var_description=data.var_description or data.description, var_command=data.var_command, var_hostname=data.var_hostname, var_order=data.var_order if data.var_order is not None else 0)
     session.add(obj)
     await session.commit()
     try:

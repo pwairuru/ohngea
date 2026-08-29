@@ -32,10 +32,43 @@ class SipProfileBase(SQLModel):
     record_path: Optional[str] = Field(default=None, max_length=256)
     record_template: Optional[str] = Field(default=None, max_length=128)
     description: Optional[str] = Field(default=None, max_length=512)
+    # legacy compat alias fields
+    hostname: Optional[str] = Field(default=None, max_length=128, description="sip_profile_hostname legacy")
 
 
 class SipProfile(SipProfileBase, table=True):
     __tablename__ = "sip_profiles"
     sip_profile_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+
+
+class SipProfileDomainBase(SQLModel):
+    domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
+    sip_profile_uuid: UUID = Field(foreign_key="sip_profiles.sip_profile_uuid", index=True, ondelete="CASCADE")
+    domain_name: str = Field(max_length=128, description="sip_profile_domain_name legacy")
+    domain_alias: Optional[str] = Field(default="false", max_length=16, description="alias true/false")
+    domain_parse: Optional[str] = Field(default="true", max_length=16, description="parse true/false")
+
+
+class SipProfileDomain(SipProfileDomainBase, table=True):
+    __tablename__ = "sip_profile_domains"
+    sip_profile_domain_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+
+
+class SipProfileSettingBase(SQLModel):
+    domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
+    sip_profile_uuid: UUID = Field(foreign_key="sip_profiles.sip_profile_uuid", index=True, ondelete="CASCADE")
+    setting_name: str = Field(max_length=128, description="sip_profile_setting_name legacy")
+    setting_value: Optional[str] = Field(default=None, max_length=512, description="sip_profile_setting_value legacy")
+    enabled: bool = Field(default=True, description="sip_profile_setting_enabled legacy")
+    description: Optional[str] = Field(default=None, max_length=512, description="sip_profile_setting_description legacy")
+
+
+class SipProfileSetting(SipProfileSettingBase, table=True):
+    __tablename__ = "sip_profile_settings"
+    sip_profile_setting_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
     updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())

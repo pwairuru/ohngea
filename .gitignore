@@ -193,6 +193,12 @@ fusionpbx/
 *.pem
 *.key
 *.cert
+ohngea-builder.key
+freebsd/pkg-repo/FreeBSD:15:amd64/
+freebsd/mfsbsd/work/
+freebsd/mfsbsd/mfsbsd.iso
+/tmp/ohngea*.pkg
+/tmp/ohngea*.tar.gz
 
 # Misc artifacts
 *.tmp

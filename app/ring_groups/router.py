@@ -141,7 +141,7 @@ async def patch_rg(
     ring_group_uuid: UUID,
     payload: RingGroupUpdate,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_permission("ring_group_add")),
+    user: User = Depends(require_permission("ring_group_edit")),
 ):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
@@ -208,7 +208,7 @@ async def patch_rg(
 
 
 @router.delete("/{ring_group_uuid}", status_code=204)
-async def delete_rg(ring_group_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("ring_group_add"))):
+async def delete_rg(ring_group_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("ring_group_delete"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(RingGroup).where(RingGroup.ring_group_uuid == ring_group_uuid, RingGroup.domain_id == domain_id))

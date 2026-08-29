@@ -1,12 +1,23 @@
 from typing import Optional
 from pathlib import Path
+import io
+import datetime
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.freeswitch.esl_client import esl_client, parse_sofia_status
 
 router = APIRouter(prefix="/api/v1/logs", tags=["logs"])
 ALLOWED = ["/var/log/freeswitch/freeswitch.log", "/var/log/freeswitch.log", "/tmp/freeswitch.log", "freeswitch.log", "/app/freeswitch_conf/../freeswitch.log"]
+
+
+class LogDownloadRequest(BaseModel):
+    lines: Optional[int] = 500
+    level: Optional[str] = None
+    q: Optional[str] = None
+    filename: Optional[str] = None
 
 
 @router.get("", response_model=dict)
@@ -106,6 +117,26 @@ async def view_logs(lines: int = Query(100, ge=1, le=1000), level: Optional[str]
 
     # Add hint about where logs come from
     return {"lines": content[:lines], "total": len(content), "truncated": not found, "source": "esl" if found else "mock", "_links": {"self": {"href": "/api/v1/logs"}}}
+
+
+@router.post("/download")
+async def download_logs(payload: LogDownloadRequest, user: User = Depends(require_permission("log_view"))):
+    """Download logs as file attachment. POST /api/v1/logs/download"""
+    lines = min(max(payload.lines or 500, 1), 5000)
+    level = payload.level
+    q = payload.q
+    # Reuse view_logs logic to collect content
+    result = await view_logs(lines=lines, level=level, q=q, user=user)
+    content_lines = result.get("lines", [])
+    text = "\n".join(content_lines) + "\n"
+    buf = io.BytesIO(text.encode("utf-8"))
+    filename = payload.filename or f"freeswitch-{datetime.datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.log"
+    # sanitize filename
+    filename = Path(filename).name
+    if not filename.endswith(".log"):
+        filename += ".log"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(buf, media_type="text/plain; charset=utf-8", headers=headers)
 
 
 @router.get("/freeswitch", response_model=dict)

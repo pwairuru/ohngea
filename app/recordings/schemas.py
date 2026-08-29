@@ -13,6 +13,10 @@ class RecordingCreate(BaseModel):
     s3_bucket: Optional[str] = None
     content_type: Optional[str] = None
     storage_backend: Optional[str] = None
+    recording_voice: Optional[str] = None
+    recording_speed: Optional[float] = None
+    recording_message: Optional[str] = None
+    recording_base64: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -36,6 +40,10 @@ class RecordingRead(BaseModel):
     s3_bucket: Optional[str] = None
     content_type: Optional[str] = None
     storage_backend: str = "s3"
+    recording_voice: Optional[str] = None
+    recording_speed: Optional[float] = None
+    recording_message: Optional[str] = None
+    recording_base64: Optional[str] = None
     created_at: datetime
     created_by: Optional[UUID] = None
 
@@ -46,3 +54,7 @@ class RecordingUpdate(BaseModel):
     duration: Optional[int] = None
     file_size: Optional[int] = None
     content_type: Optional[str] = None
+    recording_voice: Optional[str] = None
+    recording_speed: Optional[float] = None
+    recording_message: Optional[str] = None
+    recording_base64: Optional[str] = None

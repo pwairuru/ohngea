@@ -17,6 +17,13 @@ class RecordingBase(SQLModel):
     s3_bucket: Optional[str] = Field(default=None, max_length=128, description="S3 bucket override")
     content_type: Optional[str] = Field(default=None, max_length=128)
     storage_backend: str = Field(default="s3", max_length=32, description="s3|local")
+    # legacy parity - nullable for v_recordings compat
+    recording_voice: Optional[str] = Field(default=None, max_length=64, description="TTS voice")
+    recording_speed: Optional[float] = Field(default=None, description="Speech speed 0.25-4.0")
+    recording_message: Optional[str] = Field(default=None, max_length=2048, description="TTS message text")
+    recording_base64: Optional[str] = Field(default=None, description="Recording file base64")
+    transcription: Optional[str] = Field(default=None, description="Transcribed text")
+    summary: Optional[str] = Field(default=None, description="AI summary of recording")
 
 
 class Recording(RecordingBase, table=True):

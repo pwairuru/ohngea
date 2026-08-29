@@ -25,7 +25,7 @@ async def list_ivr(response: Response, page: int = Query(1, ge=1), per_page: int
 
 
 @router.post("", status_code=201)
-async def create_ivr(payload: dict, response: Response, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("dialplan_view"))):
+async def create_ivr(payload: dict, response: Response, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("ivr_menu_add"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     allowed={c.name for c in IvrMenu.__table__.columns} - {"ivr_menu_uuid","created_at","updated_at","domain_id"}
@@ -63,14 +63,16 @@ async def get_ivr(ivr_menu_uuid: UUID, session: AsyncSession = Depends(get_sessi
 
 
 @router.patch("/{ivr_menu_uuid}")
-async def patch_ivr(ivr_menu_uuid: UUID, payload: dict, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("dialplan_view"))):
+async def patch_ivr(ivr_menu_uuid: UUID, payload: dict, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("ivr_menu_edit"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(IvrMenu).where(IvrMenu.ivr_menu_uuid == ivr_menu_uuid, IvrMenu.domain_id == domain_id))
     m = r.scalar_one_or_none()
     if not m:
         raise HTTPException(status_code=404, detail="IVR not found")
-    for k in ["name", "extension", "enabled"]:
+    # allow all IvrMenu columns (dialplan_uuid, greet_long etc.) via table.columns detection like gateways router
+    allowed = {c.name for c in IvrMenu.__table__.columns} - {"ivr_menu_uuid", "created_at", "updated_at", "domain_id"}
+    for k in allowed:
         if k in payload:
             setattr(m, k, payload[k])
     if "options" in payload and isinstance(payload["options"], list):
@@ -91,7 +93,7 @@ async def patch_ivr(ivr_menu_uuid: UUID, payload: dict, session: AsyncSession = 
 
 
 @router.delete("/{ivr_menu_uuid}", status_code=204)
-async def delete_ivr(ivr_menu_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("dialplan_view"))):
+async def delete_ivr(ivr_menu_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("ivr_menu_delete"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(IvrMenu).where(IvrMenu.ivr_menu_uuid == ivr_menu_uuid, IvrMenu.domain_id == domain_id))

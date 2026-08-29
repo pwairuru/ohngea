@@ -9,6 +9,8 @@ class FeatureCodeBase(SQLModel):
     feature_code_value: str = Field(max_length=32)
     feature_code_enabled: bool = Field(default=True)
     feature_code_description: Optional[str]=Field(default=None, max_length=512)
+    insert_user: Optional[UUID]=Field(default=None)
+    update_user: Optional[UUID]=Field(default=None)
 class FeatureCode(FeatureCodeBase, table=True):
     __tablename__="feature_codes"
     feature_code_uuid: UUID = Field(default_factory=uuid7, primary_key=True)

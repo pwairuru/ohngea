@@ -51,7 +51,7 @@ async def get_ph(uid:UUID, session:AsyncSession=Depends(get_session), user:User=
         raise HTTPException(status_code=404, detail="Phrase not found")
     return _ser(ph,dets)
 @router.patch("/{uid}", response_model=dict)
-async def patch_ph(uid:UUID, payload:PhraseUpdate, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("phrase_add"))):
+async def patch_ph(uid:UUID, payload:PhraseUpdate, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("phrase_edit"))):
     domain_id=getattr(user,"_domain_id", user.domain_id)
     await set_tenant(session,domain_id)
     ph, _=await get_phrase_with_details(session,uid,domain_id)
@@ -77,7 +77,7 @@ async def patch_ph(uid:UUID, payload:PhraseUpdate, session:AsyncSession=Depends(
     _, dets=await get_phrase_with_details(session,ph.phrase_uuid,domain_id)
     return _ser(ph,dets)
 @router.delete("/{uid}", status_code=204)
-async def delete_ph(uid:UUID, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("phrase_add"))):
+async def delete_ph(uid:UUID, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("phrase_delete"))):
     domain_id=getattr(user,"_domain_id", user.domain_id)
     await set_tenant(session,domain_id)
     ph, _=await get_phrase_with_details(session,uid,domain_id)

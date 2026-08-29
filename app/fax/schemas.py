@@ -9,10 +9,13 @@ import re
 class FaxCreate(BaseModel):
     model_config = ConfigDict(extra="allow")
     domain_id: Optional[UUID] = None
+    dialplan_uuid: Optional[UUID] = None
     fax_extension: Optional[str] = None
     extension: Optional[str] = None
     fax_name: Optional[str] = None
     name: Optional[str] = None
+    fax_destination_number: Optional[str] = None
+    fax_prefix: Optional[str] = None
     fax_email: Optional[str] = None
     email: Optional[str] = None
     fax_pin_number: Optional[str] = None
@@ -20,6 +23,19 @@ class FaxCreate(BaseModel):
     fax_caller_id_number: Optional[str] = None
     fax_forward_number: Optional[str] = None
     fax_toll_allow: Optional[str] = None
+    fax_email_connection_type: Optional[str] = None
+    fax_email_connection_host: Optional[str] = None
+    fax_email_connection_port: Optional[str] = None
+    fax_email_connection_security: Optional[str] = None
+    fax_email_connection_validate: Optional[bool] = None
+    fax_email_connection_username: Optional[str] = None
+    fax_email_connection_password: Optional[str] = None
+    fax_email_connection_mailbox: Optional[str] = None
+    fax_email_inbound_subject_tag: Optional[str] = None
+    fax_email_outbound_subject_tag: Optional[str] = None
+    fax_email_outbound_authorized_senders: Optional[str] = None
+    fax_send_channels: Optional[int] = None
+    accountcode: Optional[str] = None
     enabled: Optional[bool] = True
     description: Optional[str] = None
 
@@ -53,14 +69,30 @@ class FaxRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     fax_uuid: UUID
     domain_id: UUID
+    dialplan_uuid: Optional[UUID] = None
     fax_extension: str
     fax_name: str
+    fax_destination_number: Optional[str] = None
+    fax_prefix: Optional[str] = None
     fax_email: Optional[str] = None
     fax_pin_number: Optional[str] = None
     fax_caller_id_name: Optional[str] = None
     fax_caller_id_number: Optional[str] = None
     fax_forward_number: Optional[str] = None
     fax_toll_allow: Optional[str] = None
+    fax_email_connection_type: Optional[str] = None
+    fax_email_connection_host: Optional[str] = None
+    fax_email_connection_port: Optional[str] = None
+    fax_email_connection_security: Optional[str] = None
+    fax_email_connection_validate: Optional[bool] = None
+    fax_email_connection_username: Optional[str] = None
+    fax_email_connection_password: Optional[str] = None
+    fax_email_connection_mailbox: Optional[str] = None
+    fax_email_inbound_subject_tag: Optional[str] = None
+    fax_email_outbound_subject_tag: Optional[str] = None
+    fax_email_outbound_authorized_senders: Optional[str] = None
+    fax_send_channels: Optional[int] = None
+    accountcode: Optional[str] = None
     enabled: bool
     description: Optional[str] = None
     created_at: datetime
@@ -69,14 +101,30 @@ class FaxRead(BaseModel):
 
 class FaxUpdate(BaseModel):
     model_config = ConfigDict(extra="allow")
+    dialplan_uuid: Optional[UUID] = None
     fax_extension: Optional[str] = None
     fax_name: Optional[str] = None
+    fax_destination_number: Optional[str] = None
+    fax_prefix: Optional[str] = None
     fax_email: Optional[str] = None
     fax_pin_number: Optional[str] = None
     fax_caller_id_name: Optional[str] = None
     fax_caller_id_number: Optional[str] = None
     fax_forward_number: Optional[str] = None
     fax_toll_allow: Optional[str] = None
+    fax_email_connection_type: Optional[str] = None
+    fax_email_connection_host: Optional[str] = None
+    fax_email_connection_port: Optional[str] = None
+    fax_email_connection_security: Optional[str] = None
+    fax_email_connection_validate: Optional[bool] = None
+    fax_email_connection_username: Optional[str] = None
+    fax_email_connection_password: Optional[str] = None
+    fax_email_connection_mailbox: Optional[str] = None
+    fax_email_inbound_subject_tag: Optional[str] = None
+    fax_email_outbound_subject_tag: Optional[str] = None
+    fax_email_outbound_authorized_senders: Optional[str] = None
+    fax_send_channels: Optional[int] = None
+    accountcode: Optional[str] = None
     enabled: Optional[bool] = None
     description: Optional[str] = None
 

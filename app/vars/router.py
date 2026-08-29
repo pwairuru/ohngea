@@ -41,7 +41,7 @@ async def get_var(uid:UUID, session:AsyncSession=Depends(get_session), user:User
     if not o: raise HTTPException(status_code=404, detail="Var not found")
     return _ser(o)
 @router.patch("/{uid}", response_model=dict)
-async def patch_var(uid:UUID, payload:VarUpdate, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("var_add"))):
+async def patch_var(uid:UUID, payload:VarUpdate, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("var_edit"))):
     domain_id=getattr(user,"_domain_id", user.domain_id)
     await set_tenant(session,domain_id)
     r=await session.execute(select(Var).where(Var.var_uuid==uid, Var.domain_id==domain_id))
@@ -57,7 +57,7 @@ async def patch_var(uid:UUID, payload:VarUpdate, session:AsyncSession=Depends(ge
     await session.refresh(o)
     return _ser(o)
 @router.delete("/{uid}", status_code=204)
-async def delete_var(uid:UUID, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("var_add"))):
+async def delete_var(uid:UUID, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("var_delete"))):
     domain_id=getattr(user,"_domain_id", user.domain_id)
     await set_tenant(session,domain_id)
     r=await session.execute(select(Var).where(Var.var_uuid==uid, Var.domain_id==domain_id))

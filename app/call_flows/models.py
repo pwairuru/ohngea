@@ -11,15 +11,24 @@ from app.db import uuid7
 
 class CallFlowBase(SQLModel):
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
+    dialplan_uuid: Optional[UUID] = Field(default=None, foreign_key="dialplans.dialplan_uuid", index=True, ondelete="SET NULL")
     call_flow_name: str = Field(max_length=128, description="Call flow name")
     call_flow_extension: str = Field(max_length=32, description="Feature code extension 2-7 digits or *code")
     call_flow_feature_code: Optional[str] = Field(default=None, max_length=32, description="Feature code like *123")
     call_flow_context: str = Field(default="public", max_length=128, description="Dialplan context")
+    call_flow_status: Optional[str] = Field(default=None, max_length=32, description="Status active/inactive")
+    call_flow_pin_number: Optional[str] = Field(default=None, max_length=32, description="PIN number")
+    call_flow_label: Optional[str] = Field(default=None, max_length=128, description="Label")
     call_flow_enabled: bool = Field(default=True)
     call_flow_description: Optional[str] = Field(default=None, max_length=512)
+    call_flow_sound: Optional[str] = Field(default=None, max_length=128)
+    call_flow_app: Optional[str] = Field(default=None, max_length=64, description="Application")
+    call_flow_data: Optional[str] = Field(default=None, max_length=512, description="Application data")
     call_flow_alternate_label: Optional[str] = Field(default=None, max_length=128)
     call_flow_alternate_destination: Optional[str] = Field(default=None, max_length=128)
-    call_flow_sound: Optional[str] = Field(default=None, max_length=128)
+    call_flow_alternate_sound: Optional[str] = Field(default=None, max_length=128)
+    call_flow_alternate_app: Optional[str] = Field(default=None, max_length=64, description="Alternate application")
+    call_flow_alternate_data: Optional[str] = Field(default=None, max_length=512, description="Alternate app data")
 
     @field_validator("call_flow_extension")
     @classmethod

@@ -25,6 +25,18 @@ class VoicemailBase(SQLModel):
     voicemail_tutorial: bool = Field(default=False)
     voicemail_local_after_email: bool = Field(default=True)
     voicemail_transcription_enabled: bool = Field(default=False)
+    # additional parity fields (11+ missing)
+    voicemail_sms_to: Optional[str] = Field(default=None, max_length=512, description="SMS destination for voicemail notification")
+    voicemail_transcription_prompt: Optional[str] = Field(default=None, max_length=2048, description="Prompt for transcription service")
+    voicemail_recording_instructions: Optional[str] = Field(default=None, max_length=512, description="Recording instructions")
+    voicemail_attach_file: Optional[str] = Field(default=None, max_length=32, description="alias for voicemail_file attach/link")
+    voicemail_forward_enabled: bool = Field(default=False, description="Forward copy enabled flag")
+    voicemail_forward_destinations: Optional[str] = Field(default=None, max_length=1024, description="Comma-separated forward destinations (legacy compat)")
+    # legacy aliases for mail_to variant
+    voicemail_alternate_greet_id: Optional[str] = Field(default=None, max_length=64, description="alias for alternate_greet_id")
+    # sms type and mail/sms transcription flags
+    voicemail_sms_type: Optional[str] = Field(default=None, max_length=32, description="sms type")
+    voicemail_keep_local_after_email: Optional[bool] = Field(default=None, description="alias keep local after email")
 
     @field_validator("voicemail_id")
     @classmethod
@@ -82,3 +94,44 @@ class VoicemailDestination(VoicemailDestinationBase, table=True):
     __tablename__ = "voicemail_destinations"
     voicemail_destination_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+
+
+# --- Child tables parity: VoicemailMessage and VoicemailOption ---
+
+class VoicemailMessageBase(SQLModel):
+    domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
+    voicemail_uuid: UUID = Field(foreign_key="voicemails.voicemail_uuid", index=True, ondelete="CASCADE")
+    caller_id_number: Optional[str] = Field(default=None, max_length=32)
+    caller_id_name: Optional[str] = Field(default=None, max_length=128)
+    message_length: Optional[int] = Field(default=None, description="Duration in seconds")
+    message_status: Optional[str] = Field(default=None, max_length=32, description="saved/read etc")
+    message_priority: Optional[str] = Field(default=None, max_length=16)
+    message_uuid: Optional[str] = Field(default=None, max_length=128, description="FS message uuid")
+    created_epoch: Optional[int] = Field(default=None)
+    read_epoch: Optional[int] = Field(default=None)
+    file_path: Optional[str] = Field(default=None, max_length=512)
+    transcription: Optional[str] = Field(default=None)
+
+
+class VoicemailMessage(VoicemailMessageBase, table=True):
+    __tablename__ = "voicemail_messages"
+    voicemail_message_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+
+
+class VoicemailOptionBase(SQLModel):
+    domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
+    voicemail_uuid: UUID = Field(foreign_key="voicemails.voicemail_uuid", index=True, ondelete="CASCADE")
+    digits: Optional[str] = Field(default=None, max_length=8, description="DTMF digits for option")
+    action: Optional[str] = Field(default=None, max_length=64, description="Action app e.g. transfer")
+    param: Optional[str] = Field(default=None, max_length=512, description="Action param")
+    description: Optional[str] = Field(default=None, max_length=512)
+    order: Optional[int] = Field(default=0)
+
+
+class VoicemailOption(VoicemailOptionBase, table=True):
+    __tablename__ = "voicemail_options"
+    voicemail_option_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())

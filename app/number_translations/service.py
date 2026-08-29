@@ -7,16 +7,19 @@ from app.number_translations.schemas import NumberTranslationCreate
 from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 async def create_nt(session: AsyncSession, data: NumberTranslationCreate, domain_id:UUID):
     name=data.number_translation_name or data.name
-    regex=data.number_translation_regex or data.regex
+    # regex/replace are now detail-only; keep compat by defaulting to empty string if not provided
+    regex=data.number_translation_regex or data.regex or ""
     replace=data.number_translation_replace or data.replace
-    if not name or not regex or replace is None:
+    if replace is None:
+        replace = ""
+    if not name:
         from fastapi import HTTPException
-        raise HTTPException(status_code=400, detail="name, regex and replace required")
+        raise HTTPException(status_code=400, detail="name required")
     existing=await session.execute(select(NumberTranslation).where(NumberTranslation.domain_id==domain_id, NumberTranslation.number_translation_name==name))
     if existing.scalar_one_or_none():
         from fastapi import HTTPException
         raise HTTPException(status_code=409, detail="Number translation already exists")
-    obj=NumberTranslation(domain_id=domain_id, number_translation_name=name, number_translation_regex=str(regex), number_translation_replace=str(replace), number_translation_enabled=data.number_translation_enabled if data.number_translation_enabled is not None else (data.enabled if data.enabled is not None else True), number_translation_description=data.number_translation_description or data.description)
+    obj=NumberTranslation(domain_id=domain_id, number_translation_name=name, number_translation_regex=str(regex or ""), number_translation_replace=str(replace or ""), number_translation_enabled=data.number_translation_enabled if data.number_translation_enabled is not None else (data.enabled if data.enabled is not None else True), number_translation_description=data.number_translation_description or data.description)
     session.add(obj)
     await session.commit()
     try:

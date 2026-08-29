@@ -162,12 +162,16 @@ def include_routers():
     from app.event_guard.router import router as event_guard_router
     from app.modules.router import router as modules_router
     from app.active_calls.router import router as active_calls_router
+    from app.active_conferences.router import router as active_conferences_router
+    from app.call_center_active.router import router as call_center_active_router
+    from app.fifo_list.router import router as fifo_list_router
+    from app.click_to_call.router import router as click_to_call_router
     from app.registrations.router import router as registrations_router
     from app.operator_panel.router import router as operator_panel_router
     from app.status_aliases.router import router as aliases_router
     from app.log_viewer.router import router as logs_router
     from app.domain_limits.router import router as domain_limits_router
-    from app.devices.router import router as devices_router, provision_router as provision_router
+    from app.devices.router import router as devices_router, provision_router as provision_router, profile_router as device_profiles_router
     from app.cdr.router import router as cdr_router
     from app.recordings.router import router as recordings_router
     from app.freeswitch.xml_router import router as fs_router
@@ -179,6 +183,7 @@ def include_routers():
     from app.webrtc_settings.router import router as webrtc_settings_router
     from app.webrtc.credentials_router import router as webrtc_credentials_router
     from app.system.router import router as system_router
+    from app.call_recordings.router import router as call_recordings_router
 
     app.include_router(auth_router)
     # also mount auth at /api/v1/auth for versioned consistency
@@ -226,12 +231,17 @@ def include_routers():
     app.include_router(event_guard_router)
     app.include_router(modules_router)
     app.include_router(active_calls_router)
+    app.include_router(active_conferences_router)
+    app.include_router(call_center_active_router)
+    app.include_router(fifo_list_router)
+    app.include_router(click_to_call_router)
     app.include_router(registrations_router)
     app.include_router(operator_panel_router)
     app.include_router(aliases_router)
     app.include_router(logs_router)
     app.include_router(domain_limits_router)
     app.include_router(devices_router)
+    app.include_router(device_profiles_router)
     app.include_router(provision_router)
     app.include_router(cdr_router)
     app.include_router(recordings_router)
@@ -244,6 +254,7 @@ def include_routers():
     app.include_router(contacts_router)
     app.include_router(webrtc_settings_router)
     app.include_router(webrtc_credentials_router)
+    app.include_router(call_recordings_router)
 
     # dynamic plugin routers — discover via registry
     try:

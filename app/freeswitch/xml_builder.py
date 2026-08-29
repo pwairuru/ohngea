@@ -153,31 +153,127 @@ def build_dialplan_xml(context: str, dialplans) -> bytes:
     section = etree.SubElement(root, "section", name="dialplan", description="PBX Dialplan")
     ctx = etree.SubElement(section, "context", name=context)
     for dp in dialplans:
-        ext = etree.SubElement(ctx, "extension", name=dp.name, **({"continue": "true"} if False else {}))
+        # parity: honor dialplan_continue and include uuid when present
+        cont = getattr(dp, "dialplan_continue", None)
+        if cont is None:
+            cont = getattr(dp, "continue", False)
+        cont_str = "true" if cont else "false"
+        ext_attrs = {"name": getattr(dp, "name", getattr(dp, "dialplan_name", "extension")), "continue": cont_str}
+        # include uuid if available for debugging/FS matching
+        _uuid = getattr(dp, "dialplan_uuid", None) or getattr(dp, "dialplan_uuid", None)
+        if _uuid:
+            ext_attrs["uuid"] = str(_uuid)
+        ext = etree.SubElement(ctx, "extension", **ext_attrs)
         # fetch details via attribute? Expect dp.details list if attached, else generic
         details = getattr(dp, "details", []) or getattr(dp, "_details", [])
-        # if we only have Dialplan without details joined, try to use empty
         if not details and hasattr(dp, "dialplans_details"):
             details = dp.dialplans_details  # placeholder
-        # fallback: create condition/action from DialplanDetail rows will be passed as tuples
-        # We'll attempt to group by order: condition vs action
+        # if we only have Dialplan without details joined, try to use empty
+        # sort by group then order, mirroring legacy: dialplan_detail_group asc, detail_order asc
+        def _group_key(d):
+            if isinstance(d, dict):
+                g = d.get("dialplan_detail_group", d.get("group", d.get("dialplan_detail_group")))
+                if g is None:
+                    g = 0
+                o = d.get("order", d.get("dialplan_detail_order", 0))
+            else:
+                g = getattr(d, "dialplan_detail_group", None)
+                if g is None:
+                    g = getattr(d, "group", None)
+                if g is None:
+                    g = 0
+                o = getattr(d, "order", getattr(d, "dialplan_detail_order", 0))
+            try:
+                return (int(g), int(o))
+            except Exception:
+                return (0, 0)
+        try:
+            details = sorted(details, key=_group_key)
+        except Exception:
+            pass
         current_condition = None
+        has_any = False
         for det in details:
-            tag = getattr(det, "tag", det.get("tag") if isinstance(det, dict) else "condition")
-            typ = getattr(det, "type", det.get("type") if isinstance(det, dict) else "")
-            data = getattr(det, "data", det.get("data") if isinstance(det, dict) else "")
+            # skip disabled details
+            if isinstance(det, dict):
+                enabled = det.get("detail_enabled", det.get("dialplan_detail_enabled", True))
+            else:
+                enabled = getattr(det, "detail_enabled", None)
+                if enabled is None:
+                    enabled = getattr(det, "dialplan_detail_enabled", None)
+                if enabled is None:
+                    enabled = True
+            # normalize string "false"/"true"
+            if isinstance(enabled, str):
+                enabled = enabled.lower() not in ("false", "0", "f", "no")
+            if not enabled:
+                continue
+            has_any = True
+            if isinstance(det, dict):
+                tag = det.get("tag", det.get("dialplan_detail_tag", "condition"))
+                typ = det.get("type", det.get("dialplan_detail_type", ""))
+                data = det.get("data", det.get("dialplan_detail_data", ""))
+                brk = det.get("dialplan_detail_break", det.get("break"))
+                inl = det.get("dialplan_detail_inline", det.get("inline"))
+                grp = det.get("dialplan_detail_group", det.get("group"))
+            else:
+                tag = getattr(det, "tag", getattr(det, "dialplan_detail_tag", "condition"))
+                typ = getattr(det, "type", getattr(det, "dialplan_detail_type", ""))
+                data = getattr(det, "data", getattr(det, "dialplan_detail_data", ""))
+                brk = getattr(det, "dialplan_detail_break", None)
+                inl = getattr(det, "dialplan_detail_inline", None)
+                grp = getattr(det, "dialplan_detail_group", None)
+            # normalize empty strings to None
+            if brk == "":
+                brk = None
+            if inl == "":
+                inl = None
             if tag == "condition":
                 # typ is field like destination_number, data is expression
-                current_condition = etree.SubElement(ext, "condition", field=typ or "destination_number", expression=data or ".*")
+                attrs = {"field": typ or "destination_number", "expression": data or ".*"}
+                if brk:
+                    attrs["break"] = str(brk)
+                current_condition = etree.SubElement(ext, "condition", **attrs)
+            elif tag == "regex":
+                # legacy supports regex tag as separate condition
+                attrs = {"field": typ or "destination_number", "expression": data or ".*"}
+                if brk:
+                    attrs["break"] = str(brk)
+                # regex tag in legacy sometimes rendered as <condition regex="..."> but we keep as condition with field
+                current_condition = etree.SubElement(ext, "condition", **attrs)
             elif tag in ("action", "anti-action"):
                 target = current_condition if current_condition is not None else ext
-                etree.SubElement(target, "action", application=typ or "transfer", data=data or "")
+                attrs = {"application": typ or "transfer", "data": data or ""}
+                if inl is not None and str(inl).lower() not in ("", "none"):
+                    # inline can be "true"/"false" or boolean
+                    if isinstance(inl, bool):
+                        inl_str = "true" if inl else "false"
+                    else:
+                        s = str(inl).lower()
+                        if s in ("true", "1", "t", "yes"):
+                            inl_str = "true"
+                        elif s in ("false", "0", "f", "no"):
+                            inl_str = "false"
+                        else:
+                            inl_str = str(inl)
+                    attrs["inline"] = inl_str
+                # anti-action vs action tag
+                if tag == "anti-action":
+                    etree.SubElement(target, "anti-action", **attrs)
+                else:
+                    etree.SubElement(target, "action", **attrs)
             elif tag == "param":
-                etree.SubElement(ext, "param", name=typ, value=data)
-        # if no details, add default transfer to extension
-        if not details:
-            cond = etree.SubElement(ext, "condition", field="destination_number", expression=f"^{dp.name}$")
-            etree.SubElement(cond, "action", application="transfer", data=f"{dp.name} XML {context}")
+                etree.SubElement(ext, "param", name=typ, value=data or "")
+            else:
+                # fallback: treat as condition
+                attrs = {"field": typ or "destination_number", "expression": data or ".*"}
+                if brk:
+                    attrs["break"] = str(brk)
+                current_condition = etree.SubElement(ext, "condition", **attrs)
+        # if no details (or all disabled), add default transfer to extension
+        if not has_any:
+            cond = etree.SubElement(ext, "condition", field="destination_number", expression=f"^{getattr(dp, 'name', '.*')}$")
+            etree.SubElement(cond, "action", application="transfer", data=f"{getattr(dp, 'name', '')} XML {context}")
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", pretty_print=True)
 
 

@@ -34,7 +34,7 @@ async def get_ep(uid:UUID, session:AsyncSession=Depends(get_session), user:User=
     if not o: raise HTTPException(status_code=404, detail="Module not found")
     return _ser(o)
 @router.patch("/{uid}", response_model=dict)
-async def patch_ep(uid:UUID, payload:ModuleUpdate, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("module_add"))):
+async def patch_ep(uid:UUID, payload:ModuleUpdate, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("module_edit"))):
     r=await session.execute(select(Module).where(Module.module_uuid==uid))
     o=r.scalar_one_or_none()
     if not o: raise HTTPException(status_code=404, detail="Module not found")
@@ -45,7 +45,7 @@ async def patch_ep(uid:UUID, payload:ModuleUpdate, session:AsyncSession=Depends(
     except Exception:
         pass; await session.refresh(o); return _ser(o)
 @router.delete("/{uid}", status_code=204)
-async def delete_ep(uid:UUID, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("module_add"))):
+async def delete_ep(uid:UUID, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("module_delete"))):
     r=await session.execute(select(Module).where(Module.module_uuid==uid))
     o=r.scalar_one_or_none()
     if not o: raise HTTPException(status_code=404, detail="Module not found")

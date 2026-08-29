@@ -11,6 +11,8 @@ class VarBase(SQLModel):
     var_enabled: bool = Field(default=True)
     var_description: Optional[str]=Field(default=None, max_length=512)
     var_order: Optional[int]=Field(default=0)
+    var_command: Optional[str]=Field(default=None, max_length=512, description="command for provision vars")
+    var_hostname: Optional[str]=Field(default=None, max_length=255, description="hostname for provision vars")
 class Var(VarBase, table=True):
     __tablename__="vars"
     var_uuid: UUID = Field(default_factory=uuid7, primary_key=True)

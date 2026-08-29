@@ -55,7 +55,7 @@ async def list_gateways(response: Response, page: int = Query(1, ge=1), per_page
 
 
 @router.post("", status_code=201)
-async def create_gateway(payload: dict, response: Response, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("gateway_view"))):
+async def create_gateway(payload: dict, response: Response, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("gateway_add"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     if not payload.get("gateway"):
@@ -113,7 +113,7 @@ async def get_gateway(gateway_uuid: UUID, session: AsyncSession = Depends(get_se
 
 
 @router.patch("/{gateway_uuid}")
-async def patch_gateway(gateway_uuid: UUID, payload: dict, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("gateway_view"))):
+async def patch_gateway(gateway_uuid: UUID, payload: dict, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("gateway_edit"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(Gateway).where(Gateway.gateway_uuid == gateway_uuid, Gateway.domain_id == domain_id))
@@ -147,7 +147,7 @@ async def patch_gateway(gateway_uuid: UUID, payload: dict, session: AsyncSession
 
 
 @router.delete("/{gateway_uuid}", status_code=204)
-async def delete_gateway(gateway_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("gateway_view"))):
+async def delete_gateway(gateway_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("gateway_delete"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(Gateway).where(Gateway.gateway_uuid == gateway_uuid, Gateway.domain_id == domain_id))

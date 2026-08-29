@@ -7,6 +7,7 @@ class ModuleBase(SQLModel):
     module_label: str = Field(max_length=128)
     module_name: str = Field(max_length=128)
     module_category: Optional[str]=Field(default=None, max_length=64)
+    module_order: Optional[int] = Field(default=None)
     module_enabled: bool = Field(default=True)
     module_default_enabled: bool = Field(default=False)
     module_description: Optional[str]=Field(default=None, max_length=512)

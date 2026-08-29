@@ -14,6 +14,9 @@ class VarCreate(BaseModel):
     enabled: Optional[bool]=None
     var_description: Optional[str]=None
     description: Optional[str]=None
+    var_command: Optional[str]=None
+    var_hostname: Optional[str]=None
+    var_order: Optional[int]=None
     @model_validator(mode="before")
     @classmethod
     def map_aliases(cls,data):
@@ -34,6 +37,9 @@ class VarRead(BaseModel):
     var_value: str
     var_enabled: bool
     var_description: Optional[str]=None
+    var_command: Optional[str]=None
+    var_hostname: Optional[str]=None
+    var_order: Optional[int]=None
     created_at: datetime
     updated_at: datetime
 class VarUpdate(BaseModel):
@@ -43,3 +49,6 @@ class VarUpdate(BaseModel):
     var_value: Optional[str]=None
     var_enabled: Optional[bool]=None
     var_description: Optional[str]=None
+    var_command: Optional[str]=None
+    var_hostname: Optional[str]=None
+    var_order: Optional[int]=None

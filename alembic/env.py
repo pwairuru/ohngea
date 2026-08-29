@@ -23,17 +23,30 @@ from app.auth.models import User, Group, UserGroup, Permission, GroupPermission 
 from app.extensions.models import Extension  # noqa
 from app.dialplans.models import Dialplan, DialplanDetail  # noqa
 from app.gateways.models import Gateway  # noqa
-from app.sip_profiles.models import SipProfile  # noqa
+from app.sip_profiles.models import SipProfile, SipProfileDomain, SipProfileSetting  # noqa
 from app.ivr_menus.models import IvrMenu, IvrMenuOption  # noqa
-from app.devices.models import Device  # noqa
+from app.devices.models import Device, DeviceKey, DeviceLine, DeviceSetting, DeviceProfile, DeviceProfileKey, DeviceProfileSetting  # noqa
 from app.cdr.models import Cdr  # noqa
 from app.recordings.models import Recording  # noqa
-from app.contacts.models import Contact  # noqa
-from app.ring_groups.models import RingGroup, RingGroupMember  # noqa
+from app.contacts.models import (  # noqa
+    Contact,
+    ContactAddress,
+    ContactPhone,
+    ContactEmail,
+    ContactUrl,
+    ContactNote,
+    ContactGroup,
+    ContactUser,
+    ContactSetting,
+    ContactRelation,
+    ContactTime,
+    ContactAttachment,
+)  # noqa
+from app.ring_groups.models import RingGroup, RingGroupMember, RingGroupUser  # noqa
 from app.time_conditions.models import TimeCondition  # noqa
 from app.voicemails.models import Voicemail, VoicemailDestination  # noqa
 from app.conferences.models import Conference, ConferenceUser  # noqa
-from app.fax.models import Fax  # noqa
+from app.fax.models import Fax, FaxFile, FaxLog, FaxUser  # noqa
 from app.call_flows.models import CallFlow  # noqa
 from app.music_on_hold.models import MusicOnHold  # noqa
 from app.follow_me.models import FollowMe, FollowMeDestination  # noqa
@@ -46,17 +59,18 @@ from app.bridges.models import Bridge  # noqa
 from app.fifo.models import Fifo  # noqa
 from app.call_centers.models import CallCenter, CallCenterAgent  # noqa
 from app.vars.models import Var  # noqa
-from app.number_translations.models import NumberTranslation  # noqa
+from app.number_translations.models import NumberTranslation, NumberTranslationDetail  # noqa
 from app.conference_profiles.models import ConferenceProfile, ConferenceProfileParam  # noqa
 from app.conference_controls.models import ConferenceControl, ConferenceControlDetail  # noqa
-from app.conference_centers.models import ConferenceCenter  # noqa
+from app.conference_centers.models import ConferenceCenter, ConferenceRoom, ConferenceRoomUser, ConferenceSession, ConferenceSessionDetail  # noqa
 from app.access_controls.models import AccessControl, AccessControlNode  # noqa
+from app.call_recordings.models import CallRecording  # noqa
 from app.call_broadcast.models import CallBroadcast  # noqa
 from app.emergency_logs.models import EmergencyLog  # noqa
 from app.voicemail_greetings.models import VoicemailGreeting  # noqa
 from app.fax_queue.models import FaxQueue  # noqa
 from app.extension_settings.models import ExtensionSetting  # noqa
-from app.email_queue.models import EmailQueue  # noqa
+from app.email_queue.models import EmailQueue, EmailQueueAttachment  # noqa
 from app.sofia_global_settings.models import SofiaGlobalSetting  # noqa
 from app.feature_codes.models import FeatureCode  # noqa
 from app.database_transactions.models import DatabaseTransaction  # noqa
