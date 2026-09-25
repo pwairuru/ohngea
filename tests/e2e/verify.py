@@ -8,7 +8,9 @@
 Run: uv run python tests/e2e/verify.py   (after e2e-call trigger)
 """
 
+import argparse
 import asyncio
+import json
 import os
 import sys
 import time
@@ -56,11 +58,11 @@ def esl_checks() -> None:
     asyncio.run(run())
 
 
-def wait_for_cdr(c: httpx.Client, tok: str) -> dict:
+def wait_for_cdr(c: httpx.Client, tok: str, dest: str, timeout_s: int) -> dict:
     headers = {"Authorization": f"Bearer {tok}"}
-    deadline = time.monotonic() + TIMEOUT_S
+    deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        r = c.get(f"/api/v1/cdr", headers=headers, params={"filter[extension]": DEST})
+        r = c.get(f"/api/v1/cdr", headers=headers, params={"filter[extension]": dest})
         if r.status_code == 200:
             for cdr in r.json().get("data", []):
                 full = c.get(f"/api/v1/cdr/{cdr['cdr_uuid']}", headers=headers).json()
@@ -70,20 +72,51 @@ def wait_for_cdr(c: httpx.Client, tok: str) -> dict:
                     return full
         time.sleep(2)
     sys.exit(
-        f"no answered CDR for {DEST} within {TIMEOUT_S}s "
+        f"no answered CDR for {dest} within {timeout_s}s "
         f"(check: docker compose logs freeswitch sipp1002 api)"
     )
 
 
-def main() -> None:
-    esl_checks()
-    with httpx.Client(base_url=API, timeout=15) as c:
-        tok = token(c)
-        cdr = wait_for_cdr(c, tok)
+def write_result(out: str, payload: dict) -> None:
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    with open(out, "w") as f:
+        json.dump(payload, f, indent=2)
+    print(f"wrote {out}")
+
+
+def parse_args(argv=None):
+    p = argparse.ArgumentParser(description="Verify E2E call CDRs")
+    p.add_argument("--json", action="store_true", help="write machine-readable result JSON")
+    p.add_argument("--out", default="test-results/e2e.json", help="result JSON path (with --json)")
+    p.add_argument("--dest", default=DEST, help="destination extension to look for")
+    p.add_argument("--timeout", type=int, default=TIMEOUT_S, help="CDR poll timeout seconds")
+    return p.parse_args(argv)
+
+
+def main(argv=None) -> None:
+    args = parse_args(argv)
+    try:
+        esl_checks()
+        with httpx.Client(base_url=API, timeout=15) as c:
+            tok = token(c)
+            cdr = wait_for_cdr(c, tok, args.dest, args.timeout)
+    except SystemExit as e:
+        if args.json:
+            write_result(args.out, {"pass": False, "error": str(e.code or e)})
+        raise
     print("\nCDR verified:")
     for k in ("cdr_uuid", "caller_id_number", "destination_number", "billsec", "duration", "hangup_cause"):
         print(f"  {k}: {cdr.get(k)}")
     print("\nPASS: extension-to-extension call completed end-to-end")
+    if args.json:
+        write_result(args.out, {
+            "pass": True,
+            "registered": True,
+            "answered": True,
+            "billsec": cdr.get("billsec"),
+            "hangup_cause": cdr.get("hangup_cause"),
+            "cdr_uuid": cdr.get("cdr_uuid"),
+        })
 
 
 if __name__ == "__main__":

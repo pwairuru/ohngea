@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 """Seed the E2E test tenant through the public REST API.
 
-Creates domain test.local (bootstrap), extensions 1001/1002, an
-extension-to-extension dialplan, and a sip_profiles row mirroring the FS
-container profile. Idempotent-ish: bootstrap 409 falls back to login.
+Creates domain E2E_DOMAIN (default test.example.com, bootstrap),
+extensions 1001-1004, extension-to-extension / ringgroup / conference /
+ivr dialplans, and a sip_profiles row mirroring the FS container profile.
+Idempotent-ish: bootstrap 409 falls back to login; existing rows skipped.
 
 Run: uv run python tests/e2e/seed.py  (API must be up on localhost:8000)
 """
@@ -80,29 +81,62 @@ def create_extension(c: httpx.Client, token: str, number: str) -> None:
 
 
 def create_dialplan(c: httpx.Client, token: str) -> None:
+    specs = [
+        (
+            "local_extension",
+            "E2E: bridge extension-to-extension",
+            r"^(\d{3,4})$",
+            "user/$1@${domain_name}",
+            "bridge",
+        ),
+        (
+            "ringgroup_6000",
+            "E2E: ring group 6000 -> 1001+1002",
+            r"^6000$",
+            "user/1001@${domain_name},user/1002@${domain_name}",
+            "bridge",
+        ),
+        (
+            "conference_3500",
+            "E2E: conference 3500",
+            r"^3500$",
+            "3500@${domain_name}",
+            "conference",
+        ),
+        (
+            # Safe fallback: transfer to 1002 so seed never fails on an
+            # unknown IVR app type. Phones dial 5000 expecting a fallback.
+            "ivr_5000",
+            "E2E: ivr 5000 safe fallback to 1002",
+            r"^5000$",
+            f"1002 XML {DOMAIN}",
+            "transfer",
+        ),
+    ]
     r = c.get("/api/v1/dialplans", headers={"Authorization": f"Bearer {token}"}, params={"per_page": 100})
     existing = [d["name"] for d in r.json().get("data", [])]
-    if "local_extension" in existing:
-        print("dialplan local_extension exists")
-        return
-    r = c.post(
-        "/api/v1/dialplans",
-        headers={"Authorization": f"Bearer {token}"},
-        json={
-            "name": "local_extension",
-            "context": DOMAIN,
-            "enabled": True,
-            "description": "E2E: bridge extension-to-extension",
-            "details": [
-                {"tag": "condition", "type": "destination_number", "data": r"^(\d{3,4})$", "order": 0},
-                {"tag": "action", "type": "bridge", "data": "user/$1@${domain_name}", "order": 1},
-            ],
-        },
-    )
-    if r.status_code == 201:
-        print(f"dialplan local_extension ok")
-    else:
-        sys.exit(f"dialplan failed: {r.status_code} {r.text}")
+    for name, desc, cond, data, action in specs:
+        if name in existing:
+            print(f"dialplan {name} exists")
+            continue
+        r = c.post(
+            "/api/v1/dialplans",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "name": name,
+                "context": DOMAIN,
+                "enabled": True,
+                "description": desc,
+                "details": [
+                    {"tag": "condition", "type": "destination_number", "data": cond, "order": 0},
+                    {"tag": "action", "type": action, "data": data, "order": 1},
+                ],
+            },
+        )
+        if r.status_code == 201:
+            print(f"dialplan {name} ok")
+        else:
+            sys.exit(f"dialplan {name} failed: {r.status_code} {r.text}")
 
 
 def create_sip_profile(c: httpx.Client, token: str) -> None:
@@ -123,13 +157,33 @@ def create_sip_profile(c: httpx.Client, token: str) -> None:
         sys.exit(f"sip profile failed: {r.status_code} {r.text}")
 
 
+def flush_xml_cache() -> None:
+    """Best-effort Valkey xml:* flush so FS picks up new dialplans."""
+    import subprocess
+
+    try:
+        keys = subprocess.run(
+            ["valkey-cli", "-n", "0", "--scan", "--pattern", "xml:*"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if keys.returncode == 0 and keys.stdout.strip():
+            subprocess.run(
+                ["valkey-cli", "DEL", *keys.stdout.split()],
+                capture_output=True, timeout=10,
+            )
+        print("xml cache flush attempted")
+    except Exception as e:
+        print(f"xml cache flush skipped (best-effort): {e}")
+
+
 def main() -> None:
     with client() as c:
         token = bootstrap_or_login(c)
-        for ext in ("1001", "1002"):
+        for ext in ("1001", "1002", "1003", "1004"):
             create_extension(c, token, ext)
         create_dialplan(c, token)
         create_sip_profile(c, token)
+    flush_xml_cache()
     print(f"\nseeded. register extensions with user <ext> password {SIP_PASSWORD} @ {DOMAIN}")
 
 
