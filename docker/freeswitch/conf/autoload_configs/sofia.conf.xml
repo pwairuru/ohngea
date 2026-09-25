@@ -1,17 +1,36 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <configuration name="sofia.conf" description="sofia Endpoint">
   <profiles>
+    <profile name="external">
+      <settings>
+        <param name="sip-ip" value="0.0.0.0"/>
+        <param name="ext-sip-ip" value="192.168.1.108"/>
+        <param name="ext-rtp-ip" value="192.168.1.108"/>
+        <param name="rtp-ip" value="0.0.0.0"/>
+        <param name="sip-port" value="5080"/>
+        <param name="dialplan" value="XML"/>
+        <param name="context" value="external"/>
+        <param name="realm" value="external"/>
+        <param name="challenge-realm" value="auto_from"/>
+        <param name="accept-blind-reg" value="false"/>
+        <param name="inbound-late-negotiation" value="true"/>
+        <param name="rtp-timer-name" value="soft"/>
+        <param name="enable-100rel" value="false"/>
+        <param name="disable-register" value="false"/>
+        <param name="apply-inbound-acl" value="e2e-all"/>
+        <param name="local-network-acl" value="localnet.auto"/>
+      </settings>
+    </profile>
     <profile name="internal">
       <settings>
         <param name="sip-ip" value="0.0.0.0"/>
+        <param name="ext-sip-ip" value="192.168.1.108"/>
+        <param name="ext-rtp-ip" value="192.168.1.108"/>
         <param name="rtp-ip" value="0.0.0.0"/>
-        <!-- override via app/freeswitch/sofia_config.py LAN_IP -->
-        <param name="ext-sip-ip" value="192.168.100.82"/>
-        <param name="ext-rtp-ip" value="192.168.100.82"/>
         <param name="sip-port" value="5060"/>
         <param name="dialplan" value="XML"/>
-        <param name="context" value="default"/>
-        <param name="realm" value="auto_from"/>
+        <param name="context" value="internal"/>
+        <param name="realm" value="internal"/>
         <param name="challenge-realm" value="auto_from"/>
         <param name="accept-blind-reg" value="false"/>
         <param name="inbound-late-negotiation" value="true"/>
