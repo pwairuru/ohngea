@@ -33,6 +33,84 @@ Name                Type                                           Data      Sta
 """
 
 import json as _json
+import re as _re
+import uuid as _uuid
+
+# Tier-1 offline agent loop: in-memory state.
+REGISTRATIONS: dict = {
+    "1001": {"user": "1001", "domain": "pbx.example.com"},
+    "1002": {"user": "1002", "domain": "pbx.example.com"},
+}
+CHANNELS: dict = {}
+CONFERENCES: dict = {}
+
+
+def _cdr_hook_noop(channel: dict) -> None:
+    """CDR hook placeholder — no-op for offline tests."""
+    return None
+
+
+def handle_originate(cmd: str) -> list:
+    """Parse originate cmd, create 2 channels, return list of channel dicts."""
+    users = _re.findall(r"user/(\w+)", cmd)
+    caller = users[0] if users else "1001"
+    callee = users[1] if len(users) > 1 else caller
+    chans = []
+    for peer in (caller, callee):
+        cid = str(_uuid.uuid4())
+        ch = {"uuid": cid, "caller": caller, "callee": callee, "peer": peer, "state": "CS_EXECUTE"}
+        CHANNELS[cid] = ch
+        _cdr_hook_noop(ch)
+        chans.append(ch)
+    return chans
+
+
+def handle_kill(channel_uuid: str) -> bool:
+    """Remove channel by uuid. Returns True if removed."""
+    uid = (channel_uuid or "").strip()
+    if uid in CHANNELS:
+        del CHANNELS[uid]
+        for members in CONFERENCES.values():
+            if uid in members:
+                members.remove(uid)
+        return True
+    return False
+
+
+def handle_conference_list(room: str) -> dict:
+    """Return conference room membership dict."""
+    r = (room or "").strip()
+    members = list(CONFERENCES.get(r, []))
+    return {"room": r, "row_count": len(members), "members": members}
+
+
+def reset_mock_state() -> None:
+    """Reset in-memory state (tests only). Reseeds REGISTRATIONS."""
+    CHANNELS.clear()
+    CONFERENCES.clear()
+    REGISTRATIONS.clear()
+    REGISTRATIONS.update({
+        "1001": {"user": "1001", "domain": "pbx.example.com"},
+        "1002": {"user": "1002", "domain": "pbx.example.com"},
+    })
+
+
+def _live_channels_body() -> str:
+    if not CHANNELS:
+        return _CHANNELS_JSON_BODY
+    rows = [
+        {
+            "uuid": cid,
+            "name": f"sofia/internal/{ch.get('peer', ch.get('caller'))}@pbx.example.com",
+            "state": ch.get("state", "CS_EXECUTE"),
+            "cid_num": ch.get("caller", ""),
+            "callee_num": ch.get("callee", ""),
+            "call_uuid": cid,
+            "callstate": "ACTIVE",
+        }
+        for cid, ch in CHANNELS.items()
+    ]
+    return _json.dumps({"row_count": len(rows), "rows": rows})
 
 _CHANNELS_JSON_BODY = _json.dumps({
     "row_count": 2,
@@ -250,10 +328,11 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
             elif "show channels" in txt:
                 # support "show channels as json" and "show channels count"
                 if "count" in txt:
-                    body = "2 total.\n"
+                    total = len(CHANNELS) if CHANNELS else 2
+                    body = f"{total} total.\n"
                     writer.write(_build_api_response(body))
                 else:
-                    writer.write(_build_api_response(_CHANNELS_JSON_BODY))
+                    writer.write(_build_api_response(_live_channels_body()))
                 await writer.drain()
             elif "show registrations" in txt:
                 writer.write(_build_api_response(_REGISTRATIONS_JSON_BODY))
@@ -261,7 +340,34 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
             elif "api status" in txt:
                 writer.write(STATUS.encode())
                 await writer.drain()
-            elif "uuid_exists" in txt or "uuid_kill" in txt or "originate" in txt or "conference" in txt or "callcenter" in txt:
+            elif "originate" in txt:
+                try:
+                    raw = hdr.decode(errors="ignore")
+                except Exception:
+                    raw = txt
+                chans = handle_originate(raw)
+                writer.write(_build_api_response(_json.dumps(chans)))
+                await writer.drain()
+            elif "uuid_kill" in txt:
+                parts = txt.strip().split()
+                target = ""
+                for i, p in enumerate(parts):
+                    if p == "uuid_kill" and i + 1 < len(parts):
+                        target = parts[i + 1]
+                        break
+                ok = handle_kill(target)
+                writer.write(_build_api_response("+OK\n" if ok else "-ERR no such channel\n"))
+                await writer.drain()
+            elif "conference" in txt and "list" in txt:
+                parts = txt.strip().split()
+                room = ""
+                for i, p in enumerate(parts):
+                    if p == "conference" and i + 1 < len(parts):
+                        room = parts[i + 1]
+                        break
+                writer.write(_build_api_response(_json.dumps(handle_conference_list(room))))
+                await writer.drain()
+            elif "uuid_exists" in txt or "callcenter" in txt:
                 # generic success for control commands
                 body = "+OK\n"
                 writer.write(_build_api_response(body))
@@ -288,7 +394,6 @@ async def main(host="0.0.0.0", port=8021):
     srv = await asyncio.start_server(handle, host, port)
     addr = ", ".join(str(s.getsockname()) for s in srv.sockets or [])
     logger.info(f"Mock ESL listening on {addr}")
-    print(f"Mock ESL listening on {addr}")
     async with srv:
         await srv.serve_forever()
 
