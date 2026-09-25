@@ -21,7 +21,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_INDEX_URL=${PIP_INDEX_URL} \
-    UV_SYSTEM_PYTHON=1
+    UV_SYSTEM_PYTHON=1 \
+    PATH="/app/.venv/bin:$PATH"
 
 # uv for fast, locked dependency resolution (pip's resolver hangs on this
 # dependency set and a trailing `|| true` used to mask the failure entirely).
