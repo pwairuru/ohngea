@@ -31,6 +31,8 @@ services:
     environment:
       SIP_EXT: "1001"
       SIP_DOMAIN: test.example.com
+      SIP_PORT: "5060"
+      SIP_MODE: answer
     depends_on:
       - freeswitch
 
@@ -40,6 +42,31 @@ services:
     environment:
       SIP_EXT: "1002"
       SIP_DOMAIN: test.example.com
+      SIP_PORT: "5060"
+      SIP_MODE: answer
+    depends_on:
+      - freeswitch
+
+  phone1003:
+    build: ./docker/sipphone
+    restart: unless-stopped
+    environment:
+      SIP_EXT: "1003"
+      SIP_DOMAIN: test.example.com
+      SIP_PORT: "5060"
+      SIP_MODE: busy
+    depends_on:
+      - freeswitch
+
+  phone1004:
+    build: ./docker/sipphone
+    restart: unless-stopped
+    environment:
+      SIP_EXT: "1004"
+      SIP_DOMAIN: test.example.com
+      SIP_PORT: "5060"
+      SIP_MODE: dtmf
+      SIP_DTMF: "1"
     depends_on:
       - freeswitch
 
