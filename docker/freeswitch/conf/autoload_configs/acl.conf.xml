@@ -1,8 +1,14 @@
 <configuration name="acl.conf" description="Network Lists">
   <network-lists>
-    <!-- E2E-only stack: permit the docker network (API, SIPp endpoints, fs_cli). -->
     <list name="e2e-all" default="deny">
-      <node type="allow" cidr="0.0.0.0/0"/>
+      <node type="allow" cidr="127.0.0.1/32"/>
+      <node type="allow" cidr="172.16.0.0/12"/>
+      <node type="allow" cidr="192.168.100.0/24"/>
+    </list>
+    <list name="localnet.auto" default="deny">
+      <node type="allow" cidr="127.0.0.1/32"/>
+      <node type="allow" cidr="172.16.0.0/12"/>
+      <node type="allow" cidr="192.168.100.0/24"/>
     </list>
   </network-lists>
 </configuration>

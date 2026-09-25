@@ -3,8 +3,9 @@
 Writes to /app/freeswitch_conf/autoload_configs/sofia.conf.xml (mounted to host's docker/freeswitch/conf)
 and triggers FS reload via ESL.
 
-If no DB profiles, generates default internal profile for 192.168.1.108 and 5061 for test.example.com.
+If no DB profiles, generates default internal profile for LAN_IP (default 192.168.100.82) for test.example.com.
 """
+import os
 import pathlib
 from lxml import etree
 
@@ -18,15 +19,16 @@ def _build_sofia_xml(profiles) -> bytes:
     profiles_el = etree.SubElement(root, "profiles")
     if not profiles:
         # fallback default as before
+        lan_ip = os.environ.get("LAN_IP", "192.168.100.82")
         for name, port, ctx, realm in [
-            ("internal", "5060", "192.168.1.108", "192.168.1.108"),
+            ("internal", "5060", "test.example.com", "test.example.com"),
             ("internal-test", "5061", "test.example.com", "test.example.com"),
         ]:
             prof = etree.SubElement(profiles_el, "profile", name=name)
             settings = etree.SubElement(prof, "settings")
             etree.SubElement(settings, "param", name="sip-ip", value="0.0.0.0")
-            etree.SubElement(settings, "param", name="ext-sip-ip", value="192.168.1.108")
-            etree.SubElement(settings, "param", name="ext-rtp-ip", value="192.168.1.108")
+            etree.SubElement(settings, "param", name="ext-sip-ip", value=lan_ip)
+            etree.SubElement(settings, "param", name="ext-rtp-ip", value=lan_ip)
             etree.SubElement(settings, "param", name="rtp-ip", value="0.0.0.0")
             etree.SubElement(settings, "param", name="sip-port", value=port)
             etree.SubElement(settings, "param", name="dialplan", value="XML")
@@ -45,10 +47,10 @@ def _build_sofia_xml(profiles) -> bytes:
             name = getattr(p, "name", "internal")
             sip_port = str(getattr(p, "sip_port", 5060) or 5060)
             sip_ip = getattr(p, "sip_ip", None) or "0.0.0.0"
-            ext_sip_ip = getattr(p, "ext_sip_ip", None) or "192.168.1.108"
+            ext_sip_ip = getattr(p, "ext_sip_ip", None) or os.environ.get("LAN_IP", "192.168.100.82")
             ext_rtp_ip = getattr(p, "ext_rtp_ip", None) or ext_sip_ip
             rtp_ip = getattr(p, "rtp_ip", None) or "0.0.0.0"
-            realm = getattr(p, "realm", None) or getattr(p, "name", "192.168.1.108")
+            realm = getattr(p, "realm", None) or getattr(p, "name", "test.example.com") or "test.example.com"
             context = getattr(p, "context", None) or realm
             # if realm looks like domain, use it, otherwise use ext_sip_ip
             if not realm:

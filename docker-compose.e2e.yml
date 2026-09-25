@@ -8,8 +8,11 @@ services:
   freeswitch:
     # community Debian image with the full module set (mod_xml_curl, mod_xml_cdr,
     # mod_sofia, fs_cli). The official signalwire images now require registry auth.
-    image: safarov/freeswitch:latest
+    # Pinned 2026-09-25: safarov/freeswitch@sha256:b31c743f4c911a19687c61e3214968f2a24f93f9d3d667cc26284192e158ffc6
+    image: safarov/freeswitch:latest@sha256:b31c743f4c911a19687c61e3214968f2a24f93f9d3d667cc26284192e158ffc6
     command: ["freeswitch", "-nonat", "-nf"]
+    environment:
+      LAN_IP: ${LAN_IP:-192.168.100.82}
     volumes:
       - ./docker/freeswitch/conf:/etc/freeswitch
     ports:
@@ -17,6 +20,7 @@ services:
       - "5066:5066"
       - "7443:7443"
       - "8022:8021"
+      - "16384-16386:16384-16386/udp"
     depends_on:
       api:
         condition: service_healthy
