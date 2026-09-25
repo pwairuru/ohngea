@@ -188,7 +188,16 @@ async def fs_xml(
             from app.dialplans.models import Dialplan, DialplanDetail
 
             # key_value is context like tenant.example.com or IP 192.168.1.108
+            # NOTE: mod_xml_curl sends dialplan hunts with EMPTY key_value; the
+            # requested context arrives as Hunt-Context/Caller-Context form fields.
             context = key_value or "default"
+            if section == "dialplan" and not key_value and form_data:
+                context = (
+                    form_data.get("Hunt-Context")
+                    or form_data.get("Caller-Context")
+                    or form_data.get("context")
+                    or "default"
+                )
             # find domain by context
             r = await session.execute(select(Domain).where(Domain.domain_name == context))
             dom = r.scalar_one_or_none()
@@ -230,6 +239,26 @@ async def fs_xml(
             # and the sofia profile's context is default or internal.
             # NOTE: never extend this to "public" (external profile) — that would expose internal extensions to unauthenticated inbound SIP.
             if not dialplans and context in ("default", "internal"):
+                # Resolve an explicit bridge domain: ${domain_name} is unreliable
+                # here (empty for some To: domains, raw IP for others), and
+                # user/$1 without a domain yields SUBSCRIBER_ABSENT. Prefer the
+                # To: host when it names a known domain, else test.example.com.
+                import re as _re
+
+                _to_host = (form_data.get("sip_to_host") or form_data.get("sip_req_host") or "")
+                _to_host = _to_host.split(":")[0].strip().strip("[]")
+                _bridge_domain = "test.example.com"
+                if _to_host:
+                    if _re.match(r"^\d+\.\d+\.\d+\.\d+$", _to_host):
+                        _bridge_domain = "test.example.com"
+                    else:
+                        _rd = await session.execute(select(Dialplan).where(Dialplan.context == _to_host, Dialplan.enabled == True).limit(1))
+                        if _rd.scalar_one_or_none() is not None:
+                            _bridge_domain = _to_host
+                        else:
+                            _rdd = await session.execute(select(Domain).where(Domain.domain_name == _to_host))
+                            if _rdd.scalar_one_or_none() is not None:
+                                _bridge_domain = _to_host
                 # try to reuse any existing local_extension as template
                 rd2 = await session.execute(select(Dialplan).where(Dialplan.name == "local_extension", Dialplan.enabled == True).limit(1))
                 tmpl = rd2.scalar_one_or_none()
@@ -237,6 +266,12 @@ async def fs_xml(
                     # fetch its details
                     det2 = await session.execute(select(DialplanDetail).where(DialplanDetail.dialplan_uuid == tmpl.dialplan_uuid).order_by(DialplanDetail.order))
                     tmpl._details = det2.scalars().all()
+                    # Fallback calls have no reliable ${domain_name} (empty for some
+                    # To: domains) — bridge to the resolved explicit domain instead.
+                    for d in tmpl._details:
+                        data = getattr(d, "data", "") or ""
+                        if "@${domain_name}" in data:
+                            d.data = data.replace("@${domain_name}", f"@{_bridge_domain}")
                     dialplans = [tmpl]
                 else:
                     # synthetic in-memory dialplan
@@ -249,7 +284,7 @@ async def fs_xml(
                     )
                     synthetic._details = [
                         SimpleNamespace(tag="condition", type="destination_number", data="^(\\d{3,4})$", order=0),
-                        SimpleNamespace(tag="action", type="bridge", data="user/$1@${domain_name}", order=1),
+                        SimpleNamespace(tag="action", type="bridge", data=f"user/$1@{_bridge_domain}", order=1),
                     ]
                     dialplans = [synthetic]  # type: ignore
             # fetch details for each (skip synthetic already has _details)
