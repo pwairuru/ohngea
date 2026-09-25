@@ -2,6 +2,7 @@
 
 PY := uv run --python 3.14
 COMPOSE_E2E := docker compose -f docker-compose.yml -f docker-compose.e2e.yml
+E2E_DOMAIN ?= test.example.com
 
 dev:
 	uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -52,7 +53,7 @@ e2e-seed:
 	uv run python tests/e2e/seed.py
 
 e2e-call:
-	$(COMPOSE_E2E) exec freeswitch fs_cli -x "originate user/1001@${E2E_DOMAIN:-test.example.com} &bridge(user/1002@${E2E_DOMAIN:-test.example.com})"
+	$(COMPOSE_E2E) exec freeswitch fs_cli -x "originate user/1001@$(E2E_DOMAIN) &bridge(user/1002@$(E2E_DOMAIN))"
 	@sleep 10
 	uv run python tests/e2e/verify.py
 
@@ -63,7 +64,7 @@ agent-e2e:
 	$(COMPOSE_E2E) up -d --build db valkey api freeswitch phone1001 phone1002
 	@sleep 5
 	$(MAKE) e2e-seed
-	$(COMPOSE_E2E) exec -T freeswitch fs_cli -x "originate user/1001@${E2E_DOMAIN:-test.example.com} &bridge(user/1002@${E2E_DOMAIN:-test.example.com})"
+	$(COMPOSE_E2E) exec -T freeswitch fs_cli -x "originate user/1001@$(E2E_DOMAIN) &bridge(user/1002@$(E2E_DOMAIN))"
 	@sleep 10
 	uv run python tests/e2e/verify.py --json --out test-results/e2e.json; rc=$$?; $(COMPOSE_E2E) down -v || true; exit $$rc
 
