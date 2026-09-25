@@ -20,7 +20,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import httpx  # noqa: E402
 
-API = "http://localhost:8000"
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+except ImportError:
+    pass
+
+# Host port follows API_PORT in root .env (single source of truth); $E2E_API wins.
+API = os.environ.get("E2E_API") or f"http://localhost:{os.environ.get('API_PORT', '8010')}"
 DOMAIN = os.environ.get("E2E_DOMAIN", "test.example.com")
 ADMIN = os.environ.get("E2E_ADMIN", "admin")
 PASSWORD = os.environ.get("E2E_PASSWORD", "admin")
@@ -29,7 +37,7 @@ TIMEOUT_S = 60
 
 
 def token(c: httpx.Client) -> str:
-    r = c.post("/auth/login", json={"username": ADMIN, "password": PASSWORD, "domain": DOMAIN})
+    r = c.post("/api/v1/auth/login", json={"username": ADMIN, "password": PASSWORD, "domain": DOMAIN})
     if r.status_code != 200:
         sys.exit(f"login failed: {r.status_code} {r.text}")
     return r.json()["access_token"]

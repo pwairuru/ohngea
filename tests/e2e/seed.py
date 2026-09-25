@@ -6,15 +6,24 @@ extensions 1001-1004, extension-to-extension / ringgroup / conference /
 ivr dialplans, and a sip_profiles row mirroring the FS container profile.
 Idempotent-ish: bootstrap 409 falls back to login; existing rows skipped.
 
-Run: uv run python tests/e2e/seed.py  (API must be up on localhost:8000)
+Run: uv run python tests/e2e/seed.py  (API must be up on localhost:8010)
 """
 
 import os
 import sys
+from pathlib import Path
 
 import httpx
 
-API = "http://localhost:8000"
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+except ImportError:
+    pass
+
+# Host port follows API_PORT in root .env (single source of truth); $E2E_API wins.
+API = os.environ.get("E2E_API") or f"http://localhost:{os.environ.get('API_PORT', '8010')}"
 DOMAIN = os.environ.get("E2E_DOMAIN", "test.example.com")
 ADMIN = os.environ.get("E2E_ADMIN", "admin")
 PASSWORD = os.environ.get("E2E_PASSWORD", "admin")
@@ -38,7 +47,7 @@ def bootstrap_or_login(c: httpx.Client) -> str:
     else:
         sys.exit(f"bootstrap failed: {r.status_code} {r.text}")
 
-    r = c.post("/auth/login", json={"username": ADMIN, "password": PASSWORD, "domain": DOMAIN})
+    r = c.post("/api/v1/auth/login", json={"username": ADMIN, "password": PASSWORD, "domain": DOMAIN})
     if r.status_code != 200:
         sys.exit(
             f"login failed for {DOMAIN}: {r.status_code} {r.text}\n"
@@ -142,25 +151,140 @@ def create_dialplan(c: httpx.Client, token: str) -> None:
 def create_sip_profile(c: httpx.Client, token: str) -> None:
     """DB mirror of the static internal profile in docker/freeswitch conf."""
     r = c.get("/api/v1/sip_profiles", headers={"Authorization": f"Bearer {token}"})
-    names = [p["name"] for p in r.json().get("data", [])]
+    rows = r.json().get("data", [])
+    names = [p["name"] for p in rows]
     if "internal" in names:
         print("sip profile internal exists")
-        return
-    r = c.post(
-        "/api/v1/sip_profiles",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"name": "internal", "sip_port": 5060, "enabled": True},
-    )
-    if r.status_code == 201:
-        print("sip profile internal created")
     else:
-        sys.exit(f"sip profile failed: {r.status_code} {r.text}")
+        r = c.post(
+            "/api/v1/sip_profiles",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"name": "internal", "sip_port": 5060, "enabled": True},
+        )
+        if r.status_code == 201:
+            print("sip profile internal created")
+            rows = c.get("/api/v1/sip_profiles", headers={"Authorization": f"Bearer {token}"}).json().get("data", [])
+        else:
+            sys.exit(f"sip profile failed: {r.status_code} {r.text}")
+    # Touch the profile so the API regenerates sofia.conf.xml from the DB
+    # (DB is source of truth; a stale on-disk conf would break FS at boot).
+    for p in rows:
+        if p["name"] == "internal":
+            t = c.patch(
+                f"/api/v1/sip_profiles/{p['sip_profile_uuid']}",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"description": "E2E internal profile (seed-managed)"},
+            )
+            print(f"sofia conf regenerated ({t.status_code})")
+            break
+
+
+def _resp_read(fh) -> object:
+    """Parse one RESP value from a shared buffered reader."""
+    line = fh.readline().decode().strip()
+    if not line:
+        return None
+    kind, rest = line[0], line[1:]
+    if kind == "+":
+        return rest
+    if kind == ":":
+        return int(rest)
+    if kind == "-":
+        raise RuntimeError(f"valkey error: {rest}")
+    if kind == "$":
+        n = int(rest)
+        return None if n < 0 else fh.read(n + 2)[:-2].decode()
+    if kind == "*":
+        n = int(rest)
+        return None if n < 0 else [_resp_read(fh) for _ in range(n)]
+    raise RuntimeError(f"unexpected RESP: {line}")
+
+
+def _resp_command(sock: "socket.socket", *args) -> object:
+    """Send one RESP command and parse the reply (str, int, list or None)."""
+    sock.sendall(
+        f"*{len(args)}\r\n".encode()
+        + b"".join(f"${len(str(a).encode())}\r\n".encode() + str(a).encode() + b"\r\n" for a in args)
+    )
+    fh = sock.makefile("rb")
+    try:
+        return _resp_read(fh)
+    finally:
+        fh.close()
+
+
+def flush_xml_cache_tcp() -> bool:
+    """Delete xml:* keys via stdlib TCP RESP (no valkey-cli needed)."""
+    import os
+    import socket
+    from urllib.parse import urlparse
+
+    host, port, db = "localhost", None, 0
+    try:
+        u = urlparse(os.environ.get("VALKEY_URL", ""))
+        if u.hostname:
+            # container hostname unreachable from host — use loopback instead
+            host = "localhost" if u.hostname in ("valkey", "redis", "localhost") else u.hostname
+        if u.port:
+            port = u.port
+        if u.path and u.path.strip("/").isdigit():
+            db = int(u.path.strip("/"))
+    except Exception:
+        pass
+    # published host port is 6380; .env may point at 6379 (another service?)
+    candidates = [p for p in (port, 6380, 6379) if p]
+    last_err: Exception | None = None
+    s: socket.socket | None = None
+    for port in dict.fromkeys(candidates):
+        try:
+            s = socket.create_connection((host, port), timeout=3)
+            s.settimeout(3)
+            if _resp_command(s, "PING") in ("PONG", True):
+                break
+            s.close()
+            s = None
+        except Exception as e:
+            last_err = e
+            try:
+                if s is not None:
+                    s.close()
+            except Exception:
+                pass
+            s = None
+            continue
+    if s is None:
+        raise RuntimeError(f"no valkey reachable at {host}:{candidates}: {last_err}")
+    try:
+        if db:
+            _resp_command(s, "SELECT", db)
+        cursor, total = "0", 0
+        while True:
+            _r = _resp_command(s, "SCAN", cursor, "MATCH", "xml:*", "COUNT", 200)
+            cursor, keys = _r[0], _r[1] or []
+            for i in range(0, len(keys), 100):
+                _resp_command(s, "DEL", *keys[i:i + 100])
+                total += len(keys[i:i + 100])
+            if cursor == "0":
+                break
+        print(f"xml cache flush via TCP ({host}:{port} db={db}): {total} keys")
+        return True
+    finally:
+        s.close()
 
 
 def flush_xml_cache() -> None:
-    """Best-effort Valkey xml:* flush so FS picks up new dialplans."""
+    """Best-effort Valkey xml:* flush so FS picks up new dialplans.
+
+    API writes already self-invalidate server-side; this is belt-and-braces
+    for re-seeds. Prefers stdlib TCP, falls back to the valkey-cli binary.
+    """
     import subprocess
 
+    try:
+        flush_xml_cache_tcp()
+        return
+    except Exception as e:
+        print(f"xml TCP flush skipped: {e}")
     try:
         keys = subprocess.run(
             ["valkey-cli", "-n", "0", "--scan", "--pattern", "xml:*"],

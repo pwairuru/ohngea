@@ -70,7 +70,8 @@ def dtmf_payload(digit: str, duration: int = 800, volume: int = 10, end: bool = 
 
 
 def build_invite(target: str, call_id: str | None = None, cseq: int = 1,
-                 contact: str | None = None, local_ip: str = "") -> tuple[str, str]:
+                 contact: str | None = None, local_ip: str = "",
+                 rtp_port: int = 4000) -> tuple[str, str]:
     """Module-level UAC INVITE builder offering PCMU (for originate mode)."""
     call_id = call_id or f"uac-{EXT}-{secrets.token_hex(4)}@{local_ip or LOCAL_IP}"
     branch = f"z9hG4bK-{secrets.token_hex(6)}"
@@ -81,7 +82,7 @@ def build_invite(target: str, call_id: str | None = None, cseq: int = 1,
         "s=-\r\n"
         f"c=IN IP4 {local_ip or LOCAL_IP}\r\n"
         "t=0 0\r\n"
-        "m=audio 4000 RTP/AVP 0\r\na=rtpmap:0 PCMU/8000\r\n"
+        f"m=audio {rtp_port} RTP/AVP 0\r\na=rtpmap:0 PCMU/8000\r\n"
     )
     raw = "\r\n".join([
         f"INVITE sip:{target}@{DOMAIN} SIP/2.0",
@@ -326,30 +327,17 @@ class Phone(asyncio.DatagramProtocol):
 
     # ---- UAC originate + DTMF ----
     def build_invite(self, target: str, cseq: int = 1):
-        """INVITE sip:<target>@DOMAIN with PCMU SDP (originate mode)."""
-        call_id = f"uac-{EXT}-{secrets.token_hex(4)}@{LOCAL_IP}"
-        branch = f"z9hG4bK-{secrets.token_hex(6)}"
-        sdp = (
-            "v=0\r\n"
-            f"o=- 1 1 IN IP4 {LOCAL_IP}\r\n"
-            "s=-\r\n"
-            f"c=IN IP4 {LOCAL_IP}\r\n"
-            "t=0 0\r\n"
-            f"m=audio {self.port + 10} RTP/AVP 0\r\na=rtpmap:0 PCMU/8000\r\n"
+        """INVITE sip:<target>@DOMAIN with PCMU SDP (originate mode).
+
+        Delegates to the module-level builder, passing the actual bound
+        address so Via/Contact carry the ephemeral port (not SIP_PORT).
+        (Unqualified name resolves to module globals — class namespace
+        is not visible inside methods.)
+        """
+        return build_invite(
+            target, cseq=cseq, contact=self.local(), local_ip=LOCAL_IP,
+            rtp_port=self.port + 10,
         )
-        raw = "\r\n".join([
-            f"INVITE sip:{target}@{DOMAIN} SIP/2.0",
-            f"Via: SIP/2.0/UDP {self.local()};branch={branch}",
-            f"From: <{USER}>;tag=uac-{cseq}",
-            f"To: <sip:{target}@{DOMAIN}>",
-            f"Call-ID: {call_id}",
-            f"CSeq: {cseq} INVITE",
-            f"Contact: <sip:{EXT}@{self.local()};transport=UDP>",
-            "Max-Forwards: 70",
-            "Content-Type: application/sdp",
-            f"Content-Length: {len(sdp)}",
-        ]) + "\r\n\r\n" + sdp
-        return raw, call_id
 
     async def send_invite(self, target: str):
         addr = (socket.gethostbyname(FS_HOST), FS_PORT)

@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <configuration name="xml_cdr.conf" description="XML CDR POST to Ohngea PBX">
   <settings>
-    <param name="url" value="http://api:8000/api/v1/cdr/import"/>
+    <!-- mod_xml_cdr sends no auth headers; userinfo becomes Basic auth,
+         matching gateway-credentials in xml_curl.conf.xml and
+         fs_xml_user/fs_xml_password defaults (freeswitch:ClueCon).
+         The import endpoint rejects credential-less posts with 401. -->
+    <param name="url" value="http://freeswitch:ClueCon@api:8000/api/v1/cdr/import"/>
     <param name="encode" value="false"/>
     <param name="leg" value="both"/>
     <param name="log-dir" value=""/>
