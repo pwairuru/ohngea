@@ -75,3 +75,51 @@ docker compose ... exec freeswitch fs_cli -x "sofia global siptrace on"
 - **Dialplan miss** — valkey caches xml responses for 60s (`app/freeswitch/cache.py`); wait or flush. Extension/dialplan writes invalidate automatically.
 - **No CDR arriving** — do NOT `reload mod_xml_cdr`; its event bindings break until container restart (`docker compose ... restart freeswitch`). Failed posts land in `/tmp/*.cdr.xml` inside the FS container (err-log-dir).
 - **CDR 400 on import** — the endpoint accepts raw XML, URL-encoded (`cdr=...`) and multipart bodies (`app/cdr/router.py: extract_cdr_body`).
+
+## Manual LAN
+
+Human-verified path with real phones against the LAN host (`192.168.100.82`).
+Expected result: `REGISTER 200`, `INVITE → 200 → BYE`, CDR `NORMAL_CLEARING`
+visible in the API.
+
+```bash
+make e2e-manual   # compose stack + real FreeSWITCH, seeds tenant (1001/1002 + dialplan)
+```
+
+### Linphone (desktop)
+
+Linphone → Preferences → SIP account:
+
+- Username: `1003`
+- Domain: `test.example.com`
+- Proxy: `sip:192.168.100.82:5060`
+- Password: `1234`
+- Transport: UDP
+- Disable IPv6
+- Audio codecs: PCMU first
+
+Register a second client/phone as `1004` the same way, then inter-call
+`1003 ↔ 1004` and check the CDR in the API.
+
+### Phone with no DNS field (IP-only variant)
+
+If the phone forces domain = proxy, register as `1003@192.168.100.82`.
+The backend maps an IP domain back to `test.example.com` data automatically
+(IP fallback in `app/freeswitch/xml_router.py:161`).
+
+No `test.example.com` DNS needed on the LAN when Proxy is the IP — only the
+Proxy address is used for routing; the Domain field stays `test.example.com`
+for auth/directory lookup.
+
+### Ports (host)
+
+- `5060/udp` — SIP (sofia internal)
+- `16384-16386/udp` — RTP media
+- `8022` — event socket (`fs_cli`), mapped to FS `8021` in compose
+
+### Checks
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.e2e.yml exec freeswitch fs_cli -x "sofia status"
+docker compose -f docker-compose.yml -f docker-compose.e2e.yml exec freeswitch fs_cli -x "sofia global siptrace on"
+```
