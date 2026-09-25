@@ -40,7 +40,7 @@ def _build_sofia_xml(profiles) -> bytes:
             etree.SubElement(settings, "param", name="rtp-timer-name", value="soft")
             etree.SubElement(settings, "param", name="enable-100rel", value="false")
             etree.SubElement(settings, "param", name="disable-register", value="false")
-            etree.SubElement(settings, "param", name="apply-inbound-acl", value="any")
+            etree.SubElement(settings, "param", name="apply-inbound-acl", value="e2e-all")
             etree.SubElement(settings, "param", name="local-network-acl", value="localnet.auto")
     else:
         for p in profiles:
@@ -73,7 +73,7 @@ def _build_sofia_xml(profiles) -> bytes:
             etree.SubElement(settings, "param", name="rtp-timer-name", value="soft")
             etree.SubElement(settings, "param", name="enable-100rel", value="false")
             etree.SubElement(settings, "param", name="disable-register", value="false")
-            etree.SubElement(settings, "param", name="apply-inbound-acl", value=getattr(p, "apply_inbound_acl", None) or "any")
+            etree.SubElement(settings, "param", name="apply-inbound-acl", value=getattr(p, "apply_inbound_acl", None) or "e2e-all")
             etree.SubElement(settings, "param", name="local-network-acl", value=getattr(p, "local_network_acl", None) or "localnet.auto")
             if getattr(p, "hold_music", None):
                 etree.SubElement(settings, "param", name="hold-music", value=p.hold_music)
