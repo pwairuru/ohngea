@@ -49,14 +49,15 @@ async def fs_xml(
     session: AsyncSession = Depends(get_session),
 ):
     # FS sends section via query or via POST XML body; we support query param
-    # Auth check — allow if no auth in dev? Strict: require
-    # For tests, we allow missing auth but log
-    # Uncomment to enforce:
-    # if not check_fs_auth(authorization):
-    #     raise HTTPException(status_code=401, detail="FS auth failed")
-    # For leniency in tests, only check if header present
-    if authorization and not check_fs_auth(authorization):
-        raise HTTPException(status_code=401, detail="FS auth failed")
+    # Strict: require FS shared-secret auth. Tests use dependency_overrides or
+    # set FS_XML_USER/PASSWORD to test values.
+    import os
+    if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("ALLOW_UNAUTH_FS_XML") == "1":
+        if authorization and not check_fs_auth(authorization):
+            raise HTTPException(status_code=401, detail="FS auth failed")
+    else:
+        if not check_fs_auth(authorization):
+            raise HTTPException(status_code=401, detail="FS auth failed")
 
     # Support FS xml_curl POST where section is in body (form-urlencoded or XML)
     # For POST, key_value may also be in body, not query
@@ -224,10 +225,11 @@ async def fs_xml(
             else:
                 rd = await session.execute(select(Dialplan).where(Dialplan.domain_id == dom.domain_id, Dialplan.enabled == True))
                 dialplans = rd.scalars().all()
-            # Fallback for default context: if no dialplans, provide generic local_extension bridge
+            # Fallback for default/internal context: if no dialplans, provide generic local_extension bridge
             # This ensures WebPhone and other SIP clients can reach extensions even when tenant dialplan is only for its domain context
-            # and the sofia profile's context is default.
-            if not dialplans and context == "default":
+            # and the sofia profile's context is default or internal.
+            # NOTE: never extend this to "public" (external profile) — that would expose internal extensions to unauthenticated inbound SIP.
+            if not dialplans and context in ("default", "internal"):
                 # try to reuse any existing local_extension as template
                 rd2 = await session.execute(select(Dialplan).where(Dialplan.name == "local_extension", Dialplan.enabled == True).limit(1))
                 tmpl = rd2.scalar_one_or_none()
