@@ -12,8 +12,9 @@ def test_compose_publishes_sip_and_rtp():
     assert "5060:5060/udp" in y
     assert "8022:8021" in y
 
-def test_verify_emits_json(tmp_path, monkeypatch):
-    import json, subprocess, sys
+def test_verify_emits_json():
+    import subprocess, sys
     # verify --help must mention --json and --out
     r = subprocess.run([sys.executable, "tests/e2e/verify.py", "--help"], capture_output=True, text=True)
     assert "--json" in r.stdout
+    assert "--out" in r.stdout

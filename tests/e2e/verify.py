@@ -104,6 +104,10 @@ def main(argv=None) -> None:
         if args.json:
             write_result(args.out, {"pass": False, "error": str(e.code or e)})
         raise
+    except Exception as e:
+        if args.json:
+            write_result(args.out, {"pass": False, "error": str(e)})
+        sys.exit(1)
     print("\nCDR verified:")
     for k in ("cdr_uuid", "caller_id_number", "destination_number", "billsec", "duration", "hangup_cause"):
         print(f"  {k}: {cdr.get(k)}")

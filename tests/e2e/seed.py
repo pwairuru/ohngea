@@ -167,10 +167,12 @@ def flush_xml_cache() -> None:
             capture_output=True, text=True, timeout=10,
         )
         if keys.returncode == 0 and keys.stdout.strip():
-            subprocess.run(
-                ["valkey-cli", "DEL", *keys.stdout.split()],
-                capture_output=True, timeout=10,
-            )
+            found = keys.stdout.split()
+            for i in range(0, len(found), 100):
+                subprocess.run(
+                    ["valkey-cli", "-n", "0", "DEL", *found[i:i + 100]],
+                    capture_output=True, timeout=10,
+                )
         print("xml cache flush attempted")
     except Exception as e:
         print(f"xml cache flush skipped (best-effort): {e}")
