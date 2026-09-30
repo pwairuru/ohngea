@@ -1,7 +1,7 @@
 [project]
 name = "ohngea-pbx"
 version = "0.1.0"
-description = "Ohngea PBX — FastAPI + SQLModel + PostgreSQL RLS + per-tenant partitioning — Speak. Connect. Ohngea."
+description = "Ohngea PBX — FastAPI + SQLModel + PostgreSQL RLS — Speak. Connect. Ohngea."
 readme = "README.md"
 requires-python = ">=3.14"
 license = { text = "MIT" }
@@ -83,6 +83,7 @@ dev = [
 
 [project.scripts]
 ohngea-import = "app.cli.import_legacy:main"
+ohngea-seed = "app.seeds.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

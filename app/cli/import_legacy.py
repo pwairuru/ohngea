@@ -106,6 +106,39 @@ async def import_legacy(legacy_url: str, target_url: str, dry_run: bool = False)
         except Exception as e:
             print(f"Skip contacts check: {e}")
 
+        # seed-parity tables: copy legacy operational rows when present
+        for label, sql, insert, keys in [
+            ("vars", "SELECT var_uuid, domain_uuid, var_category, var_name, var_value, var_enabled FROM v_vars LIMIT 2000",
+             "INSERT INTO vars (var_uuid, domain_id, var_category, var_name, var_value, var_enabled, created_at, updated_at) VALUES (:a, :b, :c, :d, :e, :f, now(), now()) ON CONFLICT DO NOTHING",
+             ("a", "b", "c", "d", "e", "f")),
+            ("default_settings", "SELECT default_setting_uuid, default_setting_category, default_setting_subcategory, default_setting_name, default_setting_value, default_setting_enabled FROM v_default_settings LIMIT 2000",
+             "INSERT INTO default_settings (default_setting_uuid, default_setting_category, default_setting_subcategory, default_setting_name, default_setting_value, default_setting_enabled) VALUES (:a, :b, :c, :d, :e, :f) ON CONFLICT DO NOTHING",
+             ("a", "b", "c", "d", "e", "f")),
+            ("sip_profiles", "SELECT sip_profile_uuid, domain_uuid, sip_profile_name, sip_profile_enabled FROM v_sip_profiles LIMIT 100",
+             "INSERT INTO sip_profiles (sip_profile_uuid, domain_id, name, enabled, created_at, updated_at) VALUES (:a, :b, :c, :d, now(), now()) ON CONFLICT DO NOTHING",
+             ("a", "b", "c", "d")),
+            ("music_on_hold", "SELECT music_on_hold_uuid, domain_uuid, music_on_hold_name, music_on_hold_path FROM v_music_on_hold LIMIT 100",
+             "INSERT INTO music_on_hold (music_on_hold_uuid, domain_id, music_name, music_path, created_at, updated_at) VALUES (:a, :b, :c, :d, now(), now()) ON CONFLICT DO NOTHING",
+             ("a", "b", "c", "d")),
+            ("access_controls", "SELECT access_control_uuid, domain_uuid, access_control_name, access_control_default FROM v_access_controls LIMIT 100",
+             "INSERT INTO access_controls (access_control_uuid, domain_id, access_control_name, access_control_default, created_at, updated_at) VALUES (:a, :b, :c, :d, now(), now()) ON CONFLICT DO NOTHING",
+             ("a", "b", "c", "d")),
+            ("conference_profiles", "SELECT conference_profile_uuid, domain_uuid, profile_name, profile_enabled FROM v_conference_profiles LIMIT 100",
+             "INSERT INTO conference_profiles (conference_profile_uuid, domain_id, profile_name, profile_enabled, created_at, updated_at) VALUES (:a, :b, :c, :d, now(), now()) ON CONFLICT DO NOTHING",
+             ("a", "b", "c", "d")),
+        ]:
+            try:
+                lrows = (await legacy.execute(text(sql))).fetchall()
+                print(f"Found {len(lrows)} legacy {label}")
+                if not dry_run:
+                    for r in lrows:
+                        try:
+                            await target.execute(text(insert), {k: str(v) if v is not None else None for k, v in zip(keys, r)})
+                        except Exception:
+                            continue
+            except Exception as e:
+                print(f"Skip {label}: {e}")
+
         if not dry_run:
             print("Import committed")
         else:
