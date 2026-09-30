@@ -19,3 +19,18 @@ def test_vars_sofia_perms_fixtures():
     assert len(SOFIA_GLOBAL_SETTINGS) == 6
     assert len(ALL_PERMISSIONS) >= 300
     assert "var_view" in ALL_PERMISSIONS and "sofia_global_setting_view" in ALL_PERMISSIONS
+
+
+def test_domain_seeds_cover_working_pbx():
+    from app.seeds.sip_profiles import SIP_PROFILES
+    from app.seeds.operational import CONFERENCE_PROFILES, MOH_ENTRIES, ACCESS_CONTROLS
+    from app.seeds.dialplans import DEFAULT_DIALPLANS
+    from app.seeds.domain_settings import DOMAIN_DEFAULTS
+
+    assert len(SIP_PROFILES) >= 4
+    assert sum(len(p["settings"]) for p in SIP_PROFILES) >= 200
+    assert len(CONFERENCE_PROFILES) >= 5
+    assert len(MOH_ENTRIES) >= 4
+    assert len(ACCESS_CONTROLS) >= 2
+    assert any(d["name"] == "local_extension" for d in DEFAULT_DIALPLANS)
+    assert len(DOMAIN_DEFAULTS) >= 12
