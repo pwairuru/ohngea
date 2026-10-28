@@ -26,6 +26,9 @@ struct DialplanCreate {
 
 static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
+/// SWAP POINT: process-global in-memory store (tests + local dev only).
+/// Prod wiring is SeaORM/postgres via `pbx_db::entities::dialplans`
+/// (see `crate::routing_db::conn`); handler signatures stay unchanged.
 fn store() -> &'static Mutex<HashMap<String, Dialplan>> {
     static STORE: OnceLock<Mutex<HashMap<String, Dialplan>>> = OnceLock::new();
     STORE.get_or_init(|| Mutex::new(HashMap::new()))

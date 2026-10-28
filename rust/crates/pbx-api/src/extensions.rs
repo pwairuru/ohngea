@@ -22,6 +22,10 @@ struct ExtensionCreate {
     domain: Option<String>,
 }
 
+/// SWAP POINT: process-global in-memory store (tests + local dev only).
+/// Prod wiring is SeaORM/postgres via `pbx_db::entities::extensions`
+/// (see `crate::routing_db::conn`); `find_extension` keeps its signature
+/// so the FS XML directory handler needs no change at swap time.
 fn store() -> &'static Mutex<HashMap<String, Extension>> {
     static STORE: OnceLock<Mutex<HashMap<String, Extension>>> = OnceLock::new();
     STORE.get_or_init(|| Mutex::new(HashMap::new()))

@@ -152,7 +152,6 @@ async fn create_greeting(
 
 // ---- xml ----
 // Voicemail directory fragment (mailbox auth for FS `directory` section).
-#[allow(dead_code)]
 pub fn build_voicemail_directory_xml(mailbox: &str, password: &str, domain: &str) -> String {
     format!(
         "<user id=\"{mailbox}@{domain}\"><params><param name=\"password\" value=\"{password}\"/></params></user>"
@@ -165,4 +164,15 @@ pub fn voicemails_router() -> Router {
         .route("/api/v1/voicemails/", post(create_vm).get(list_vm))
         .route("/api/v1/voicemails/{id}/greetings", post(create_greeting))
         .layer(axum::middleware::from_fn(crate::require_tenant))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_voicemail_directory_xml;
+
+    #[test]
+    fn voicemail_xml_carries_mailbox_and_domain() {
+        let xml = build_voicemail_directory_xml("1001", "1234", "example.com");
+        assert!(xml.contains("1001") && xml.contains("example.com") && xml.contains("1234"));
+    }
 }

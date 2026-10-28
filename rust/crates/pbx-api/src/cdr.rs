@@ -314,7 +314,6 @@ async fn stats_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl
 
 // ---- xml ----
 // CDR export fragment (single record → XML).
-#[allow(dead_code)]
 pub fn build_cdr_xml(caller: &str, dest: &str, hangup: &str) -> String {
     format!(
         "<cdr><caller_id_number>{caller}</caller_id_number><destination_number>{dest}</destination_number><hangup_cause>{hangup}</hangup_cause></cdr>"
@@ -331,4 +330,15 @@ pub fn cdr_router() -> Router {
         .route("/api/v1/cdr/stats/", axum::routing::get(stats_cdr))
         .route("/api/v1/cdr/{cdr_uuid}", axum::routing::get(get_cdr))
         .layer(axum::middleware::from_fn(crate::require_tenant))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_cdr_xml;
+
+    #[test]
+    fn cdr_xml_carries_caller_dest_hangup() {
+        let xml = build_cdr_xml("1001", "1002", "NORMAL_CLEARING");
+        assert!(xml.contains("1001") && xml.contains("1002") && xml.contains("NORMAL_CLEARING"));
+    }
 }

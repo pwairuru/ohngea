@@ -6,6 +6,9 @@ use axum::{http::StatusCode, response::IntoResponse, routing::post, Json, Router
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
+/// SWAP POINT: process-global in-memory store (tests + local dev only).
+/// Prod wiring is SeaORM/postgres via `pbx_db::entities::vars`
+/// (see `crate::routing_db::conn`); handler signatures stay unchanged.
 fn store() -> &'static Mutex<HashMap<String, serde_json::Value>> {
     static S: OnceLock<Mutex<HashMap<String, serde_json::Value>>> = OnceLock::new();
     S.get_or_init(|| Mutex::new(HashMap::new()))

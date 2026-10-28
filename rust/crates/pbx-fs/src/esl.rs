@@ -73,6 +73,10 @@ impl MockEs {
     }
 }
 
+/// SWAP POINT: shared mock transport (tests + FS-down fallback).
+/// Prod path is `RealEs` over TCP 8021 (`FS_ESL_HOST/PORT/PASSWORD`);
+/// callers use the `EsClient` trait so swapping the impl needs no
+/// handler changes.
 fn global_mock() -> &'static Mutex<MockEs> {
     static MOCK: OnceLock<Mutex<MockEs>> = OnceLock::new();
     MOCK.get_or_init(|| Mutex::new(MockEs::new()))

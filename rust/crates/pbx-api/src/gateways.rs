@@ -32,6 +32,9 @@ struct GatewayCreate {
 
 static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
+/// SWAP POINT: process-global in-memory store (tests + local dev only).
+/// Prod wiring is SeaORM/postgres via `pbx_db::entities::gateways`
+/// (see `crate::routing_db::conn`); handler signatures stay unchanged.
 fn store() -> &'static Mutex<HashMap<String, Gateway>> {
     static STORE: OnceLock<Mutex<HashMap<String, Gateway>>> = OnceLock::new();
     STORE.get_or_init(|| Mutex::new(HashMap::new()))

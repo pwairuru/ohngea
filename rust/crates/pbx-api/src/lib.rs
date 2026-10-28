@@ -29,6 +29,12 @@ mod voicemails;
 pub use auth::auth_router;
 pub use health::health_router;
 pub use tenant::require_tenant;
+// XML fragment builders (FS `dialplan`/`directory` wiring swap points).
+pub use cdr::build_cdr_xml;
+pub use conferences::build_conference_dialplan_xml;
+pub use ivr_menus::build_ivr_dialplan_xml;
+pub use ring_groups::build_ring_group_dialplan_xml;
+pub use voicemails::build_voicemail_directory_xml;
 
 /// 16k header tolerance target (Global Constraints: JWT claims, HS256, 16k header tolerance).
 /// axum 0.8 `serve` exposes no `max_buf_size` hook (verified in axum 0.8.9

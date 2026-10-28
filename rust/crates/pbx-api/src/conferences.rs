@@ -105,7 +105,6 @@ async fn list_conf(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl
 
 // ---- xml ----
 // Conference dialplan fragment (bridge into the room).
-#[allow(dead_code)]
 pub fn build_conference_dialplan_xml(name: &str, extension: &str) -> String {
     format!(
         "<extension name=\"{name}\"><condition field=\"destination_number\" expression=\"^{extension}$\"><action application=\"conference\" data=\"{name}@default\"/></condition></extension>"
@@ -117,4 +116,15 @@ pub fn conferences_router() -> Router {
         .route("/api/v1/conferences", post(create_conf).get(list_conf))
         .route("/api/v1/conferences/", post(create_conf).get(list_conf))
         .layer(axum::middleware::from_fn(crate::require_tenant))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_conference_dialplan_xml;
+
+    #[test]
+    fn conference_xml_bridges_into_room() {
+        let xml = build_conference_dialplan_xml("team", "3000");
+        assert!(xml.contains("team") && xml.contains("3000") && xml.contains("conference"));
+    }
 }

@@ -9,6 +9,10 @@ use axum::{http::StatusCode, response::IntoResponse, Router};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
+/// SWAP POINT: process-global 60s XML cache (mirrors
+/// `app/freeswitch/cache.py`). Prod keeps this cache in front of the
+/// SeaORM/postgres render; `invalidate_cache` is the invalidation hook
+/// vars PATCH/DELETE already call.
 fn cache() -> &'static Mutex<pbx_fs::cache::XmlCache> {
     static C: OnceLock<Mutex<pbx_fs::cache::XmlCache>> = OnceLock::new();
     C.get_or_init(|| Mutex::new(pbx_fs::cache::XmlCache::new()))

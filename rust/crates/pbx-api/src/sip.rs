@@ -13,6 +13,9 @@ use axum::{
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
+/// SWAP POINT: process-global in-memory stores (tests + local dev only).
+/// Prod wiring is SeaORM/postgres via `pbx_db::entities::{sip_profiles,
+/// sip_profile_domains, sip_profile_settings}` (see `crate::routing_db::conn`).
 fn profiles() -> &'static Mutex<HashMap<String, serde_json::Value>> {
     static S: OnceLock<Mutex<HashMap<String, serde_json::Value>>> = OnceLock::new();
     S.get_or_init(|| Mutex::new(HashMap::new()))

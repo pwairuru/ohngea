@@ -203,7 +203,6 @@ async fn get_rg(
 // ---- xml ----
 // Dialplan for a ring group (sequential/simultaneous bridge of members).
 // Mirrors `app/ring_groups/service.py` dialplan render + FS `dialplan` section.
-#[allow(dead_code)]
 pub fn build_ring_group_dialplan_xml(name: &str, members: &[String]) -> String {
     let dial = members
         .iter()
@@ -219,4 +218,15 @@ pub fn ring_groups_router() -> Router {
         .route("/api/v1/ring_groups/", post(create_rg).get(list_rg))
         .route("/api/v1/ring_groups/{id}", axum::routing::get(get_rg))
         .layer(axum::middleware::from_fn(crate::require_tenant))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_ring_group_dialplan_xml;
+
+    #[test]
+    fn ring_group_xml_bridges_each_member() {
+        let xml = build_ring_group_dialplan_xml("sales", &["1001".to_owned(), "1002".to_owned()]);
+        assert!(xml.contains("sales") && xml.contains("user/1001") && xml.contains("user/1002"));
+    }
 }

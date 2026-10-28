@@ -166,7 +166,6 @@ async fn get_ivr(
 
 // ---- xml ----
 // IVR dialplan fragment (menu entries → transfer actions).
-#[allow(dead_code)]
 pub fn build_ivr_dialplan_xml(name: &str, options: &[(String, String, Option<String>)]) -> String {
     let entries = options
         .iter()
@@ -187,4 +186,22 @@ pub fn ivr_menus_router() -> Router {
         .route("/api/v1/ivr_menus/", post(create_ivr).get(list_ivr))
         .route("/api/v1/ivr_menus/{id}", axum::routing::get(get_ivr))
         .layer(axum::middleware::from_fn(crate::require_tenant))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_ivr_dialplan_xml;
+
+    #[test]
+    fn ivr_xml_carries_menu_entries() {
+        let xml = build_ivr_dialplan_xml(
+            "main",
+            &[(
+                "1".to_owned(),
+                "transfer".to_owned(),
+                Some("1001".to_owned()),
+            )],
+        );
+        assert!(xml.contains("main") && xml.contains("digits=\"1\"") && xml.contains("1001"));
+    }
 }
