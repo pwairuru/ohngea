@@ -41,9 +41,9 @@ File order per module: models → schemas → handlers → xml → esl.
 | `domains` | `POST /api/v1/domains/bootstrap` + CRUD |
 | `permissions` | `GET /api/v1/permissions` (`{data,total}`) |
 | `contacts` | CRUD (`{data,total}`) |
-| `devices` | CRUD + `provision_router`: public `GET /provision/{mac}[.cfg]` (yealink/cisco renders, generic fallback) |
+| `devices` | CRUD + `provision_router`: public `GET /provision/{mac}[.cfg]` (31 vendors via `provision/` minijinja port of `templates/provision/*`, model overrides, poly/polycom aliases) |
 | `email_queue` | submit (validates from/to) + list (`{data,total}`) |
-| `remaining` | 19 generic CRUDs over `remaining_records` + ESL-backed `active_calls`, `active_conferences`/`conferences_active`, `registrations`, `operator_panel`, `click_to_call`, `modules`, `plugins`, `log_viewer`, `database_transactions`, `system/status`, `system/reload` |
+| `remaining` | 22 per-table entities (call_block, bridges, destinations, follow_me+destinations, time_conditions, etc. — Python `app/*/models.py` column parity, legacy aliases kept) + `backfill_remaining_records` drain on Postgres `Migrator::up` + ESL-backed `active_calls`, `active_conferences`/`conferences_active`, `registrations`, `operator_panel`, `click_to_call`, `modules`, `plugins`, `log_viewer`, `database_transactions`, `system/status`, `system/reload` |
 
 Conventions: collections return `{data,total}`; validation failures → 422
 `{"detail"}`; missing/invalid token → 401; trailing-slash aliases where
@@ -68,21 +68,54 @@ Python accepts both.
 
 Generator scripts: `crates/pbx-db/gen_seeds.py`, `gen_telephony_seeds.py`.
 
+## Parity status (HEAD `21d9c9d`, 2026-10-28)
+
+- Spillover split done: 22 per-table SeaORM entities replace `remaining_records`
+  (column parity with `app/*/models.py`, legacy aliases kept, trailing-slash
+  aliases kept, mount paths unchanged); `backfill_remaining_records` drains
+  legacy rows idempotently on Postgres `Migrator::up`.
+- Provision: all 31 vendors (`provision/mod.rs` + 31 modules, `include_str!` →
+  `templates/provision/*`, minijinja render with vendor candidates +
+  case-insensitive model overrides, poly/polycom alias parity).
+- Playwright: fix commit `8eff9a6` — full suite 125 passed / 4 failed flaky,
+  all 4 pass in isolation (shared-seed/parallel flake, suite effectively
+  green); rerun 129 pass / 0 fail (chromium + iPhone 14 + Pixel 7).
+  `frontend/src/routes/Cdr.tsx` carries "Call Detail Records" (copy-parity fix).
+- Live SIP proof: 1001–1004 REGISTER via `mod_xml_curl`, `originate … &bridge…`
+  answered with hold + clean BYE (twice), `show channels: 0 total`;
+  `RealEs::sofia_status` over TCP returns RUNNING (livefs-report 2026-10-28).
+- CDR 201: `POST /api/v1/cdr/import` with tz-aware `+00:00` stamps → 201
+  (tz-naive coercion fix `2f0c1c8` + Rust tolerance test `a20e988`;
+  `verify.py --dest 1002` PASS, billsec=12, NORMAL_CLEARING).
+- Extism sandbox limits (every `call_plugin`, `plugin_sandbox.rs`): WASI off by
+  default, HTTP hosts disallowed, no path mounts, linear memory 16 pages
+  (1 MiB), fuel 10 000 000 per call, wall-clock timeout 1000 ms
+  (epoch interruption, `with_timeout_ms` override); fresh `extism::Plugin`
+  per call (no guest state leaks); host fns allowlist only
+  (`pbx_log`, stub `db_get`).
+- Remaining debt: PDK crate for guest authors; real `db_get(table, key)` SeaORM
+  + RLS wiring (stub answers `DB_GET_ALLOWLIST` 1/2/3); refresh-token
+  rotation/reuse-detection absent (`/auth/refresh` + `/auth/logout` exist);
+  16k header cap enforced at edge proxy (`MAX_HEADER_BYTES`, nginx), not in
+  axum; `argon2` dep in `pbx-core` unused (bcrypt is the real path).
+
 ## Test commands
 
 ```bash
 cd rust
-cargo test --workspace          # 81 passed, 0 failed, 1 ignored (23 suites incl. doc-tests)
+cargo test -p pbx-api -p pbx-core -p pbx-db -p pbx-fs   # 99 passed, 1 ignored (26 suites: 71 api + 28 core/db/fs)
 cargo fmt --all -- --check      # clean
-cargo clippy --workspace --all-targets -- -D warnings   # clean
+cargo clippy --all-targets -- -D warnings   # clean
 bash tests/contract_parity.sh   # needs rust-api on :8000 (health contract)
 bash tests/e2e_call.sh          # mock E2E gate + live-FS skip-if-unreachable
 ```
 
 Key suites: `pbx-db` settings (vars 68/sofia 6/dedupe/GUC/triple-resolve),
 telephony (ext validation, sip 4/4/335, gateway register, dialplan 4+8,
-provision link, sofia XML parity); `pbx-api` auth-shape (401 never 422),
-tenant (401 + envelope), telephony, routing, system, remaining, e2e_call
+provision 31-vendor + model overrides, sofia XML parity); `pbx-api` auth-shape
+(401 never 422), tenant (401 + envelope), telephony, routing, system,
+remaining (per-table real columns + legacy aliases), plugins sandbox
+(fuel/timeout/WASI/memory gates + example-route hook), e2e_call
 (1001→1002 mock originate→channels→kill→CDR NORMAL_CLEARING→stats).
 
 ## Live-FS E2E steps
@@ -146,12 +179,13 @@ E2E_API=http://localhost:5180 npx playwright test
 ```
 
 Known residuals (from `.superpowers/sdd/full-port/playwright-report.md`,
-post-fix 85 pass / 44 fail — none Rust-fixable, `frontend/src` untouched):
-PWA manifest absent under `vite dev` (passes on preview/dist); "Call Detail
-Records" string absent from `frontend/src` (test copy mismatch); logout-btn
-needs opened account menu; `Ctrl+K` palette race (needs settle wait);
-`waitForResponse` registered after click (misses ~10ms API responses);
-30s timeouts on 49-route loop + webphone suites (single-worker dev env).
+fixed by `8eff9a6`, post-fix 125 passed / 4 flaky → 4 pass in isolation,
+rerun 129/0 — none Rust-fixable, `frontend/src` fixes only):
+PWA manifest absent under `vite dev` (fixed: `VitePWA devOptions.enabled`);
+"Call Detail Records" copy now present (`Cdr.tsx` title fix); logout-btn
+needs opened account menu; `Ctrl+K` palette needs settle wait;
+`waitForResponse` must register before click (exact `q=` predicate);
+30s→60s timeouts on 49-route loop + webphone suites (single-worker dev env).
 
 Security posture (prodgate 2026-10-28, verified on release binary):
 
@@ -175,12 +209,12 @@ Security posture (prodgate 2026-10-28, verified on release binary):
 
 ## Known tech debt
 
-- `remaining_records` spillover table: 19 near-identical CRUD apps share one
-  `(resource, domain_id, data JSON)` entity (`remaining.rs` SPECS); per-app
-  columns are a follow-up.
-- Provision vendors: yealink + cisco rendered, all others generic fallback
-  (`devices.rs::render_generic`); full 31-vendor `templates/provision/*`
-  matrix is a later pass (29 vendors fallback).
+- `remaining_records` spillover table: split done (22 per-table entities);
+  `backfill_remaining_records` drains legacy rows on Postgres migrate;
+  per-app column follow-ups (if any) tracked against `app/*/models.py`.
+- Provision vendors: all 31 rendered (`provision/` minijinja port of
+  `templates/provision/*`); byte-identical legacy render kept for
+  yealink/cisco base paths.
 - `String` vs `Uuid`: `routing_db::domain()` unifies opaque test `domain_id`
   strings via UUIDv5 (DNS namespace); prod UUIDs parse directly. `sip.rs` /
   `vars_fs.rs` generic-JSON stores still use `String` ids (`sip-N`/`var-N`
@@ -188,9 +222,17 @@ Security posture (prodgate 2026-10-28, verified on release binary):
 - Mock ESL: `MockEs`/`MockEsClient` back originate/kill/channels/
   registrations/conference_list; `RealEs` dials TCP 8021 with graceful
   mock fallback — live FS assertions only in `tests/e2e/verify.py`.
+  `RealEs::originate` single-read 500 ms window is a known client-side
+  limitation (~660 ms real originate); retries/window bump deferred.
 - `password_hash` bcrypt: `users.rs` create/import store real bcrypt hashes
   (bulk `copy` preserves the source hash); `argon2` dep in `pbx-core`
   remains unused — removal or migration is a follow-up.
 - Refresh/rotation: `auth.rs` issues HS256 `access_token` (cookie + Bearer,
   3600s) with `/auth/refresh` + `/auth/logout`; rotation/reuse-detection
   absent.
+- Header cap: `MAX_HEADER_BYTES=16384` enforced at edge (nginx/proxy), not in
+  axum — keep the proxy in front in every deployment.
+- PDK + `db_get`: guest authors have no PDK crate yet (reference guest
+  returns canned `ok:example`); `db_get` is a stub allowlist (`1,2,3` → 1)
+  until real SeaORM + per-tenant RLS wiring lands; `CompiledPlugin` caching
+  absent (one compile per `call_plugin`).
