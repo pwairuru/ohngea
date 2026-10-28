@@ -1,8 +1,4 @@
-mod auth;
-mod health;
-
-use auth::auth_router;
-use health::health_router;
+use pbx_api::{auth_router, health_router};
 
 #[tokio::main]
 async fn main() {

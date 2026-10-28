@@ -39,3 +39,34 @@ async fn legacy_login_and_me_roundtrip() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 }
+
+#[tokio::test]
+async fn legacy_auth_paths_and_unauthorized_me() {
+    let app = pbx_api::test_app();
+    let login_body = serde_json::json!({"username":"admin","password":"x","domain":"default"});
+    let res = app
+        .clone()
+        .oneshot(
+            Request::post("/auth/login")
+                .header("content-type", "application/json")
+                .body(Body::from(login_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), 1024 * 16)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(
+        v.get("access_token").and_then(|t| t.as_str()).is_some(),
+        "missing access_token"
+    );
+
+    let res = app
+        .oneshot(Request::get("/auth/me").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+}
