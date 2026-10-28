@@ -1,4 +1,4 @@
-//! Tenant isolation: `SET LOCAL app.domain_id` per transaction (Postgres RLS).
+//! Tenant isolation: `SET LOCAL app.domain_uuid` per transaction (Postgres RLS).
 //! Python equivalent: `app/db.py::set_tenant` (GUC `app.domain_uuid`).
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr};
@@ -7,12 +7,12 @@ use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr};
 #[must_use]
 pub fn set_tenant_sql(domain_id: &str) -> String {
     format!(
-        "SET LOCAL app.domain_id = '{}'",
+        "SET LOCAL app.domain_uuid = '{}'",
         domain_id.replace('\'', "''")
     )
 }
 
-/// Run `SET LOCAL app.domain_id` on the current transaction.
+/// Run `SET LOCAL app.domain_uuid` on the current transaction.
 pub async fn set_tenant(conn: &DatabaseConnection, domain_id: &str) -> Result<(), DbErr> {
     conn.execute_unprepared(&set_tenant_sql(domain_id))
         .await

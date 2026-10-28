@@ -37,7 +37,7 @@ pub async fn require_tenant(
 ) -> Result<Response, StatusCode> {
     let token = bearer_or_cookie_token(req.headers()).ok_or(StatusCode::UNAUTHORIZED)?;
     let claims = pbx_core::auth::decode_test_token(&token).map_err(|_| StatusCode::UNAUTHORIZED)?;
-    // Stash verified claims for downstream handlers / db layer (SET LOCAL app.domain_id).
+    // Stash verified claims for downstream handlers / db layer (SET LOCAL app.domain_uuid).
     req.extensions_mut().insert(claims);
     Ok(next.run(req).await)
 }

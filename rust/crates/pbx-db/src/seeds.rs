@@ -190,6 +190,15 @@ pub fn find_default_setting(
 }
 
 /// Resolve an effective setting value: per-domain row wins over the global default.
+///
+/// NOTE: intentionally does NOT filter on `enabled`. This matches the Python
+/// ground truth: `app/seeds/default_settings.py` ships many rows with
+/// `enabled: False` still carrying values, `app/vars/service.py::list_vars`
+/// filters only by `domain_id` (no enabled predicate), and the only
+/// enabled-filtered lookup in `app/admin_settings/router.py::
+/// render_email_template` applies to email templates — a different table not
+/// handled here. Disabled rows therefore still resolve; callers needing an
+/// enabled-only view must filter themselves.
 pub async fn resolve_setting(
     db: &DatabaseConnection,
     domain_id: Uuid,

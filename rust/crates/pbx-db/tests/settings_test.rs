@@ -75,11 +75,11 @@ fn page_envelope_carries_data_and_total() {
 }
 
 #[test]
-fn set_tenant_sql_emits_set_local_app_domain_id() {
+fn set_tenant_sql_emits_set_local_app_domain_uuid() {
     let id = "11111111-1111-4111-8111-111111111111";
     assert_eq!(
         set_tenant_sql(id),
-        format!("SET LOCAL app.domain_id = '{id}'")
+        format!("SET LOCAL app.domain_uuid = '{id}'")
     );
 }
 
@@ -239,7 +239,7 @@ async fn set_tenant_executes_set_local_statement() {
     let log = db.into_transaction_log();
     assert_eq!(log.len(), 1);
     assert!(
-        format!("{:?}", log[0]).contains("SET LOCAL app.domain_id"),
-        "must emit SET LOCAL app.domain_id, got {log:?}"
+        format!("{:?}", log[0]).contains("SET LOCAL app.domain_uuid"),
+        "must emit SET LOCAL app.domain_uuid, got {log:?}"
     );
 }
