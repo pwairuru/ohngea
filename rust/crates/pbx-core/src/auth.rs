@@ -26,9 +26,29 @@ fn default_iat() -> usize {
 }
 
 fn jwt_secret() -> Vec<u8> {
-    std::env::var("JWT_SECRET")
-        .unwrap_or_else(|_| "test-secret".to_string())
-        .into_bytes()
+    if let Ok(s) = std::env::var("JWT_SECRET") {
+        let t = s.trim().to_owned();
+        if !t.is_empty() {
+            // Release must never run on the well-known test value: the
+            // binary refuses to boot without a real secret (see
+            // pbx-api::main), this is defense-in-depth at the decode site.
+            #[cfg(not(debug_assertions))]
+            if t == "test-secret" {
+                panic!("FATAL: JWT_SECRET=test-secret is forbidden in release builds");
+            }
+            return t.into_bytes();
+        }
+    }
+    // Debug/test fallback keeps `cargo test` and local boots working
+    // without env. Release builds panic above instead of defaulting.
+    #[cfg(debug_assertions)]
+    {
+        "test-secret".to_string().into_bytes()
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        panic!("FATAL: JWT_SECRET must be set to a strong random value in release builds");
+    }
 }
 
 fn now_secs() -> usize {

@@ -72,7 +72,7 @@ Generator scripts: `crates/pbx-db/gen_seeds.py`, `gen_telephony_seeds.py`.
 
 ```bash
 cd rust
-cargo test --workspace          # 66 passed, 0 failed (20 suites incl. doc-tests)
+cargo test --workspace          # 81 passed, 0 failed, 1 ignored (23 suites incl. doc-tests)
 cargo fmt --all -- --check      # clean
 cargo clippy --workspace --all-targets -- -D warnings   # clean
 bash tests/contract_parity.sh   # needs rust-api on :8000 (health contract)
@@ -102,8 +102,76 @@ uv run python tests/e2e/verify.py          # sofia status + registrations + CDR 
 ```
 
 Rust overlay alternative: `docker compose -f docker-compose.yml
--f rust/docker-compose.rust.yml up -d rust-api` (`:8000`, `JWT_SECRET=test-secret`;
+-f rust/docker-compose.rust.yml up -d rust-api` (`:8000`;
 16k headers enforced at edge proxy per `MAX_HEADER_BYTES` comment).
+NOTE: the overlay ships `JWT_SECRET=test-secret` for local parity only —
+release binaries refuse to boot with that value (see Production runbook).
+
+## Production runbook
+
+Env vars (12-factor; see root `.env.example` for local defaults):
+
+| Var | Required | Notes |
+|---|---|---|
+| `DATABASE_URL` | yes | `postgresql://user:pass@host:5432/db` (SeaORM). Legacy `postgresql+asyncpg://` also normalized. Unset → pid-keyed sqlite file in `TMPDIR` (dev/test only, seed wiped per process). Unknown scheme → fail fast, never silent sqlite fallback. |
+| `JWT_SECRET` | yes (release) | Strong random (≥32 bytes). Release binary exits(1) when missing, empty, `test-secret`, or `dev-secret-change`. Debug falls back to `test-secret` for `cargo test`/local boots. |
+| `FS_ESL_HOST/PORT/PASSWORD` | no | Defaults `127.0.0.1:8021` / `ClueCon`; mock fallback when unreachable. |
+| `API_PORT` / `FRONTEND_PORT` | no | Host-port mapping only (compose); container serves `:8000`. |
+
+Migrate on boot: `main.rs::migrate_on_boot` → `routing_db::conn()` →
+Postgres `Migrator::up` (idempotent) or sqlite `create_schema`. Safe to
+reboot; verified by stop → boot → `/health` 200 twice in prodgate.
+
+Boot (release):
+
+```bash
+cd rust
+cargo build --release -p pbx-api   # 3m34s cold / ~50s incremental, 0 warnings
+JWT_SECRET='<strong-random>' ./target/release/pbx-api   # listens 0.0.0.0:8000
+curl -s http://localhost:8000/health                    # {"status":"ok","version":"0.1.0"}
+curl -s http://localhost:8000/api/v1                    # {_links: {...}}
+curl -s http://localhost:8000/api/v1/openapi.json       # {openapi: 3.1.0, ...}
+```
+
+UI wiring: frontend dev proxies `/api /auth /health /provision` → `:8000`
+(root `.env.local`: `API_PORT=8000` overrides `.env`'s 8010 for vite
+`loadEnv`); production `frontend/nginx.conf` proxies to `api:8000`.
+
+Playwright (React UI × Rust backend):
+
+```bash
+# terminal 1: JWT_SECRET=<dev> ./target/debug/pbx-api   # :8000, sqlite fallback
+# terminal 2: npx vite --port 5180                       # needs root .env.local API_PORT=8000
+E2E_API=http://localhost:5180 npx playwright test
+```
+
+Known residuals (from `.superpowers/sdd/full-port/playwright-report.md`,
+post-fix 85 pass / 44 fail — none Rust-fixable, `frontend/src` untouched):
+PWA manifest absent under `vite dev` (passes on preview/dist); "Call Detail
+Records" string absent from `frontend/src` (test copy mismatch); logout-btn
+needs opened account menu; `Ctrl+K` palette race (needs settle wait);
+`waitForResponse` registered after click (misses ~10ms API responses);
+30s timeouts on 49-route loop + webphone suites (single-worker dev env).
+
+Security posture (prodgate 2026-10-28, verified on release binary):
+
+- `JWT_SECRET=test-secret` → release boot exits 1 (missing/unset same).
+- Login with unknown user or wrong password → 401 in release (debug keeps
+  stub fallback for empty test DBs); empty creds → 401, never 422.
+- `users.rs` create/import store real bcrypt hashes (`verify_password`
+  real path, no stub accept).
+- Gateways mask `password: "***"` on create/read/list/patch; users never
+  emit `password_hash`; devices list/get omit secrets; voicemails omit
+  `voicemail_password` on list. Extensions return SIP `password` on CRUD —
+  parity with Python `ExtensionRead` (tenant-authenticated); changing it
+  diverges from `app/extensions/router.py`, deferred to product decision.
+- No CORS layer → no `Access-Control-Allow-Origin: *`; same-origin via
+  proxy. `Vary: Accept`, `X-Total-Count`/`Link` pagination parity kept.
+- No passwords/tokens in logs (only fail-boot line + plugin manifest path
+  `eprintln`s). 401 (no/invalid token) / 403 (plugin gate, domain mismatch)
+  / 422 (validation) / 409 (duplicate) semantics covered by
+  `auth_shape_test` + `tenant_test` + `plugins_test`.
+- Missing/invalid token → 401; disabled-plugin route → 403.
 
 ## Known tech debt
 
@@ -120,7 +188,9 @@ Rust overlay alternative: `docker compose -f docker-compose.yml
 - Mock ESL: `MockEs`/`MockEsClient` back originate/kill/channels/
   registrations/conference_list; `RealEs` dials TCP 8021 with graceful
   mock fallback — live FS assertions only in `tests/e2e/verify.py`.
-- `password_hash` stub: `users.rs` stores `stub:{pw|uuid}`; argon2 lives in
-  `pbx-core` but is not wired into the handler yet.
-- No refresh token: `auth.rs` issues a single HS256 `access_token`
-  (cookie + Bearer, 3600s); `/auth/me` validates; refresh/rotation absent.
+- `password_hash` bcrypt: `users.rs` create/import store real bcrypt hashes
+  (bulk `copy` preserves the source hash); `argon2` dep in `pbx-core`
+  remains unused — removal or migration is a follow-up.
+- Refresh/rotation: `auth.rs` issues HS256 `access_token` (cookie + Bearer,
+  3600s) with `/auth/refresh` + `/auth/logout`; rotation/reuse-detection
+  absent.

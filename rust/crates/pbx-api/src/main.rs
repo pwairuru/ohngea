@@ -7,6 +7,23 @@ use pbx_api::build_app;
 
 #[tokio::main]
 async fn main() {
+    // Production gate: release binaries refuse to boot on a missing or
+    // well-known JWT_SECRET. Debug keeps the test-secret fallback.
+    #[cfg(not(debug_assertions))]
+    {
+        match std::env::var("JWT_SECRET") {
+            Ok(s)
+                if !s.trim().is_empty()
+                    && s.trim() != "test-secret"
+                    && s.trim() != "dev-secret-change" => {}
+            _ => {
+                eprintln!(
+                    "FATAL: JWT_SECRET must be set to a strong random value in release builds"
+                );
+                std::process::exit(1);
+            }
+        }
+    }
     // Migrate on boot (Postgres Migrator up / sqlite bootstrap) before serving.
     pbx_api::migrate_on_boot().await;
     let app = build_app();

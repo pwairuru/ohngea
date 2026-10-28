@@ -62,10 +62,10 @@ fn token_response(token: String) -> (HeaderMap, Json<TokenResponse>) {
 }
 
 // bcrypt wiring (parity with app/auth/service.py::authenticate): look up the
-// user row by username and verify_password against the stored hash. No match
-// (empty test DB, unknown user, bcrypt miss) falls back to the stub test
-// token so unit tests and fresh boots keep working.
-async fn real_or_stub_token(username: &str, password: &str) -> String {
+// user row by username and verify_password against the stored hash.
+// Debug keeps the historical stub fallback (empty test DB, unit tests, fresh
+// boots); release returns None → 401 unless a real user verifies.
+async fn real_or_stub_token(username: &str, password: &str) -> Option<String> {
     let db = crate::routing_db::conn().await;
     let row = {
         use pbx_db::entities::users;
@@ -78,15 +78,23 @@ async fn real_or_stub_token(username: &str, password: &str) -> String {
     };
     if let Some(u) = row {
         if pbx_core::auth::verify_password(password, &u.password_hash) {
-            return pbx_core::auth::encode_claims(
+            return Some(pbx_core::auth::encode_claims(
                 &u.user_uuid.to_string(),
                 &u.domain_id.to_string(),
                 &u.username,
                 &["admin".to_string()],
-            );
+            ));
         }
+        return None;
     }
-    pbx_core::auth::encode_test_token()
+    #[cfg(debug_assertions)]
+    {
+        Some(pbx_core::auth::encode_test_token())
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        None
+    }
 }
 
 async fn login_handler(
@@ -98,7 +106,9 @@ async fn login_handler(
     if req.username.trim().is_empty() || req.password.trim().is_empty() {
         return Err(unauthorized());
     }
-    let token = real_or_stub_token(req.username.trim(), &req.password).await;
+    let token = real_or_stub_token(req.username.trim(), &req.password)
+        .await
+        .ok_or_else(unauthorized)?;
     Ok(token_response(token))
 }
 

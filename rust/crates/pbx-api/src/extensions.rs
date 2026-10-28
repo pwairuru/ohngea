@@ -335,7 +335,7 @@ fn apply_patch(
     if let Some(v) = payload.get("extension") {
         if let Some(s) = v.as_str() {
             let ext = s.trim().to_owned();
-            validate(&ext).map_err(|m| m)?;
+            validate(&ext)?;
             am.extension = Set(ext);
         }
     }
@@ -442,7 +442,10 @@ fn apply_patch(
         ("do_not_disturb", &mut am.do_not_disturb),
         ("forward_all_enabled", &mut am.forward_all_enabled),
         ("forward_busy_enabled", &mut am.forward_busy_enabled),
-        ("forward_no_answer_enabled", &mut am.forward_no_answer_enabled),
+        (
+            "forward_no_answer_enabled",
+            &mut am.forward_no_answer_enabled,
+        ),
         (
             "forward_user_not_registered_enabled",
             &mut am.forward_user_not_registered_enabled,
@@ -493,7 +496,11 @@ async fn get_extension(
     let db = crate::routing_db::conn().await;
     let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
     match find_extension_row(db, domain_id, id).await {
-        Some(r) => (StatusCode::OK, Json(serde_json::json!(row_to_extension(&r, &claims.domain_id)))).into_response(),
+        Some(r) => (
+            StatusCode::OK,
+            Json(serde_json::json!(row_to_extension(&r, &claims.domain_id))),
+        )
+            .into_response(),
         None => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Extension not found"})),
@@ -526,7 +533,11 @@ async fn patch_extension(
     }
     use sea_orm::ActiveModelTrait;
     match am.update(db).await {
-        Ok(r) => (StatusCode::OK, Json(serde_json::json!(row_to_extension(&r, &claims.domain_id)))).into_response(),
+        Ok(r) => (
+            StatusCode::OK,
+            Json(serde_json::json!(row_to_extension(&r, &claims.domain_id))),
+        )
+            .into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("update failed: {e}")})),
@@ -683,7 +694,11 @@ async fn batch_create_extensions(
         created += 1;
     }
     let _ = txn.commit().await;
-    (StatusCode::CREATED, Json(serde_json::json!({"created": created}))).into_response()
+    (
+        StatusCode::CREATED,
+        Json(serde_json::json!({"created": created})),
+    )
+        .into_response()
 }
 
 pub fn extensions_router() -> Router {

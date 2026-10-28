@@ -60,13 +60,13 @@ async fn create_user(
     }
     let id = uuid::Uuid::now_v7();
     let now = crate::routing_db::now();
-    // password_hash is a stub (argon2 lives in pbx-core; wiring hash here
-    // is a follow-up) — never store blank.
+    // Real bcrypt hash (parity with app/auth/service.py hash_password).
+    // Blank password hashes a random id so verify never passes on empty.
     let pw = payload.password.unwrap_or_default();
     let pw_hash = if pw.is_empty() {
-        format!("stub:{id}")
+        pbx_core::auth::hash_password(&id.to_string())
     } else {
-        format!("stub:{pw}")
+        pbx_core::auth::hash_password(&pw)
     };
     let am = users::ActiveModel {
         user_uuid: Set(id),
