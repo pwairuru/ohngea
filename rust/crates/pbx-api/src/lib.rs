@@ -31,6 +31,7 @@ mod remaining_b;
 mod remaining_c;
 mod ring_groups;
 pub(crate) mod routing_db;
+mod settings;
 mod sip;
 mod system;
 pub mod tenant;
@@ -42,7 +43,7 @@ pub use auth::auth_router;
 pub use health::health_router;
 pub use tenant::require_tenant;
 // XML fragment builders (FS `dialplan`/`directory` wiring swap points).
-pub use cdr::build_cdr_xml;
+pub use cdr::{build_cdr_csv, build_cdr_xml, extension_summary, CdrExportRow};
 pub use conferences::build_conference_dialplan_xml;
 pub use ivr_menus::build_ivr_dialplan_xml;
 pub use ring_groups::build_ring_group_dialplan_xml;
@@ -320,6 +321,7 @@ pub fn build_app() -> axum::Router {
         .merge(cdr::cdr_router())
         .merge(recordings::recordings_router())
         .merge(users::users_router())
+        .merge(settings::settings_router())
         .merge(groups::groups_router())
         .merge(domains::domains_bootstrap_router())
         .merge(domains::domains_router())

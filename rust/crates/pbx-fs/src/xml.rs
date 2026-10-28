@@ -36,7 +36,7 @@ pub fn build_directory_xml(domain: &str, user: &str) -> String {
 /// `app/freeswitch/xml_builder.py::build_directory_xml`: `<user id>`
 /// with `<params><param name="password" .../>` under `<domain name>`).
 pub fn build_directory_xml_with_password(domain: &str, user: &str, password: &str) -> String {
-    let mut w = Writer::new(Cursor::new(Vec::new()));
+    let mut w = Writer::new(Cursor::new(Vec::with_capacity(2048)));
     w.write_event(decl()).expect("write decl");
     document(&mut w);
 
@@ -75,7 +75,7 @@ pub fn build_directory_xml_with_password(domain: &str, user: &str, password: &st
 /// queries; the signature stays. Includes the `local_extension` bridge
 /// (mirrors `build_dialplan_xml` local-extension handling).
 pub fn build_dialplan_xml(domain: &str) -> String {
-    let mut w = Writer::new(Cursor::new(Vec::new()));
+    let mut w = Writer::new(Cursor::new(Vec::with_capacity(2048)));
     w.write_event(decl()).expect("write decl");
     document(&mut w);
 

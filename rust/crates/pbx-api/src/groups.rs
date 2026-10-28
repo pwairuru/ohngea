@@ -7,7 +7,9 @@
 //! Member assign: POST /api/v1/groups/{id}/members {"user_uuid"}.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, Set,
+};
 
 // ---- models ----
 use pbx_db::entities::{groups, user_groups, users};
@@ -37,12 +39,16 @@ async fn create_group(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<GroupCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "group_add") {
+        return (s, j).into_response();
+    }
     let name = payload.name.trim().to_lowercase();
     if !valid_name(&name) {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(serde_json::json!({"detail": "group name must match ^[a-z0-9_-]{2,64}$"})),
-        );
+        )
+            .into_response();
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
@@ -62,7 +68,8 @@ async fn create_group(
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-        );
+        )
+            .into_response();
     }
     (
         StatusCode::CREATED,
@@ -74,26 +81,36 @@ async fn create_group(
             "member_count": 0,
         })),
     )
+        .into_response()
 }
 
 async fn list_groups(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "group_view") {
+        return (s, j).into_response();
+    }
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
-    let rows = groups::Entity::find().all(db).await.unwrap_or_default();
-    let mine: Vec<&groups::Model> = rows
+    // DB-side tenant+global filter: domain rows OR global (NULL) rows.
+    // Single query so `num_items` total matches the fetched page.
+    let paginator = groups::Entity::find()
+        .filter(
+            Condition::any()
+                .add(groups::Column::DomainId.eq(domain))
+                .add(groups::Column::DomainId.is_null()),
+        )
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
+        .await
+        .unwrap_or_default();
+    let data: Vec<serde_json::Value> = rows
         .iter()
-        .filter(|g| g.domain_id.is_none() || g.domain_id == Some(domain))
-        .collect();
-    let total = mine.len() as u64;
-    let data: Vec<serde_json::Value> = mine
-        .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
         .map(|r| {
             serde_json::json!({
                 "group_uuid": r.group_uuid,
@@ -108,12 +125,16 @@ async fn list_groups(
         crate::paged_headers("/api/v1/groups", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),
     )
+        .into_response()
 }
 
 async fn get_group(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "group_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = groups::Entity::find_by_id(id).one(db).await.unwrap_or(None);
@@ -121,13 +142,15 @@ async fn get_group(
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
-        );
+        )
+            .into_response();
     };
     if r.domain_id.is_some() && r.domain_id != Some(domain) {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
-        );
+        )
+            .into_response();
     }
     let mems = user_groups::Entity::find()
         .filter(user_groups::Column::GroupUuid.eq(id))
@@ -149,6 +172,7 @@ async fn get_group(
             "member_count": members.len(),
         })),
     )
+        .into_response()
 }
 
 async fn assign_member(
@@ -156,6 +180,9 @@ async fn assign_member(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<MemberAssign>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "group_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let g = groups::Entity::find_by_id(id).one(db).await.unwrap_or(None);
@@ -163,13 +190,15 @@ async fn assign_member(
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "group not found"})),
-        );
+        )
+            .into_response();
     };
     if g.domain_id.is_some() && g.domain_id != Some(domain) {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "group not found"})),
-        );
+        )
+            .into_response();
     }
     // user must exist in this tenant.
     let u = users::Entity::find_by_id(payload.user_uuid)
@@ -181,7 +210,8 @@ async fn assign_member(
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "user not found"})),
-        );
+        )
+            .into_response();
     }
     let am = user_groups::ActiveModel {
         id: Set(uuid::Uuid::now_v7()),
@@ -198,6 +228,7 @@ async fn assign_member(
             "user_uuid": payload.user_uuid,
         })),
     )
+        .into_response()
 }
 
 pub fn groups_router() -> Router {
@@ -260,6 +291,9 @@ async fn bulk_groups(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<BulkRequest>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "group_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let mut results = Vec::new();
@@ -275,22 +309,16 @@ async fn bulk_groups(
                     .await
                     .unwrap_or(None);
                 match row {
-                    Some(g) => {
+                    Some(g) if g.domain_id.is_none() || g.domain_id == Some(domain) => {
+                        let prot = !g.group_protected;
                         let mut am: groups::ActiveModel = g.into();
                         // flip group_protected
-                        let cur = groups::Entity::find_by_id(gid)
-                            .one(db)
-                            .await
-                            .unwrap_or(None);
-                        let prot = cur.map(|c| !c.group_protected).unwrap_or(true);
                         am.group_protected = Set(prot);
                         am.updated_at = Set(crate::routing_db::now());
                         let _ = am.update(db).await;
                         results.push(serde_json::json!({"group_uuid": gid, "action": "toggled", "protected": prot}));
                     }
-                    None => {
-                        results.push(serde_json::json!({"group_uuid": gid, "error": "not found"}))
-                    }
+                    _ => results.push(serde_json::json!({"group_uuid": gid, "error": "not found"})),
                 }
             }
             "copy" => match copy_group_inner(db, domain, gid).await {
@@ -328,7 +356,7 @@ async fn bulk_groups(
         }
     }
     let total = results.len();
-    Json(serde_json::json!({"data": results, "total": total}))
+    Json(serde_json::json!({"data": results, "total": total})).into_response()
 }
 
 async fn copy_group_inner(
@@ -364,6 +392,9 @@ async fn copy_group(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "group_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     match copy_group_inner(db, domain, id).await {
@@ -403,6 +434,9 @@ async fn toggle_group(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "group_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = groups::Entity::find_by_id(id).one(db).await.unwrap_or(None);
@@ -447,6 +481,9 @@ async fn list_group_users(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "group_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let g = groups::Entity::find_by_id(id).one(db).await.unwrap_or(None);
@@ -494,6 +531,9 @@ async fn add_group_user(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "group_edit") {
+        return (s, j).into_response();
+    }
     let user_uuid = payload
         .get("user_uuid")
         .and_then(|u| u.as_str())
@@ -545,6 +585,9 @@ async fn remove_group_user(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((id, uid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "group_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let _domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = user_groups::Entity::find()
@@ -572,6 +615,9 @@ async fn remove_group_users_bulk(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "group_edit") {
+        return (s, j).into_response();
+    }
     let ids = payload
         .get("ids")
         .and_then(|v| v.as_array())
@@ -609,6 +655,9 @@ async fn list_group_permissions(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "group_permission_view") {
+        return (s, j).into_response();
+    }
     use pbx_db::entities::{group_permissions, permissions};
     let db = crate::routing_db::conn().await;
     let _domain = crate::routing_db::tenant_domain(db, &claims).await;
@@ -646,12 +695,12 @@ async fn list_group_permissions(
             }));
         }
     }
+    // `HashSet` membership: the old O(N*M) `.any()` scan per catalog row.
+    let assigned_ids: std::collections::HashSet<uuid::Uuid> =
+        assigned.iter().map(|gp| gp.permission_uuid).collect();
     // include unassigned catalog entries so PUT parity (assigned flags) works
     for p in &all {
-        if !assigned
-            .iter()
-            .any(|gp| gp.permission_uuid == p.permission_uuid)
-        {
+        if !assigned_ids.contains(&p.permission_uuid) {
             data.push(serde_json::json!({
                 "permission_uuid": p.permission_uuid,
                 "name": p.name,
@@ -673,6 +722,9 @@ async fn put_group_permissions(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "group_permission_edit") {
+        return (s, j).into_response();
+    }
     use pbx_db::entities::{group_permissions, permissions};
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
@@ -795,6 +847,9 @@ async fn patch_group(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "group_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let Some(r) = group_scoped(db, domain, &id).await else {
@@ -829,6 +884,9 @@ async fn delete_group(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "group_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let Some(r) = group_scoped(db, domain, &id).await else {

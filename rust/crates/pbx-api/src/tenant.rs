@@ -10,8 +10,9 @@ fn bearer_or_cookie_token(headers: &HeaderMap) -> Option<String> {
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
     {
-        if let Some(token) = auth.strip_prefix("Bearer ") {
-            let token = token.trim();
+        // Scheme is case-insensitive per RFC 7235; accept `bearer`/`Bearer`.
+        if auth.len() > 7 && auth[..7].eq_ignore_ascii_case("bearer ") {
+            let token = auth[7..].trim();
             if !token.is_empty() {
                 return Some(token.to_string());
             }
@@ -29,6 +30,53 @@ fn bearer_or_cookie_token(headers: &HeaderMap) -> Option<String> {
         }
     }
     None
+}
+
+/// Permission check parity with Python `app/auth/deps.py::require_permission`.
+/// `admin`, `superadmin` and `*` bypass every check; otherwise the exact
+/// permission name must be present in the JWT `permissions` claim.
+#[must_use]
+pub fn has_permission(claims: &pbx_core::auth::Claims, perm: &str) -> bool {
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "admin" || p == "superadmin" || p == "*" || p == perm)
+}
+
+/// 403 body parity with Python `HTTPException(403, "Missing permission: {perm}")`.
+pub fn forbidden(perm: &str) -> (StatusCode, axum::Json<serde_json::Value>) {
+    (
+        StatusCode::FORBIDDEN,
+        axum::Json(serde_json::json!({"detail": format!("Missing permission: {perm}")})),
+    )
+}
+
+/// Handler guard: `Some(403)` when the claims lack `perm`, `None` when allowed.
+/// Mirror of Python `Depends(require_permission(perm))` for axum handlers.
+///
+/// Naming parity: `require_permission(perm)` is the Python `app/auth/deps.py`
+/// dependency factory; in axum the same check runs inline at the top of each
+/// handler via `deny_if_missing` (middleware can't vary the perm per route).
+/// Prefer `require_permission` in new code for grep parity with Python.
+#[must_use]
+pub fn deny_if_missing(
+    claims: &pbx_core::auth::Claims,
+    perm: &str,
+) -> Option<(StatusCode, axum::Json<serde_json::Value>)> {
+    if has_permission(claims, perm) {
+        None
+    } else {
+        Some(forbidden(perm))
+    }
+}
+
+/// Alias of [`deny_if_missing`] with the Python `require_permission` name.
+#[must_use]
+pub fn require_permission(
+    claims: &pbx_core::auth::Claims,
+    perm: &str,
+) -> Option<(StatusCode, axum::Json<serde_json::Value>)> {
+    deny_if_missing(claims, perm)
 }
 
 pub async fn require_tenant(

@@ -10,19 +10,58 @@
 //! to the current period. Empty tables yield zeros — never 500.
 
 use axum::{Extension as AxExtension, Json, Router};
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
 use pbx_db::entities::{cdr, devices, extensions, gateways, sip_profiles, voicemails};
 
-async fn tenant_rows(claims: &pbx_core::auth::Claims) -> Vec<pbx_db::entities::cdr::Model> {
-    let db = crate::routing_db::conn().await;
-    let domain = crate::routing_db::domain(claims);
+/// Narrow CDR projection: only the small columns analytics groups over.
+/// Skips `raw_xml` / `caller_id_number` fat text so a full-tenant scan
+/// never buffers megabytes of XML per row.
+struct CdrAgg {
+    dest: String,
+    billsec: Option<i32>,
+    duration: Option<i32>,
+    hangup: Option<String>,
+    direction: Option<String>,
+}
+
+async fn tenant_count(db: &sea_orm::DatabaseConnection, domain: uuid::Uuid) -> u64 {
     cdr::Entity::find()
         .filter(cdr::Column::DomainId.eq(domain))
+        .count(db)
+        .await
+        .unwrap_or(0)
+}
+
+async fn tenant_narrow(db: &sea_orm::DatabaseConnection, domain: uuid::Uuid) -> Vec<CdrAgg> {
+    cdr::Entity::find()
+        .filter(cdr::Column::DomainId.eq(domain))
+        .select_only()
+        .column(cdr::Column::DestinationNumber)
+        .column(cdr::Column::Billsec)
+        .column(cdr::Column::Duration)
+        .column(cdr::Column::HangupCause)
+        .column(cdr::Column::Direction)
+        .into_tuple::<(
+            String,
+            Option<i32>,
+            Option<i32>,
+            Option<String>,
+            Option<String>,
+        )>()
         .all(db)
         .await
         .unwrap_or_default()
+        .into_iter()
+        .map(|(dest, billsec, duration, hangup, direction)| CdrAgg {
+            dest,
+            billsec,
+            duration,
+            hangup,
+            direction,
+        })
+        .collect()
 }
 
 // ---- handlers ----
@@ -31,7 +70,9 @@ async fn tenant_rows(claims: &pbx_core::auth::Claims) -> Vec<pbx_db::entities::c
 async fn analytics_summary(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
 ) -> Json<serde_json::Value> {
-    let rows = tenant_rows(&claims).await;
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let rows = tenant_narrow(db, domain).await;
     let total = rows.len() as u64;
     let sum: i64 = rows.iter().filter_map(|r| r.duration).map(i64::from).sum();
     let with_dur = rows.iter().filter(|r| r.duration.is_some()).count() as f64;
@@ -57,8 +98,9 @@ async fn analytics_daily(
         .and_then(|v| v.parse().ok())
         .unwrap_or(7)
         .clamp(1, 90);
-    let rows = tenant_rows(&claims).await;
-    let total = rows.len() as u64;
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let total = tenant_count(db, domain).await;
     let today = chrono::Utc::now().date_naive();
     let mut data = Vec::with_capacity(days);
     for i in (0..days).rev() {
@@ -72,7 +114,9 @@ async fn analytics_daily(
 async fn analytics_by_direction(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
 ) -> Json<serde_json::Value> {
-    let rows = tenant_rows(&claims).await;
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let rows = tenant_narrow(db, domain).await;
     let mut map: HashMap<String, u64> = HashMap::new();
     for r in &rows {
         *map.entry(r.direction.clone().unwrap_or_else(|| "unknown".to_owned()))
@@ -89,15 +133,13 @@ async fn analytics_by_direction(
 async fn analytics_by_hangup(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
 ) -> Json<serde_json::Value> {
-    let rows = tenant_rows(&claims).await;
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let rows = tenant_narrow(db, domain).await;
     let mut map: HashMap<String, u64> = HashMap::new();
     for r in &rows {
-        *map.entry(
-            r.hangup_cause
-                .clone()
-                .unwrap_or_else(|| "unknown".to_owned()),
-        )
-        .or_insert(0) += 1;
+        *map.entry(r.hangup.clone().unwrap_or_else(|| "unknown".to_owned()))
+            .or_insert(0) += 1;
     }
     let mut data: Vec<serde_json::Value> = map.into_iter().take(10).map(|(hangup_cause, count)| serde_json::json!({"hangup_cause": hangup_cause, "count": count})).collect();
     data.sort_by(|a, b| b["count"].as_u64().cmp(&a["count"].as_u64()));
@@ -113,12 +155,12 @@ async fn analytics_top_extensions(
         .and_then(|v| v.parse().ok())
         .unwrap_or(5)
         .clamp(1, 20);
-    let rows = tenant_rows(&claims).await;
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let rows = tenant_narrow(db, domain).await;
     let mut counts: HashMap<String, (u64, i64, u64)> = HashMap::new();
     for r in &rows {
-        let e = counts
-            .entry(r.destination_number.clone())
-            .or_insert((0, 0, 0));
+        let e = counts.entry(r.dest.clone()).or_insert((0, 0, 0));
         e.0 += 1;
         if let Some(b) = r.billsec {
             e.1 += i64::from(b);
@@ -144,8 +186,9 @@ async fn analytics_top_extensions(
 async fn analytics_hourly(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
 ) -> Json<serde_json::Value> {
-    let rows = tenant_rows(&claims).await;
-    let total = rows.len() as u64;
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let total = tenant_count(db, domain).await;
     let now_hour = chrono::Utc::now().hour();
     let base = chrono::Utc::now().date_naive();
     let data: Vec<serde_json::Value> = (0..24)
@@ -211,7 +254,9 @@ async fn analytics_system_counts(
 async fn analytics_answer_rate(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
 ) -> Json<serde_json::Value> {
-    let rows = tenant_rows(&claims).await;
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let rows = tenant_narrow(db, domain).await;
     let total = rows.len() as u64;
     let answered = rows.iter().filter(|r| r.billsec.unwrap_or(0) > 0).count() as u64;
     let missed = total.saturating_sub(answered);

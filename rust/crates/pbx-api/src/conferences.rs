@@ -3,7 +3,7 @@
 //! Order: models → schemas → handlers → xml.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
 
 // ---- models ----
@@ -111,20 +111,20 @@ async fn list_conf(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let rows = conferences::Entity::find()
+    let paginator = conferences::Entity::find()
         .filter(conferences::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
     let data: Vec<serde_json::Value> = rows
         .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
         .map(|r| {
             serde_json::json!({
                 "conference_uuid": r.conference_uuid,
@@ -249,19 +249,19 @@ async fn list_users(
         )
             .into_response();
     }
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
-    let rows = conference_users::Entity::find()
+    let paginator = conference_users::Entity::find()
         .filter(conference_users::Column::ConferenceUuid.eq(id.clone()))
         .filter(conference_users::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
     let data: Vec<serde_json::Value> = rows
         .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
         .map(|r| {
             serde_json::json!({
                 "conference_user_uuid": r.conference_user_uuid,

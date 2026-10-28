@@ -7,7 +7,7 @@
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
 use pbx_fs::esl::EsClient;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
 
 // ---- models ----
@@ -152,22 +152,19 @@ async fn list_queues(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let rows = call_centers::Entity::find()
+    let paginator = call_centers::Entity::find()
         .filter(call_centers::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows
-        .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
-        .map(ser_queue)
-        .collect();
+    let data: Vec<serde_json::Value> = rows.iter().map(ser_queue).collect();
     (
         crate::paged_headers("/api/v1/call_centers", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),
@@ -346,21 +343,18 @@ async fn list_agents(
         )
             .into_response();
     }
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
-    let rows = call_center_agents::Entity::find()
+    let paginator = call_center_agents::Entity::find()
         .filter(call_center_agents::Column::QueueId.eq(qid.clone()))
         .filter(call_center_agents::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows
-        .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
-        .map(ser_agent)
-        .collect();
+    let data: Vec<serde_json::Value> = rows.iter().map(ser_agent).collect();
     (
         crate::paged_headers(
             &format!("/api/v1/call_centers/{qid}/agents"),
@@ -482,21 +476,18 @@ async fn list_tiers(
         )
             .into_response();
     }
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
-    let rows = call_center_tiers::Entity::find()
+    let paginator = call_center_tiers::Entity::find()
         .filter(call_center_tiers::Column::QueueId.eq(qid.clone()))
         .filter(call_center_tiers::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows
-        .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
-        .map(ser_tier)
-        .collect();
+    let data: Vec<serde_json::Value> = rows.iter().map(ser_tier).collect();
     (
         crate::paged_headers(
             &format!("/api/v1/call_centers/{qid}/tiers"),

@@ -13,7 +13,7 @@
 //! back to a generic stub — full 31-vendor matrix is a later pass.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 
 // ---- models ----
 use pbx_db::entities::{device_lines, devices, domains};
@@ -56,17 +56,22 @@ async fn create_device(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<DeviceCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_add") {
+        return (s, j).into_response();
+    }
     if !valid_mac(&payload.mac) {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(serde_json::json!({"detail": "mac must match XX:XX:XX:XX:XX:XX"})),
-        );
+        )
+            .into_response();
     }
     if payload.vendor.trim().is_empty() {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(serde_json::json!({"detail": "vendor required"})),
-        );
+        )
+            .into_response();
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
@@ -83,7 +88,8 @@ async fn create_device(
         return (
             StatusCode::CONFLICT,
             Json(serde_json::json!({"detail": "device exists"})),
-        );
+        )
+            .into_response();
     }
     let id = uuid::Uuid::now_v7();
     let now = crate::routing_db::now();
@@ -118,7 +124,8 @@ async fn create_device(
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-        );
+        )
+            .into_response();
     }
     // Line 1 carries the SIP identity (server_address = sip domain,
     // user_id = extension) — provision renders from here.
@@ -160,29 +167,48 @@ async fn create_device(
             "enabled": true,
         })),
     )
+        .into_response()
 }
 
 async fn list_devices(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_view") {
+        return (s, j).into_response();
+    }
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
-    let rows = devices::Entity::find()
+    let paginator = devices::Entity::find()
         .filter(devices::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let mut data = Vec::new();
-    for r in rows.iter().skip(offset as usize).take(per_page as usize) {
-        let line = device_lines::Entity::find()
-            .filter(device_lines::Column::DeviceUuid.eq(r.device_uuid))
-            .one(db)
+    // One batched child query per page (was: N+1 `device_lines::one()`
+    // per device row). First line per device wins, matching old `.one()`.
+    let ids: Vec<uuid::Uuid> = rows.iter().map(|r| r.device_uuid).collect();
+    let lines = if ids.is_empty() {
+        Vec::new()
+    } else {
+        device_lines::Entity::find()
+            .filter(device_lines::Column::DeviceUuid.is_in(ids))
+            .all(db)
             .await
-            .unwrap_or(None);
+            .unwrap_or_default()
+    };
+    let mut first_line: std::collections::HashMap<uuid::Uuid, &device_lines::Model> =
+        std::collections::HashMap::new();
+    for l in &lines {
+        first_line.entry(l.device_uuid).or_insert(l);
+    }
+    let mut data = Vec::new();
+    for r in rows.iter() {
+        let line = first_line.get(&r.device_uuid).copied();
         data.push(serde_json::json!({
             "device_uuid": r.device_uuid,
             "mac": r.mac,
@@ -199,12 +225,16 @@ async fn list_devices(
         crate::paged_headers("/api/v1/devices", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),
     )
+        .into_response()
 }
 
 async fn get_device(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = devices::Entity::find_by_id(id)
@@ -324,8 +354,12 @@ async fn get_provision(
         .to_lowercase();
     let db = crate::routing_db::conn().await;
     // Public endpoint: search across tenants by MAC (phones carry no JWT).
-    let rows = devices::Entity::find().all(db).await.unwrap_or_default();
-    let dev = rows.iter().find(|d| d.mac.to_lowercase() == want);
+    // Filtered query (not full-table scan) to avoid loading all tenants.
+    let dev = devices::Entity::find()
+        .filter(devices::Column::Mac.eq(want.clone()))
+        .one(db)
+        .await
+        .unwrap_or(None);
     let Some(dev) = dev else {
         return (
             StatusCode::NOT_FOUND,
@@ -394,6 +428,9 @@ async fn patch_device(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = devices::Entity::find_by_id(id)
@@ -410,9 +447,23 @@ async fn patch_device(
     };
     let mut am: devices::ActiveModel = r.into();
     if let Some(mac) = payload.get("mac").and_then(|v| v.as_str()) {
-        am.mac = Set(mac.trim().to_lowercase());
+        if !valid_mac(mac) {
+            return (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({"detail": "mac must match XX:XX:XX:XX:XX:XX"})),
+            )
+                .into_response();
+        }
+        am.mac = Set(norm_mac(mac));
     }
     if let Some(vendor) = payload.get("vendor").and_then(|v| v.as_str()) {
+        if vendor.trim().is_empty() {
+            return (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({"detail": "vendor required"})),
+            )
+                .into_response();
+        }
         am.vendor = Set(vendor.trim().to_lowercase());
     }
     if let Some(model) = payload.get("model").and_then(|v| v.as_str()) {
@@ -450,6 +501,9 @@ async fn delete_device(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = devices::Entity::find_by_id(id)
@@ -464,34 +518,19 @@ async fn delete_device(
         )
             .into_response();
     };
-    // cascade: child tables have no DB-level cascade, remove explicitly.
-    for l in device_lines::Entity::find()
+    // Cascade as set deletes: no per-row fetch-then-delete round-trips.
+    let _ = device_lines::Entity::delete_many()
         .filter(device_lines::Column::DeviceUuid.eq(id))
-        .all(db)
-        .await
-        .unwrap_or_default()
-    {
-        let lam: device_lines::ActiveModel = l.into();
-        let _ = lam.delete(db).await;
-    }
-    for k in device_keys::Entity::find()
+        .exec(db)
+        .await;
+    let _ = device_keys::Entity::delete_many()
         .filter(device_keys::Column::DeviceUuid.eq(id))
-        .all(db)
-        .await
-        .unwrap_or_default()
-    {
-        let kam: device_keys::ActiveModel = k.into();
-        let _ = kam.delete(db).await;
-    }
-    for st in device_settings::Entity::find()
+        .exec(db)
+        .await;
+    let _ = device_settings::Entity::delete_many()
         .filter(device_settings::Column::DeviceUuid.eq(id))
-        .all(db)
-        .await
-        .unwrap_or_default()
-    {
-        let sam: device_settings::ActiveModel = st.into();
-        let _ = sam.delete(db).await;
-    }
+        .exec(db)
+        .await;
     let am: devices::ActiveModel = r.into();
     match am.delete(db).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
@@ -531,7 +570,10 @@ async fn list_keys(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_view") {
+        return (s, j).into_response();
+    }
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
@@ -542,14 +584,16 @@ async fn list_keys(
         )
             .into_response();
     }
-    let rows = device_keys::Entity::find()
+    let paginator = device_keys::Entity::find()
         .filter(device_keys::Column::DeviceUuid.eq(id))
         .filter(device_keys::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows.iter().skip(offset as usize).take(per_page as usize).map(|r| {
+    let data: Vec<serde_json::Value> = rows.iter().map(|r| {
         serde_json::json!({"device_key_uuid": r.device_key_uuid, "device_uuid": r.device_uuid, "device_key_value": r.device_key_value, "device_key_label": r.device_key_label})
     }).collect();
     (
@@ -564,6 +608,9 @@ async fn create_key(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     if device_or_404(db, domain, &id).await.is_none() {
@@ -635,6 +682,9 @@ async fn patch_key(
     axum::extract::Path((id, kid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = device_keys::Entity::find_by_id(kid)
@@ -668,6 +718,9 @@ async fn delete_key(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((id, kid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = device_keys::Entity::find_by_id(kid)
@@ -699,7 +752,10 @@ async fn list_lines(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_view") {
+        return (s, j).into_response();
+    }
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
@@ -710,14 +766,16 @@ async fn list_lines(
         )
             .into_response();
     }
-    let rows = device_lines::Entity::find()
+    let paginator = device_lines::Entity::find()
         .filter(device_lines::Column::DeviceUuid.eq(id))
         .filter(device_lines::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows.iter().skip(offset as usize).take(per_page as usize).map(|r| {
+    let data: Vec<serde_json::Value> = rows.iter().map(|r| {
         serde_json::json!({"device_line_uuid": r.device_line_uuid, "device_uuid": r.device_uuid, "line_number": r.line_number, "user_id": r.user_id})
     }).collect();
     (
@@ -737,6 +795,9 @@ async fn create_line(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     if device_or_404(db, domain, &id).await.is_none() {
@@ -811,6 +872,9 @@ async fn patch_line(
     axum::extract::Path((id, lid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = device_lines::Entity::find_by_id(lid)
@@ -851,6 +915,9 @@ async fn delete_line(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((id, lid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = device_lines::Entity::find_by_id(lid)
@@ -882,7 +949,10 @@ async fn list_settings(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_view") {
+        return (s, j).into_response();
+    }
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
@@ -893,14 +963,16 @@ async fn list_settings(
         )
             .into_response();
     }
-    let rows = device_settings::Entity::find()
+    let paginator = device_settings::Entity::find()
         .filter(device_settings::Column::DeviceUuid.eq(id))
         .filter(device_settings::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows.iter().skip(offset as usize).take(per_page as usize).map(|r| {
+    let data: Vec<serde_json::Value> = rows.iter().map(|r| {
         serde_json::json!({"device_setting_uuid": r.device_setting_uuid, "device_uuid": r.device_uuid, "device_setting_name": r.device_setting_name, "device_setting_value": r.device_setting_value})
     }).collect();
     (
@@ -920,6 +992,9 @@ async fn create_setting(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     if device_or_404(db, domain, &id).await.is_none() {
@@ -982,6 +1057,9 @@ async fn patch_setting(
     axum::extract::Path((id, sid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = device_settings::Entity::find_by_id(sid)
@@ -1019,6 +1097,9 @@ async fn delete_setting(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((id, sid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = device_settings::Entity::find_by_id(sid)
@@ -1050,17 +1131,22 @@ async fn list_profiles(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_view") {
+        return (s, j).into_response();
+    }
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
-    let rows = device_profiles::Entity::find()
+    let paginator = device_profiles::Entity::find()
         .filter(device_profiles::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows.iter().skip(offset as usize).take(per_page as usize).map(|r| {
+    let data: Vec<serde_json::Value> = rows.iter().map(|r| {
         serde_json::json!({"device_profile_uuid": r.device_profile_uuid, "device_profile_name": r.device_profile_name, "device_profile_enabled": r.device_profile_enabled})
     }).collect();
     (
@@ -1074,6 +1160,9 @@ async fn create_profile(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_add") {
+        return (s, j).into_response();
+    }
     let name = payload
         .get("device_profile_name")
         .and_then(|v| v.as_str())
@@ -1120,6 +1209,9 @@ async fn get_profile(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = device_profiles::Entity::find_by_id(id)
@@ -1138,6 +1230,9 @@ async fn patch_profile(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = device_profiles::Entity::find_by_id(id)
@@ -1173,6 +1268,9 @@ async fn delete_profile(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = device_profiles::Entity::find_by_id(id)

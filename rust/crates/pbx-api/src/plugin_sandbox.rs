@@ -28,9 +28,11 @@
 //! (mirrors [`crate::plugins::is_license_allowed`]) before any exec.
 //!
 //! NEXT (not in scope): PDK crate for guest authors, real `db_get` wiring,
-//! `CompiledPlugin` caching (currently one compile per `call_plugin`).
+//! `CompiledPlugin`/pool caching (currently one compile per `call_plugin`;
+//! per-call bytes are a single `Arc` slice copy at the `Manifest` boundary).
 
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 use extism::{Manifest, PluginBuilder, UserData, Val, ValType, Wasm};
@@ -53,6 +55,10 @@ pub const DB_GET_ALLOWLIST: &[i64] = &[1, 2, 3];
 /// by the `guest_wasm_matches_wat` test). Powers the `example`-route hook.
 pub const EXAMPLE_GUEST_WASM: &[u8] = include_bytes!("../../../../plugins/example/plugin.wasm");
 
+/// Cap per-plugin WASM bytes: the registry is manifest-gated but must not
+/// buffer arbitrarily large uploads in RAM.
+pub const MAX_WASM_BYTES: usize = 8 * 1024 * 1024;
+
 /// Sandbox failure modes.
 #[derive(Debug)]
 pub enum SandboxError {
@@ -60,6 +66,8 @@ pub enum SandboxError {
     LicenseDenied(String),
     /// No WASM bytes registered under this plugin name.
     UnknownPlugin(String),
+    /// WASM payload exceeds [`MAX_WASM_BYTES`] — rejected before storing.
+    TooLarge { name: String, bytes: usize },
     /// Guest failed to link/instantiate (e.g. WASI import with WASI off).
     Build(String),
     /// Guest trapped or exceeded fuel/timeout during the call.
@@ -71,6 +79,9 @@ impl std::fmt::Display for SandboxError {
         match self {
             Self::LicenseDenied(m) => write!(f, "plugin license denied: {m}"),
             Self::UnknownPlugin(n) => write!(f, "no wasm registered for plugin {n}"),
+            Self::TooLarge { name, bytes } => {
+                write!(f, "wasm for plugin {name} too large: {bytes} bytes")
+            }
             Self::Build(e) => write!(f, "guest build failed: {e}"),
             Self::Call(e) => write!(f, "guest call failed: {e}"),
         }
@@ -85,7 +96,10 @@ impl std::error::Error for SandboxError {}
 /// state leaks between calls. `Clone`d [`UserData`] counter observes
 /// `pbx_log` calls.
 pub struct PluginSandbox {
-    registry: HashMap<String, Vec<u8>>,
+    // `Arc` shares bytes between registry and in-flight calls: `call_plugin`
+    // clones the `Arc` (pointer copy) and copies bytes exactly once at the
+    // `Wasm::data` boundary, instead of cloning a `Vec<u8>` per call.
+    registry: HashMap<String, Arc<[u8]>>,
     wasi_enabled: bool,
     timeout_ms: u64,
     fuel_limit: u64,
@@ -171,7 +185,13 @@ impl PluginSandbox {
                 manifest.license, manifest.name
             )));
         }
-        self.registry.insert(manifest.name.clone(), wasm);
+        if wasm.len() > MAX_WASM_BYTES {
+            return Err(SandboxError::TooLarge {
+                name: manifest.name.clone(),
+                bytes: wasm.len(),
+            });
+        }
+        self.registry.insert(manifest.name.clone(), Arc::from(wasm));
         Ok(())
     }
 
@@ -189,7 +209,8 @@ impl PluginSandbox {
             .registry
             .get(name)
             .ok_or_else(|| SandboxError::UnknownPlugin(name.to_string()))?;
-        let manifest = Manifest::new([Wasm::data(bytes.clone())])
+        // Single copy at the owned-`Vec<u8>` boundary `Wasm::data` requires.
+        let manifest = Manifest::new([Wasm::data(bytes.to_vec())])
             .with_timeout(Duration::from_millis(self.timeout_ms))
             .with_memory_max(self.max_memory_pages)
             .disallow_all_hosts();

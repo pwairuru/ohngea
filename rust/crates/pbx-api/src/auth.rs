@@ -117,8 +117,9 @@ fn bearer_or_cookie_token(headers: &HeaderMap) -> Option<String> {
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
     {
-        if let Some(token) = auth.strip_prefix("Bearer ") {
-            let token = token.trim();
+        // Scheme is case-insensitive per RFC 7235; accept `bearer`/`Bearer`.
+        if auth.len() > 7 && auth[..7].eq_ignore_ascii_case("bearer ") {
+            let token = auth[7..].trim();
             if !token.is_empty() {
                 return Some(token.to_string());
             }

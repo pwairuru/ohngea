@@ -335,6 +335,18 @@ const DDL_TABLES: &[&str] = &[
       domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE
     )",
     "CREATE INDEX IF NOT EXISTS ix_user_groups_group ON user_groups (group_uuid)",
+    "CREATE TABLE IF NOT EXISTS user_settings (
+      user_setting_uuid UUID PRIMARY KEY,
+      user_uuid UUID NOT NULL REFERENCES users (user_uuid) ON DELETE CASCADE,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      user_setting_category VARCHAR(64) NOT NULL,
+      user_setting_subcategory VARCHAR(64),
+      user_setting_name VARCHAR(64),
+      user_setting_value VARCHAR(512),
+      user_setting_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      user_setting_description TEXT
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_user_settings_user ON user_settings (user_uuid)",
     "CREATE TABLE IF NOT EXISTS permissions (
       permission_uuid UUID PRIMARY KEY,
       name VARCHAR(64) NOT NULL UNIQUE,
@@ -658,15 +670,68 @@ const DDL_TABLES: &[&str] = &[
       cdr_uuid UUID PRIMARY KEY,
       domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
       caller_id_number VARCHAR(32),
+      caller_id_name VARCHAR(128),
       destination_number VARCHAR(32) NOT NULL,
+      start_stamp TIMESTAMPTZ,
+      answer_stamp TIMESTAMPTZ,
+      end_stamp TIMESTAMPTZ,
       billsec INTEGER,
       duration INTEGER,
+      billmsec BIGINT,
+      mduration INTEGER,
+      hold_accum_seconds INTEGER,
       hangup_cause VARCHAR(64),
       direction VARCHAR(16),
+      sip_call_id VARCHAR(128),
+      accountcode VARCHAR(64),
+      context VARCHAR(128),
+      leg VARCHAR(16),
+      status VARCHAR(32),
+      bridge_uuid VARCHAR(128),
+      conference_id VARCHAR(128),
+      record_path VARCHAR(512),
+      record_name VARCHAR(255),
+      mos_score REAL,
+      caller_extension VARCHAR(32),
+      destination_extension VARCHAR(32),
       raw_xml TEXT,
       malformed BOOLEAN NOT NULL DEFAULT FALSE
     )",
     "CREATE INDEX IF NOT EXISTS ix_cdr_domain ON cdr (domain_id)",
+    "CREATE INDEX IF NOT EXISTS ix_cdr_domain_start ON cdr (domain_id, start_stamp)",
+    "CREATE TABLE IF NOT EXISTS cdr_archive (
+      cdr_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      caller_id_number VARCHAR(32),
+      caller_id_name VARCHAR(128),
+      destination_number VARCHAR(32) NOT NULL,
+      start_stamp TIMESTAMPTZ,
+      answer_stamp TIMESTAMPTZ,
+      end_stamp TIMESTAMPTZ,
+      billsec INTEGER,
+      duration INTEGER,
+      billmsec BIGINT,
+      mduration INTEGER,
+      hold_accum_seconds INTEGER,
+      hangup_cause VARCHAR(64),
+      direction VARCHAR(16),
+      sip_call_id VARCHAR(128),
+      accountcode VARCHAR(64),
+      context VARCHAR(128),
+      leg VARCHAR(16),
+      status VARCHAR(32),
+      bridge_uuid VARCHAR(128),
+      conference_id VARCHAR(128),
+      record_path VARCHAR(512),
+      record_name VARCHAR(255),
+      mos_score REAL,
+      caller_extension VARCHAR(32),
+      destination_extension VARCHAR(32),
+      raw_xml TEXT,
+      malformed BOOLEAN NOT NULL DEFAULT FALSE,
+      archived_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_cdr_archive_domain ON cdr_archive (domain_id)",
     "CREATE TABLE IF NOT EXISTS recordings (
       recording_uuid UUID PRIMARY KEY,
       domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
@@ -737,11 +802,15 @@ const DDL_TABLES: &[&str] = &[
     "CREATE TABLE IF NOT EXISTS email_queue (
       email_queue_uuid UUID PRIMARY KEY,
       domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      email_date TIMESTAMPTZ,
       email_from VARCHAR(512) NOT NULL,
       email_to VARCHAR(512) NOT NULL,
       email_subject VARCHAR(512),
       email_body TEXT,
       email_status VARCHAR(32) NOT NULL DEFAULT 'waiting',
+      email_retry_count INTEGER NOT NULL DEFAULT 0,
+      email_attempts INTEGER NOT NULL DEFAULT 0,
+      email_error VARCHAR(512),
       created_at TIMESTAMPTZ NOT NULL
     )",
     "CREATE INDEX IF NOT EXISTS ix_email_queue_domain ON email_queue (domain_id)",
@@ -1140,6 +1209,34 @@ const DDL_TABLES: &[&str] = &[
     )",
 ];
 
+/// Forward column adds for DBs created before the CDR/email expansion.
+/// Executed best-effort after `DDL_TABLES` (ignored on error).
+const FORWARD_ALTERS: &[&str] = &[
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS caller_id_name VARCHAR(128)",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS start_stamp TIMESTAMPTZ",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS answer_stamp TIMESTAMPTZ",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS end_stamp TIMESTAMPTZ",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS billmsec BIGINT",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS mduration INTEGER",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS hold_accum_seconds INTEGER",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS sip_call_id VARCHAR(128)",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS accountcode VARCHAR(64)",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS context VARCHAR(128)",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS leg VARCHAR(16)",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS status VARCHAR(32)",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS bridge_uuid VARCHAR(128)",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS conference_id VARCHAR(128)",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS record_path VARCHAR(512)",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS record_name VARCHAR(255)",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS mos_score REAL",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS caller_extension VARCHAR(32)",
+    "ALTER TABLE cdr ADD COLUMN IF NOT EXISTS destination_extension VARCHAR(32)",
+    "ALTER TABLE email_queue ADD COLUMN IF NOT EXISTS email_date TIMESTAMPTZ",
+    "ALTER TABLE email_queue ADD COLUMN IF NOT EXISTS email_retry_count INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE email_queue ADD COLUMN IF NOT EXISTS email_attempts INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE email_queue ADD COLUMN IF NOT EXISTS email_error VARCHAR(512)",
+];
+
 /// Strict tenant tables (non-nullable domain_id) — from 043_tenant_rls_all.py.
 const STRICT_TABLES: &[&str] = &[
     "extensions",
@@ -1151,6 +1248,7 @@ const STRICT_TABLES: &[&str] = &[
     "ivr_menus",
     "devices",
     "cdr",
+    "cdr_archive",
     "recordings",
     "contacts",
     "ring_groups",
@@ -1262,6 +1360,12 @@ impl MigrationTrait for M20260101_000001PgParity {
         for ddl in DDL_TABLES {
             conn.execute_unprepared(ddl).await?;
         }
+        // Forward alters for pre-existing DBs (CREATE IF NOT EXISTS
+        // never adds columns to old tables). Best-effort: ignore
+        // "already exists" / dialect errors.
+        for stmt in FORWARD_ALTERS {
+            let _ = conn.execute_unprepared(stmt).await;
+        }
         if is_pg {
             for stmt in rls_statements() {
                 // Best-effort: ignore already-exists races.
@@ -1351,6 +1455,7 @@ impl MigrationTrait for M20260101_000001PgParity {
             "group_permissions",
             "permissions",
             "user_groups",
+            "user_settings",
             "groups",
             "users",
             "sip_profile_settings",
@@ -1462,627 +1567,684 @@ pub async fn backfill_remaining_records<C: sea_orm::ConnectionTrait>(
     db: &C,
 ) -> Result<BackfillCounts, DbErr> {
     use crate::entities::*;
+    use sea_orm::{ColumnTrait as _, QueryFilter as _, QueryOrder as _, QuerySelect as _};
     let mut out = BackfillCounts::default();
-    let rows = match remaining_record::Entity::find().all(db).await {
-        Ok(r) => r,
-        Err(_) => return Ok(out),
-    };
-    for row in rows {
-        let data: serde_json::Value =
-            serde_json::from_str(&row.data).unwrap_or(serde_json::Value::Null);
-        let now = chrono::Utc::now();
-        let migrated: bool = match row.resource.as_str() {
-            "call_block" => {
-                let (Some(name), Some(number)) = (
-                    jstr(&data, &["call_block_name", "name"])
-                        .or_else(|| jstr(&data, &["call_block_number", "number"])),
-                    jstr(&data, &["call_block_number", "number"]),
-                ) else {
-                    out.skipped += 1;
-                    continue;
-                };
-                let am = call_block::ActiveModel {
-                    call_block_uuid: Set(row.id.clone()),
-                    domain_id: Set(row.domain_id),
-                    call_block_direction: Set(jstr(&data, &["call_block_direction"])),
-                    call_block_name: Set(name),
-                    call_block_country_code: Set(jstr(&data, &["call_block_country_code"])),
-                    call_block_number: Set(number),
-                    call_block_enabled: Set(jbool(&data, &["call_block_enabled", "enabled"], true)),
-                    call_block_description: Set(jstr(
-                        &data,
-                        &["call_block_description", "description"],
-                    )),
-                    call_block_action: Set(jstr(&data, &["call_block_action", "action"])),
-                    call_block_app: Set(jstr(&data, &["call_block_app", "app"])),
-                    call_block_data: Set(jstr(&data, &["call_block_data", "data"])),
-                    call_block_count: Set(Some(jint(&data, &["call_block_count"], 0))),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                    ..Default::default()
-                };
-                if call_block::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
-                }
-            }
-            "call_broadcast" => {
-                let Some(name) = jstr(&data, &["broadcast_name", "name"]) else {
-                    out.skipped += 1;
-                    continue;
-                };
-                let am = call_broadcasts::ActiveModel {
-                    call_broadcast_uuid: Set(row.id.clone()),
-                    domain_id: Set(row.domain_id),
-                    broadcast_name: Set(name),
-                    broadcast_description: Set(jstr(
-                        &data,
-                        &["broadcast_description", "description"],
-                    )),
-                    broadcast_start_time: Set(jint64(&data, &["broadcast_start_time"])),
-                    broadcast_timeout: Set(Some(jint(&data, &["broadcast_timeout"], 30))),
-                    broadcast_concurrent_limit: Set(Some(jint(
-                        &data,
-                        &["broadcast_concurrent_limit"],
-                        1,
-                    ))),
-                    broadcast_caller_id_name: Set(jstr(&data, &["broadcast_caller_id_name"])),
-                    broadcast_caller_id_number: Set(jstr(&data, &["broadcast_caller_id_number"])),
-                    broadcast_destination_type: Set(jstr(&data, &["broadcast_destination_type"])),
-                    broadcast_destination_data: Set(jstr(&data, &["broadcast_destination_data"])),
-                    broadcast_phone_numbers: Set(jstr(&data, &["broadcast_phone_numbers"])),
-                    broadcast_avmd: Set(data.get("broadcast_avmd").and_then(|x| x.as_bool())),
-                    broadcast_accountcode: Set(jstr(&data, &["broadcast_accountcode"])),
-                    broadcast_toll_allow: Set(jstr(&data, &["broadcast_toll_allow"])),
-                    broadcast_enabled: Set(jbool(&data, &["broadcast_enabled", "enabled"], true)),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                    ..Default::default()
-                };
-                if call_broadcasts::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
-                }
-            }
-            "bridges" => {
-                let Some(name) = jstr(&data, &["bridge_name", "name"]) else {
-                    out.skipped += 1;
-                    continue;
-                };
-                let am = bridges::ActiveModel {
-                    bridge_uuid: Set(row.id.clone()),
-                    domain_id: Set(row.domain_id),
-                    bridge_name: Set(name),
-                    bridge_destination: Set(jstr(&data, &["bridge_destination", "destination"])),
-                    bridge_enabled: Set(jbool(&data, &["bridge_enabled", "enabled"], true)),
-                    bridge_description: Set(jstr(&data, &["bridge_description", "description"])),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                };
-                if bridges::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
-                }
-            }
-            "destinations" => {
-                let Some(number) = jstr(&data, &["destination_number", "destination", "number"])
-                else {
-                    out.skipped += 1;
-                    continue;
-                };
-                let am = destinations::ActiveModel {
-                    destination_uuid: Set(row.id.clone()),
-                    domain_id: Set(row.domain_id),
-                    destination_type: Set(jstr(&data, &["destination_type", "type"])
-                        .unwrap_or_else(|| "inbound".to_owned())),
-                    destination_number: Set(number),
-                    destination_prefix: Set(jstr(&data, &["destination_prefix"])),
-                    destination_enabled: Set(jbool(
-                        &data,
-                        &["destination_enabled", "enabled"],
-                        true,
-                    )),
-                    destination_description: Set(jstr(
-                        &data,
-                        &["destination_description", "description"],
-                    )),
-                    destination_context: Set(
-                        jstr(&data, &["destination_context"]).or_else(|| Some("public".to_owned()))
-                    ),
-                    destination_app: Set(jstr(&data, &["destination_app", "action", "app"])),
-                    destination_data: Set(jstr(&data, &["destination_data", "data"])),
-                    destination_caller_id_name: Set(jstr(&data, &["destination_caller_id_name"])),
-                    destination_caller_id_number: Set(jstr(
-                        &data,
-                        &["destination_caller_id_number"],
-                    )),
-                    destination_hold_music: Set(jstr(&data, &["destination_hold_music"])),
-                    destination_record: Set(data
-                        .get("destination_record")
-                        .and_then(|x| x.as_bool())),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                    ..Default::default()
-                };
-                if destinations::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
-                }
-            }
-            "follow_me" => {
-                let am = follow_me::ActiveModel {
-                    follow_me_uuid: Set(row.id.clone()),
-                    domain_id: Set(row.domain_id),
-                    follow_me_enabled: Set(jbool(&data, &["follow_me_enabled", "enabled"], true)),
-                    cid_name_prefix: Set(jstr(&data, &["cid_name_prefix"])),
-                    cid_number_prefix: Set(jstr(&data, &["cid_number_prefix"])),
-                    call_prompt: Set(jstr(&data, &["call_prompt"])),
-                    dial_string: Set(jstr(&data, &["dial_string"])),
-                    description: Set(jstr(&data, &["description"])),
-                    follow_me_ignore_busy: Set(jbool(&data, &["follow_me_ignore_busy"], false)),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                };
-                let ok = if follow_me::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
-                };
-                if ok {
-                    if let Some(dests) = data.get("destinations").and_then(|x| x.as_array()) {
-                        for (i, d) in dests.iter().enumerate() {
-                            let num = if let Some(s) = d.as_str() {
-                                Some(s.to_owned())
-                            } else {
-                                jstr(d, &["follow_me_destination", "destination", "number"])
-                            };
-                            let Some(num) = num else { continue };
-                            let dam = follow_me_destinations::ActiveModel {
-                                follow_me_destination_uuid: Set(uuid::Uuid::now_v7().to_string()),
-                                domain_id: Set(row.domain_id),
-                                follow_me_uuid: Set(row.id.clone()),
-                                follow_me_destination: Set(num),
-                                follow_me_delay: Set(jint(d, &["follow_me_delay", "delay"], 0)),
-                                follow_me_timeout: Set(jint(
-                                    d,
-                                    &["follow_me_timeout", "timeout"],
-                                    30,
-                                )),
-                                follow_me_prompt: Set(jstr(d, &["follow_me_prompt", "prompt"])),
-                                follow_me_order: Set(i as i32),
-                                created_at: Set(now),
-                            };
-                            let _ = dam.insert(db).await;
-                        }
+    // Cursor-paged drain: `data` holds large JSON payloads, so never
+    // buffer the whole staging table — 500 rows per page ordered by PK.
+    let mut last_id: Option<String> = None;
+    loop {
+        let mut sel = remaining_record::Entity::find()
+            .order_by_asc(remaining_record::Column::Id)
+            .limit(500);
+        if let Some(ref lid) = last_id {
+            sel = sel.filter(remaining_record::Column::Id.gt(lid.clone()));
+        }
+        let page = match sel.all(db).await {
+            Ok(r) => r,
+            Err(_) => return Ok(out),
+        };
+        if page.is_empty() {
+            break;
+        }
+        last_id = page.last().map(|r| r.id.clone());
+        for row in page {
+            let data: serde_json::Value =
+                serde_json::from_str(&row.data).unwrap_or(serde_json::Value::Null);
+            let now = chrono::Utc::now();
+            let migrated: bool = match row.resource.as_str() {
+                "call_block" => {
+                    let (Some(name), Some(number)) = (
+                        jstr(&data, &["call_block_name", "name"])
+                            .or_else(|| jstr(&data, &["call_block_number", "number"])),
+                        jstr(&data, &["call_block_number", "number"]),
+                    ) else {
+                        out.skipped += 1;
+                        continue;
+                    };
+                    let am = call_block::ActiveModel {
+                        call_block_uuid: Set(row.id.clone()),
+                        domain_id: Set(row.domain_id),
+                        call_block_direction: Set(jstr(&data, &["call_block_direction"])),
+                        call_block_name: Set(name),
+                        call_block_country_code: Set(jstr(&data, &["call_block_country_code"])),
+                        call_block_number: Set(number),
+                        call_block_enabled: Set(jbool(
+                            &data,
+                            &["call_block_enabled", "enabled"],
+                            true,
+                        )),
+                        call_block_description: Set(jstr(
+                            &data,
+                            &["call_block_description", "description"],
+                        )),
+                        call_block_action: Set(jstr(&data, &["call_block_action", "action"])),
+                        call_block_app: Set(jstr(&data, &["call_block_app", "app"])),
+                        call_block_data: Set(jstr(&data, &["call_block_data", "data"])),
+                        call_block_count: Set(Some(jint(&data, &["call_block_count"], 0))),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                        ..Default::default()
+                    };
+                    if call_block::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
                     }
                 }
-                ok
-            }
-            "call_forward" => {
-                let am = call_forwards::ActiveModel {
-                    call_forward_uuid: Set(row.id.clone()),
-                    domain_id: Set(row.domain_id),
-                    forward_all_destination: Set(jstr(
-                        &data,
-                        &["forward_all_destination", "destination"],
-                    )),
-                    forward_all_enabled: Set(jbool(
-                        &data,
-                        &["forward_all_enabled", "enabled"],
-                        false,
-                    )),
-                    forward_busy_destination: Set(jstr(&data, &["forward_busy_destination"])),
-                    forward_busy_enabled: Set(jbool(&data, &["forward_busy_enabled"], false)),
-                    forward_no_answer_destination: Set(jstr(
-                        &data,
-                        &["forward_no_answer_destination"],
-                    )),
-                    forward_no_answer_enabled: Set(jbool(
-                        &data,
-                        &["forward_no_answer_enabled"],
-                        false,
-                    )),
-                    forward_user_not_registered_destination: Set(jstr(
-                        &data,
-                        &["forward_user_not_registered_destination"],
-                    )),
-                    forward_user_not_registered_enabled: Set(jbool(
-                        &data,
-                        &["forward_user_not_registered_enabled"],
-                        false,
-                    )),
-                    enabled: Set(jbool(&data, &["enabled"], true)),
-                    description: Set(jstr(&data, &["description"])),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                    ..Default::default()
-                };
-                if call_forwards::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                "call_broadcast" => {
+                    let Some(name) = jstr(&data, &["broadcast_name", "name"]) else {
+                        out.skipped += 1;
+                        continue;
+                    };
+                    let am = call_broadcasts::ActiveModel {
+                        call_broadcast_uuid: Set(row.id.clone()),
+                        domain_id: Set(row.domain_id),
+                        broadcast_name: Set(name),
+                        broadcast_description: Set(jstr(
+                            &data,
+                            &["broadcast_description", "description"],
+                        )),
+                        broadcast_start_time: Set(jint64(&data, &["broadcast_start_time"])),
+                        broadcast_timeout: Set(Some(jint(&data, &["broadcast_timeout"], 30))),
+                        broadcast_concurrent_limit: Set(Some(jint(
+                            &data,
+                            &["broadcast_concurrent_limit"],
+                            1,
+                        ))),
+                        broadcast_caller_id_name: Set(jstr(&data, &["broadcast_caller_id_name"])),
+                        broadcast_caller_id_number: Set(jstr(
+                            &data,
+                            &["broadcast_caller_id_number"],
+                        )),
+                        broadcast_destination_type: Set(jstr(
+                            &data,
+                            &["broadcast_destination_type"],
+                        )),
+                        broadcast_destination_data: Set(jstr(
+                            &data,
+                            &["broadcast_destination_data"],
+                        )),
+                        broadcast_phone_numbers: Set(jstr(&data, &["broadcast_phone_numbers"])),
+                        broadcast_avmd: Set(data.get("broadcast_avmd").and_then(|x| x.as_bool())),
+                        broadcast_accountcode: Set(jstr(&data, &["broadcast_accountcode"])),
+                        broadcast_toll_allow: Set(jstr(&data, &["broadcast_toll_allow"])),
+                        broadcast_enabled: Set(jbool(
+                            &data,
+                            &["broadcast_enabled", "enabled"],
+                            true,
+                        )),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                        ..Default::default()
+                    };
+                    if call_broadcasts::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    }
                 }
-            }
-            "time_conditions" => {
-                let (Some(name), Some(extension)) = (
-                    jstr(&data, &["name", "time_condition_name"]),
-                    jstr(&data, &["extension", "time_condition_extension"]),
-                ) else {
+                "bridges" => {
+                    let Some(name) = jstr(&data, &["bridge_name", "name"]) else {
+                        out.skipped += 1;
+                        continue;
+                    };
+                    let am = bridges::ActiveModel {
+                        bridge_uuid: Set(row.id.clone()),
+                        domain_id: Set(row.domain_id),
+                        bridge_name: Set(name),
+                        bridge_destination: Set(jstr(
+                            &data,
+                            &["bridge_destination", "destination"],
+                        )),
+                        bridge_enabled: Set(jbool(&data, &["bridge_enabled", "enabled"], true)),
+                        bridge_description: Set(jstr(
+                            &data,
+                            &["bridge_description", "description"],
+                        )),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                    };
+                    if bridges::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    }
+                }
+                "destinations" => {
+                    let Some(number) =
+                        jstr(&data, &["destination_number", "destination", "number"])
+                    else {
+                        out.skipped += 1;
+                        continue;
+                    };
+                    let am = destinations::ActiveModel {
+                        destination_uuid: Set(row.id.clone()),
+                        domain_id: Set(row.domain_id),
+                        destination_type: Set(jstr(&data, &["destination_type", "type"])
+                            .unwrap_or_else(|| "inbound".to_owned())),
+                        destination_number: Set(number),
+                        destination_prefix: Set(jstr(&data, &["destination_prefix"])),
+                        destination_enabled: Set(jbool(
+                            &data,
+                            &["destination_enabled", "enabled"],
+                            true,
+                        )),
+                        destination_description: Set(jstr(
+                            &data,
+                            &["destination_description", "description"],
+                        )),
+                        destination_context: Set(jstr(&data, &["destination_context"])
+                            .or_else(|| Some("public".to_owned()))),
+                        destination_app: Set(jstr(&data, &["destination_app", "action", "app"])),
+                        destination_data: Set(jstr(&data, &["destination_data", "data"])),
+                        destination_caller_id_name: Set(jstr(
+                            &data,
+                            &["destination_caller_id_name"],
+                        )),
+                        destination_caller_id_number: Set(jstr(
+                            &data,
+                            &["destination_caller_id_number"],
+                        )),
+                        destination_hold_music: Set(jstr(&data, &["destination_hold_music"])),
+                        destination_record: Set(data
+                            .get("destination_record")
+                            .and_then(|x| x.as_bool())),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                        ..Default::default()
+                    };
+                    if destinations::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    }
+                }
+                "follow_me" => {
+                    let am = follow_me::ActiveModel {
+                        follow_me_uuid: Set(row.id.clone()),
+                        domain_id: Set(row.domain_id),
+                        follow_me_enabled: Set(jbool(
+                            &data,
+                            &["follow_me_enabled", "enabled"],
+                            true,
+                        )),
+                        cid_name_prefix: Set(jstr(&data, &["cid_name_prefix"])),
+                        cid_number_prefix: Set(jstr(&data, &["cid_number_prefix"])),
+                        call_prompt: Set(jstr(&data, &["call_prompt"])),
+                        dial_string: Set(jstr(&data, &["dial_string"])),
+                        description: Set(jstr(&data, &["description"])),
+                        follow_me_ignore_busy: Set(jbool(&data, &["follow_me_ignore_busy"], false)),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                    };
+                    let ok = if follow_me::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    };
+                    if ok {
+                        if let Some(dests) = data.get("destinations").and_then(|x| x.as_array()) {
+                            for (i, d) in dests.iter().enumerate() {
+                                let num = if let Some(s) = d.as_str() {
+                                    Some(s.to_owned())
+                                } else {
+                                    jstr(d, &["follow_me_destination", "destination", "number"])
+                                };
+                                let Some(num) = num else { continue };
+                                let dam = follow_me_destinations::ActiveModel {
+                                    follow_me_destination_uuid: Set(
+                                        uuid::Uuid::now_v7().to_string()
+                                    ),
+                                    domain_id: Set(row.domain_id),
+                                    follow_me_uuid: Set(row.id.clone()),
+                                    follow_me_destination: Set(num),
+                                    follow_me_delay: Set(jint(d, &["follow_me_delay", "delay"], 0)),
+                                    follow_me_timeout: Set(jint(
+                                        d,
+                                        &["follow_me_timeout", "timeout"],
+                                        30,
+                                    )),
+                                    follow_me_prompt: Set(jstr(d, &["follow_me_prompt", "prompt"])),
+                                    follow_me_order: Set(i as i32),
+                                    created_at: Set(now),
+                                };
+                                let _ = dam.insert(db).await;
+                            }
+                        }
+                    }
+                    ok
+                }
+                "call_forward" => {
+                    let am = call_forwards::ActiveModel {
+                        call_forward_uuid: Set(row.id.clone()),
+                        domain_id: Set(row.domain_id),
+                        forward_all_destination: Set(jstr(
+                            &data,
+                            &["forward_all_destination", "destination"],
+                        )),
+                        forward_all_enabled: Set(jbool(
+                            &data,
+                            &["forward_all_enabled", "enabled"],
+                            false,
+                        )),
+                        forward_busy_destination: Set(jstr(&data, &["forward_busy_destination"])),
+                        forward_busy_enabled: Set(jbool(&data, &["forward_busy_enabled"], false)),
+                        forward_no_answer_destination: Set(jstr(
+                            &data,
+                            &["forward_no_answer_destination"],
+                        )),
+                        forward_no_answer_enabled: Set(jbool(
+                            &data,
+                            &["forward_no_answer_enabled"],
+                            false,
+                        )),
+                        forward_user_not_registered_destination: Set(jstr(
+                            &data,
+                            &["forward_user_not_registered_destination"],
+                        )),
+                        forward_user_not_registered_enabled: Set(jbool(
+                            &data,
+                            &["forward_user_not_registered_enabled"],
+                            false,
+                        )),
+                        enabled: Set(jbool(&data, &["enabled"], true)),
+                        description: Set(jstr(&data, &["description"])),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                        ..Default::default()
+                    };
+                    if call_forwards::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    }
+                }
+                "time_conditions" => {
+                    let (Some(name), Some(extension)) = (
+                        jstr(&data, &["name", "time_condition_name"]),
+                        jstr(&data, &["extension", "time_condition_extension"]),
+                    ) else {
+                        out.skipped += 1;
+                        continue;
+                    };
+                    let am = time_conditions::ActiveModel {
+                        time_condition_uuid: Set(row.id.clone()),
+                        domain_id: Set(row.domain_id),
+                        name: Set(name),
+                        extension: Set(extension),
+                        context: Set(jstr(&data, &["context", "dialplan_context"])),
+                        enabled: Set(jbool(&data, &["enabled", "time_condition_enabled"], true)),
+                        description: Set(jstr(
+                            &data,
+                            &["description", "time_condition_description"],
+                        )),
+                        condition: Set(jstr(&data, &["condition"])),
+                        true_destination: Set(jstr(&data, &["true_destination", "true_dest"])),
+                        false_destination: Set(jstr(&data, &["false_destination", "false_dest"])),
+                        timezone: Set(jstr(&data, &["timezone"])),
+                        details: Set(data.get("details").cloned()),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                        ..Default::default()
+                    };
+                    if time_conditions::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    }
+                }
+                "feature_codes" => {
+                    let Some(name) = jstr(&data, &["feature_code_name", "name"]) else {
+                        out.skipped += 1;
+                        continue;
+                    };
+                    let am = feature_codes::ActiveModel {
+                        feature_code_uuid: Set(row.id.clone()),
+                        domain_id: Set(row.domain_id),
+                        feature_code_name: Set(name),
+                        feature_code_value: Set(
+                            jstr(&data, &["feature_code_value", "value"]).unwrap_or_default()
+                        ),
+                        feature_code_enabled: Set(jbool(
+                            &data,
+                            &["feature_code_enabled", "enabled"],
+                            true,
+                        )),
+                        feature_code_description: Set(jstr(
+                            &data,
+                            &["feature_code_description", "description"],
+                        )),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                        ..Default::default()
+                    };
+                    if feature_codes::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    }
+                }
+                "music_on_hold" => {
+                    let Some(name) = jstr(&data, &["music_name", "name"]) else {
+                        out.skipped += 1;
+                        continue;
+                    };
+                    let am = music_on_hold::ActiveModel {
+                        music_on_hold_uuid: Set(row.id.clone()),
+                        domain_id: Set(row.domain_id),
+                        music_name: Set(name),
+                        music_path: Set(jstr(&data, &["music_path", "path"]).unwrap_or_default()),
+                        music_rate: Set(Some(jint(&data, &["music_rate"], 8000))),
+                        music_shuffle: Set(jstr(&data, &["music_shuffle"])),
+                        music_channels: Set(Some(jint(&data, &["music_channels"], 1))),
+                        music_interval: Set(Some(jint(&data, &["music_interval"], 20))),
+                        music_timer_name: Set(jstr(&data, &["music_timer_name"])),
+                        music_chime_list: Set(jstr(&data, &["music_chime_list"])),
+                        music_chime_freq: Set(jstr(&data, &["music_chime_freq"])),
+                        music_chime_max: Set(data
+                            .get("music_chime_max")
+                            .and_then(|x| x.as_i64())
+                            .map(|n| n as i32)),
+                        enabled: Set(jbool(&data, &["enabled"], true)),
+                        description: Set(jstr(&data, &["description"])),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                        ..Default::default()
+                    };
+                    if music_on_hold::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    }
+                }
+                "phrases" => {
+                    let Some(name) = jstr(&data, &["phrase_name", "name"]) else {
+                        out.skipped += 1;
+                        continue;
+                    };
+                    let am = phrases::ActiveModel {
+                        phrase_uuid: Set(row.id.clone()),
+                        domain_id: Set(row.domain_id),
+                        phrase_name: Set(name),
+                        phrase_language: Set(jstr(&data, &["phrase_language"])),
+                        phrase_enabled: Set(jbool(&data, &["phrase_enabled", "enabled"], true)),
+                        phrase_description: Set(jstr(
+                            &data,
+                            &["phrase_description", "description"],
+                        )),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                    };
+                    if phrases::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    }
+                }
+                "pin_numbers" => {
+                    let Some(number) = jstr(&data, &["pin_number", "number"]) else {
+                        out.skipped += 1;
+                        continue;
+                    };
+                    let am = pin_numbers::ActiveModel {
+                        pin_number_uuid: Set(row.id.clone()),
+                        domain_id: Set(row.domain_id),
+                        pin_number: Set(number),
+                        accountcode: Set(jstr(&data, &["accountcode"])),
+                        enabled: Set(jbool(&data, &["enabled"], true)),
+                        description: Set(jstr(&data, &["description"])),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                    };
+                    if pin_numbers::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    }
+                }
+                "number_translations" => {
+                    let Some(name) = jstr(&data, &["number_translation_name", "name"]) else {
+                        out.skipped += 1;
+                        continue;
+                    };
+                    let am = number_translations::ActiveModel {
+                        number_translation_uuid: Set(row.id.clone()),
+                        domain_id: Set(row.domain_id),
+                        number_translation_name: Set(name),
+                        number_translation_regex: Set(jstr(
+                            &data,
+                            &["number_translation_regex", "regex"],
+                        )),
+                        number_translation_replace: Set(jstr(
+                            &data,
+                            &["number_translation_replace", "replace"],
+                        )),
+                        number_translation_enabled: Set(jbool(
+                            &data,
+                            &["number_translation_enabled", "enabled"],
+                            true,
+                        )),
+                        number_translation_description: Set(jstr(
+                            &data,
+                            &["number_translation_description", "description"],
+                        )),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                    };
+                    if number_translations::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    }
+                }
+                "streams" => {
+                    let Some(name) = jstr(&data, &["stream_name", "name"]) else {
+                        out.skipped += 1;
+                        continue;
+                    };
+                    let am = streams::ActiveModel {
+                        stream_uuid: Set(row.id.clone()),
+                        domain_id: Set(row.domain_id),
+                        stream_name: Set(name),
+                        stream_location: Set(jstr(&data, &["stream_location", "location"])),
+                        stream_enabled: Set(jbool(&data, &["stream_enabled", "enabled"], true)),
+                        stream_description: Set(jstr(
+                            &data,
+                            &["stream_description", "description"],
+                        )),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                    };
+                    if streams::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    }
+                }
+                "access_controls" => {
+                    let Some(name) = jstr(&data, &["access_control_name", "name"]) else {
+                        out.skipped += 1;
+                        continue;
+                    };
+                    let am = access_controls::ActiveModel {
+                        access_control_uuid: Set(row.id.clone()),
+                        domain_id: Set(row.domain_id),
+                        access_control_name: Set(name),
+                        access_control_default: Set(jstr(&data, &["access_control_default"])
+                            .unwrap_or_else(|| "deny".to_owned())),
+                        access_control_description: Set(jstr(
+                            &data,
+                            &["access_control_description", "description"],
+                        )),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                    };
+                    if access_controls::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    }
+                }
+                "webrtc_settings" => {
+                    let am = webrtc_settings::ActiveModel {
+                        domain_id: Set(row.domain_id),
+                        enabled: Set(jbool(&data, &["enabled"], false)),
+                        auth_mode: Set(
+                            jstr(&data, &["auth_mode"]).unwrap_or_else(|| "extension".to_owned())
+                        ),
+                        wss_url: Set(jstr(&data, &["wss_url"])),
+                        sip_domain: Set(jstr(&data, &["sip_domain"])),
+                        ice_servers: Set(data.get("ice_servers").cloned()),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                    };
+                    if webrtc_settings::Entity::find_by_id(row.domain_id)
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    }
+                }
+                "fifo_list" | "fifo" => {
+                    let Some(name) = jstr(&data, &["fifo_name", "name"]) else {
+                        out.skipped += 1;
+                        continue;
+                    };
+                    let am = fifo::ActiveModel {
+                        fifo_uuid: Set(row.id.clone()),
+                        domain_id: Set(row.domain_id),
+                        fifo_name: Set(name),
+                        fifo_extension: Set(jstr(&data, &["fifo_extension", "extension"])),
+                        fifo_enabled: Set(jbool(&data, &["fifo_enabled", "enabled"], true)),
+                        fifo_description: Set(jstr(&data, &["fifo_description", "description"])),
+                        fifo_strategy: Set(jstr(&data, &["fifo_strategy", "strategy"])),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                        ..Default::default()
+                    };
+                    if fifo::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    }
+                }
+                "emergency_logs" => {
+                    let am = emergency_logs::ActiveModel {
+                        emergency_log_uuid: Set(row.id.clone()),
+                        domain_id: Set(row.domain_id),
+                        extension: Set(jstr(&data, &["extension"])),
+                        event: Set(jstr(&data, &["event"])),
+                        created_at: Set(now),
+                    };
+                    if emergency_logs::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    }
+                }
+                "event_guard" => {
+                    let am = event_guard_logs::ActiveModel {
+                        event_guard_log_uuid: Set(row.id.clone()),
+                        hostname: Set(jstr(&data, &["hostname"])),
+                        log_date: Set(now),
+                        filter: Set(jstr(&data, &["filter"])),
+                        ip_address: Set(jstr(&data, &["ip_address"])),
+                        extension: Set(jstr(&data, &["extension"])),
+                        user_agent: Set(jstr(&data, &["user_agent"])),
+                        log_status: Set(jstr(&data, &["log_status", "status"])),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                        ..Default::default()
+                    };
+                    if event_guard_logs::Entity::find_by_id(row.id.clone())
+                        .one(db)
+                        .await?
+                        .is_some()
+                    {
+                        true
+                    } else {
+                        am.insert(db).await.map(|_| true).unwrap_or(false)
+                    }
+                }
+                _ => {
                     out.skipped += 1;
                     continue;
-                };
-                let am = time_conditions::ActiveModel {
-                    time_condition_uuid: Set(row.id.clone()),
-                    domain_id: Set(row.domain_id),
-                    name: Set(name),
-                    extension: Set(extension),
-                    context: Set(jstr(&data, &["context", "dialplan_context"])),
-                    enabled: Set(jbool(&data, &["enabled", "time_condition_enabled"], true)),
-                    description: Set(jstr(&data, &["description", "time_condition_description"])),
-                    condition: Set(jstr(&data, &["condition"])),
-                    true_destination: Set(jstr(&data, &["true_destination", "true_dest"])),
-                    false_destination: Set(jstr(&data, &["false_destination", "false_dest"])),
-                    timezone: Set(jstr(&data, &["timezone"])),
-                    details: Set(data.get("details").cloned()),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                    ..Default::default()
-                };
-                if time_conditions::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
                 }
-            }
-            "feature_codes" => {
-                let Some(name) = jstr(&data, &["feature_code_name", "name"]) else {
-                    out.skipped += 1;
-                    continue;
-                };
-                let am = feature_codes::ActiveModel {
-                    feature_code_uuid: Set(row.id.clone()),
-                    domain_id: Set(row.domain_id),
-                    feature_code_name: Set(name),
-                    feature_code_value: Set(
-                        jstr(&data, &["feature_code_value", "value"]).unwrap_or_default()
-                    ),
-                    feature_code_enabled: Set(jbool(
-                        &data,
-                        &["feature_code_enabled", "enabled"],
-                        true,
-                    )),
-                    feature_code_description: Set(jstr(
-                        &data,
-                        &["feature_code_description", "description"],
-                    )),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                    ..Default::default()
-                };
-                if feature_codes::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
-                }
-            }
-            "music_on_hold" => {
-                let Some(name) = jstr(&data, &["music_name", "name"]) else {
-                    out.skipped += 1;
-                    continue;
-                };
-                let am = music_on_hold::ActiveModel {
-                    music_on_hold_uuid: Set(row.id.clone()),
-                    domain_id: Set(row.domain_id),
-                    music_name: Set(name),
-                    music_path: Set(jstr(&data, &["music_path", "path"]).unwrap_or_default()),
-                    music_rate: Set(Some(jint(&data, &["music_rate"], 8000))),
-                    music_shuffle: Set(jstr(&data, &["music_shuffle"])),
-                    music_channels: Set(Some(jint(&data, &["music_channels"], 1))),
-                    music_interval: Set(Some(jint(&data, &["music_interval"], 20))),
-                    music_timer_name: Set(jstr(&data, &["music_timer_name"])),
-                    music_chime_list: Set(jstr(&data, &["music_chime_list"])),
-                    music_chime_freq: Set(jstr(&data, &["music_chime_freq"])),
-                    music_chime_max: Set(data
-                        .get("music_chime_max")
-                        .and_then(|x| x.as_i64())
-                        .map(|n| n as i32)),
-                    enabled: Set(jbool(&data, &["enabled"], true)),
-                    description: Set(jstr(&data, &["description"])),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                    ..Default::default()
-                };
-                if music_on_hold::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
-                }
-            }
-            "phrases" => {
-                let Some(name) = jstr(&data, &["phrase_name", "name"]) else {
-                    out.skipped += 1;
-                    continue;
-                };
-                let am = phrases::ActiveModel {
-                    phrase_uuid: Set(row.id.clone()),
-                    domain_id: Set(row.domain_id),
-                    phrase_name: Set(name),
-                    phrase_language: Set(jstr(&data, &["phrase_language"])),
-                    phrase_enabled: Set(jbool(&data, &["phrase_enabled", "enabled"], true)),
-                    phrase_description: Set(jstr(&data, &["phrase_description", "description"])),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                };
-                if phrases::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
-                }
-            }
-            "pin_numbers" => {
-                let Some(number) = jstr(&data, &["pin_number", "number"]) else {
-                    out.skipped += 1;
-                    continue;
-                };
-                let am = pin_numbers::ActiveModel {
-                    pin_number_uuid: Set(row.id.clone()),
-                    domain_id: Set(row.domain_id),
-                    pin_number: Set(number),
-                    accountcode: Set(jstr(&data, &["accountcode"])),
-                    enabled: Set(jbool(&data, &["enabled"], true)),
-                    description: Set(jstr(&data, &["description"])),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                };
-                if pin_numbers::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
-                }
-            }
-            "number_translations" => {
-                let Some(name) = jstr(&data, &["number_translation_name", "name"]) else {
-                    out.skipped += 1;
-                    continue;
-                };
-                let am = number_translations::ActiveModel {
-                    number_translation_uuid: Set(row.id.clone()),
-                    domain_id: Set(row.domain_id),
-                    number_translation_name: Set(name),
-                    number_translation_regex: Set(jstr(
-                        &data,
-                        &["number_translation_regex", "regex"],
-                    )),
-                    number_translation_replace: Set(jstr(
-                        &data,
-                        &["number_translation_replace", "replace"],
-                    )),
-                    number_translation_enabled: Set(jbool(
-                        &data,
-                        &["number_translation_enabled", "enabled"],
-                        true,
-                    )),
-                    number_translation_description: Set(jstr(
-                        &data,
-                        &["number_translation_description", "description"],
-                    )),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                };
-                if number_translations::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
-                }
-            }
-            "streams" => {
-                let Some(name) = jstr(&data, &["stream_name", "name"]) else {
-                    out.skipped += 1;
-                    continue;
-                };
-                let am = streams::ActiveModel {
-                    stream_uuid: Set(row.id.clone()),
-                    domain_id: Set(row.domain_id),
-                    stream_name: Set(name),
-                    stream_location: Set(jstr(&data, &["stream_location", "location"])),
-                    stream_enabled: Set(jbool(&data, &["stream_enabled", "enabled"], true)),
-                    stream_description: Set(jstr(&data, &["stream_description", "description"])),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                };
-                if streams::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
-                }
-            }
-            "access_controls" => {
-                let Some(name) = jstr(&data, &["access_control_name", "name"]) else {
-                    out.skipped += 1;
-                    continue;
-                };
-                let am = access_controls::ActiveModel {
-                    access_control_uuid: Set(row.id.clone()),
-                    domain_id: Set(row.domain_id),
-                    access_control_name: Set(name),
-                    access_control_default: Set(jstr(&data, &["access_control_default"])
-                        .unwrap_or_else(|| "deny".to_owned())),
-                    access_control_description: Set(jstr(
-                        &data,
-                        &["access_control_description", "description"],
-                    )),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                };
-                if access_controls::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
-                }
-            }
-            "webrtc_settings" => {
-                let am = webrtc_settings::ActiveModel {
-                    domain_id: Set(row.domain_id),
-                    enabled: Set(jbool(&data, &["enabled"], false)),
-                    auth_mode: Set(
-                        jstr(&data, &["auth_mode"]).unwrap_or_else(|| "extension".to_owned())
-                    ),
-                    wss_url: Set(jstr(&data, &["wss_url"])),
-                    sip_domain: Set(jstr(&data, &["sip_domain"])),
-                    ice_servers: Set(data.get("ice_servers").cloned()),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                };
-                if webrtc_settings::Entity::find_by_id(row.domain_id)
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
-                }
-            }
-            "fifo_list" | "fifo" => {
-                let Some(name) = jstr(&data, &["fifo_name", "name"]) else {
-                    out.skipped += 1;
-                    continue;
-                };
-                let am = fifo::ActiveModel {
-                    fifo_uuid: Set(row.id.clone()),
-                    domain_id: Set(row.domain_id),
-                    fifo_name: Set(name),
-                    fifo_extension: Set(jstr(&data, &["fifo_extension", "extension"])),
-                    fifo_enabled: Set(jbool(&data, &["fifo_enabled", "enabled"], true)),
-                    fifo_description: Set(jstr(&data, &["fifo_description", "description"])),
-                    fifo_strategy: Set(jstr(&data, &["fifo_strategy", "strategy"])),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                    ..Default::default()
-                };
-                if fifo::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
-                }
-            }
-            "emergency_logs" => {
-                let am = emergency_logs::ActiveModel {
-                    emergency_log_uuid: Set(row.id.clone()),
-                    domain_id: Set(row.domain_id),
-                    extension: Set(jstr(&data, &["extension"])),
-                    event: Set(jstr(&data, &["event"])),
-                    created_at: Set(now),
-                };
-                if emergency_logs::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
-                }
-            }
-            "event_guard" => {
-                let am = event_guard_logs::ActiveModel {
-                    event_guard_log_uuid: Set(row.id.clone()),
-                    hostname: Set(jstr(&data, &["hostname"])),
-                    log_date: Set(now),
-                    filter: Set(jstr(&data, &["filter"])),
-                    ip_address: Set(jstr(&data, &["ip_address"])),
-                    extension: Set(jstr(&data, &["extension"])),
-                    user_agent: Set(jstr(&data, &["user_agent"])),
-                    log_status: Set(jstr(&data, &["log_status", "status"])),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                    ..Default::default()
-                };
-                if event_guard_logs::Entity::find_by_id(row.id.clone())
-                    .one(db)
-                    .await?
-                    .is_some()
-                {
-                    true
-                } else {
-                    am.insert(db).await.map(|_| true).unwrap_or(false)
-                }
-            }
-            _ => {
+            };
+            if migrated {
+                let am: remaining_record::ActiveModel = row.into();
+                let _ = am.delete(db).await;
+                out.migrated += 1;
+            } else {
                 out.skipped += 1;
-                continue;
             }
-        };
-        if migrated {
-            let am: remaining_record::ActiveModel = row.into();
-            let _ = am.delete(db).await;
-            out.migrated += 1;
-        } else {
-            out.skipped += 1;
         }
     }
     Ok(out)

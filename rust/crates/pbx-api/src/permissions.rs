@@ -6,7 +6,7 @@
 //! (INSERT-then-ignore-conflict) so the list is never empty.
 
 use axum::{http::StatusCode, response::IntoResponse, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, EntityTrait, PaginatorTrait, Set};
 
 // ---- models ----
 use pbx_db::entities::permissions;
@@ -18,6 +18,8 @@ static CATALOG: &[(&str, &str)] = &[
     ("superadmin", "superuser"),
     ("domain_add", "create domains"),
     ("domain_view", "view domains"),
+    ("domain_edit", "edit domains"),
+    ("domain_delete", "delete domains"),
     ("extension_view", "view extensions"),
     ("extension_add", "create extensions"),
     ("extension_edit", "edit extensions"),
@@ -32,9 +34,24 @@ static CATALOG: &[(&str, &str)] = &[
     ("contact_delete", "delete contacts"),
     ("device_view", "view devices"),
     ("device_add", "provision devices"),
+    ("device_edit", "edit devices"),
+    ("device_delete", "delete devices"),
     ("cdr_view", "view call records"),
+    ("cdr_add", "create call records"),
     ("email_queue_view", "view email queue"),
     ("email_queue_add", "enqueue email"),
+    ("user_view", "view users"),
+    ("user_add", "create users"),
+    ("user_edit", "edit users"),
+    ("user_delete", "delete users"),
+    ("group_permission_view", "view group permissions"),
+    ("group_permission_edit", "edit group permissions"),
+    ("default_setting_view", "view default settings"),
+    ("default_setting_add", "create default settings"),
+    ("default_setting_edit", "edit default settings"),
+    ("default_setting_delete", "delete default settings"),
+    ("user_setting_view", "view user settings"),
+    ("user_setting_edit", "edit user settings"),
 ];
 
 async fn seed_once(db: &sea_orm::DatabaseConnection) {
@@ -51,29 +68,32 @@ async fn seed_once(db: &sea_orm::DatabaseConnection) {
 
 // ---- handlers ----
 async fn list_permissions(
-    Extension(_claims): Extension<pbx_core::auth::Claims>,
+    Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "group_permission_view") {
+        return (s, j).into_response();
+    }
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     seed_once(db).await;
-    let rows = permissions::Entity::find()
-        .all(db)
-        .await
-        .unwrap_or_default();
-    let total = rows.len() as u64;
+    let paginator = permissions::Entity::find().paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
     if total == 0 {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             crate::paged_headers("/api/v1/permissions", page, per_page, 0),
             Json(serde_json::json!({"detail": "no permissions"})),
-        );
+        )
+            .into_response();
     }
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
+        .await
+        .unwrap_or_default();
     let data: Vec<serde_json::Value> = rows
         .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
         .map(|r| {
             serde_json::json!({
                 "permission_uuid": r.permission_uuid,
@@ -87,6 +107,7 @@ async fn list_permissions(
         crate::paged_headers("/api/v1/permissions", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),
     )
+        .into_response()
 }
 
 pub fn permissions_router() -> Router {

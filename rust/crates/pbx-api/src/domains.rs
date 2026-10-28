@@ -87,15 +87,19 @@ async fn bootstrap(Json(payload): Json<Bootstrap>) -> impl IntoResponse {
 }
 
 async fn create_domain(
-    Extension(_claims): Extension<pbx_core::auth::Claims>,
+    Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<DomainCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "domain_add") {
+        return (s, j).into_response();
+    }
     let name = payload.domain_name.trim().to_owned();
     if name.is_empty() {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(serde_json::json!({"detail": "domain_name required"})),
-        );
+        )
+            .into_response();
     }
     let db = crate::routing_db::conn().await;
     let exists = domains::Entity::find()
@@ -107,7 +111,8 @@ async fn create_domain(
         return (
             StatusCode::CONFLICT,
             Json(serde_json::json!({"detail": "domain exists"})),
-        );
+        )
+            .into_response();
     }
     let id = uuid::Uuid::now_v7();
     let now = crate::routing_db::now();
@@ -123,7 +128,8 @@ async fn create_domain(
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-        );
+        )
+            .into_response();
     }
     (
         StatusCode::CREATED,
@@ -133,9 +139,13 @@ async fn create_domain(
             "enabled": payload.enabled,
         })),
     )
+        .into_response()
 }
 
-async fn list_domains(Extension(_claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
+async fn list_domains(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "domain_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let rows = domains::Entity::find().all(db).await.unwrap_or_default();
     let total = rows.len();
@@ -150,13 +160,16 @@ async fn list_domains(Extension(_claims): Extension<pbx_core::auth::Claims>) -> 
             })
         })
         .collect();
-    Json(serde_json::json!({"data": data, "total": total}))
+    Json(serde_json::json!({"data": data, "total": total})).into_response()
 }
 
 async fn get_domain(
-    Extension(_claims): Extension<pbx_core::auth::Claims>,
+    Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "domain_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let row = domains::Entity::find_by_id(id)
         .one(db)
@@ -203,10 +216,13 @@ pub fn domains_router() -> Router {
 }
 
 async fn patch_domain(
-    Extension(_claims): Extension<pbx_core::auth::Claims>,
+    Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "domain_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let row = domains::Entity::find_by_id(id)
         .one(db)
@@ -245,9 +261,12 @@ async fn patch_domain(
 }
 
 async fn delete_domain(
-    Extension(_claims): Extension<pbx_core::auth::Claims>,
+    Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "domain_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let row = domains::Entity::find_by_id(id)
         .one(db)

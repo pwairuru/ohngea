@@ -13,7 +13,9 @@ use axum::{
     routing::post,
     Extension, Json, Router,
 };
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect, Set,
+};
 use std::collections::HashMap;
 
 // ---- models ----
@@ -39,30 +41,57 @@ struct CdrJson {
 // ---- handlers ----
 /// Tolerant field lookup: substring search for `<tag>value</tag>` plus
 /// `name="tag" value="..."` variable style. Never throws.
+///
+/// Allocation-free scan: tag delimiters are matched manually so no
+/// `format!` temporaries are built per tag (this runs ~10x per ingest).
 fn find_tag(body: &str, tag: &str) -> Option<String> {
-    let open = format!("<{tag}>");
-    if let Some(s) = body.find(&open) {
-        let rest = &body[s + open.len()..];
-        if let Some(e) = rest.find(&format!("</{tag}>")) {
-            let v = rest[..e].trim().to_owned();
-            if !v.is_empty() {
-                return Some(v);
+    if tag.is_empty() {
+        return None;
+    }
+    // `<tag>value</tag>` style.
+    let mut rest = body;
+    while let Some(i) = rest.find(tag) {
+        let after = &rest[i + tag.len()..];
+        if rest[..i].ends_with('<') && after.starts_with('>') {
+            let content = &after[1..];
+            // Find matching `</tag>` manually: a `</` whose name part
+            // equals `tag` and is followed by `>`.
+            let mut c = content;
+            while let Some(j) = c.find("</") {
+                let cand = &c[j + 2..];
+                if cand.len() > tag.len()
+                    && &cand[..tag.len()] == tag
+                    && cand[tag.len()..].starts_with('>')
+                {
+                    let v = content[..content.len() - c.len() + j].trim();
+                    if !v.is_empty() {
+                        return Some(v.to_owned());
+                    }
+                    break;
+                }
+                c = &c[j + 2..];
             }
         }
+        rest = &rest[i + 1..];
     }
-    // variable style: name="tag" ... value="X"
-    let needle = format!("name=\"{tag}\"");
-    if let Some(s) = body.find(&needle) {
-        let rest = &body[s..];
-        if let Some(vs) = rest.find("value=\"") {
-            let rest2 = &rest[vs + 7..];
-            if let Some(e) = rest2.find('"') {
-                let v = rest2[..e].trim().to_owned();
-                if !v.is_empty() {
-                    return Some(v);
+    // Variable style: `name="tag" ... value="X"`.
+    let mut rest = body;
+    while let Some(i) = rest.find(tag) {
+        let after = &rest[i + tag.len()..];
+        if rest[..i].ends_with("name=\"") && after.starts_with('"') {
+            let attrs = &after[1..];
+            if let Some(vs) = attrs.find("value=\"") {
+                let rest2 = &attrs[vs + 7..];
+                if let Some(e) = rest2.find('"') {
+                    let v = rest2[..e].trim().to_owned();
+                    if !v.is_empty() {
+                        return Some(v);
+                    }
                 }
             }
+            return None;
         }
+        rest = &rest[i + 1..];
     }
     None
 }
@@ -105,6 +134,7 @@ async fn store_row(
         direction: Set(direction),
         raw_xml: Set(raw),
         malformed: Set(malformed),
+        ..Default::default()
     };
     let _ = am.insert(db).await;
     id
@@ -115,13 +145,18 @@ async fn import_cdr(
     headers: HeaderMap,
     body: Bytes,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_add") {
+        return (s, j).into_response();
+    }
     let domain = crate::routing_db::domain(&claims);
     let ctype = headers
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("")
         .to_lowercase();
-    let text = String::from_utf8_lossy(&body).to_string();
+    // Borrow the lossy view for parsing; only materialize an owned
+    // `String` on the store paths below (single copy, not two).
+    let text = String::from_utf8_lossy(&body);
     let trimmed = text.trim();
 
     // JSON path (tests + modern FS json_cdr).
@@ -157,7 +192,7 @@ async fn import_cdr(
                     None,
                     None,
                     None,
-                    Some(text),
+                    Some(text.into_owned()),
                     true,
                 )
                 .await;
@@ -182,6 +217,7 @@ async fn import_cdr(
     let (caller, dest, hangup, direction) = parse_cdr_xml(&text);
     let billsec = find_tag(&text, "billsec").and_then(|v| v.parse().ok());
     let duration = find_tag(&text, "duration").and_then(|v| v.parse().ok());
+    let raw = text.into_owned();
     let id = store_row(
         domain,
         caller,
@@ -190,7 +226,7 @@ async fn import_cdr(
         direction,
         billsec,
         duration,
-        Some(text),
+        Some(raw),
         malformed,
     )
     .await;
@@ -201,15 +237,27 @@ async fn import_cdr(
         .into_response()
 }
 
-async fn list_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
+async fn list_cdr(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_view") {
+        return (s, j).into_response();
+    }
+    let (per_page, _) = pq.normalized();
+    let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let rows = cdr::Entity::find()
+    // DB-side pagination: only one page of models (with fat `raw_xml`)
+    // is ever buffered, and `total` comes from `COUNT(*)`.
+    let paginator = cdr::Entity::find()
         .filter(cdr::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len();
     let data: Vec<serde_json::Value> = rows
         .iter()
         .map(|r| {
@@ -225,13 +273,16 @@ async fn list_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl 
             })
         })
         .collect();
-    Json(serde_json::json!({"data": data, "total": total}))
+    Json(serde_json::json!({"data": data, "total": total})).into_response()
 }
 
 async fn create_cdr(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<CdrJson>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_add") {
+        return (s, j).into_response();
+    }
     let domain = crate::routing_db::domain(&claims);
     let dest = payload
         .destination_number
@@ -252,12 +303,16 @@ async fn create_cdr(
         StatusCode::CREATED,
         Json(serde_json::json!({"status": "stored", "cdr_uuid": id})),
     )
+        .into_response()
 }
 
 async fn get_cdr(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(cdr_uuid): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let row = cdr::Entity::find_by_id(cdr_uuid)
@@ -288,20 +343,29 @@ async fn get_cdr(
 }
 
 async fn stats_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let rows = cdr::Entity::find()
+    // Narrow projection: one small nullable column, never the fat
+    // `raw_xml` / full model. `total` is `COUNT(*)` (O(1) memory).
+    let total = cdr::Entity::find()
         .filter(cdr::Column::DomainId.eq(domain))
+        .count(db)
+        .await
+        .unwrap_or(0);
+    let causes: Vec<Option<String>> = cdr::Entity::find()
+        .filter(cdr::Column::DomainId.eq(domain))
+        .select_only()
+        .column(cdr::Column::HangupCause)
+        .into_tuple::<Option<String>>()
         .all(db)
         .await
         .unwrap_or_default();
-    let total = rows.len();
     let mut by_hangup: HashMap<String, u64> = HashMap::new();
-    for r in &rows {
-        let k = r
-            .hangup_cause
-            .clone()
-            .unwrap_or_else(|| "unknown".to_owned());
+    for hangup in &causes {
+        let k = hangup.clone().unwrap_or_else(|| "unknown".to_owned());
         *by_hangup.entry(k).or_insert(0) += 1;
     }
     // `by_disposition` aliases hangup cause (Python analytics/by_hangup parity).
@@ -310,6 +374,7 @@ async fn stats_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl
         "by_hangup_cause": by_hangup,
         "by_disposition": by_hangup,
     }))
+    .into_response()
 }
 
 // ---- xml ----
@@ -318,6 +383,81 @@ pub fn build_cdr_xml(caller: &str, dest: &str, hangup: &str) -> String {
     format!(
         "<cdr><caller_id_number>{caller}</caller_id_number><destination_number>{dest}</destination_number><hangup_cause>{hangup}</hangup_cause></cdr>"
     )
+}
+
+// ---- export (parity with PHP xml_cdr_export.php / statistics) ----
+// Minimal CSV + per-extension summary over already-fetched rows (no DB here
+// so handlers stay tenant-scoped at the query site). Full ~50-col CDR field
+// parity + archive/download remain follow-ups (audit gap #3).
+#[derive(Debug, Clone)]
+pub struct CdrExportRow {
+    pub cdr_uuid: String,
+    pub caller_id_number: Option<String>,
+    pub caller_id_name: Option<String>,
+    pub destination_number: String,
+    pub start_stamp: Option<String>,
+    pub answer_stamp: Option<String>,
+    pub end_stamp: Option<String>,
+    pub duration: Option<i32>,
+    pub billsec: Option<i32>,
+    pub direction: Option<String>,
+    pub hangup_cause: Option<String>,
+}
+
+fn csv_cell(v: &str) -> String {
+    if v.contains([',', '"', '\n']) {
+        format!("\"{}\"", v.replace('"', "\"\""))
+    } else {
+        v.to_owned()
+    }
+}
+
+pub fn build_cdr_csv(rows: &[CdrExportRow]) -> String {
+    let mut out = String::from(
+        "cdr_uuid,caller_id_number,caller_id_name,destination_number,start_stamp,answer_stamp,end_stamp,duration,billsec,direction,hangup_cause\n",
+    );
+    for r in rows {
+        let cells = [
+            r.cdr_uuid.clone(),
+            r.caller_id_number.clone().unwrap_or_default(),
+            r.caller_id_name.clone().unwrap_or_default(),
+            r.destination_number.clone(),
+            r.start_stamp.clone().unwrap_or_default(),
+            r.answer_stamp.clone().unwrap_or_default(),
+            r.end_stamp.clone().unwrap_or_default(),
+            r.duration.map(|n| n.to_string()).unwrap_or_default(),
+            r.billsec.map(|n| n.to_string()).unwrap_or_default(),
+            r.direction.clone().unwrap_or_default(),
+            r.hangup_cause.clone().unwrap_or_default(),
+        ];
+        out.push_str(
+            &cells
+                .iter()
+                .map(|c| csv_cell(c))
+                .collect::<Vec<_>>()
+                .join(","),
+        );
+        out.push('\n');
+    }
+    out
+}
+
+pub fn extension_summary(rows: &[(String, Option<i32>)]) -> serde_json::Value {
+    use std::collections::BTreeMap;
+    let mut counts: BTreeMap<&str, (u64, i64)> = BTreeMap::new();
+    for (ext, billsec) in rows {
+        let e = counts.entry(ext.as_str()).or_insert((0, 0));
+        e.0 += 1;
+        e.1 += i64::from(billsec.unwrap_or(0));
+    }
+    let mut obj = serde_json::Map::new();
+    for (ext, (count, billsec_total)) in counts {
+        obj.insert(
+            ext.to_owned(),
+            serde_json::json!({"count": count, "billsec_total": billsec_total}),
+        );
+    }
+    serde_json::Value::Object(obj)
 }
 
 pub fn cdr_router() -> Router {
@@ -334,12 +474,45 @@ pub fn cdr_router() -> Router {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_cdr_xml, parse_cdr_xml};
+    use super::{build_cdr_csv, build_cdr_xml, extension_summary, parse_cdr_xml};
 
     #[test]
     fn cdr_xml_carries_caller_dest_hangup() {
         let xml = build_cdr_xml("1001", "1002", "NORMAL_CLEARING");
         assert!(xml.contains("1001") && xml.contains("1002") && xml.contains("NORMAL_CLEARING"));
+    }
+
+    #[test]
+    fn cdr_csv_export_has_header_and_rows() {
+        let rows = vec![crate::CdrExportRow {
+            cdr_uuid: "u1".to_owned(),
+            caller_id_number: Some("1001".to_owned()),
+            caller_id_name: Some("Alice".to_owned()),
+            destination_number: "1002".to_owned(),
+            start_stamp: Some("2026-10-28T15:18:00Z".to_owned()),
+            answer_stamp: None,
+            end_stamp: None,
+            duration: Some(17),
+            billsec: Some(12),
+            direction: Some("inbound".to_owned()),
+            hangup_cause: Some("NORMAL_CLEARING".to_owned()),
+        }];
+        let csv = build_cdr_csv(&rows);
+        assert!(csv.contains("cdr_uuid,caller_id_number"));
+        assert!(csv.contains("1001") && csv.contains("NORMAL_CLEARING"));
+    }
+
+    #[test]
+    fn cdr_extension_summary_groups_counts() {
+        let rows = vec![
+            ("1001".to_owned(), Some(12)),
+            ("1001".to_owned(), Some(8)),
+            ("1002".to_owned(), None),
+        ];
+        let v = extension_summary(&rows);
+        let obj = v.as_object().expect("object");
+        assert_eq!(obj["1001"]["count"], 2);
+        assert_eq!(obj["1002"]["count"], 1);
     }
 
     #[test]

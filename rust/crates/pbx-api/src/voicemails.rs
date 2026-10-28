@@ -3,7 +3,7 @@
 //! Order: models → schemas → handlers → xml.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
 
 // ---- models ----
@@ -108,22 +108,19 @@ async fn list_vm(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let rows = voicemails::Entity::find()
+    let paginator = voicemails::Entity::find()
         .filter(voicemails::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows
-        .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
-        .map(ser_vm)
-        .collect();
+    let data: Vec<serde_json::Value> = rows.iter().map(ser_vm).collect();
     (
         crate::paged_headers("/api/v1/voicemails", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),
@@ -260,21 +257,18 @@ async fn list_messages(
         )
             .into_response();
     }
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
-    let rows = voicemail_messages::Entity::find()
+    let paginator = voicemail_messages::Entity::find()
         .filter(voicemail_messages::Column::VoicemailUuid.eq(id.clone()))
         .filter(voicemail_messages::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows
-        .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
-        .map(ser_msg)
-        .collect();
+    let data: Vec<serde_json::Value> = rows.iter().map(ser_msg).collect();
     (
         crate::paged_headers(
             &format!("/api/v1/voicemails/{id}/messages"),
@@ -472,21 +466,18 @@ async fn list_options(
         )
             .into_response();
     }
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
-    let rows = voicemail_options::Entity::find()
+    let paginator = voicemail_options::Entity::find()
         .filter(voicemail_options::Column::VoicemailUuid.eq(id.clone()))
         .filter(voicemail_options::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows
-        .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
-        .map(ser_opt)
-        .collect();
+    let data: Vec<serde_json::Value> = rows.iter().map(ser_opt).collect();
     (
         crate::paged_headers(
             &format!("/api/v1/voicemails/{id}/options"),
@@ -677,22 +668,19 @@ async fn list_greetings(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let rows = voicemail_greetings::Entity::find()
+    let paginator = voicemail_greetings::Entity::find()
         .filter(voicemail_greetings::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows
-        .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
-        .map(ser_greeting)
-        .collect();
+    let data: Vec<serde_json::Value> = rows.iter().map(ser_greeting).collect();
     (
         crate::paged_headers("/api/v1/voicemail_greetings", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),

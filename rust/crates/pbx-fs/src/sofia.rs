@@ -66,7 +66,7 @@ fn end_profile(writer: &mut Writer<Cursor<Vec<u8>>>) {
 /// Build `sofia.conf.xml`. Verbatim logic of `_build_sofia_xml`.
 #[must_use]
 pub fn build_sofia_xml(profiles: &[SofiaProfileInput]) -> String {
-    let mut w = Writer::new(Cursor::new(Vec::new()));
+    let mut w = Writer::new(Cursor::new(Vec::with_capacity(4096)));
     w.write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), None)))
         .expect("write decl");
 
@@ -111,6 +111,9 @@ pub fn build_sofia_xml(profiles: &[SofiaProfileInput]) -> String {
             end_profile(&mut w);
         }
     } else {
+        // Single `LAN_IP` env lookup for the whole render (was: one syscall
+        // per profile inside the loop).
+        let lan = lan_ip();
         for p in profiles {
             let name = if p.name.is_empty() {
                 "internal"
@@ -122,28 +125,30 @@ pub fn build_sofia_xml(profiles: &[SofiaProfileInput]) -> String {
             } else {
                 p.sip_port.to_string()
             };
-            let sip_ip = p.sip_ip.clone().unwrap_or_else(|| "0.0.0.0".to_owned());
-            let lan = lan_ip();
-            let ext_sip_ip = p.ext_sip_ip.clone().unwrap_or_else(|| lan.clone());
-            let ext_rtp_ip = p.ext_rtp_ip.clone().unwrap_or_else(|| ext_sip_ip.clone());
-            let rtp_ip = p.rtp_ip.clone().unwrap_or_else(|| "0.0.0.0".to_owned());
-            let mut realm = p.realm.clone().unwrap_or_else(|| p.name.clone());
-            if realm.is_empty() {
-                realm = "test.example.com".to_owned();
-            }
-            let mut context = p.context.clone().unwrap_or_else(|| realm.clone());
-            if context.is_empty() {
-                context = realm.clone();
-            }
+            // Borrow profile fields: the old code cloned ~6 `Option<String>`
+            // per profile just to borrow them in `param()` below.
+            let sip_ip = p.sip_ip.as_deref().unwrap_or("0.0.0.0");
+            let ext_sip_ip = p.ext_sip_ip.as_deref().unwrap_or(lan.as_str());
+            let ext_rtp_ip = p.ext_rtp_ip.as_deref().unwrap_or(ext_sip_ip);
+            let rtp_ip = p.rtp_ip.as_deref().unwrap_or("0.0.0.0");
+            let realm = match p.realm.as_deref().filter(|s| !s.is_empty()) {
+                Some(r) => r,
+                None if !p.name.is_empty() => p.name.as_str(),
+                None => "test.example.com",
+            };
+            let context = match p.context.as_deref().filter(|s| !s.is_empty()) {
+                Some(c) => c,
+                None => realm,
+            };
             start_profile(&mut w, name);
-            param(&mut w, "sip-ip", &sip_ip);
-            param(&mut w, "ext-sip-ip", &ext_sip_ip);
-            param(&mut w, "ext-rtp-ip", &ext_rtp_ip);
-            param(&mut w, "rtp-ip", &rtp_ip);
+            param(&mut w, "sip-ip", sip_ip);
+            param(&mut w, "ext-sip-ip", ext_sip_ip);
+            param(&mut w, "ext-rtp-ip", ext_rtp_ip);
+            param(&mut w, "rtp-ip", rtp_ip);
             param(&mut w, "sip-port", &sip_port);
             param(&mut w, "dialplan", "XML");
-            param(&mut w, "context", &context);
-            param(&mut w, "realm", &realm);
+            param(&mut w, "context", context);
+            param(&mut w, "realm", realm);
             param(
                 &mut w,
                 "challenge-realm",

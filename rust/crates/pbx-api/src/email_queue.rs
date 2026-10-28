@@ -46,6 +46,7 @@ async fn submit_email(
         email_body: Set(payload.email_body.clone()),
         email_status: Set("waiting".to_owned()),
         created_at: Set(now),
+        ..Default::default()
     };
     if let Err(e) = am.insert(db).await {
         return (

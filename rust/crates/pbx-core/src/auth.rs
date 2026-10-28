@@ -96,7 +96,20 @@ pub fn decode_test_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Er
 
 // ---- bcrypt (parity with app/auth/service.py hash_password/verify_password) ----
 pub fn hash_password(password: &str) -> String {
-    bcrypt::hash(password, bcrypt::DEFAULT_COST).unwrap_or_else(|_| format!("stub:{password}"))
+    // Never persist plaintext: on bcrypt failure store an unverifiable random
+    // marker (verify_password always returns false for it).
+    bcrypt::hash(password, bcrypt::DEFAULT_COST)
+        .unwrap_or_else(|_| format!("unverifiable:{}:{}", now_secs(), uuid_fallback()))
+}
+
+fn uuid_fallback() -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    // No uuid dep in pbx-core: hash time + thread id for uniqueness. Only used
+    // for the failure marker, never as an identifier.
+    let mut h = DefaultHasher::new();
+    (now_secs(), std::thread::current().id()).hash(&mut h);
+    format!("{:016x}", h.finish())
 }
 
 pub fn verify_password(plain: &str, hashed: &str) -> bool {

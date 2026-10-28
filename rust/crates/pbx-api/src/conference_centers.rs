@@ -3,7 +3,9 @@
 //! Order: models → schemas → handlers.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect, Set,
+};
 
 // ---- models ----
 use pbx_db::entities::{
@@ -118,22 +120,19 @@ async fn list_centers(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let rows = conference_centers::Entity::find()
+    let paginator = conference_centers::Entity::find()
         .filter(conference_centers::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows
-        .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
-        .map(ser_center)
-        .collect();
+    let data: Vec<serde_json::Value> = rows.iter().map(ser_center).collect();
     (
         crate::paged_headers("/api/v1/conference_centers", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),
@@ -212,37 +211,34 @@ async fn delete_center(
 ) -> impl IntoResponse {
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    for room in conference_rooms::Entity::find()
-        .filter(conference_rooms::Column::ConferenceCenterUuid.eq(id.clone()))
-        .filter(conference_rooms::Column::DomainId.eq(domain))
-        .all(db)
-        .await
-        .unwrap_or_default()
-    {
-        let ram: conference_rooms::ActiveModel = room.into();
-        let _ = ram.delete(db).await;
-    }
-    for sess in conference_sessions::Entity::find()
+    // Set deletes: no per-row fetch-then-delete round-trips. Only session
+    // ids (tiny strings) are read; details/rooms/sessions go in 3 statements.
+    let sess_ids: Vec<String> = conference_sessions::Entity::find()
         .filter(conference_sessions::Column::ConferenceCenterUuid.eq(id.clone()))
         .filter(conference_sessions::Column::DomainId.eq(domain))
+        .select_only()
+        .column(conference_sessions::Column::ConferenceSessionUuid)
+        .into_tuple::<String>()
         .all(db)
         .await
-        .unwrap_or_default()
-    {
-        let sid = sess.conference_session_uuid.clone();
-        for d in conference_session_details::Entity::find()
-            .filter(conference_session_details::Column::ConferenceSessionUuid.eq(sid))
+        .unwrap_or_default();
+    if !sess_ids.is_empty() {
+        let _ = conference_session_details::Entity::delete_many()
+            .filter(conference_session_details::Column::ConferenceSessionUuid.is_in(sess_ids))
             .filter(conference_session_details::Column::DomainId.eq(domain))
-            .all(db)
-            .await
-            .unwrap_or_default()
-        {
-            let dam: conference_session_details::ActiveModel = d.into();
-            let _ = dam.delete(db).await;
-        }
-        let sam: conference_sessions::ActiveModel = sess.into();
-        let _ = sam.delete(db).await;
+            .exec(db)
+            .await;
     }
+    let _ = conference_sessions::Entity::delete_many()
+        .filter(conference_sessions::Column::ConferenceCenterUuid.eq(id.clone()))
+        .filter(conference_sessions::Column::DomainId.eq(domain))
+        .exec(db)
+        .await;
+    let _ = conference_rooms::Entity::delete_many()
+        .filter(conference_rooms::Column::ConferenceCenterUuid.eq(id.clone()))
+        .filter(conference_rooms::Column::DomainId.eq(domain))
+        .exec(db)
+        .await;
     let Some(r) = center_or_404(db, domain, &id).await else {
         return (
             StatusCode::NOT_FOUND,
@@ -290,21 +286,18 @@ async fn list_rooms(
         )
             .into_response();
     }
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
-    let rows = conference_rooms::Entity::find()
+    let paginator = conference_rooms::Entity::find()
         .filter(conference_rooms::Column::ConferenceCenterUuid.eq(cid.clone()))
         .filter(conference_rooms::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows
-        .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
-        .map(ser_room)
-        .collect();
+    let data: Vec<serde_json::Value> = rows.iter().map(ser_room).collect();
     (
         crate::paged_headers(
             &format!("/api/v1/conference_centers/{cid}/rooms"),
@@ -488,21 +481,18 @@ async fn list_sessions(
         )
             .into_response();
     }
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
-    let rows = conference_sessions::Entity::find()
+    let paginator = conference_sessions::Entity::find()
         .filter(conference_sessions::Column::ConferenceCenterUuid.eq(cid.clone()))
         .filter(conference_sessions::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows
-        .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
-        .map(ser_session)
-        .collect();
+    let data: Vec<serde_json::Value> = rows.iter().map(ser_session).collect();
     (
         crate::paged_headers(
             &format!("/api/v1/conference_centers/{cid}/sessions"),
@@ -585,16 +575,11 @@ async fn delete_session(
 ) -> impl IntoResponse {
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    for d in conference_session_details::Entity::find()
+    let _ = conference_session_details::Entity::delete_many()
         .filter(conference_session_details::Column::ConferenceSessionUuid.eq(sid.clone()))
         .filter(conference_session_details::Column::DomainId.eq(domain))
-        .all(db)
-        .await
-        .unwrap_or_default()
-    {
-        let dam: conference_session_details::ActiveModel = d.into();
-        let _ = dam.delete(db).await;
-    }
+        .exec(db)
+        .await;
     let Some(r) = session_or_404(db, domain, &cid, &sid).await else {
         return (
             StatusCode::NOT_FOUND,
@@ -627,21 +612,18 @@ async fn list_session_details(
         )
             .into_response();
     }
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
-    let rows = conference_session_details::Entity::find()
+    let paginator = conference_session_details::Entity::find()
         .filter(conference_session_details::Column::ConferenceSessionUuid.eq(sid.clone()))
         .filter(conference_session_details::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows
-        .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
-        .map(ser_detail)
-        .collect();
+    let data: Vec<serde_json::Value> = rows.iter().map(ser_detail).collect();
     (
         crate::paged_headers(
             &format!("/api/v1/conference_centers/{cid}/sessions/{sid}/details"),

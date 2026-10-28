@@ -8,7 +8,9 @@
 //! `fs_status.connected` flag.
 
 use axum::{Json, Router};
-use pbx_fs::esl::{is_connected_body, strip_esl_body, EsClient, RealEs};
+use pbx_fs::esl::{
+    is_connected_body, parse_sofia_status, strip_esl_body, truncate_head, EsClient, RealEs,
+};
 use std::collections::HashMap;
 
 async fn logs_list(
@@ -19,7 +21,8 @@ async fn logs_list(
         .and_then(|v| v.parse().ok())
         .unwrap_or(100)
         .clamp(1, 1000);
-    let level = q.get("level").cloned().unwrap_or_default().to_uppercase();
+    let level = q.get("level").cloned().unwrap_or_default();
+    let level_l = level.to_lowercase();
     let f = q.get("q").cloned().unwrap_or_default().to_lowercase();
     let client = RealEs::from_env();
     let mut content: Vec<String> = Vec::new();
@@ -45,11 +48,19 @@ async fn logs_list(
             .map(|s| s.to_string()),
         );
     }
-    if !level.is_empty() {
-        content.retain(|l| l.to_uppercase().contains(&level));
-    }
-    if !f.is_empty() {
-        content.retain(|l| l.to_lowercase().contains(&f));
+    // Single pass, one lowercase alloc per line (was: two passes, two
+    // allocs per line via `to_uppercase` + `to_lowercase`).
+    if !level_l.is_empty() || !f.is_empty() {
+        content.retain(|l| {
+            if !level_l.is_empty() && !f.is_empty() {
+                let ll = l.to_lowercase();
+                ll.contains(&level_l) && ll.contains(&f)
+            } else if !level_l.is_empty() {
+                l.to_lowercase().contains(&level_l)
+            } else {
+                l.to_lowercase().contains(&f)
+            }
+        });
     }
     let total = content.len();
     content.truncate(lines);
@@ -62,8 +73,10 @@ async fn logs_list(
 
 async fn freeswitch_logs() -> Json<serde_json::Value> {
     let client = RealEs::from_env();
+    // One `sofia status` round-trip: parse the same reply (was: two —
+    // `api` + `sofia_status()` re-issuing the command).
     let sofia_raw = client.api("sofia status");
-    let sofia_parsed = client.sofia_status();
+    let sofia_parsed = parse_sofia_status(&sofia_raw);
     let regs = client.api("show registrations");
     let channels = client.api("show channels");
     let (connected, _, error) = match client.try_api("status") {
@@ -72,7 +85,7 @@ async fn freeswitch_logs() -> Json<serde_json::Value> {
             if is_connected_body(body) {
                 (true, None::<u64>, None::<String>)
             } else {
-                (false, None, Some(body.chars().take(300).collect()))
+                (false, None, Some(truncate_head(body, 300)))
             }
         }
         None => (
@@ -85,10 +98,10 @@ async fn freeswitch_logs() -> Json<serde_json::Value> {
         ),
     };
     Json(serde_json::json!({
-        "sofia_status": sofia_raw.chars().take(4000).collect::<String>(),
+        "sofia_status": truncate_head(&sofia_raw, 4000),
         "sofia_parsed": sofia_parsed,
-        "registrations_raw": regs.chars().take(4000).collect::<String>(),
-        "channels": channels.chars().take(4000).collect::<String>(),
+        "registrations_raw": truncate_head(&regs, 4000),
+        "channels": truncate_head(&channels, 4000),
         "fs_status": {
             "connected": connected,
             "host": client.host,

@@ -7,16 +7,19 @@
 
 use axum::{http::StatusCode, response::IntoResponse, Extension as AxExtension, Router};
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, OnceLock};
 
-fn cache() -> &'static Mutex<pbx_fs::cache::XmlCache> {
-    static C: OnceLock<Mutex<pbx_fs::cache::XmlCache>> = OnceLock::new();
-    C.get_or_init(|| Mutex::new(pbx_fs::cache::XmlCache::new()))
+fn cache() -> &'static tokio::sync::RwLock<pbx_fs::cache::XmlCache> {
+    static C: OnceLock<tokio::sync::RwLock<pbx_fs::cache::XmlCache>> = OnceLock::new();
+    C.get_or_init(|| tokio::sync::RwLock::new(pbx_fs::cache::XmlCache::new()))
 }
 
 /// Invalidate the FS XML cache (called by vars PATCH/DELETE).
 pub fn invalidate_cache() {
-    *cache().lock().expect("cache lock") = pbx_fs::cache::XmlCache::new();
+    // Best-effort: only used in tests/single-threaded paths.
+    if let Ok(mut guard) = cache().try_write() {
+        *guard = pbx_fs::cache::XmlCache::new();
+    }
 }
 
 fn split_user_domain(key_value: &str) -> (String, String) {
@@ -29,20 +32,19 @@ fn split_user_domain(key_value: &str) -> (String, String) {
 }
 
 fn cached_or_render(key: &str, render: impl FnOnce() -> String) -> String {
-    if let Some(hit) = cache()
-        .lock()
-        .expect("cache lock")
-        .get(key)
-        .map(str::to_owned)
-    {
-        return hit;
+    // Sync render path (dialplan/configuration): use a blocking read, then
+    // a single write holding one `Arc` clone for the store — no double
+    // `String` duplication per miss.
+    if let Ok(guard) = cache().try_read() {
+        if let Some(hit) = guard.get(key) {
+            return hit.to_string();
+        }
     }
-    let doc = render();
-    cache()
-        .lock()
-        .expect("cache lock")
-        .insert(key.to_owned(), doc.clone());
-    doc
+    let doc: Arc<str> = Arc::from(render());
+    if let Ok(mut guard) = cache().try_write() {
+        guard.insert(key.to_owned(), Arc::clone(&doc));
+    }
+    doc.to_string()
 }
 
 async fn cached_or_render_async<F, Fut>(key: &str, render: F) -> String
@@ -50,20 +52,19 @@ where
     F: FnOnce() -> Fut,
     Fut: std::future::Future<Output = String>,
 {
-    if let Some(hit) = cache()
-        .lock()
-        .expect("cache lock")
-        .get(key)
-        .map(str::to_owned)
+    // Fast path: async read lock, `Arc` clone on hit (no string copy).
     {
-        return hit;
+        let guard = cache().read().await;
+        if let Some(hit) = guard.get(key) {
+            return hit.to_string();
+        }
     }
-    let doc = render().await;
-    cache()
-        .lock()
-        .expect("cache lock")
-        .insert(key.to_owned(), doc.clone());
-    doc
+    let doc: Arc<str> = Arc::from(render().await);
+    {
+        let mut guard = cache().write().await;
+        guard.insert(key.to_owned(), Arc::clone(&doc));
+    }
+    doc.to_string()
 }
 
 async fn fs_xml_handler(

@@ -8,7 +8,9 @@
 use axum::{
     http::StatusCode, response::IntoResponse, routing::post, Extension as AxExtension, Json, Router,
 };
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -92,12 +94,16 @@ async fn create_extension(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     Json(payload): Json<ExtensionCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "extension_add") {
+        return (s, j).into_response();
+    }
     let ext = payload.extension.trim().to_owned();
     if let Err(msg) = validate(&ext) {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(serde_json::json!({"detail": msg})),
-        );
+        )
+            .into_response();
     }
     let domain_str = payload.domain.unwrap_or_else(|| "example.com".to_owned());
     let password = pbx_db::extensions::ensure_password(payload.password.as_deref());
@@ -113,7 +119,8 @@ async fn create_extension(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
-            );
+            )
+                .into_response();
         }
     };
     let now = crate::routing_db::now();
@@ -182,7 +189,8 @@ async fn create_extension(
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-        );
+        )
+            .into_response();
     }
     let _ = txn.commit().await;
     let rec = Extension {
@@ -194,14 +202,17 @@ async fn create_extension(
         effective_caller_id_number: payload.effective_caller_id_number,
         enabled: payload.enabled.unwrap_or(true),
     };
-    (StatusCode::CREATED, Json(serde_json::json!(rec)))
+    (StatusCode::CREATED, Json(serde_json::json!(rec))).into_response()
 }
 
 async fn list_extensions(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<ListQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = crate::PageQuery {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "extension_view") {
+        return (s, j).into_response();
+    }
+    let (per_page, _) = crate::PageQuery {
         page: pq.page,
         per_page: pq.per_page,
     }
@@ -216,7 +227,8 @@ async fn list_extensions(
                 Json(
                     serde_json::json!({"data": [], "total": 0, "page": page, "per_page": per_page}),
                 ),
-            );
+            )
+                .into_response();
         }
     };
     let domain_id = crate::routing_db::domain(&claims);
@@ -257,19 +269,22 @@ async fn list_extensions(
         "call_timeout" => sel.order_by(ExtCol::CallTimeout, order),
         _ => sel.order_by(ExtCol::Extension, order),
     };
-    let rows = sel.all(&txn).await.unwrap_or_default();
+    let paginator = sel.paginate(&txn, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
+        .await
+        .unwrap_or_default();
     let _ = txn.commit().await;
-    let total = rows.len() as u64;
     let items: Vec<Extension> = rows
         .into_iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
         .map(|r| row_to_extension(&r, &claims.domain_id))
         .collect();
     (
         crate::paged_headers("/api/v1/extensions", page, per_page, total),
         Json(crate::paged_body(items, total, page, per_page)),
     )
+        .into_response()
 }
 
 /// Lookup used by the FS XML directory handler (SeaORM backed).
@@ -493,6 +508,9 @@ async fn get_extension(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "extension_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
     match find_extension_row(db, domain_id, id).await {
@@ -514,6 +532,10 @@ async fn patch_extension(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    // Python parity (`extensions/router.py::patch_ext`): `extension_add` gates edits.
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "extension_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
     let Some(row) = find_extension_row(db, domain_id, id).await else {
@@ -550,6 +572,9 @@ async fn delete_extension(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "extension_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
     let Some(row) = find_extension_row(db, domain_id, id).await else {
@@ -578,6 +603,9 @@ async fn batch_create_extensions(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     Json(payload): Json<Vec<ExtensionCreate>>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "extension_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {

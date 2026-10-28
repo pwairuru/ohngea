@@ -4,7 +4,7 @@
 //! event_guard_logs.
 
 use axum::{http::StatusCode, response::IntoResponse, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde_json::Value;
 
 // ---- models ----
@@ -552,9 +552,8 @@ async fn fifo_status_summary(Extension(claims): Extension<Claims>) -> impl IntoR
     let domain = crate::routing_db::domain(&claims);
     let total = fifo::Entity::find()
         .filter(fifo::Column::DomainId.eq(domain))
-        .all(db)
+        .count(db)
         .await
-        .map(|r| r.len())
         .unwrap_or(0);
     Json(serde_json::json!({"data": [], "total": total, "source": "db"}))
 }

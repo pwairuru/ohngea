@@ -112,6 +112,32 @@ pub fn mock_registrations() -> HashMap<String, String> {
         .clone()
 }
 
+/// Parse `sofia status` reply lines into `{profile: STATE}` without
+/// per-line `to_uppercase()` clones: token match is `eq_ignore_ascii_case`
+/// over borrowed word slices, no intermediate `Vec` per line.
+pub fn parse_sofia_status(text: &str) -> HashMap<String, String> {
+    let mut out = HashMap::new();
+    for line in text.lines() {
+        if !line.contains("profile") {
+            continue;
+        }
+        let mut words = line.split_whitespace();
+        let Some(name) = words.next() else {
+            continue;
+        };
+        if words.next().is_none() || name.eq_ignore_ascii_case("name") {
+            continue;
+        }
+        for tok in ["RUNNING", "DOWN", "STARTING"] {
+            if line.split_whitespace().any(|w| w.eq_ignore_ascii_case(tok)) {
+                out.insert(name.to_owned(), tok.to_owned());
+                break;
+            }
+        }
+    }
+    out
+}
+
 /// ESL client trait (mirrors `ESLClient` methods).
 pub trait EsClient: Send + Sync {
     fn api(&self, command: &str) -> String;
@@ -198,24 +224,122 @@ pub fn strip_esl_body(raw: &str) -> &str {
     raw.trim()
 }
 
+/// Byte-capped head of `s` at a char boundary: single prefix copy, no
+/// full-string `chars().take(n).collect()` decode-and-discard.
+pub fn truncate_head(s: &str, max_bytes: usize) -> String {
+    if s.len() <= max_bytes {
+        return s.to_owned();
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    s[..end].to_owned()
+}
+
+fn contains_insensitive(haystack: &str, needle: &str) -> bool {
+    let n = needle.as_bytes();
+    if n.is_empty() {
+        return true;
+    }
+    haystack
+        .as_bytes()
+        .windows(n.len())
+        .any(|w| w.eq_ignore_ascii_case(n))
+}
+
 /// Connected when the (stripped) `api status` body looks like a live FS reply:
 /// contains `up` / `+ok` / `freeswitch` / `content-length` (case-insensitive).
 /// Empty bodies are never connected (mirrors `esl_client.py::check_status`).
+/// Allocation-free: byte-window scan, no whole-body `to_lowercase()`.
 pub fn is_connected_body(body: &str) -> bool {
     if body.trim().is_empty() {
         return false;
     }
-    let low = body.to_lowercase();
-    low.contains("up")
-        || low.contains("+ok")
-        || low.contains("freeswitch")
-        || low.contains("content-length")
+    contains_insensitive(body, "up")
+        || contains_insensitive(body, "+ok")
+        || contains_insensitive(body, "freeswitch")
+        || contains_insensitive(body, "content-length")
+}
+
+/// Cap a single ESL packet body: replies like `show registrations` can be
+/// large; never buffer more than this per `try_api` call.
+const MAX_PACKET_BYTES: usize = 256 * 1024;
+/// Cap header preamble scan: headers are a handful of short lines.
+const MAX_HEADER_BYTES: usize = 16 * 1024;
+
+/// Read one ESL packet: headers until blank line, then `Content-Length`
+/// body bytes when present. Packets without `Content-Length` (banner,
+/// `+OK` auth ack) return the header text itself. `None` on I/O error or
+/// over-cap data. Replaces the old single 1024-byte `read` which silently
+/// truncated any reply larger than 1 KiB.
+fn read_esl_packet(stream: &mut std::net::TcpStream) -> Option<String> {
+    use std::io::Read;
+    let mut head: Vec<u8> = Vec::new();
+    let mut buf = [0u8; 4096];
+    let header_end = loop {
+        let n = stream.read(&mut buf).ok()?;
+        if n == 0 {
+            break None?;
+        }
+        head.extend_from_slice(&buf[..n]);
+        if head.len() > MAX_HEADER_BYTES + MAX_PACKET_BYTES {
+            break None?;
+        }
+        if let Some(i) = find_header_end(&head) {
+            break Some(i);
+        }
+    }?;
+    let body_start = header_end;
+    let headers = String::from_utf8_lossy(&head[..body_start.min(head.len())]);
+    let len: usize = headers
+        .lines()
+        .filter_map(|l| {
+            let (k, v) = l.split_once(':')?;
+            if k.trim().eq_ignore_ascii_case("content-length") {
+                v.trim().parse().ok()
+            } else {
+                None
+            }
+        })
+        .next()
+        .unwrap_or(0)
+        .min(MAX_PACKET_BYTES);
+    let mut body = head.get(body_start..).unwrap_or(&[]).to_vec();
+    while body.len() < len {
+        let n = stream.read(&mut buf).ok()?;
+        if n == 0 {
+            break;
+        }
+        body.extend_from_slice(&buf[..n]);
+        if body.len() > MAX_PACKET_BYTES {
+            body.truncate(MAX_PACKET_BYTES);
+            break;
+        }
+    }
+    body.truncate(len);
+    if len == 0 {
+        // No body framing: the packet IS the header text (banner / +OK).
+        Some(headers.into_owned())
+    } else {
+        body.truncate(len);
+        Some(String::from_utf8_lossy(&body).into_owned())
+    }
+}
+
+fn find_header_end(haystack: &[u8]) -> Option<usize> {
+    // ESL terminates headers with `\r\n\r\n` or `\n\n`; return body start.
+    haystack
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .map(|i| i + 4)
+        .or_else(|| haystack.windows(2).position(|w| w == b"\n\n").map(|i| i + 2))
 }
 
 impl RealEs {
     /// Best-effort raw `api` over TCP; `None` when FS is down.
     pub fn try_api(&self, command: &str) -> Option<String> {
-        use std::io::{Read, Write};
+        use std::io::Write;
         use std::net::TcpStream;
         use std::time::Duration;
         let addr = format!("{}:{}", self.host, self.port);
@@ -224,19 +348,17 @@ impl RealEs {
         stream
             .set_read_timeout(Some(Duration::from_millis(500)))
             .ok()?;
-        let mut buf = [0u8; 1024];
         // Greeting banner is informational only; content discarded.
-        let _banner = stream.read(&mut buf).ok()?;
+        let _banner = read_esl_packet(&mut stream);
         write!(stream, "auth {}\n\n", self.password).ok()?;
         stream.flush().ok()?;
-        let n = stream.read(&mut buf).ok()?;
-        if !String::from_utf8_lossy(&buf[..n]).contains("+OK") {
+        let ack = read_esl_packet(&mut stream)?;
+        if !ack.contains("+OK") {
             return None;
         }
         write!(stream, "api {command}\n\n").ok()?;
         stream.flush().ok()?;
-        let n = stream.read(&mut buf).ok()?;
-        Some(String::from_utf8_lossy(&buf[..n]).to_string())
+        read_esl_packet(&mut stream)
     }
 }
 
@@ -257,24 +379,7 @@ impl EsClient for RealEs {
     }
     fn sofia_status(&self) -> HashMap<String, String> {
         // Minimal parse of `sofia status` lines into {profile: STATE}.
-        let text = self.api("sofia status");
-        let mut out = HashMap::new();
-        for line in text.lines() {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 2 && line.contains("profile") {
-                let name = parts[0].to_owned();
-                if name.to_lowercase() == "name" {
-                    continue;
-                }
-                for tok in &["RUNNING", "DOWN", "STARTING"] {
-                    if line.to_uppercase().contains(tok) {
-                        out.insert(name.clone(), (*tok).to_owned());
-                        break;
-                    }
-                }
-            }
-        }
-        out
+        parse_sofia_status(&self.api("sofia status"))
     }
     fn originate(&self, from: &str, to: &str) -> String {
         // Try real originate; fall back to mock transport.

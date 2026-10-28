@@ -690,15 +690,70 @@ const DDL_CDR: &str = "CREATE TABLE IF NOT EXISTS cdr (
   cdr_uuid TEXT PRIMARY KEY,
   domain_id TEXT NOT NULL,
   caller_id_number VARCHAR(32),
+  caller_id_name VARCHAR(128),
   destination_number VARCHAR(32) NOT NULL,
+  start_stamp TEXT,
+  answer_stamp TEXT,
+  end_stamp TEXT,
   billsec INTEGER,
   duration INTEGER,
+  billmsec INTEGER,
+  mduration INTEGER,
+  hold_accum_seconds INTEGER,
   hangup_cause VARCHAR(64),
   direction VARCHAR(16),
+  sip_call_id VARCHAR(128),
+  accountcode VARCHAR(64),
+  context VARCHAR(128),
+  leg VARCHAR(16),
+  status VARCHAR(32),
+  bridge_uuid VARCHAR(128),
+  conference_id VARCHAR(128),
+  record_path VARCHAR(512),
+  record_name VARCHAR(255),
+  mos_score REAL,
+  caller_extension VARCHAR(32),
+  destination_extension VARCHAR(32),
   raw_xml TEXT,
   malformed BOOLEAN NOT NULL DEFAULT 0
 )";
 const DDL_CDR_IDX: &str = "CREATE INDEX IF NOT EXISTS ix_cdr_domain ON cdr (domain_id)";
+const DDL_CDR_START_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_cdr_domain_start ON cdr (domain_id, start_stamp)";
+const DDL_CDR_ARCHIVE: &str = "CREATE TABLE IF NOT EXISTS cdr_archive (
+  cdr_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  caller_id_number VARCHAR(32),
+  caller_id_name VARCHAR(128),
+  destination_number VARCHAR(32) NOT NULL,
+  start_stamp TEXT,
+  answer_stamp TEXT,
+  end_stamp TEXT,
+  billsec INTEGER,
+  duration INTEGER,
+  billmsec INTEGER,
+  mduration INTEGER,
+  hold_accum_seconds INTEGER,
+  hangup_cause VARCHAR(64),
+  direction VARCHAR(16),
+  sip_call_id VARCHAR(128),
+  accountcode VARCHAR(64),
+  context VARCHAR(128),
+  leg VARCHAR(16),
+  status VARCHAR(32),
+  bridge_uuid VARCHAR(128),
+  conference_id VARCHAR(128),
+  record_path VARCHAR(512),
+  record_name VARCHAR(255),
+  mos_score REAL,
+  caller_extension VARCHAR(32),
+  destination_extension VARCHAR(32),
+  raw_xml TEXT,
+  malformed BOOLEAN NOT NULL DEFAULT 0,
+  archived_at TEXT NOT NULL
+)";
+const DDL_CDR_ARCHIVE_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_cdr_archive_domain ON cdr_archive (domain_id)";
 
 const DDL_RECORDINGS: &str = "CREATE TABLE IF NOT EXISTS recordings (
   recording_uuid TEXT PRIMARY KEY,
@@ -750,6 +805,20 @@ const DDL_USER_GROUPS: &str = "CREATE TABLE IF NOT EXISTS user_groups (
 )";
 const DDL_USER_GROUPS_IDX: &str =
     "CREATE INDEX IF NOT EXISTS ix_user_groups_group ON user_groups (group_uuid)";
+
+const DDL_USER_SETTINGS: &str = "CREATE TABLE IF NOT EXISTS user_settings (
+  user_setting_uuid TEXT PRIMARY KEY,
+  user_uuid TEXT NOT NULL REFERENCES users (user_uuid),
+  domain_id TEXT NOT NULL REFERENCES domains (domain_id),
+  user_setting_category VARCHAR(64) NOT NULL,
+  user_setting_subcategory VARCHAR(64),
+  user_setting_name VARCHAR(64),
+  user_setting_value VARCHAR(512),
+  user_setting_enabled BOOLEAN NOT NULL DEFAULT 1,
+  user_setting_description TEXT
+)";
+const DDL_USER_SETTINGS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_user_settings_user ON user_settings (user_uuid)";
 
 const DDL_PERMISSIONS: &str = "CREATE TABLE IF NOT EXISTS permissions (
   permission_uuid TEXT PRIMARY KEY,
@@ -825,11 +894,15 @@ const DDL_CONTACT_NOTES: &str = "CREATE TABLE IF NOT EXISTS contact_notes (
 const DDL_EMAIL_QUEUE: &str = "CREATE TABLE IF NOT EXISTS email_queue (
   email_queue_uuid TEXT PRIMARY KEY,
   domain_id TEXT NOT NULL REFERENCES domains (domain_id),
+  email_date TEXT,
   email_from VARCHAR(512) NOT NULL,
   email_to VARCHAR(512) NOT NULL,
   email_subject VARCHAR(512),
   email_body TEXT,
   email_status VARCHAR(32) NOT NULL DEFAULT 'waiting',
+  email_retry_count INTEGER NOT NULL DEFAULT 0,
+  email_attempts INTEGER NOT NULL DEFAULT 0,
+  email_error VARCHAR(512),
   created_at TEXT NOT NULL
 )";
 const DDL_EMAIL_QUEUE_IDX: &str =
@@ -1345,6 +1418,9 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_FAX_USERS,
         DDL_CDR,
         DDL_CDR_IDX,
+        DDL_CDR_START_IDX,
+        DDL_CDR_ARCHIVE,
+        DDL_CDR_ARCHIVE_IDX,
         DDL_RECORDINGS,
         DDL_CALL_RECORDINGS,
         DDL_USERS,
@@ -1353,6 +1429,8 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_GROUPS_IDX,
         DDL_USER_GROUPS,
         DDL_USER_GROUPS_IDX,
+        DDL_USER_SETTINGS,
+        DDL_USER_SETTINGS_IDX,
         DDL_PERMISSIONS,
         DDL_GROUP_PERMISSIONS,
         DDL_CONTACTS,

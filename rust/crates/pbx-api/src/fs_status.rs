@@ -9,7 +9,7 @@
 //! (15s-cache parity is in-memory process-local here).
 
 use axum::{Extension as AxExtension, Json, Router};
-use pbx_fs::esl::{is_connected_body, strip_esl_body, EsClient, RealEs};
+use pbx_fs::esl::{is_connected_body, strip_esl_body, truncate_head, EsClient, RealEs};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 fn esl() -> RealEs {
@@ -25,7 +25,7 @@ fn probe_connected() -> (bool, Option<u64>, Option<String>) {
             if is_connected_body(body) {
                 (true, Some(0), None)
             } else {
-                (false, None, Some(body.chars().take(300).collect()))
+                (false, None, Some(truncate_head(body, 300)))
             }
         }
         None => (
@@ -81,17 +81,18 @@ async fn sip_profiles_status(
         std::collections::HashMap::new()
     };
 
+    // Lowercase index built once: per-profile fallback was O(P*S).
+    let sofia_lower: std::collections::HashMap<String, &String> = sofia_map
+        .iter()
+        .map(|(k, v)| (k.to_lowercase(), v))
+        .collect();
     let data: Vec<serde_json::Value> = profiles
         .iter()
         .map(|p| {
             let state = sofia_map.get(&p.name).cloned().or_else(|| {
-                sofia_map.iter().find_map(|(k, v)| {
-                    if k.eq_ignore_ascii_case(&p.name) {
-                        Some(v.clone())
-                    } else {
-                        None
-                    }
-                })
+                sofia_lower
+                    .get(&p.name.to_lowercase())
+                    .map(|v| (*v).clone())
             });
             let fs_state = state.unwrap_or_else(|| "UNKNOWN".to_owned());
             let running = fs_state == "RUNNING";

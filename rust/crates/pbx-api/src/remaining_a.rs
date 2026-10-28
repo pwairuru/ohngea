@@ -842,6 +842,16 @@ fn destinations_router() -> Router {
 }
 
 // ---- handlers: follow_me (+ destinations child) ----
+fn ser_dest(d: &follow_me_destinations::Model) -> Value {
+    serde_json::json!({
+        "follow_me_destination_uuid": d.follow_me_destination_uuid,
+        "follow_me_destination": d.follow_me_destination,
+        "destination": d.follow_me_destination,
+        "follow_me_delay": d.follow_me_delay,
+        "follow_me_timeout": d.follow_me_timeout,
+    })
+}
+
 async fn dests_of(db: &sea_orm::DatabaseConnection, fm_id: &str) -> Vec<Value> {
     follow_me_destinations::Entity::find()
         .filter(follow_me_destinations::Column::FollowMeUuid.eq(fm_id.to_owned()))
@@ -849,15 +859,7 @@ async fn dests_of(db: &sea_orm::DatabaseConnection, fm_id: &str) -> Vec<Value> {
         .await
         .unwrap_or_default()
         .iter()
-        .map(|d| {
-            serde_json::json!({
-                "follow_me_destination_uuid": d.follow_me_destination_uuid,
-                "follow_me_destination": d.follow_me_destination,
-                "destination": d.follow_me_destination,
-                "follow_me_delay": d.follow_me_delay,
-                "follow_me_timeout": d.follow_me_timeout,
-            })
-        })
+        .map(ser_dest)
         .collect()
 }
 
@@ -957,9 +959,26 @@ async fn list_follow_me(Extension(claims): Extension<Claims>) -> impl IntoRespon
         .all(db)
         .await
         .unwrap_or_default();
+    // One batched child query (was: N+1 `dests_of` per parent).
+    let ids: Vec<String> = rows.iter().map(|r| r.follow_me_uuid.clone()).collect();
+    let mut by_fm: std::collections::HashMap<String, Vec<Value>> = std::collections::HashMap::new();
+    if !ids.is_empty() {
+        let all_dests = follow_me_destinations::Entity::find()
+            .filter(follow_me_destinations::Column::FollowMeUuid.is_in(ids))
+            .all(db)
+            .await
+            .unwrap_or_default();
+        for d in &all_dests {
+            by_fm
+                .entry(d.follow_me_uuid.clone())
+                .or_default()
+                .push(ser_dest(d));
+        }
+    }
     let mut items = Vec::new();
     for r in &rows {
-        items.push(ser_follow_me(r, dests_of(db, &r.follow_me_uuid).await));
+        let dests = by_fm.remove(&r.follow_me_uuid).unwrap_or_default();
+        items.push(ser_follow_me(r, dests));
     }
     envelope(items)
 }

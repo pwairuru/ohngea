@@ -3,7 +3,7 @@
 //! Order: models → schemas → handlers → xml.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
 
 // ---- models ----
@@ -107,20 +107,20 @@ async fn list_ivr(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let rows = ivr_menus::Entity::find()
+    let paginator = ivr_menus::Entity::find()
         .filter(ivr_menus::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
     let data: Vec<serde_json::Value> = rows
         .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
         .map(|r| {
             serde_json::json!({
                 "ivr_menu_uuid": r.ivr_menu_uuid,
@@ -270,21 +270,18 @@ async fn list_options(
         )
             .into_response();
     }
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
-    let rows = ivr_menu_options::Entity::find()
+    let paginator = ivr_menu_options::Entity::find()
         .filter(ivr_menu_options::Column::IvrMenuUuid.eq(id.clone()))
         .filter(ivr_menu_options::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows
-        .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
-        .map(ser_opt)
-        .collect();
+    let data: Vec<serde_json::Value> = rows.iter().map(ser_opt).collect();
     (
         crate::paged_headers(
             &format!("/api/v1/ivr_menus/{id}/options"),

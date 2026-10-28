@@ -6,7 +6,7 @@
 //! Tenant-guarded; list envelope {data,total}.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 
 // ---- models ----
 use pbx_db::entities::{
@@ -41,11 +41,15 @@ async fn create_contact(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<ContactCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_add") {
+        return (s, j).into_response();
+    }
     if payload.name.trim().is_empty() || payload.number.trim().is_empty() {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(serde_json::json!({"detail": "name and number required"})),
-        );
+        )
+            .into_response();
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
@@ -64,7 +68,8 @@ async fn create_contact(
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-        );
+        )
+            .into_response();
     }
     (
         StatusCode::CREATED,
@@ -77,6 +82,7 @@ async fn create_contact(
             "organization": payload.organization,
         })),
     )
+        .into_response()
 }
 
 async fn list_contacts(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
@@ -108,6 +114,9 @@ async fn get_contact(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = contacts::Entity::find_by_id(id)
@@ -141,6 +150,9 @@ async fn patch_contact(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<ContactPatch>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = contacts::Entity::find_by_id(id)
@@ -190,6 +202,9 @@ async fn delete_contact(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = contacts::Entity::find_by_id(id)
@@ -252,7 +267,7 @@ async fn delete_contact(
     }
     let am: contacts::ActiveModel = r.into();
     match am.delete(db).await {
-        Ok(_) => (StatusCode::NO_CONTENT, Json(serde_json::json!(null))).into_response(),
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
@@ -320,7 +335,10 @@ async fn list_addresses(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_view") {
+        return (s, j).into_response();
+    }
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
@@ -331,14 +349,16 @@ async fn list_addresses(
         )
             .into_response();
     }
-    let rows = contact_addresses::Entity::find()
+    let paginator = contact_addresses::Entity::find()
         .filter(contact_addresses::Column::ContactUuid.eq(id))
         .filter(contact_addresses::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows.iter().skip(offset as usize).take(per_page as usize).map(|r| {
+    let data: Vec<serde_json::Value> = rows.iter().map(|r| {
         serde_json::json!({"contact_address_uuid": r.contact_address_uuid, "contact_uuid": r.contact_uuid, "address_label": r.address_label, "address_street": r.address_street, "address_locality": r.address_locality})
     }).collect();
     (
@@ -358,6 +378,9 @@ async fn create_address(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     if contact_or_404(db, domain, &id).await.is_none() {
@@ -408,7 +431,10 @@ async fn list_phones(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_view") {
+        return (s, j).into_response();
+    }
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
@@ -419,14 +445,16 @@ async fn list_phones(
         )
             .into_response();
     }
-    let rows = contact_phones::Entity::find()
+    let paginator = contact_phones::Entity::find()
         .filter(contact_phones::Column::ContactUuid.eq(id))
         .filter(contact_phones::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows.iter().skip(offset as usize).take(per_page as usize).map(|r| {
+    let data: Vec<serde_json::Value> = rows.iter().map(|r| {
         serde_json::json!({"contact_phone_uuid": r.contact_phone_uuid, "contact_uuid": r.contact_uuid, "phone_label": r.phone_label, "phone_number": r.phone_number})
     }).collect();
     (
@@ -446,6 +474,9 @@ async fn create_phone(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     if contact_or_404(db, domain, &id).await.is_none() {
@@ -494,7 +525,10 @@ async fn list_emails(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_view") {
+        return (s, j).into_response();
+    }
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
@@ -505,14 +539,16 @@ async fn list_emails(
         )
             .into_response();
     }
-    let rows = contact_emails::Entity::find()
+    let paginator = contact_emails::Entity::find()
         .filter(contact_emails::Column::ContactUuid.eq(id))
         .filter(contact_emails::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows.iter().skip(offset as usize).take(per_page as usize).map(|r| {
+    let data: Vec<serde_json::Value> = rows.iter().map(|r| {
         serde_json::json!({"contact_email_uuid": r.contact_email_uuid, "contact_uuid": r.contact_uuid, "email_label": r.email_label, "email_address": r.email_address})
     }).collect();
     (
@@ -532,6 +568,9 @@ async fn create_email(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     if contact_or_404(db, domain, &id).await.is_none() {
@@ -579,7 +618,10 @@ async fn list_urls(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_view") {
+        return (s, j).into_response();
+    }
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
@@ -590,14 +632,16 @@ async fn list_urls(
         )
             .into_response();
     }
-    let rows = contact_urls::Entity::find()
+    let paginator = contact_urls::Entity::find()
         .filter(contact_urls::Column::ContactUuid.eq(id))
         .filter(contact_urls::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows.iter().skip(offset as usize).take(per_page as usize).map(|r| {
+    let data: Vec<serde_json::Value> = rows.iter().map(|r| {
         serde_json::json!({"contact_url_uuid": r.contact_url_uuid, "contact_uuid": r.contact_uuid, "url_label": r.url_label, "url_address": r.url_address})
     }).collect();
     (
@@ -617,6 +661,9 @@ async fn create_url(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     if contact_or_404(db, domain, &id).await.is_none() {
@@ -664,7 +711,10 @@ async fn list_notes(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_view") {
+        return (s, j).into_response();
+    }
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
@@ -675,14 +725,16 @@ async fn list_notes(
         )
             .into_response();
     }
-    let rows = contact_notes::Entity::find()
+    let paginator = contact_notes::Entity::find()
         .filter(contact_notes::Column::ContactUuid.eq(id))
         .filter(contact_notes::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows.iter().skip(offset as usize).take(per_page as usize).map(|r| {
+    let data: Vec<serde_json::Value> = rows.iter().map(|r| {
         serde_json::json!({"contact_note_uuid": r.contact_note_uuid, "contact_uuid": r.contact_uuid, "contact_note": r.contact_note})
     }).collect();
     (
@@ -702,6 +754,9 @@ async fn create_note(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     if contact_or_404(db, domain, &id).await.is_none() {
@@ -753,6 +808,9 @@ async fn list_child_generic(
     axum::extract::Path((id, child)): axum::extract::Path<(uuid::Uuid, String)>,
     pq: axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_view") {
+        return (s, j).into_response();
+    }
     match child.as_str() {
         "addresses" => list_addresses(claims, axum::extract::Path(id), pq)
             .await
@@ -782,6 +840,9 @@ async fn create_child_generic(
     axum::extract::Path((id, child)): axum::extract::Path<(uuid::Uuid, String)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_add") {
+        return (s, j).into_response();
+    }
     match child.as_str() {
         "addresses" => create_address(claims, axum::extract::Path(id), Json(payload))
             .await
@@ -810,6 +871,9 @@ async fn delete_child_generic(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((id, child, cid)): axum::extract::Path<(uuid::Uuid, String, uuid::Uuid)>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     if contact_or_404(db, domain, &id).await.is_none() {

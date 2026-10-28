@@ -4,7 +4,7 @@
 //! Order: models → schemas → handlers → xml (no FS XML for fax; S3/file stub note).
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
 
 // ---- models ----
@@ -133,22 +133,19 @@ async fn list_fax(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let rows = faxes::Entity::find()
+    let paginator = faxes::Entity::find()
         .filter(faxes::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows
-        .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
-        .map(ser_fax)
-        .collect();
+    let data: Vec<serde_json::Value> = rows.iter().map(ser_fax).collect();
     (
         crate::paged_headers("/api/v1/fax", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),
@@ -212,36 +209,22 @@ async fn delete_fax(
 ) -> impl IntoResponse {
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    for f in fax_files::Entity::find()
+    // Set deletes: 3 statements, no per-row fetch-then-delete round-trips.
+    let _ = fax_files::Entity::delete_many()
         .filter(fax_files::Column::FaxUuid.eq(id.clone()))
         .filter(fax_files::Column::DomainId.eq(domain))
-        .all(db)
-        .await
-        .unwrap_or_default()
-    {
-        let fam: fax_files::ActiveModel = f.into();
-        let _ = fam.delete(db).await;
-    }
-    for l in fax_logs::Entity::find()
+        .exec(db)
+        .await;
+    let _ = fax_logs::Entity::delete_many()
         .filter(fax_logs::Column::FaxUuid.eq(id.clone()))
         .filter(fax_logs::Column::DomainId.eq(domain))
-        .all(db)
-        .await
-        .unwrap_or_default()
-    {
-        let lam: fax_logs::ActiveModel = l.into();
-        let _ = lam.delete(db).await;
-    }
-    for u in fax_users::Entity::find()
+        .exec(db)
+        .await;
+    let _ = fax_users::Entity::delete_many()
         .filter(fax_users::Column::FaxUuid.eq(id.clone()))
         .filter(fax_users::Column::DomainId.eq(domain))
-        .all(db)
-        .await
-        .unwrap_or_default()
-    {
-        let uam: fax_users::ActiveModel = u.into();
-        let _ = uam.delete(db).await;
-    }
+        .exec(db)
+        .await;
     let Some(r) = fax_or_404(db, domain, &id).await else {
         return (
             StatusCode::NOT_FOUND,
@@ -274,19 +257,19 @@ async fn list_files(
         )
             .into_response();
     }
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
-    let rows = fax_files::Entity::find()
+    let paginator = fax_files::Entity::find()
         .filter(fax_files::Column::FaxUuid.eq(id.clone()))
         .filter(fax_files::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
     let data: Vec<serde_json::Value> = rows
         .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
         .map(|r| {
             serde_json::json!({
                 "fax_file_uuid": r.fax_file_uuid,
@@ -357,19 +340,19 @@ async fn list_logs(
         )
             .into_response();
     }
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
-    let rows = fax_logs::Entity::find()
+    let paginator = fax_logs::Entity::find()
         .filter(fax_logs::Column::FaxUuid.eq(id.clone()))
         .filter(fax_logs::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
     let data: Vec<serde_json::Value> = rows
         .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
         .map(|r| {
             serde_json::json!({
                 "fax_log_uuid": r.fax_log_uuid,
@@ -399,19 +382,19 @@ async fn list_users(
         )
             .into_response();
     }
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
-    let rows = fax_users::Entity::find()
+    let paginator = fax_users::Entity::find()
         .filter(fax_users::Column::FaxUuid.eq(id.clone()))
         .filter(fax_users::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
     let data: Vec<serde_json::Value> = rows
         .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
         .map(|r| {
             serde_json::json!({
                 "fax_user_uuid": r.fax_user_uuid,
@@ -534,22 +517,19 @@ async fn list_queue(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    let (per_page, offset) = pq.normalized();
+    let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let rows = fax_queue::Entity::find()
+    let paginator = fax_queue::Entity::find()
         .filter(fax_queue::Column::DomainId.eq(domain))
-        .all(db)
+        .paginate(db, per_page);
+    let total = paginator.num_items().await.unwrap_or(0);
+    let rows = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let total = rows.len() as u64;
-    let data: Vec<serde_json::Value> = rows
-        .iter()
-        .skip(offset as usize)
-        .take(per_page as usize)
-        .map(ser_queue)
-        .collect();
+    let data: Vec<serde_json::Value> = rows.iter().map(ser_queue).collect();
     (
         crate::paged_headers("/api/v1/fax_queue", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),

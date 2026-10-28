@@ -9,7 +9,7 @@ use axum::{
     routing::{get, post},
     Extension as AxExtension, Json, Router,
 };
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set};
 
 fn profile_to_json(r: &pbx_db::entities::sip_profiles::Model) -> serde_json::Value {
     serde_json::json!({
@@ -643,13 +643,13 @@ async fn delete_profile_setting(
 pub async fn profile_names() -> Vec<String> {
     let db = crate::routing_db::conn().await;
     pbx_db::entities::sip_profiles::Entity::find()
+        .select_only()
+        .column(pbx_db::entities::sip_profiles::Column::Name)
         .filter(pbx_db::entities::sip_profiles::Column::Enabled.eq(true))
+        .into_tuple::<String>()
         .all(db)
         .await
         .unwrap_or_default()
-        .into_iter()
-        .map(|r| r.name)
-        .collect()
 }
 
 pub fn sip_router() -> Router {
