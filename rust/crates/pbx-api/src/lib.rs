@@ -17,6 +17,7 @@ mod health;
 mod ivr_menus;
 mod permissions;
 pub mod plugins;
+pub mod provision;
 mod recordings;
 mod remaining;
 mod remaining_a;

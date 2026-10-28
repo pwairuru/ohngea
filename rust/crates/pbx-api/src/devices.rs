@@ -235,8 +235,11 @@ async fn get_device(
 // ---- provision ----
 // Verbatim logic port of `app/devices/provision.py::render_provision`:
 // per-vendor base template, model overrides collapsed, generic fallback.
-// Templates embedded (no file I/O): yealink + cisco fully, rest generic.
-// Full 31-vendor matrix (templates/provision/*) is a later pass.
+// Templates embedded via `crate::provision` (minijinja, include_str!,
+// single-binary prod, no file I/O): all 31 vendors under
+// `templates/provision/*`, verbatim port. Yealink/cisco base keep
+// byte-identical legacy render (existing tests); model overrides
+// (T46S/T29G/SPA122/...) render via minijinja parity templates.
 fn render_yealink(mac: &str, model: &str, extension: &str, domain: &str, password: &str) -> String {
     let mut out = format!(
         "# Yealink provision — collapsed matrix (model: {model})\n\
@@ -290,10 +293,23 @@ fn render_provision(
     domain: &str,
     password: &str,
 ) -> String {
-    match vendor.to_lowercase().as_str() {
-        "yealink" => render_yealink(mac, model, extension, domain, password),
-        "cisco" => render_cisco(mac, extension, domain),
-        _ => render_generic(vendor, mac, extension, domain),
+    let v = vendor.to_lowercase();
+    let m = model.trim();
+    let ml = m.to_lowercase();
+    match v.as_str() {
+        // Byte-identical legacy base; model overrides via minijinja parity.
+        "yealink" => match ml.as_str() {
+            "t46s" | "t29g" => crate::provision::render(&v, mac, m, extension, domain, password)
+                .unwrap_or_else(|| render_yealink(mac, model, extension, domain, password)),
+            _ => render_yealink(mac, model, extension, domain, password),
+        },
+        "cisco" => match ml.as_str() {
+            "spa122" => crate::provision::render(&v, mac, m, extension, domain, password)
+                .unwrap_or_else(|| render_cisco(mac, extension, domain)),
+            _ => render_cisco(mac, extension, domain),
+        },
+        _ => crate::provision::render(&v, mac, m, extension, domain, password)
+            .unwrap_or_else(|| render_generic(vendor, mac, extension, domain)),
     }
 }
 
