@@ -1,14 +1,26 @@
 // Batch 1 settings first, then batch 2a telephony in dependency order:
 // domains → extensions → dialplans → gateways → sip → devices,
-// then batch 3a call-routing: ring/callcenter/ivr/voicemail/conf/fax/cdr.
+// then batch 3a call-routing: ring/callcenter/ivr/voicemail/conf/fax/cdr,
+// then spillover replacement: per-table entities for the batch 3c apps
+// (call_block, call_broadcasts, bridges, destinations, follow_me,
+// call_forwards, time_conditions, feature_codes, music_on_hold, phrases,
+// pin_numbers, number_translations, streams, access_controls, webrtc,
+// fifo, emergency_logs, event_guard_logs).
+pub mod access_control_nodes;
+pub mod access_controls;
+pub mod bridges;
+pub mod call_block;
+pub mod call_broadcasts;
 pub mod call_center_agents;
 pub mod call_center_tiers;
 pub mod call_centers;
+pub mod call_forwards;
 pub mod call_recordings;
 pub mod cdr;
 pub mod conferences;
 pub mod contacts;
 pub mod default_settings;
+pub mod destinations;
 pub mod device_keys;
 pub mod device_lines;
 pub mod device_profile_keys;
@@ -23,14 +35,27 @@ pub mod domain_plugins;
 pub mod domain_settings;
 pub mod domains;
 pub mod email_queue;
+pub mod emergency_logs;
+pub mod event_guard_logs;
 pub mod extensions;
 pub mod fax_queue;
+pub mod feature_codes;
+pub mod fifo;
+pub mod fifo_members;
+pub mod follow_me;
+pub mod follow_me_destinations;
 pub mod gateways;
 pub mod group_permissions;
 pub mod groups;
 pub mod ivr_menu_options;
 pub mod ivr_menus;
+pub mod music_on_hold;
+pub mod number_translation_details;
+pub mod number_translations;
 pub mod permissions;
+pub mod phrase_details;
+pub mod phrases;
+pub mod pin_numbers;
 pub mod recordings;
 pub mod remaining_record;
 pub mod ring_group_members;
@@ -39,9 +64,12 @@ pub mod sip_profile_domains;
 pub mod sip_profile_settings;
 pub mod sip_profiles;
 pub mod sofia_global_settings;
+pub mod streams;
+pub mod time_conditions;
 pub mod user_groups;
 pub mod users;
 pub mod vars;
 pub mod voicemail_greetings;
 pub mod voicemail_messages;
 pub mod voicemails;
+pub mod webrtc_settings;

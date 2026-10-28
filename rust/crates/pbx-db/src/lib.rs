@@ -697,6 +697,432 @@ const DDL_REMAINING_RECORDS: &str = "CREATE TABLE IF NOT EXISTS remaining_record
 )";
 const DDL_REMAINING_RECORDS_IDX: &str =
     "CREATE INDEX IF NOT EXISTS ix_remaining_resource_domain ON remaining_records (resource, domain_id)";
+
+// ---- spillover-replacement tables (Python models.py column parity) ----
+const DDL_CALL_BLOCK: &str = "CREATE TABLE IF NOT EXISTS call_block (
+  call_block_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  call_block_direction VARCHAR(32),
+  extension_uuid TEXT,
+  call_block_name VARCHAR(128) NOT NULL,
+  call_block_country_code VARCHAR(8),
+  call_block_number VARCHAR(32) NOT NULL,
+  call_block_enabled BOOLEAN NOT NULL DEFAULT 1,
+  call_block_description VARCHAR(512),
+  call_block_action VARCHAR(32),
+  call_block_count INTEGER,
+  call_block_app VARCHAR(64),
+  call_block_data VARCHAR(512),
+  date_added TEXT,
+  insert_user TEXT,
+  update_user TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_CALL_BLOCK_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_call_block_domain ON call_block (domain_id)";
+
+const DDL_CALL_BROADCASTS: &str = "CREATE TABLE IF NOT EXISTS call_broadcasts (
+  call_broadcast_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  broadcast_name VARCHAR(128) NOT NULL,
+  broadcast_description VARCHAR(512),
+  broadcast_start_time INTEGER,
+  broadcast_timeout INTEGER,
+  broadcast_concurrent_limit INTEGER,
+  recording_uuid TEXT,
+  broadcast_caller_id_name VARCHAR(128),
+  broadcast_caller_id_number VARCHAR(32),
+  broadcast_destination_type VARCHAR(32),
+  broadcast_destination_data VARCHAR(512),
+  broadcast_phone_numbers TEXT,
+  broadcast_avmd BOOLEAN,
+  broadcast_accountcode VARCHAR(64),
+  broadcast_toll_allow VARCHAR(128),
+  broadcast_enabled BOOLEAN NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_CALL_BROADCASTS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_call_broadcasts_domain ON call_broadcasts (domain_id)";
+
+const DDL_BRIDGES: &str = "CREATE TABLE IF NOT EXISTS bridges (
+  bridge_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  bridge_name VARCHAR(128) NOT NULL,
+  bridge_destination VARCHAR(128),
+  bridge_enabled BOOLEAN NOT NULL DEFAULT 1,
+  bridge_description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_BRIDGES_IDX: &str = "CREATE INDEX IF NOT EXISTS ix_bridges_domain ON bridges (domain_id)";
+
+const DDL_DESTINATIONS: &str = "CREATE TABLE IF NOT EXISTS destinations (
+  destination_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  destination_type VARCHAR(32) NOT NULL,
+  destination_number VARCHAR(32) NOT NULL,
+  destination_prefix VARCHAR(32),
+  destination_enabled BOOLEAN NOT NULL DEFAULT 1,
+  destination_description VARCHAR(512),
+  destination_context VARCHAR(128),
+  destination_app VARCHAR(64),
+  destination_data VARCHAR(512),
+  destination_caller_id_name VARCHAR(128),
+  destination_caller_id_number VARCHAR(32),
+  destination_hold_music VARCHAR(128),
+  destination_record BOOLEAN,
+  dialplan_uuid TEXT,
+  fax_uuid TEXT,
+  user_uuid TEXT,
+  group_uuid TEXT,
+  provider_uuid TEXT,
+  destination_trunk_prefix VARCHAR(32),
+  trunk_prefix VARCHAR(32),
+  destination_area_code VARCHAR(16),
+  area_code VARCHAR(16),
+  destination_condition_field VARCHAR(128),
+  condition_field VARCHAR(128),
+  destination_number_regex VARCHAR(512),
+  number_regex VARCHAR(512),
+  destination_distinctive_ring VARCHAR(128),
+  distinctive_ring VARCHAR(128),
+  destination_ringback VARCHAR(128),
+  ringback VARCHAR(128),
+  destination_accountcode VARCHAR(64),
+  accountcode VARCHAR(64),
+  destination_type_voice BOOLEAN,
+  type_voice BOOLEAN,
+  destination_type_fax BOOLEAN,
+  type_fax BOOLEAN,
+  destination_type_emergency BOOLEAN,
+  type_emergency BOOLEAN,
+  destination_type_text BOOLEAN,
+  type_text BOOLEAN,
+  destination_conditions VARCHAR(4096),
+  conditions VARCHAR(4096),
+  destination_actions VARCHAR(4096),
+  actions VARCHAR(4096),
+  destination_alternate_app VARCHAR(64),
+  alternate_app VARCHAR(64),
+  destination_alternate_data VARCHAR(512),
+  alternate_data VARCHAR(512),
+  destination_caller_id VARCHAR(64),
+  destination_insert_user TEXT,
+  insert_user TEXT,
+  destination_insert_date TEXT,
+  destination_update_user TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_DESTINATIONS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_destinations_domain ON destinations (domain_id)";
+
+const DDL_FOLLOW_ME: &str = "CREATE TABLE IF NOT EXISTS follow_me (
+  follow_me_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  follow_me_enabled BOOLEAN NOT NULL DEFAULT 1,
+  cid_name_prefix VARCHAR(128),
+  cid_number_prefix VARCHAR(32),
+  call_prompt VARCHAR(32),
+  dial_string VARCHAR(512),
+  description VARCHAR(512),
+  follow_me_ignore_busy BOOLEAN NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_FOLLOW_ME_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_follow_me_domain ON follow_me (domain_id)";
+
+const DDL_FOLLOW_ME_DESTINATIONS: &str = "CREATE TABLE IF NOT EXISTS follow_me_destinations (
+  follow_me_destination_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  follow_me_uuid TEXT NOT NULL REFERENCES follow_me (follow_me_uuid),
+  follow_me_destination VARCHAR(128) NOT NULL,
+  follow_me_delay INTEGER NOT NULL DEFAULT 0,
+  follow_me_timeout INTEGER NOT NULL DEFAULT 30,
+  follow_me_prompt VARCHAR(32),
+  follow_me_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+)";
+const DDL_FOLLOW_ME_DESTINATIONS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_follow_me_destinations_parent ON follow_me_destinations (follow_me_uuid)";
+
+const DDL_CALL_FORWARDS: &str = "CREATE TABLE IF NOT EXISTS call_forwards (
+  call_forward_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  extension_uuid TEXT,
+  forward_all_destination VARCHAR(128),
+  forward_all_enabled BOOLEAN NOT NULL DEFAULT 0,
+  forward_busy_destination VARCHAR(128),
+  forward_busy_enabled BOOLEAN NOT NULL DEFAULT 0,
+  forward_no_answer_destination VARCHAR(128),
+  forward_no_answer_enabled BOOLEAN NOT NULL DEFAULT 0,
+  forward_user_not_registered_destination VARCHAR(128),
+  forward_user_not_registered_enabled BOOLEAN NOT NULL DEFAULT 0,
+  enabled BOOLEAN NOT NULL DEFAULT 1,
+  description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_CALL_FORWARDS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_call_forwards_domain ON call_forwards (domain_id)";
+
+const DDL_TIME_CONDITIONS: &str = "CREATE TABLE IF NOT EXISTS time_conditions (
+  time_condition_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  extension VARCHAR(32) NOT NULL,
+  context VARCHAR(128),
+  enabled BOOLEAN NOT NULL DEFAULT 1,
+  description VARCHAR(512),
+  dialplan_uuid TEXT,
+  time_hour VARCHAR(64),
+  time_minute VARCHAR(64),
+  time_wday VARCHAR(64),
+  time_mday VARCHAR(64),
+  time_mon VARCHAR(64),
+  time_year VARCHAR(32),
+  time_yday VARCHAR(64),
+  time_week VARCHAR(32),
+  time_mweek VARCHAR(32),
+  minute_of_day VARCHAR(64),
+  time_of_day VARCHAR(64),
+  date_time VARCHAR(128),
+  condition VARCHAR(512),
+  true_destination VARCHAR(128),
+  false_destination VARCHAR(128),
+  timezone VARCHAR(64),
+  details TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_TIME_CONDITIONS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_time_conditions_domain ON time_conditions (domain_id)";
+
+const DDL_FEATURE_CODES: &str = "CREATE TABLE IF NOT EXISTS feature_codes (
+  feature_code_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  feature_code_name VARCHAR(128) NOT NULL,
+  feature_code_value VARCHAR(32),
+  feature_code_enabled BOOLEAN NOT NULL DEFAULT 1,
+  feature_code_description VARCHAR(512),
+  insert_user TEXT,
+  update_user TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_FEATURE_CODES_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_feature_codes_domain ON feature_codes (domain_id)";
+
+const DDL_MUSIC_ON_HOLD: &str = "CREATE TABLE IF NOT EXISTS music_on_hold (
+  music_on_hold_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  music_name VARCHAR(128) NOT NULL,
+  music_path VARCHAR(512) NOT NULL,
+  music_rate INTEGER,
+  music_shuffle VARCHAR(16),
+  music_channels INTEGER,
+  music_interval INTEGER,
+  music_timer_name VARCHAR(64),
+  music_chime_list VARCHAR(512),
+  music_chime_freq VARCHAR(64),
+  music_chime_max INTEGER,
+  enabled BOOLEAN NOT NULL DEFAULT 1,
+  description VARCHAR(512),
+  insert_user TEXT,
+  update_user TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_MUSIC_ON_HOLD_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_music_on_hold_domain ON music_on_hold (domain_id)";
+
+const DDL_PHRASES: &str = "CREATE TABLE IF NOT EXISTS phrases (
+  phrase_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  phrase_name VARCHAR(128) NOT NULL,
+  phrase_language VARCHAR(16),
+  phrase_enabled BOOLEAN NOT NULL DEFAULT 1,
+  phrase_description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_PHRASES_IDX: &str = "CREATE INDEX IF NOT EXISTS ix_phrases_domain ON phrases (domain_id)";
+
+const DDL_PHRASE_DETAILS: &str = "CREATE TABLE IF NOT EXISTS phrase_details (
+  phrase_detail_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  phrase_uuid TEXT NOT NULL REFERENCES phrases (phrase_uuid),
+  phrase_detail_group INTEGER,
+  phrase_detail_tag VARCHAR(64),
+  phrase_detail_pattern VARCHAR(128),
+  phrase_detail_function VARCHAR(64),
+  phrase_detail_data VARCHAR(512),
+  phrase_detail_method VARCHAR(32),
+  phrase_detail_type VARCHAR(32),
+  phrase_detail_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+)";
+const DDL_PHRASE_DETAILS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_phrase_details_parent ON phrase_details (phrase_uuid)";
+
+const DDL_PIN_NUMBERS: &str = "CREATE TABLE IF NOT EXISTS pin_numbers (
+  pin_number_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  pin_number VARCHAR(32) NOT NULL,
+  accountcode VARCHAR(64),
+  enabled BOOLEAN NOT NULL DEFAULT 1,
+  description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_PIN_NUMBERS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_pin_numbers_domain ON pin_numbers (domain_id)";
+
+const DDL_NUMBER_TRANSLATIONS: &str = "CREATE TABLE IF NOT EXISTS number_translations (
+  number_translation_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  number_translation_name VARCHAR(128) NOT NULL,
+  number_translation_regex VARCHAR(512),
+  number_translation_replace VARCHAR(512),
+  number_translation_enabled BOOLEAN NOT NULL DEFAULT 1,
+  number_translation_description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_NUMBER_TRANSLATIONS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_number_translations_domain ON number_translations (domain_id)";
+
+const DDL_NUMBER_TRANSLATION_DETAILS: &str =
+    "CREATE TABLE IF NOT EXISTS number_translation_details (
+  number_translation_detail_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  number_translation_uuid TEXT NOT NULL REFERENCES number_translations (number_translation_uuid),
+  number_translation_detail_regex VARCHAR(512) NOT NULL,
+  number_translation_detail_replace VARCHAR(512) NOT NULL,
+  number_translation_detail_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_NUMBER_TRANSLATION_DETAILS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_number_translation_details_parent ON number_translation_details (number_translation_uuid)";
+
+const DDL_STREAMS: &str = "CREATE TABLE IF NOT EXISTS streams (
+  stream_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  stream_name VARCHAR(128) NOT NULL,
+  stream_location VARCHAR(512),
+  stream_enabled BOOLEAN NOT NULL DEFAULT 1,
+  stream_description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_STREAMS_IDX: &str = "CREATE INDEX IF NOT EXISTS ix_streams_domain ON streams (domain_id)";
+
+const DDL_ACCESS_CONTROLS: &str = "CREATE TABLE IF NOT EXISTS access_controls (
+  access_control_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  access_control_name VARCHAR(128) NOT NULL,
+  access_control_default VARCHAR(16) NOT NULL DEFAULT 'deny',
+  access_control_description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_ACCESS_CONTROLS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_access_controls_domain ON access_controls (domain_id)";
+
+const DDL_ACCESS_CONTROL_NODES: &str = "CREATE TABLE IF NOT EXISTS access_control_nodes (
+  access_control_node_uuid TEXT PRIMARY KEY,
+  access_control_uuid TEXT NOT NULL REFERENCES access_controls (access_control_uuid),
+  domain_id TEXT NOT NULL,
+  node_type VARCHAR(16) NOT NULL,
+  node_cidr VARCHAR(64) NOT NULL,
+  node_description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_ACCESS_CONTROL_NODES_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_access_control_nodes_parent ON access_control_nodes (access_control_uuid)";
+
+const DDL_WEBRTC_SETTINGS: &str = "CREATE TABLE IF NOT EXISTS webrtc_settings (
+  domain_id TEXT PRIMARY KEY,
+  enabled BOOLEAN NOT NULL DEFAULT 0,
+  auth_mode VARCHAR(32) NOT NULL DEFAULT 'extension',
+  wss_url VARCHAR(256),
+  sip_domain VARCHAR(128),
+  ice_servers TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+
+const DDL_FIFO: &str = "CREATE TABLE IF NOT EXISTS fifo (
+  fifo_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  dialplan_uuid TEXT,
+  fifo_name VARCHAR(128) NOT NULL,
+  fifo_extension VARCHAR(32),
+  fifo_agent_queue VARCHAR(256),
+  fifo_agent_status VARCHAR(128),
+  fifo_enabled BOOLEAN NOT NULL DEFAULT 1,
+  fifo_description VARCHAR(512),
+  fifo_strategy VARCHAR(32),
+  fifo_members VARCHAR(4096),
+  fifo_timeout_seconds VARCHAR(16),
+  fifo_exit_key VARCHAR(8),
+  fifo_exit_action VARCHAR(512),
+  fifo_music VARCHAR(512),
+  fifo_order INTEGER,
+  fifo_caller_id_name VARCHAR(128),
+  fifo_caller_id_number VARCHAR(32),
+  insert_user TEXT,
+  update_user TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_FIFO_IDX: &str = "CREATE INDEX IF NOT EXISTS ix_fifo_domain ON fifo (domain_id)";
+
+const DDL_FIFO_MEMBERS: &str = "CREATE TABLE IF NOT EXISTS fifo_members (
+  fifo_member_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  fifo_uuid TEXT NOT NULL REFERENCES fifo (fifo_uuid),
+  member_contact VARCHAR(512),
+  member_call_timeout INTEGER,
+  member_simultaneous INTEGER,
+  member_wrap_up_time INTEGER,
+  member_enabled BOOLEAN NOT NULL DEFAULT 1,
+  insert_user TEXT,
+  update_user TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_FIFO_MEMBERS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_fifo_members_parent ON fifo_members (fifo_uuid)";
+
+const DDL_EMERGENCY_LOGS: &str = "CREATE TABLE IF NOT EXISTS emergency_logs (
+  emergency_log_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  extension VARCHAR(32),
+  event VARCHAR(512),
+  created_at TEXT NOT NULL
+)";
+const DDL_EMERGENCY_LOGS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_emergency_logs_domain ON emergency_logs (domain_id)";
+
+const DDL_EVENT_GUARD_LOGS: &str = "CREATE TABLE IF NOT EXISTS event_guard_logs (
+  event_guard_log_uuid TEXT PRIMARY KEY,
+  hostname VARCHAR(128),
+  log_date TEXT NOT NULL,
+  filter VARCHAR(128),
+  ip_address VARCHAR(64),
+  extension VARCHAR(32),
+  user_agent VARCHAR(512),
+  log_status VARCHAR(32),
+  insert_user TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
 /// Create all tables (sqlite bootstrap for tests / local dev).
 /// Production schema comes from alembic migrations.
 /// Production Postgres uses `migration::Migrator` (sea-orm-migration).
@@ -776,6 +1202,50 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_EMAIL_QUEUE_IDX,
         DDL_REMAINING_RECORDS,
         DDL_REMAINING_RECORDS_IDX,
+        DDL_CALL_BLOCK,
+        DDL_CALL_BLOCK_IDX,
+        DDL_CALL_BROADCASTS,
+        DDL_CALL_BROADCASTS_IDX,
+        DDL_BRIDGES,
+        DDL_BRIDGES_IDX,
+        DDL_DESTINATIONS,
+        DDL_DESTINATIONS_IDX,
+        DDL_FOLLOW_ME,
+        DDL_FOLLOW_ME_IDX,
+        DDL_FOLLOW_ME_DESTINATIONS,
+        DDL_FOLLOW_ME_DESTINATIONS_IDX,
+        DDL_CALL_FORWARDS,
+        DDL_CALL_FORWARDS_IDX,
+        DDL_TIME_CONDITIONS,
+        DDL_TIME_CONDITIONS_IDX,
+        DDL_FEATURE_CODES,
+        DDL_FEATURE_CODES_IDX,
+        DDL_MUSIC_ON_HOLD,
+        DDL_MUSIC_ON_HOLD_IDX,
+        DDL_PHRASES,
+        DDL_PHRASES_IDX,
+        DDL_PHRASE_DETAILS,
+        DDL_PHRASE_DETAILS_IDX,
+        DDL_PIN_NUMBERS,
+        DDL_PIN_NUMBERS_IDX,
+        DDL_NUMBER_TRANSLATIONS,
+        DDL_NUMBER_TRANSLATIONS_IDX,
+        DDL_NUMBER_TRANSLATION_DETAILS,
+        DDL_NUMBER_TRANSLATION_DETAILS_IDX,
+        DDL_STREAMS,
+        DDL_STREAMS_IDX,
+        DDL_ACCESS_CONTROLS,
+        DDL_ACCESS_CONTROLS_IDX,
+        DDL_ACCESS_CONTROL_NODES,
+        DDL_ACCESS_CONTROL_NODES_IDX,
+        DDL_WEBRTC_SETTINGS,
+        DDL_FIFO,
+        DDL_FIFO_IDX,
+        DDL_FIFO_MEMBERS,
+        DDL_FIFO_MEMBERS_IDX,
+        DDL_EMERGENCY_LOGS,
+        DDL_EMERGENCY_LOGS_IDX,
+        DDL_EVENT_GUARD_LOGS,
     ] {
         db.execute_unprepared(ddl).await?;
     }

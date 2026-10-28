@@ -623,6 +623,391 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL
     )",
     "CREATE INDEX IF NOT EXISTS ix_remaining_resource_domain ON remaining_records (resource, domain_id)",
+    // ---- spillover replacement: per-table DDL (Python models.py parity) ----
+    "CREATE TABLE IF NOT EXISTS call_block (
+      call_block_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      call_block_direction VARCHAR(32),
+      extension_uuid UUID,
+      call_block_name VARCHAR(128) NOT NULL,
+      call_block_country_code VARCHAR(8),
+      call_block_number VARCHAR(32) NOT NULL,
+      call_block_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      call_block_description TEXT,
+      call_block_action VARCHAR(32),
+      call_block_count INTEGER,
+      call_block_app VARCHAR(64),
+      call_block_data VARCHAR(512),
+      date_added TIMESTAMPTZ,
+      insert_user UUID,
+      update_user UUID,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_call_block_domain ON call_block (domain_id)",
+    "CREATE TABLE IF NOT EXISTS call_broadcasts (
+      call_broadcast_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      broadcast_name VARCHAR(128) NOT NULL,
+      broadcast_description TEXT,
+      broadcast_start_time BIGINT,
+      broadcast_timeout INTEGER,
+      broadcast_concurrent_limit INTEGER,
+      recording_uuid UUID,
+      broadcast_caller_id_name VARCHAR(128),
+      broadcast_caller_id_number VARCHAR(32),
+      broadcast_destination_type VARCHAR(32),
+      broadcast_destination_data VARCHAR(512),
+      broadcast_phone_numbers TEXT,
+      broadcast_avmd BOOLEAN,
+      broadcast_accountcode VARCHAR(64),
+      broadcast_toll_allow VARCHAR(128),
+      broadcast_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_call_broadcasts_domain ON call_broadcasts (domain_id)",
+    "CREATE TABLE IF NOT EXISTS bridges (
+      bridge_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      bridge_name VARCHAR(128) NOT NULL,
+      bridge_destination VARCHAR(128),
+      bridge_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      bridge_description TEXT,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_bridges_domain ON bridges (domain_id)",
+    "CREATE TABLE IF NOT EXISTS destinations (
+      destination_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      destination_type VARCHAR(32) NOT NULL,
+      destination_number VARCHAR(32) NOT NULL,
+      destination_prefix VARCHAR(32),
+      destination_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      destination_description TEXT,
+      destination_context VARCHAR(128),
+      destination_app VARCHAR(64),
+      destination_data VARCHAR(512),
+      destination_caller_id_name VARCHAR(128),
+      destination_caller_id_number VARCHAR(32),
+      destination_hold_music VARCHAR(128),
+      destination_record BOOLEAN,
+      dialplan_uuid UUID,
+      fax_uuid UUID,
+      user_uuid UUID,
+      group_uuid UUID,
+      provider_uuid UUID,
+      destination_trunk_prefix VARCHAR(32),
+      trunk_prefix VARCHAR(32),
+      destination_area_code VARCHAR(16),
+      area_code VARCHAR(16),
+      destination_condition_field VARCHAR(128),
+      condition_field VARCHAR(128),
+      destination_number_regex VARCHAR(512),
+      number_regex VARCHAR(512),
+      destination_distinctive_ring VARCHAR(128),
+      distinctive_ring VARCHAR(128),
+      destination_ringback VARCHAR(128),
+      ringback VARCHAR(128),
+      destination_accountcode VARCHAR(64),
+      accountcode VARCHAR(64),
+      destination_type_voice BOOLEAN,
+      type_voice BOOLEAN,
+      destination_type_fax BOOLEAN,
+      type_fax BOOLEAN,
+      destination_type_emergency BOOLEAN,
+      type_emergency BOOLEAN,
+      destination_type_text BOOLEAN,
+      type_text BOOLEAN,
+      destination_conditions VARCHAR(4096),
+      conditions VARCHAR(4096),
+      destination_actions VARCHAR(4096),
+      actions VARCHAR(4096),
+      destination_alternate_app VARCHAR(64),
+      alternate_app VARCHAR(64),
+      destination_alternate_data VARCHAR(512),
+      alternate_data VARCHAR(512),
+      destination_caller_id VARCHAR(64),
+      destination_insert_user UUID,
+      insert_user UUID,
+      destination_insert_date TIMESTAMPTZ,
+      destination_update_user UUID,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_destinations_domain ON destinations (domain_id)",
+    "CREATE TABLE IF NOT EXISTS follow_me (
+      follow_me_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      follow_me_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      cid_name_prefix VARCHAR(128),
+      cid_number_prefix VARCHAR(32),
+      call_prompt VARCHAR(32),
+      dial_string VARCHAR(512),
+      description TEXT,
+      follow_me_ignore_busy BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_follow_me_domain ON follow_me (domain_id)",
+    "CREATE TABLE IF NOT EXISTS follow_me_destinations (
+      follow_me_destination_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      follow_me_uuid UUID NOT NULL REFERENCES follow_me (follow_me_uuid) ON DELETE CASCADE,
+      follow_me_destination VARCHAR(128) NOT NULL,
+      follow_me_delay INTEGER NOT NULL DEFAULT 0,
+      follow_me_timeout INTEGER NOT NULL DEFAULT 30,
+      follow_me_prompt VARCHAR(32),
+      follow_me_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_follow_me_destinations_parent ON follow_me_destinations (follow_me_uuid)",
+    "CREATE TABLE IF NOT EXISTS call_forwards (
+      call_forward_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      extension_uuid UUID,
+      forward_all_destination VARCHAR(128),
+      forward_all_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      forward_busy_destination VARCHAR(128),
+      forward_busy_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      forward_no_answer_destination VARCHAR(128),
+      forward_no_answer_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      forward_user_not_registered_destination VARCHAR(128),
+      forward_user_not_registered_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      description VARCHAR(512),
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_call_forwards_domain ON call_forwards (domain_id)",
+    "CREATE TABLE IF NOT EXISTS time_conditions (
+      time_condition_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      name VARCHAR(128) NOT NULL,
+      extension VARCHAR(32) NOT NULL,
+      context VARCHAR(128),
+      enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      description TEXT,
+      dialplan_uuid UUID,
+      time_hour VARCHAR(64),
+      time_minute VARCHAR(64),
+      time_wday VARCHAR(64),
+      time_mday VARCHAR(64),
+      time_mon VARCHAR(64),
+      time_year VARCHAR(32),
+      time_yday VARCHAR(64),
+      time_week VARCHAR(32),
+      time_mweek VARCHAR(32),
+      minute_of_day VARCHAR(64),
+      time_of_day VARCHAR(64),
+      date_time VARCHAR(128),
+      condition VARCHAR(512),
+      true_destination VARCHAR(128),
+      false_destination VARCHAR(128),
+      timezone VARCHAR(64),
+      details JSON,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_time_conditions_domain ON time_conditions (domain_id)",
+    "CREATE TABLE IF NOT EXISTS feature_codes (
+      feature_code_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      feature_code_name VARCHAR(128) NOT NULL,
+      feature_code_value VARCHAR(32),
+      feature_code_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      feature_code_description TEXT,
+      insert_user UUID,
+      update_user UUID,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_feature_codes_domain ON feature_codes (domain_id)",
+    "CREATE TABLE IF NOT EXISTS music_on_hold (
+      music_on_hold_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      music_name VARCHAR(128) NOT NULL,
+      music_path VARCHAR(512) NOT NULL,
+      music_rate INTEGER,
+      music_shuffle VARCHAR(16),
+      music_channels INTEGER,
+      music_interval INTEGER,
+      music_timer_name VARCHAR(64),
+      music_chime_list VARCHAR(512),
+      music_chime_freq VARCHAR(64),
+      music_chime_max INTEGER,
+      enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      description TEXT,
+      insert_user UUID,
+      update_user UUID,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_music_on_hold_domain ON music_on_hold (domain_id)",
+    "CREATE TABLE IF NOT EXISTS phrases (
+      phrase_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      phrase_name VARCHAR(128) NOT NULL,
+      phrase_language VARCHAR(16),
+      phrase_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      phrase_description TEXT,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_phrases_domain ON phrases (domain_id)",
+    "CREATE TABLE IF NOT EXISTS phrase_details (
+      phrase_detail_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      phrase_uuid UUID NOT NULL REFERENCES phrases (phrase_uuid) ON DELETE CASCADE,
+      phrase_detail_group INTEGER,
+      phrase_detail_tag VARCHAR(64),
+      phrase_detail_pattern VARCHAR(128),
+      phrase_detail_function VARCHAR(64),
+      phrase_detail_data VARCHAR(512),
+      phrase_detail_method VARCHAR(32),
+      phrase_detail_type VARCHAR(32),
+      phrase_detail_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_phrase_details_parent ON phrase_details (phrase_uuid)",
+    "CREATE TABLE IF NOT EXISTS pin_numbers (
+      pin_number_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      pin_number VARCHAR(32) NOT NULL,
+      accountcode VARCHAR(64),
+      enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      description TEXT,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_pin_numbers_domain ON pin_numbers (domain_id)",
+    "CREATE TABLE IF NOT EXISTS number_translations (
+      number_translation_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      number_translation_name VARCHAR(128) NOT NULL,
+      number_translation_regex VARCHAR(512),
+      number_translation_replace VARCHAR(512),
+      number_translation_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      number_translation_description TEXT,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_number_translations_domain ON number_translations (domain_id)",
+    "CREATE TABLE IF NOT EXISTS number_translation_details (
+      number_translation_detail_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      number_translation_uuid UUID NOT NULL REFERENCES number_translations (number_translation_uuid) ON DELETE CASCADE,
+      number_translation_detail_regex VARCHAR(512) NOT NULL,
+      number_translation_detail_replace VARCHAR(512) NOT NULL,
+      number_translation_detail_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_number_translation_details_parent ON number_translation_details (number_translation_uuid)",
+    "CREATE TABLE IF NOT EXISTS streams (
+      stream_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      stream_name VARCHAR(128) NOT NULL,
+      stream_location VARCHAR(512),
+      stream_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      stream_description TEXT,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_streams_domain ON streams (domain_id)",
+    "CREATE TABLE IF NOT EXISTS access_controls (
+      access_control_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      access_control_name VARCHAR(128) NOT NULL,
+      access_control_default VARCHAR(16) NOT NULL DEFAULT 'deny',
+      access_control_description TEXT,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_access_controls_domain ON access_controls (domain_id)",
+    "CREATE TABLE IF NOT EXISTS access_control_nodes (
+      access_control_node_uuid UUID PRIMARY KEY,
+      access_control_uuid UUID NOT NULL REFERENCES access_controls (access_control_uuid) ON DELETE CASCADE,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      node_type VARCHAR(16) NOT NULL,
+      node_cidr VARCHAR(64) NOT NULL,
+      node_description TEXT,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_access_control_nodes_parent ON access_control_nodes (access_control_uuid)",
+    "CREATE TABLE IF NOT EXISTS webrtc_settings (
+      domain_id UUID PRIMARY KEY REFERENCES domains (domain_id) ON DELETE CASCADE,
+      enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      auth_mode VARCHAR(32) NOT NULL DEFAULT 'extension',
+      wss_url VARCHAR(256),
+      sip_domain VARCHAR(128),
+      ice_servers JSON,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE TABLE IF NOT EXISTS fifo (
+      fifo_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      dialplan_uuid UUID,
+      fifo_name VARCHAR(128) NOT NULL,
+      fifo_extension VARCHAR(32),
+      fifo_agent_queue VARCHAR(256),
+      fifo_agent_status VARCHAR(128),
+      fifo_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      fifo_description TEXT,
+      fifo_strategy VARCHAR(32),
+      fifo_members VARCHAR(4096),
+      fifo_timeout_seconds VARCHAR(16),
+      fifo_exit_key VARCHAR(8),
+      fifo_exit_action VARCHAR(512),
+      fifo_music VARCHAR(512),
+      fifo_order INTEGER,
+      fifo_caller_id_name VARCHAR(128),
+      fifo_caller_id_number VARCHAR(32),
+      insert_user UUID,
+      update_user UUID,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_fifo_domain ON fifo (domain_id)",
+    "CREATE TABLE IF NOT EXISTS fifo_members (
+      fifo_member_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      fifo_uuid UUID NOT NULL REFERENCES fifo (fifo_uuid) ON DELETE CASCADE,
+      member_contact VARCHAR(512),
+      member_call_timeout INTEGER,
+      member_simultaneous INTEGER,
+      member_wrap_up_time INTEGER,
+      member_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      insert_user UUID,
+      update_user UUID,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_fifo_members_parent ON fifo_members (fifo_uuid)",
+    "CREATE TABLE IF NOT EXISTS emergency_logs (
+      emergency_log_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      extension VARCHAR(32),
+      event VARCHAR(512),
+      created_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_emergency_logs_domain ON emergency_logs (domain_id)",
+    "CREATE TABLE IF NOT EXISTS event_guard_logs (
+      event_guard_log_uuid UUID PRIMARY KEY,
+      hostname VARCHAR(128),
+      log_date TIMESTAMPTZ NOT NULL,
+      filter VARCHAR(128),
+      ip_address VARCHAR(64),
+      extension VARCHAR(32),
+      user_agent VARCHAR(512),
+      log_status VARCHAR(32),
+      insert_user UUID,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
 ];
 
 /// Strict tenant tables (non-nullable domain_id) — from 043_tenant_rls_all.py.
@@ -660,6 +1045,28 @@ const STRICT_TABLES: &[&str] = &[
     "device_profile_settings",
     "call_center_tiers",
     "remaining_records",
+    "call_block",
+    "call_broadcasts",
+    "bridges",
+    "destinations",
+    "follow_me",
+    "follow_me_destinations",
+    "call_forwards",
+    "time_conditions",
+    "feature_codes",
+    "music_on_hold",
+    "phrases",
+    "phrase_details",
+    "pin_numbers",
+    "number_translations",
+    "number_translation_details",
+    "streams",
+    "access_controls",
+    "access_control_nodes",
+    "webrtc_settings",
+    "fifo",
+    "fifo_members",
+    "emergency_logs",
 ];
 
 /// Nullable tenant tables (shared/global rows allowed).
@@ -718,6 +1125,10 @@ impl MigrationTrait for M20260101_000001PgParity {
             for view in VIEWS {
                 let _ = conn.execute_unprepared(view).await;
             }
+            // One-shot forward migration: drain JSON spillover rows into the
+            // per-table entities (batch 3c → per-table replacement).
+            // Best-effort: a half-migrated boot must never fail startup.
+            let _ = backfill_remaining_records(conn).await;
         }
         Ok(())
     }
@@ -802,4 +1213,717 @@ impl MigrationTrait for M20260101_000001PgParity {
         }
         Ok(())
     }
+}
+
+// ---- one-shot spillover backfill (remaining_records → per-table entities) ----
+
+/// Outcome of [`backfill_remaining_records`]: drained rows vs rows left behind
+/// (unknown resource or missing required columns — never deleted).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct BackfillCounts {
+    pub migrated: usize,
+    pub skipped: usize,
+}
+
+fn jstr(v: &serde_json::Value, keys: &[&str]) -> Option<String> {
+    for k in keys {
+        if let Some(s) = v.get(k).and_then(|x| x.as_str()) {
+            let t = s.trim();
+            if !t.is_empty() {
+                return Some(t.to_owned());
+            }
+        }
+    }
+    None
+}
+
+fn jbool(v: &serde_json::Value, keys: &[&str], default: bool) -> bool {
+    for k in keys {
+        if let Some(x) = v.get(k) {
+            if let Some(b) = x.as_bool() {
+                return b;
+            }
+            if let Some(s) = x.as_str() {
+                match s.trim().to_lowercase().as_str() {
+                    "true" | "1" | "yes" | "on" => return true,
+                    "false" | "0" | "no" | "off" => return false,
+                    _ => {}
+                }
+            }
+            if let Some(n) = x.as_i64() {
+                return n != 0;
+            }
+        }
+    }
+    default
+}
+
+fn jint(v: &serde_json::Value, keys: &[&str], default: i32) -> i32 {
+    for k in keys {
+        if let Some(x) = v.get(k) {
+            if let Some(n) = x.as_i64() {
+                return n as i32;
+            }
+            if let Some(s) = x.as_str() {
+                if let Ok(n) = s.trim().parse::<i32>() {
+                    return n;
+                }
+            }
+        }
+    }
+    default
+}
+
+fn jint64(v: &serde_json::Value, keys: &[&str]) -> Option<i64> {
+    for k in keys {
+        if let Some(x) = v.get(k) {
+            if let Some(n) = x.as_i64() {
+                return Some(n);
+            }
+            if let Some(s) = x.as_str() {
+                if let Ok(n) = s.trim().parse::<i64>() {
+                    return Some(n);
+                }
+            }
+        }
+    }
+    None
+}
+
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+
+/// Drain `remaining_records` JSON rows into the per-table entities.
+///
+/// Idempotent: a row whose PK already exists counts as migrated and is
+/// drained (deleted). Unknown resources and rows missing required columns
+/// are left in place and counted as skipped. Missing `remaining_records`
+/// table (fresh DB) yields zero counts, not an error.
+pub async fn backfill_remaining_records<C: sea_orm::ConnectionTrait>(
+    db: &C,
+) -> Result<BackfillCounts, DbErr> {
+    use crate::entities::*;
+    let mut out = BackfillCounts::default();
+    let rows = match remaining_record::Entity::find().all(db).await {
+        Ok(r) => r,
+        Err(_) => return Ok(out),
+    };
+    for row in rows {
+        let data: serde_json::Value =
+            serde_json::from_str(&row.data).unwrap_or(serde_json::Value::Null);
+        let now = chrono::Utc::now();
+        let migrated: bool = match row.resource.as_str() {
+            "call_block" => {
+                let (Some(name), Some(number)) = (
+                    jstr(&data, &["call_block_name", "name"])
+                        .or_else(|| jstr(&data, &["call_block_number", "number"])),
+                    jstr(&data, &["call_block_number", "number"]),
+                ) else {
+                    out.skipped += 1;
+                    continue;
+                };
+                let am = call_block::ActiveModel {
+                    call_block_uuid: Set(row.id.clone()),
+                    domain_id: Set(row.domain_id),
+                    call_block_direction: Set(jstr(&data, &["call_block_direction"])),
+                    call_block_name: Set(name),
+                    call_block_country_code: Set(jstr(&data, &["call_block_country_code"])),
+                    call_block_number: Set(number),
+                    call_block_enabled: Set(jbool(&data, &["call_block_enabled", "enabled"], true)),
+                    call_block_description: Set(jstr(
+                        &data,
+                        &["call_block_description", "description"],
+                    )),
+                    call_block_action: Set(jstr(&data, &["call_block_action", "action"])),
+                    call_block_app: Set(jstr(&data, &["call_block_app", "app"])),
+                    call_block_data: Set(jstr(&data, &["call_block_data", "data"])),
+                    call_block_count: Set(Some(jint(&data, &["call_block_count"], 0))),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                    ..Default::default()
+                };
+                if call_block::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            "call_broadcast" => {
+                let Some(name) = jstr(&data, &["broadcast_name", "name"]) else {
+                    out.skipped += 1;
+                    continue;
+                };
+                let am = call_broadcasts::ActiveModel {
+                    call_broadcast_uuid: Set(row.id.clone()),
+                    domain_id: Set(row.domain_id),
+                    broadcast_name: Set(name),
+                    broadcast_description: Set(jstr(
+                        &data,
+                        &["broadcast_description", "description"],
+                    )),
+                    broadcast_start_time: Set(jint64(&data, &["broadcast_start_time"])),
+                    broadcast_timeout: Set(Some(jint(&data, &["broadcast_timeout"], 30))),
+                    broadcast_concurrent_limit: Set(Some(jint(
+                        &data,
+                        &["broadcast_concurrent_limit"],
+                        1,
+                    ))),
+                    broadcast_caller_id_name: Set(jstr(&data, &["broadcast_caller_id_name"])),
+                    broadcast_caller_id_number: Set(jstr(&data, &["broadcast_caller_id_number"])),
+                    broadcast_destination_type: Set(jstr(&data, &["broadcast_destination_type"])),
+                    broadcast_destination_data: Set(jstr(&data, &["broadcast_destination_data"])),
+                    broadcast_phone_numbers: Set(jstr(&data, &["broadcast_phone_numbers"])),
+                    broadcast_avmd: Set(data.get("broadcast_avmd").and_then(|x| x.as_bool())),
+                    broadcast_accountcode: Set(jstr(&data, &["broadcast_accountcode"])),
+                    broadcast_toll_allow: Set(jstr(&data, &["broadcast_toll_allow"])),
+                    broadcast_enabled: Set(jbool(&data, &["broadcast_enabled", "enabled"], true)),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                    ..Default::default()
+                };
+                if call_broadcasts::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            "bridges" => {
+                let Some(name) = jstr(&data, &["bridge_name", "name"]) else {
+                    out.skipped += 1;
+                    continue;
+                };
+                let am = bridges::ActiveModel {
+                    bridge_uuid: Set(row.id.clone()),
+                    domain_id: Set(row.domain_id),
+                    bridge_name: Set(name),
+                    bridge_destination: Set(jstr(&data, &["bridge_destination", "destination"])),
+                    bridge_enabled: Set(jbool(&data, &["bridge_enabled", "enabled"], true)),
+                    bridge_description: Set(jstr(&data, &["bridge_description", "description"])),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                };
+                if bridges::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            "destinations" => {
+                let Some(number) = jstr(&data, &["destination_number", "destination", "number"])
+                else {
+                    out.skipped += 1;
+                    continue;
+                };
+                let am = destinations::ActiveModel {
+                    destination_uuid: Set(row.id.clone()),
+                    domain_id: Set(row.domain_id),
+                    destination_type: Set(jstr(&data, &["destination_type", "type"])
+                        .unwrap_or_else(|| "inbound".to_owned())),
+                    destination_number: Set(number),
+                    destination_prefix: Set(jstr(&data, &["destination_prefix"])),
+                    destination_enabled: Set(jbool(
+                        &data,
+                        &["destination_enabled", "enabled"],
+                        true,
+                    )),
+                    destination_description: Set(jstr(
+                        &data,
+                        &["destination_description", "description"],
+                    )),
+                    destination_context: Set(
+                        jstr(&data, &["destination_context"]).or_else(|| Some("public".to_owned()))
+                    ),
+                    destination_app: Set(jstr(&data, &["destination_app", "action", "app"])),
+                    destination_data: Set(jstr(&data, &["destination_data", "data"])),
+                    destination_caller_id_name: Set(jstr(&data, &["destination_caller_id_name"])),
+                    destination_caller_id_number: Set(jstr(
+                        &data,
+                        &["destination_caller_id_number"],
+                    )),
+                    destination_hold_music: Set(jstr(&data, &["destination_hold_music"])),
+                    destination_record: Set(data
+                        .get("destination_record")
+                        .and_then(|x| x.as_bool())),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                    ..Default::default()
+                };
+                if destinations::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            "follow_me" => {
+                let am = follow_me::ActiveModel {
+                    follow_me_uuid: Set(row.id.clone()),
+                    domain_id: Set(row.domain_id),
+                    follow_me_enabled: Set(jbool(&data, &["follow_me_enabled", "enabled"], true)),
+                    cid_name_prefix: Set(jstr(&data, &["cid_name_prefix"])),
+                    cid_number_prefix: Set(jstr(&data, &["cid_number_prefix"])),
+                    call_prompt: Set(jstr(&data, &["call_prompt"])),
+                    dial_string: Set(jstr(&data, &["dial_string"])),
+                    description: Set(jstr(&data, &["description"])),
+                    follow_me_ignore_busy: Set(jbool(&data, &["follow_me_ignore_busy"], false)),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                };
+                let ok = if follow_me::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                };
+                if ok {
+                    if let Some(dests) = data.get("destinations").and_then(|x| x.as_array()) {
+                        for (i, d) in dests.iter().enumerate() {
+                            let num = if let Some(s) = d.as_str() {
+                                Some(s.to_owned())
+                            } else {
+                                jstr(d, &["follow_me_destination", "destination", "number"])
+                            };
+                            let Some(num) = num else { continue };
+                            let dam = follow_me_destinations::ActiveModel {
+                                follow_me_destination_uuid: Set(uuid::Uuid::now_v7().to_string()),
+                                domain_id: Set(row.domain_id),
+                                follow_me_uuid: Set(row.id.clone()),
+                                follow_me_destination: Set(num),
+                                follow_me_delay: Set(jint(d, &["follow_me_delay", "delay"], 0)),
+                                follow_me_timeout: Set(jint(
+                                    d,
+                                    &["follow_me_timeout", "timeout"],
+                                    30,
+                                )),
+                                follow_me_prompt: Set(jstr(d, &["follow_me_prompt", "prompt"])),
+                                follow_me_order: Set(i as i32),
+                                created_at: Set(now),
+                            };
+                            let _ = dam.insert(db).await;
+                        }
+                    }
+                }
+                ok
+            }
+            "call_forward" => {
+                let am = call_forwards::ActiveModel {
+                    call_forward_uuid: Set(row.id.clone()),
+                    domain_id: Set(row.domain_id),
+                    forward_all_destination: Set(jstr(
+                        &data,
+                        &["forward_all_destination", "destination"],
+                    )),
+                    forward_all_enabled: Set(jbool(
+                        &data,
+                        &["forward_all_enabled", "enabled"],
+                        false,
+                    )),
+                    forward_busy_destination: Set(jstr(&data, &["forward_busy_destination"])),
+                    forward_busy_enabled: Set(jbool(&data, &["forward_busy_enabled"], false)),
+                    forward_no_answer_destination: Set(jstr(
+                        &data,
+                        &["forward_no_answer_destination"],
+                    )),
+                    forward_no_answer_enabled: Set(jbool(
+                        &data,
+                        &["forward_no_answer_enabled"],
+                        false,
+                    )),
+                    forward_user_not_registered_destination: Set(jstr(
+                        &data,
+                        &["forward_user_not_registered_destination"],
+                    )),
+                    forward_user_not_registered_enabled: Set(jbool(
+                        &data,
+                        &["forward_user_not_registered_enabled"],
+                        false,
+                    )),
+                    enabled: Set(jbool(&data, &["enabled"], true)),
+                    description: Set(jstr(&data, &["description"])),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                    ..Default::default()
+                };
+                if call_forwards::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            "time_conditions" => {
+                let (Some(name), Some(extension)) = (
+                    jstr(&data, &["name", "time_condition_name"]),
+                    jstr(&data, &["extension", "time_condition_extension"]),
+                ) else {
+                    out.skipped += 1;
+                    continue;
+                };
+                let am = time_conditions::ActiveModel {
+                    time_condition_uuid: Set(row.id.clone()),
+                    domain_id: Set(row.domain_id),
+                    name: Set(name),
+                    extension: Set(extension),
+                    context: Set(jstr(&data, &["context", "dialplan_context"])),
+                    enabled: Set(jbool(&data, &["enabled", "time_condition_enabled"], true)),
+                    description: Set(jstr(&data, &["description", "time_condition_description"])),
+                    condition: Set(jstr(&data, &["condition"])),
+                    true_destination: Set(jstr(&data, &["true_destination", "true_dest"])),
+                    false_destination: Set(jstr(&data, &["false_destination", "false_dest"])),
+                    timezone: Set(jstr(&data, &["timezone"])),
+                    details: Set(data.get("details").cloned()),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                    ..Default::default()
+                };
+                if time_conditions::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            "feature_codes" => {
+                let Some(name) = jstr(&data, &["feature_code_name", "name"]) else {
+                    out.skipped += 1;
+                    continue;
+                };
+                let am = feature_codes::ActiveModel {
+                    feature_code_uuid: Set(row.id.clone()),
+                    domain_id: Set(row.domain_id),
+                    feature_code_name: Set(name),
+                    feature_code_value: Set(
+                        jstr(&data, &["feature_code_value", "value"]).unwrap_or_default()
+                    ),
+                    feature_code_enabled: Set(jbool(
+                        &data,
+                        &["feature_code_enabled", "enabled"],
+                        true,
+                    )),
+                    feature_code_description: Set(jstr(
+                        &data,
+                        &["feature_code_description", "description"],
+                    )),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                    ..Default::default()
+                };
+                if feature_codes::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            "music_on_hold" => {
+                let Some(name) = jstr(&data, &["music_name", "name"]) else {
+                    out.skipped += 1;
+                    continue;
+                };
+                let am = music_on_hold::ActiveModel {
+                    music_on_hold_uuid: Set(row.id.clone()),
+                    domain_id: Set(row.domain_id),
+                    music_name: Set(name),
+                    music_path: Set(jstr(&data, &["music_path", "path"]).unwrap_or_default()),
+                    music_rate: Set(Some(jint(&data, &["music_rate"], 8000))),
+                    music_shuffle: Set(jstr(&data, &["music_shuffle"])),
+                    music_channels: Set(Some(jint(&data, &["music_channels"], 1))),
+                    music_interval: Set(Some(jint(&data, &["music_interval"], 20))),
+                    music_timer_name: Set(jstr(&data, &["music_timer_name"])),
+                    music_chime_list: Set(jstr(&data, &["music_chime_list"])),
+                    music_chime_freq: Set(jstr(&data, &["music_chime_freq"])),
+                    music_chime_max: Set(data
+                        .get("music_chime_max")
+                        .and_then(|x| x.as_i64())
+                        .map(|n| n as i32)),
+                    enabled: Set(jbool(&data, &["enabled"], true)),
+                    description: Set(jstr(&data, &["description"])),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                    ..Default::default()
+                };
+                if music_on_hold::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            "phrases" => {
+                let Some(name) = jstr(&data, &["phrase_name", "name"]) else {
+                    out.skipped += 1;
+                    continue;
+                };
+                let am = phrases::ActiveModel {
+                    phrase_uuid: Set(row.id.clone()),
+                    domain_id: Set(row.domain_id),
+                    phrase_name: Set(name),
+                    phrase_language: Set(jstr(&data, &["phrase_language"])),
+                    phrase_enabled: Set(jbool(&data, &["phrase_enabled", "enabled"], true)),
+                    phrase_description: Set(jstr(&data, &["phrase_description", "description"])),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                };
+                if phrases::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            "pin_numbers" => {
+                let Some(number) = jstr(&data, &["pin_number", "number"]) else {
+                    out.skipped += 1;
+                    continue;
+                };
+                let am = pin_numbers::ActiveModel {
+                    pin_number_uuid: Set(row.id.clone()),
+                    domain_id: Set(row.domain_id),
+                    pin_number: Set(number),
+                    accountcode: Set(jstr(&data, &["accountcode"])),
+                    enabled: Set(jbool(&data, &["enabled"], true)),
+                    description: Set(jstr(&data, &["description"])),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                };
+                if pin_numbers::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            "number_translations" => {
+                let Some(name) = jstr(&data, &["number_translation_name", "name"]) else {
+                    out.skipped += 1;
+                    continue;
+                };
+                let am = number_translations::ActiveModel {
+                    number_translation_uuid: Set(row.id.clone()),
+                    domain_id: Set(row.domain_id),
+                    number_translation_name: Set(name),
+                    number_translation_regex: Set(jstr(
+                        &data,
+                        &["number_translation_regex", "regex"],
+                    )),
+                    number_translation_replace: Set(jstr(
+                        &data,
+                        &["number_translation_replace", "replace"],
+                    )),
+                    number_translation_enabled: Set(jbool(
+                        &data,
+                        &["number_translation_enabled", "enabled"],
+                        true,
+                    )),
+                    number_translation_description: Set(jstr(
+                        &data,
+                        &["number_translation_description", "description"],
+                    )),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                };
+                if number_translations::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            "streams" => {
+                let Some(name) = jstr(&data, &["stream_name", "name"]) else {
+                    out.skipped += 1;
+                    continue;
+                };
+                let am = streams::ActiveModel {
+                    stream_uuid: Set(row.id.clone()),
+                    domain_id: Set(row.domain_id),
+                    stream_name: Set(name),
+                    stream_location: Set(jstr(&data, &["stream_location", "location"])),
+                    stream_enabled: Set(jbool(&data, &["stream_enabled", "enabled"], true)),
+                    stream_description: Set(jstr(&data, &["stream_description", "description"])),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                };
+                if streams::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            "access_controls" => {
+                let Some(name) = jstr(&data, &["access_control_name", "name"]) else {
+                    out.skipped += 1;
+                    continue;
+                };
+                let am = access_controls::ActiveModel {
+                    access_control_uuid: Set(row.id.clone()),
+                    domain_id: Set(row.domain_id),
+                    access_control_name: Set(name),
+                    access_control_default: Set(jstr(&data, &["access_control_default"])
+                        .unwrap_or_else(|| "deny".to_owned())),
+                    access_control_description: Set(jstr(
+                        &data,
+                        &["access_control_description", "description"],
+                    )),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                };
+                if access_controls::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            "webrtc_settings" => {
+                let am = webrtc_settings::ActiveModel {
+                    domain_id: Set(row.domain_id),
+                    enabled: Set(jbool(&data, &["enabled"], false)),
+                    auth_mode: Set(
+                        jstr(&data, &["auth_mode"]).unwrap_or_else(|| "extension".to_owned())
+                    ),
+                    wss_url: Set(jstr(&data, &["wss_url"])),
+                    sip_domain: Set(jstr(&data, &["sip_domain"])),
+                    ice_servers: Set(data.get("ice_servers").cloned()),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                };
+                if webrtc_settings::Entity::find_by_id(row.domain_id)
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            "fifo_list" | "fifo" => {
+                let Some(name) = jstr(&data, &["fifo_name", "name"]) else {
+                    out.skipped += 1;
+                    continue;
+                };
+                let am = fifo::ActiveModel {
+                    fifo_uuid: Set(row.id.clone()),
+                    domain_id: Set(row.domain_id),
+                    fifo_name: Set(name),
+                    fifo_extension: Set(jstr(&data, &["fifo_extension", "extension"])),
+                    fifo_enabled: Set(jbool(&data, &["fifo_enabled", "enabled"], true)),
+                    fifo_description: Set(jstr(&data, &["fifo_description", "description"])),
+                    fifo_strategy: Set(jstr(&data, &["fifo_strategy", "strategy"])),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                    ..Default::default()
+                };
+                if fifo::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            "emergency_logs" => {
+                let am = emergency_logs::ActiveModel {
+                    emergency_log_uuid: Set(row.id.clone()),
+                    domain_id: Set(row.domain_id),
+                    extension: Set(jstr(&data, &["extension"])),
+                    event: Set(jstr(&data, &["event"])),
+                    created_at: Set(now),
+                };
+                if emergency_logs::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            "event_guard" => {
+                let am = event_guard_logs::ActiveModel {
+                    event_guard_log_uuid: Set(row.id.clone()),
+                    hostname: Set(jstr(&data, &["hostname"])),
+                    log_date: Set(now),
+                    filter: Set(jstr(&data, &["filter"])),
+                    ip_address: Set(jstr(&data, &["ip_address"])),
+                    extension: Set(jstr(&data, &["extension"])),
+                    user_agent: Set(jstr(&data, &["user_agent"])),
+                    log_status: Set(jstr(&data, &["log_status", "status"])),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                    ..Default::default()
+                };
+                if event_guard_logs::Entity::find_by_id(row.id.clone())
+                    .one(db)
+                    .await?
+                    .is_some()
+                {
+                    true
+                } else {
+                    am.insert(db).await.map(|_| true).unwrap_or(false)
+                }
+            }
+            _ => {
+                out.skipped += 1;
+                continue;
+            }
+        };
+        if migrated {
+            let am: remaining_record::ActiveModel = row.into();
+            let _ = am.delete(db).await;
+            out.migrated += 1;
+        } else {
+            out.skipped += 1;
+        }
+    }
+    Ok(out)
 }

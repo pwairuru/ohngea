@@ -234,3 +234,244 @@ async fn click_to_call_originate_shows_in_channels() {
         "channels must show click_to_call call: {b}"
     );
 }
+
+fn other_tenant_token() -> String {
+    pbx_core::auth::encode_claims(
+        "00000000-0000-0000-0000-000000000099",
+        "other-tenant",
+        "admin",
+        &["admin".to_string()],
+    )
+}
+
+fn rand_suffix() -> u32 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| (d.subsec_nanos() % 9000000) + 1000000)
+        .unwrap_or(1000001)
+}
+
+// ---- spillover replacement RED: per-table entities with real columns ----
+// These assert Python-model column names (not generic JSON spillover).
+// Pre-migration they FAIL (422 missing legacy `number`/`name` keys, no
+// `follow_me_destination` objects, no PATCH route); post-migration GREEN.
+
+// (10) call_block per-table: real columns + legacy `number` alias accepted
+#[tokio::test]
+async fn call_block_per_table_real_columns() {
+    let token = login_token().await;
+    let num = format!("+1555{:07}", rand_suffix());
+    let (s, b) = post_json(
+        pbx_api::test_app(),
+        &token,
+        "/api/v1/call_block",
+        serde_json::json!({"call_block_number": num, "call_block_name": "spam-per-table"}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "call_block create: {b}");
+    assert!(
+        b.get("call_block_uuid").and_then(|v| v.as_str()).is_some(),
+        "real PK missing: {b}"
+    );
+    assert_eq!(
+        b.get("call_block_number").and_then(|v| v.as_str()),
+        Some(num.as_str()),
+        "real column missing: {b}"
+    );
+    let id = b["call_block_uuid"].as_str().unwrap().to_string();
+    let (s, b) = get_json(
+        pbx_api::test_app(),
+        &token,
+        &format!("/api/v1/call_block/{id}"),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "call_block get one: {b}");
+    assert_eq!(
+        b.get("call_block_number").and_then(|v| v.as_str()),
+        Some(num.as_str()),
+        "get one real column: {b}"
+    );
+}
+
+// (11) bridges per-table: real columns
+#[tokio::test]
+async fn bridges_per_table_real_columns() {
+    let token = login_token().await;
+    let name = format!("br-pt-{}", rand_suffix());
+    let (s, b) = post_json(
+        pbx_api::test_app(),
+        &token,
+        "/api/v1/bridges",
+        serde_json::json!({"bridge_name": name, "bridge_destination": "1001"}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "bridges create: {b}");
+    assert!(
+        b.get("bridge_uuid").and_then(|v| v.as_str()).is_some(),
+        "real PK missing: {b}"
+    );
+    assert_eq!(
+        b.get("bridge_name").and_then(|v| v.as_str()),
+        Some(name.as_str()),
+        "real column missing: {b}"
+    );
+}
+
+// (12) destinations per-table: real columns
+#[tokio::test]
+async fn destinations_per_table_real_columns() {
+    let token = login_token().await;
+    let num = format!("2{:06}", rand_suffix() % 1000000);
+    let (s, b) = post_json(
+        pbx_api::test_app(),
+        &token,
+        "/api/v1/destinations",
+        serde_json::json!({"destination_number": num, "destination_type": "inbound"}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "destinations create: {b}");
+    assert!(
+        b.get("destination_uuid").and_then(|v| v.as_str()).is_some(),
+        "real PK missing: {b}"
+    );
+    assert_eq!(
+        b.get("destination_number").and_then(|v| v.as_str()),
+        Some(num.as_str()),
+        "real column missing: {b}"
+    );
+}
+
+// (13) follow_me per-table: destinations roundtrip as objects
+#[tokio::test]
+async fn follow_me_per_table_destinations_roundtrip() {
+    let token = login_token().await;
+    let (s, b) = post_json(
+        pbx_api::test_app(),
+        &token,
+        "/api/v1/follow_me",
+        serde_json::json!({"extension": "1001", "follow_me_enabled": true, "destinations": ["1002", "1003"]}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "follow_me create: {b}");
+    let id = b
+        .get("follow_me_uuid")
+        .and_then(|v| v.as_str())
+        .expect("follow_me_uuid missing")
+        .to_string();
+    let dests = b
+        .get("destinations")
+        .and_then(|d| d.as_array())
+        .cloned()
+        .unwrap_or_default();
+    assert_eq!(dests.len(), 2, "destinations roundtrip: {b}");
+    assert!(
+        dests
+            .iter()
+            .all(|d| d.get("follow_me_destination").is_some()),
+        "destination objects need follow_me_destination: {b}"
+    );
+    let (s, b) = get_json(
+        pbx_api::test_app(),
+        &token,
+        &format!("/api/v1/follow_me/{id}"),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "follow_me get one: {b}");
+    assert_eq!(
+        b.get("destinations")
+            .and_then(|d| d.as_array())
+            .map(|a| a.len()),
+        Some(2),
+        "get one destinations: {b}"
+    );
+}
+
+// (14) time_conditions per-table: real columns + PATCH update
+#[tokio::test]
+async fn time_conditions_per_table_patch() {
+    let token = login_token().await;
+    let name = format!("office-hours-{}", rand_suffix());
+    let (s, b) = post_json(
+        pbx_api::test_app(),
+        &token,
+        "/api/v1/time_conditions",
+        serde_json::json!({"name": name, "extension": "7001"}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "time_conditions create: {b}");
+    assert_eq!(
+        b.get("name").and_then(|v| v.as_str()),
+        Some(name.as_str()),
+        "real column name: {b}"
+    );
+    assert_eq!(
+        b.get("extension").and_then(|v| v.as_str()),
+        Some("7001"),
+        "real column extension: {b}"
+    );
+    let id = b
+        .get("time_condition_uuid")
+        .and_then(|v| v.as_str())
+        .expect("time_condition_uuid missing")
+        .to_string();
+    let app = pbx_api::test_app();
+    let res = app
+        .oneshot(auth(
+            Request::patch(format!("/api/v1/time_conditions/{id}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({"description": "9-5 weekdays"}).to_string(),
+                ))
+                .unwrap(),
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK, "PATCH time_condition");
+    let bytes = axum::body::to_bytes(res.into_body(), 1024 * 64)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        v.get("description").and_then(|x| x.as_str()),
+        Some("9-5 weekdays"),
+        "patched column: {v}"
+    );
+}
+
+// (15) cross-tenant invisibility: other domain sees none of our call_block rows
+#[tokio::test]
+async fn call_block_cross_tenant_invisible() {
+    let token = login_token().await;
+    let other = other_tenant_token();
+    let num = format!("+1555{:07}", rand_suffix());
+    let (s, b) = post_json(
+        pbx_api::test_app(),
+        &token,
+        "/api/v1/call_block",
+        serde_json::json!({"call_block_number": num, "call_block_name": "tenant-a-only"}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "create tenant A: {b}");
+    let id = b["call_block_uuid"].as_str().unwrap_or("").to_string();
+    assert!(!id.is_empty(), "uuid: {b}");
+    let (s, b) = get_json(pbx_api::test_app(), &other, "/api/v1/call_block").await;
+    assert_eq!(s, StatusCode::OK, "other tenant list: {b}");
+    let data = b
+        .get("data")
+        .and_then(|d| d.as_array())
+        .cloned()
+        .unwrap_or_default();
+    assert!(
+        data.iter()
+            .all(|r| r.get("call_block_uuid").and_then(|v| v.as_str()) != Some(id.as_str())),
+        "tenant B must not see tenant A row: {b}"
+    );
+    let (s, _) = get_json(
+        pbx_api::test_app(),
+        &other,
+        &format!("/api/v1/call_block/{id}"),
+    )
+    .await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "tenant B get one must 404");
+}
