@@ -43,6 +43,9 @@ async fn create_acl(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "access_control_add") {
+        return (s, j).into_response();
+    }
     let Some(name) = s(&payload, &["access_control_name", "name"]) else {
         return unprocessable("name required").into_response();
     };
@@ -74,6 +77,9 @@ async fn create_acl(
 }
 
 async fn list_acls(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "access_control_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = access_controls::Entity::find()
@@ -81,7 +87,7 @@ async fn list_acls(Extension(claims): Extension<Claims>) -> impl IntoResponse {
         .all(db)
         .await
         .unwrap_or_default();
-    envelope(rows.iter().map(ser_acl).collect())
+    envelope(rows.iter().map(ser_acl).collect()).into_response()
 }
 
 async fn scoped_acl(
@@ -103,6 +109,9 @@ async fn get_acl(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "access_control_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match scoped_acl(db, domain, &id).await {
@@ -120,6 +129,9 @@ async fn patch_acl(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "access_control_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = scoped_acl(db, domain, &id).await else {
@@ -151,6 +163,9 @@ async fn delete_acl(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "access_control_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match scoped_acl(db, domain, &id).await {
@@ -172,6 +187,9 @@ async fn create_acl_node(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "access_control_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if scoped_acl(db, domain, &id).await.is_none() {
@@ -212,6 +230,9 @@ async fn list_acl_nodes(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "access_control_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if scoped_acl(db, domain, &id).await.is_none() {
@@ -233,6 +254,9 @@ async fn delete_acl_node(
     Extension(claims): Extension<Claims>,
     axum::extract::Path((id, node)): axum::extract::Path<(String, String)>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "access_control_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if scoped_acl(db, domain, &id).await.is_none() {
@@ -314,6 +338,9 @@ async fn create_fifo(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fifo_add") {
+        return (s, j).into_response();
+    }
     let Some(name) = s(&payload, &["fifo_name", "name"]) else {
         return unprocessable("name required").into_response();
     };
@@ -345,6 +372,9 @@ async fn create_fifo(
 }
 
 async fn list_fifo(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fifo_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = fifo::Entity::find()
@@ -352,7 +382,7 @@ async fn list_fifo(Extension(claims): Extension<Claims>) -> impl IntoResponse {
         .all(db)
         .await
         .unwrap_or_default();
-    envelope(rows.iter().map(ser_fifo).collect())
+    envelope(rows.iter().map(ser_fifo).collect()).into_response()
 }
 
 async fn scoped_fifo(
@@ -374,6 +404,9 @@ async fn get_fifo(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fifo_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match scoped_fifo(db, domain, &id).await {
@@ -391,6 +424,9 @@ async fn patch_fifo(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fifo_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = scoped_fifo(db, domain, &id).await else {
@@ -429,6 +465,9 @@ async fn delete_fifo(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fifo_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match scoped_fifo(db, domain, &id).await {
@@ -450,6 +489,9 @@ async fn create_fifo_member(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fifo_member_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if scoped_fifo(db, domain, &id).await.is_none() {
@@ -484,6 +526,9 @@ async fn list_fifo_members(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fifo_member_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if scoped_fifo(db, domain, &id).await.is_none() {
@@ -521,6 +566,9 @@ fn fifo_router() -> Router {
 
 // ---- handlers: fifo_list status view (Python parity: ESL `fifo list` → DB fallback) ----
 async fn list_fifo_status(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fifo_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = fifo::Entity::find()
@@ -544,10 +592,13 @@ async fn list_fifo_status(Extension(claims): Extension<Claims>) -> impl IntoResp
         })
         .collect();
     let total = data.len();
-    Json(serde_json::json!({"data": data, "total": total, "source": "db"}))
+    Json(serde_json::json!({"data": data, "total": total, "source": "db"})).into_response()
 }
 
 async fn fifo_status_summary(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fifo_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let total = fifo::Entity::find()
@@ -555,7 +606,7 @@ async fn fifo_status_summary(Extension(claims): Extension<Claims>) -> impl IntoR
         .count(db)
         .await
         .unwrap_or(0);
-    Json(serde_json::json!({"data": [], "total": total, "source": "db"}))
+    Json(serde_json::json!({"data": [], "total": total, "source": "db"})).into_response()
 }
 
 async fn list_fifo_callers(
@@ -692,6 +743,9 @@ async fn create_webrtc(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "webrtc_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = tenant_domain(db, &claims).await;
     match upsert_webrtc(db, domain, &payload).await {
@@ -708,6 +762,9 @@ async fn create_webrtc(
 }
 
 async fn list_webrtc(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "webrtc_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match webrtc_settings::Entity::find_by_id(domain)
@@ -718,12 +775,16 @@ async fn list_webrtc(Extension(claims): Extension<Claims>) -> impl IntoResponse 
         Some(r) => envelope(vec![ser_webrtc(&r)]),
         None => envelope(vec![default_webrtc(domain)]),
     }
+    .into_response()
 }
 
 async fn get_webrtc(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "webrtc_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if id != domain.to_string() {
@@ -747,6 +808,9 @@ async fn delete_webrtc(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "webrtc_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if id != domain.to_string() {
@@ -771,6 +835,9 @@ async fn get_webrtc_settings(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(domain_id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "webrtc_view") {
+        return (s, j).into_response();
+    }
     let req_domain: uuid::Uuid = match domain_id.parse() {
         Ok(d) => d,
         Err(_) => {
@@ -804,6 +871,9 @@ async fn put_webrtc_settings(
     axum::extract::Path(domain_id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "webrtc_edit") {
+        return (s, j).into_response();
+    }
     let req_domain: uuid::Uuid = match domain_id.parse() {
         Ok(d) => d,
         Err(_) => {
@@ -866,6 +936,9 @@ async fn create_emergency(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "emergency_logs_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = tenant_domain(db, &claims).await;
     let now = crate::routing_db::now();
@@ -887,6 +960,9 @@ async fn create_emergency(
 }
 
 async fn list_emergency(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "emergency_logs_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = emergency_logs::Entity::find()
@@ -894,13 +970,16 @@ async fn list_emergency(Extension(claims): Extension<Claims>) -> impl IntoRespon
         .all(db)
         .await
         .unwrap_or_default();
-    envelope(rows.iter().map(ser_emergency).collect())
+    envelope(rows.iter().map(ser_emergency).collect()).into_response()
 }
 
 async fn get_emergency(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "emergency_logs_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match emergency_logs::Entity::find_by_id(id)
@@ -923,6 +1002,9 @@ async fn delete_emergency(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "emergency_logs_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match emergency_logs::Entity::find_by_id(id)
@@ -968,7 +1050,13 @@ fn ser_event_guard(r: &event_guard_logs::Model) -> Value {
     })
 }
 
-async fn create_event_guard(Json(payload): Json<Value>) -> impl IntoResponse {
+async fn create_event_guard(
+    Extension(claims): Extension<Claims>,
+    Json(payload): Json<Value>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "event_guard_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let now = crate::routing_db::now();
     let am = event_guard_logs::ActiveModel {
@@ -994,18 +1082,25 @@ async fn create_event_guard(Json(payload): Json<Value>) -> impl IntoResponse {
     }
 }
 
-async fn list_event_guard() -> impl IntoResponse {
+async fn list_event_guard(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "event_guard_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let rows = event_guard_logs::Entity::find()
         .all(db)
         .await
         .unwrap_or_default();
-    envelope(rows.iter().map(ser_event_guard).collect())
+    envelope(rows.iter().map(ser_event_guard).collect()).into_response()
 }
 
 async fn get_event_guard(
+    Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "event_guard_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     match event_guard_logs::Entity::find_by_id(id)
         .one(db)
@@ -1022,8 +1117,12 @@ async fn get_event_guard(
 }
 
 async fn delete_event_guard(
+    Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "event_guard_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     match event_guard_logs::Entity::find_by_id(id)
         .one(db)

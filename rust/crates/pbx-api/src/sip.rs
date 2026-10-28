@@ -27,6 +27,9 @@ async fn create_profile(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "sip_profile_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
@@ -35,7 +38,8 @@ async fn create_profile(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
-            );
+            )
+                .into_response();
         }
     };
     let now = crate::routing_db::now();
@@ -94,20 +98,24 @@ async fn create_profile(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-            );
+            )
+                .into_response();
         }
     };
     let _ = txn.commit().await;
-    (StatusCode::CREATED, Json(profile_to_json(&row)))
+    (StatusCode::CREATED, Json(profile_to_json(&row))).into_response()
 }
 
 async fn list_profiles(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "sip_profile_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
-        Err(_) => return Json(serde_json::json!({"data": [], "total": 0})),
+        Err(_) => return Json(serde_json::json!({"data": [], "total": 0})).into_response(),
     };
     let domain_id = crate::routing_db::domain(&claims);
     let rows = pbx_db::entities::sip_profiles::Entity::find()
@@ -118,13 +126,16 @@ async fn list_profiles(
     let _ = txn.commit().await;
     let items: Vec<serde_json::Value> = rows.iter().map(profile_to_json).collect();
     let total = items.len();
-    Json(serde_json::json!({"data": items, "total": total}))
+    Json(serde_json::json!({"data": items, "total": total})).into_response()
 }
 
 async fn get_profile(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "sip_profile_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
@@ -165,6 +176,9 @@ async fn patch_profile(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(patch): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "sip_profile_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
@@ -225,6 +239,9 @@ async fn delete_profile(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "sip_profile_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
@@ -276,13 +293,16 @@ async fn list_profile_domains(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path(pid): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "sip_profile_domain_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
-        Err(_) => return Json(serde_json::json!({"data": [], "total": 0})),
+        Err(_) => return Json(serde_json::json!({"data": [], "total": 0})).into_response(),
     };
     let Ok(puid) = pid.parse::<uuid::Uuid>() else {
-        return Json(serde_json::json!({"data": [], "total": 0}));
+        return Json(serde_json::json!({"data": [], "total": 0})).into_response();
     };
     let rows = pbx_db::entities::sip_profile_domains::Entity::find()
         .filter(pbx_db::entities::sip_profile_domains::Column::SipProfileUuid.eq(puid))
@@ -292,7 +312,7 @@ async fn list_profile_domains(
     let _ = txn.commit().await;
     let items: Vec<serde_json::Value> = rows.iter().map(domain_to_json).collect();
     let total = items.len();
-    Json(serde_json::json!({"data": items, "total": total}))
+    Json(serde_json::json!({"data": items, "total": total})).into_response()
 }
 
 async fn create_profile_domain(
@@ -300,6 +320,9 @@ async fn create_profile_domain(
     axum::extract::Path(pid): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "sip_profile_domain_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
@@ -308,14 +331,16 @@ async fn create_profile_domain(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
-            );
+            )
+                .into_response();
         }
     };
     let Ok(puid) = pid.parse::<uuid::Uuid>() else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "profile not found"})),
-        );
+        )
+            .into_response();
     };
     let now = crate::routing_db::now();
     let id = uuid::Uuid::now_v7();
@@ -345,11 +370,12 @@ async fn create_profile_domain(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-            );
+            )
+                .into_response();
         }
     };
     let _ = txn.commit().await;
-    (StatusCode::CREATED, Json(domain_to_json(&row)))
+    (StatusCode::CREATED, Json(domain_to_json(&row))).into_response()
 }
 
 async fn patch_profile_domain(
@@ -357,6 +383,9 @@ async fn patch_profile_domain(
     axum::extract::Path((pid, did)): axum::extract::Path<(String, String)>,
     Json(patch): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "sip_profile_domain_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
@@ -410,6 +439,9 @@ async fn delete_profile_domain(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path((pid, did)): axum::extract::Path<(String, String)>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "sip_profile_domain_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
@@ -460,13 +492,16 @@ async fn list_profile_settings(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path(pid): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "sip_profile_setting_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
-        Err(_) => return Json(serde_json::json!({"data": [], "total": 0})),
+        Err(_) => return Json(serde_json::json!({"data": [], "total": 0})).into_response(),
     };
     let Ok(puid) = pid.parse::<uuid::Uuid>() else {
-        return Json(serde_json::json!({"data": [], "total": 0}));
+        return Json(serde_json::json!({"data": [], "total": 0})).into_response();
     };
     let rows = pbx_db::entities::sip_profile_settings::Entity::find()
         .filter(pbx_db::entities::sip_profile_settings::Column::SipProfileUuid.eq(puid))
@@ -476,7 +511,7 @@ async fn list_profile_settings(
     let _ = txn.commit().await;
     let items: Vec<serde_json::Value> = rows.iter().map(setting_to_json).collect();
     let total = items.len();
-    Json(serde_json::json!({"data": items, "total": total}))
+    Json(serde_json::json!({"data": items, "total": total})).into_response()
 }
 
 async fn create_profile_setting(
@@ -484,6 +519,9 @@ async fn create_profile_setting(
     axum::extract::Path(pid): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "sip_profile_setting_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
@@ -492,14 +530,16 @@ async fn create_profile_setting(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
-            );
+            )
+                .into_response();
         }
     };
     let Ok(puid) = pid.parse::<uuid::Uuid>() else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "profile not found"})),
-        );
+        )
+            .into_response();
     };
     let now = crate::routing_db::now();
     let id = uuid::Uuid::now_v7();
@@ -530,11 +570,12 @@ async fn create_profile_setting(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-            );
+            )
+                .into_response();
         }
     };
     let _ = txn.commit().await;
-    (StatusCode::CREATED, Json(setting_to_json(&row)))
+    (StatusCode::CREATED, Json(setting_to_json(&row))).into_response()
 }
 
 async fn patch_profile_setting(
@@ -542,6 +583,9 @@ async fn patch_profile_setting(
     axum::extract::Path((pid, sid)): axum::extract::Path<(String, String)>,
     Json(patch): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "sip_profile_setting_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
@@ -595,6 +639,9 @@ async fn delete_profile_setting(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path((pid, sid)): axum::extract::Path<(String, String)>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "sip_profile_setting_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let (Ok(puid), Ok(suid)) = (pid.parse::<uuid::Uuid>(), sid.parse::<uuid::Uuid>()) else {

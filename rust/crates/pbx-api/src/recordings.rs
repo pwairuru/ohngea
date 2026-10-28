@@ -32,11 +32,15 @@ async fn create_rec(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<RecordingCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "recording_add") {
+        return (s, j).into_response();
+    }
     if payload.name.trim().is_empty() {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(serde_json::json!({"detail": "name required"})),
-        );
+        )
+            .into_response();
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
@@ -58,7 +62,8 @@ async fn create_rec(
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": "insert failed"})),
-        );
+        )
+            .into_response();
     }
     (
         StatusCode::CREATED,
@@ -68,9 +73,13 @@ async fn create_rec(
             file_path: path,
         })),
     )
+        .into_response()
 }
 
 async fn list_rec(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "recording_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = recordings::Entity::find()
@@ -89,13 +98,16 @@ async fn list_rec(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl 
             })
         })
         .collect();
-    Json(serde_json::json!({"data": data, "total": total}))
+    Json(serde_json::json!({"data": data, "total": total})).into_response()
 }
 
 async fn presign_rec(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "recording_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let row = recordings::Entity::find_by_id(id.clone())
@@ -145,6 +157,9 @@ async fn get_rec(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "recording_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match rec_or_404(db, domain, &id).await {
@@ -161,6 +176,9 @@ async fn playback_rec(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "recording_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match rec_or_404(db, domain, &id).await {
@@ -186,6 +204,9 @@ async fn patch_rec(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "recording_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = rec_or_404(db, domain, &id).await else {
@@ -214,6 +235,9 @@ async fn delete_rec(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "recording_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = rec_or_404(db, domain, &id).await else {

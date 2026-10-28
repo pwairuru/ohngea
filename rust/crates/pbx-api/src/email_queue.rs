@@ -27,11 +27,15 @@ async fn submit_email(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<EmailSubmit>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "email_queue_add") {
+        return (s, j).into_response();
+    }
     if payload.email_from.trim().is_empty() || payload.email_to.trim().is_empty() {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(serde_json::json!({"detail": "email_from and email_to required"})),
-        );
+        )
+            .into_response();
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
@@ -52,7 +56,8 @@ async fn submit_email(
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-        );
+        )
+            .into_response();
     }
     (
         StatusCode::CREATED,
@@ -66,11 +71,15 @@ async fn submit_email(
             "email_status": "waiting",
         })),
     )
+        .into_response()
 }
 
 async fn list_email_queue(
     Extension(claims): Extension<pbx_core::auth::Claims>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "email_queue_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let rows = email_queue::Entity::find()
@@ -91,13 +100,16 @@ async fn list_email_queue(
             })
         })
         .collect();
-    Json(serde_json::json!({"data": data, "total": total}))
+    Json(serde_json::json!({"data": data, "total": total})).into_response()
 }
 
 async fn get_email(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "email_queue_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = email_queue::Entity::find_by_id(id)
@@ -142,6 +154,9 @@ async fn patch_email(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "email_queue_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let Some(r) = email_or_404(db, domain, &id).await else {
@@ -179,6 +194,9 @@ async fn delete_email(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "email_queue_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let Some(r) = email_or_404(db, domain, &id).await else {
@@ -203,6 +221,9 @@ async fn retry_email(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "email_queue_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let Some(r) = email_or_404(db, domain, &id).await else {

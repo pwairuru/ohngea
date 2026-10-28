@@ -59,6 +59,9 @@ async fn create_vm(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<VoicemailCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
+        return (s, j).into_response();
+    }
     if !valid_mailbox(&payload.voicemail_id) {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -108,6 +111,9 @@ async fn list_vm(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_view") {
+        return (s, j).into_response();
+    }
     let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
@@ -125,16 +131,20 @@ async fn list_vm(
         crate::paged_headers("/api/v1/voicemails", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),
     )
+        .into_response()
 }
 
 async fn health_vm() -> impl IntoResponse {
-    Json(serde_json::json!({"status": "ok", "service": "voicemails"}))
+    Json(serde_json::json!({"status": "ok", "service": "voicemails"})).into_response()
 }
 
 async fn get_vm(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match vm_or_404(db, domain, &id).await {
@@ -152,6 +162,9 @@ async fn patch_vm(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = vm_or_404(db, domain, &id).await else {
@@ -183,6 +196,9 @@ async fn delete_vm(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     for m in voicemail_messages::Entity::find()
@@ -248,6 +264,9 @@ async fn list_messages(
     axum::extract::Path(id): axum::extract::Path<String>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if vm_or_404(db, domain, &id).await.is_none() {
@@ -286,6 +305,9 @@ async fn create_message(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if vm_or_404(db, domain, &id).await.is_none() {
@@ -346,6 +368,9 @@ async fn patch_message(
     axum::extract::Path((id, mid)): axum::extract::Path<(String, String)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = msg_or_404(db, domain, &id, &mid).await else {
@@ -376,6 +401,9 @@ async fn delete_message(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((id, mid)): axum::extract::Path<(String, String)>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = msg_or_404(db, domain, &id, &mid).await else {
@@ -400,6 +428,9 @@ async fn playback_message(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((id, mid)): axum::extract::Path<(String, String)>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = msg_or_404(db, domain, &id, &mid).await else {
@@ -457,6 +488,9 @@ async fn list_options(
     axum::extract::Path(id): axum::extract::Path<String>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if vm_or_404(db, domain, &id).await.is_none() {
@@ -495,6 +529,9 @@ async fn create_option(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if vm_or_404(db, domain, &id).await.is_none() {
@@ -553,6 +590,9 @@ async fn patch_option(
     axum::extract::Path((id, oid)): axum::extract::Path<(String, String)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = opt_or_404(db, domain, &id, &oid).await else {
@@ -587,6 +627,9 @@ async fn delete_option(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((id, oid)): axum::extract::Path<(String, String)>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = opt_or_404(db, domain, &id, &oid).await else {
@@ -613,6 +656,9 @@ async fn create_greeting(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<GreetingCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
+        return (s, j).into_response();
+    }
     if payload.greeting_name.trim().is_empty() {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -668,6 +714,9 @@ async fn list_greetings(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_view") {
+        return (s, j).into_response();
+    }
     let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
@@ -685,12 +734,16 @@ async fn list_greetings(
         crate::paged_headers("/api/v1/voicemail_greetings", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),
     )
+        .into_response()
 }
 
 async fn create_greeting_standalone(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
+        return (s, j).into_response();
+    }
     let Some(name) = payload
         .get("greeting_name")
         .and_then(|v| v.as_str())
@@ -789,6 +842,9 @@ async fn get_greeting(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match greeting_or_404(db, domain, &id).await {
@@ -806,6 +862,9 @@ async fn patch_greeting(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = greeting_or_404(db, domain, &id).await else {
@@ -839,6 +898,9 @@ async fn delete_greeting(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = greeting_or_404(db, domain, &id).await else {

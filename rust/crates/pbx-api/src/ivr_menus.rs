@@ -46,6 +46,9 @@ async fn create_ivr(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<IvrCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ivr_menu_add") {
+        return (s, j).into_response();
+    }
     if payload.name.trim().is_empty() {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -107,6 +110,9 @@ async fn list_ivr(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ivr_menu_view") {
+        return (s, j).into_response();
+    }
     let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
@@ -134,6 +140,7 @@ async fn list_ivr(
         crate::paged_headers("/api/v1/ivr_menus", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),
     )
+        .into_response()
 }
 
 async fn ivr_or_404(
@@ -153,6 +160,9 @@ async fn patch_ivr(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ivr_menu_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = ivr_or_404(db, domain, &id).await else {
@@ -201,6 +211,9 @@ async fn delete_ivr(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ivr_menu_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     for o in ivr_menu_options::Entity::find()
@@ -261,6 +274,9 @@ async fn list_options(
     axum::extract::Path(id): axum::extract::Path<String>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ivr_menu_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if ivr_or_404(db, domain, &id).await.is_none() {
@@ -299,6 +315,9 @@ async fn create_option(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ivr_menu_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if ivr_or_404(db, domain, &id).await.is_none() {
@@ -357,6 +376,9 @@ async fn patch_option(
     axum::extract::Path((id, oid)): axum::extract::Path<(String, String)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ivr_menu_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = opt_or_404(db, domain, &id, &oid).await else {
@@ -393,6 +415,9 @@ async fn delete_option(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((id, oid)): axum::extract::Path<(String, String)>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ivr_menu_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = opt_or_404(db, domain, &id, &oid).await else {
@@ -416,6 +441,9 @@ async fn get_ivr(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ivr_menu_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let row = ivr_menus::Entity::find_by_id(id.clone())

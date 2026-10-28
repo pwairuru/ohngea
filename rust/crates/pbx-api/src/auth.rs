@@ -65,6 +65,10 @@ fn token_response(token: String) -> (HeaderMap, Json<TokenResponse>) {
 // user row by username and verify_password against the stored hash.
 // Debug keeps the historical stub fallback (empty test DB, unit tests, fresh
 // boots); release returns None → 401 unless a real user verifies.
+//
+// TODO(auth-hardening): MFA/OTP, password-reset flow, and LDAP are not
+// implemented (audit gap #10). The login surface is password-only; wire
+// TOTP + reset tokens here before production exposure.
 async fn real_or_stub_token(username: &str, password: &str) -> Option<String> {
     let db = crate::routing_db::conn().await;
     let row = {

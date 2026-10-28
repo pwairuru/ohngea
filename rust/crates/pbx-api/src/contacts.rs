@@ -86,6 +86,9 @@ async fn create_contact(
 }
 
 async fn list_contacts(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let rows = contacts::Entity::find()
@@ -107,7 +110,7 @@ async fn list_contacts(Extension(claims): Extension<pbx_core::auth::Claims>) -> 
             })
         })
         .collect();
-    Json(serde_json::json!({"data": data, "total": total}))
+    Json(serde_json::json!({"data": data, "total": total})).into_response()
 }
 
 async fn get_contact(

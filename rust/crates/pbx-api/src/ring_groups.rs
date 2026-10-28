@@ -69,17 +69,22 @@ async fn create_rg(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<RingGroupCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ring_group_add") {
+        return (s, j).into_response();
+    }
     if payload.name.trim().is_empty() {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(serde_json::json!({"detail": "name required"})),
-        );
+        )
+            .into_response();
     }
     if !valid_extension(&payload.extension) {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(serde_json::json!({"detail": "extension must be 2-7 digits"})),
-        );
+        )
+            .into_response();
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
@@ -100,7 +105,8 @@ async fn create_rg(
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-        );
+        )
+            .into_response();
     }
     let mut members = Vec::new();
     for m in &payload.members {
@@ -130,9 +136,13 @@ async fn create_rg(
             members,
         })),
     )
+        .into_response()
 }
 
 async fn list_rg(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ring_group_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = ring_groups::Entity::find()
@@ -153,13 +163,16 @@ async fn list_rg(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl I
             })
         })
         .collect();
-    Json(serde_json::json!({"data": data, "total": total}))
+    Json(serde_json::json!({"data": data, "total": total})).into_response()
 }
 
 async fn get_rg(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ring_group_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let row = ring_groups::Entity::find_by_id(id.clone())
@@ -171,7 +184,8 @@ async fn get_rg(
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
-        );
+        )
+            .into_response();
     };
     let mems = ring_group_members::Entity::find()
         .filter(ring_group_members::Column::RingGroupUuid.eq(id))
@@ -198,10 +212,11 @@ async fn get_rg(
             members,
         })),
     )
+        .into_response()
 }
 
 async fn health_rg() -> impl IntoResponse {
-    Json(serde_json::json!({"status": "ok", "service": "ring_groups"}))
+    Json(serde_json::json!({"status": "ok", "service": "ring_groups"})).into_response()
 }
 
 async fn rg_or_404(
@@ -221,6 +236,9 @@ async fn patch_rg(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ring_group_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = rg_or_404(db, domain, &id).await else {
@@ -266,6 +284,9 @@ async fn delete_rg(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ring_group_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = rg_or_404(db, domain, &id).await else {

@@ -113,6 +113,9 @@ async fn create_call_block(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_block_add") {
+        return (s, j).into_response();
+    }
     let Some(number) = s(&payload, &["call_block_number", "number"]) else {
         return unprocessable("number required").into_response();
     };
@@ -149,6 +152,9 @@ async fn create_call_block(
 }
 
 async fn list_call_block(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_block_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = call_block::Entity::find()
@@ -156,13 +162,16 @@ async fn list_call_block(Extension(claims): Extension<Claims>) -> impl IntoRespo
         .all(db)
         .await
         .unwrap_or_default();
-    envelope(rows.iter().map(ser_call_block).collect())
+    envelope(rows.iter().map(ser_call_block).collect()).into_response()
 }
 
 async fn get_call_block(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_block_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match call_block::Entity::find_by_id(id)
@@ -186,6 +195,9 @@ async fn patch_call_block(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_block_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = call_block::Entity::find_by_id(id)
@@ -241,6 +253,9 @@ async fn delete_call_block(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_block_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match call_block::Entity::find_by_id(id)
@@ -303,6 +318,9 @@ async fn create_broadcast(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_broadcast_add") {
+        return (s, j).into_response();
+    }
     let Some(name) = s(&payload, &["broadcast_name", "name"]) else {
         return unprocessable("name required").into_response();
     };
@@ -336,6 +354,9 @@ async fn create_broadcast(
 }
 
 async fn list_broadcast(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_broadcast_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = call_broadcasts::Entity::find()
@@ -343,13 +364,16 @@ async fn list_broadcast(Extension(claims): Extension<Claims>) -> impl IntoRespon
         .all(db)
         .await
         .unwrap_or_default();
-    envelope(rows.iter().map(ser_broadcast).collect())
+    envelope(rows.iter().map(ser_broadcast).collect()).into_response()
 }
 
 async fn get_broadcast(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_broadcast_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match call_broadcasts::Entity::find_by_id(id)
@@ -373,6 +397,9 @@ async fn patch_broadcast(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_broadcast_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = call_broadcasts::Entity::find_by_id(id)
@@ -422,6 +449,9 @@ async fn delete_broadcast(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_broadcast_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match call_broadcasts::Entity::find_by_id(id)
@@ -487,6 +517,9 @@ async fn create_bridge(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "bridge_add") {
+        return (s, j).into_response();
+    }
     let Some(name) = s(&payload, &["bridge_name", "name"]) else {
         return unprocessable("name required").into_response();
     };
@@ -514,6 +547,9 @@ async fn create_bridge(
 }
 
 async fn list_bridges(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "bridge_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = pbx_db::entities::bridges::Entity::find()
@@ -521,13 +557,16 @@ async fn list_bridges(Extension(claims): Extension<Claims>) -> impl IntoResponse
         .all(db)
         .await
         .unwrap_or_default();
-    envelope(rows.iter().map(ser_bridge).collect())
+    envelope(rows.iter().map(ser_bridge).collect()).into_response()
 }
 
 async fn get_bridge(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "bridge_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match pbx_db::entities::bridges::Entity::find_by_id(id)
@@ -549,6 +588,9 @@ async fn patch_bridge(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "bridge_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = pbx_db::entities::bridges::Entity::find_by_id(id)
@@ -601,6 +643,9 @@ async fn delete_bridge(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "bridge_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match pbx_db::entities::bridges::Entity::find_by_id(id)
@@ -669,6 +714,9 @@ async fn create_destination(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "destination_add") {
+        return (s, j).into_response();
+    }
     let Some(number) = s(&payload, &["destination_number", "destination", "number"]) else {
         return unprocessable("destination required").into_response();
     };
@@ -708,6 +756,9 @@ async fn create_destination(
 }
 
 async fn list_destinations(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "destination_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = destinations::Entity::find()
@@ -715,13 +766,16 @@ async fn list_destinations(Extension(claims): Extension<Claims>) -> impl IntoRes
         .all(db)
         .await
         .unwrap_or_default();
-    envelope(rows.iter().map(ser_destination).collect())
+    envelope(rows.iter().map(ser_destination).collect()).into_response()
 }
 
 async fn get_destination(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "destination_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match destinations::Entity::find_by_id(id)
@@ -745,6 +799,9 @@ async fn patch_destination(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "destination_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = destinations::Entity::find_by_id(id)
@@ -803,6 +860,9 @@ async fn delete_destination(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "destination_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match destinations::Entity::find_by_id(id)
@@ -911,6 +971,9 @@ async fn create_follow_me(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "follow_me_add") {
+        return (s, j).into_response();
+    }
     // Legacy `extension` key required (compat with batch-3c contract);
     // Python stores no extension column — the value is accepted, routing
     // targets come from `destinations`.
@@ -952,6 +1015,9 @@ async fn create_follow_me(
 }
 
 async fn list_follow_me(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "follow_me_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = follow_me::Entity::find()
@@ -980,13 +1046,16 @@ async fn list_follow_me(Extension(claims): Extension<Claims>) -> impl IntoRespon
         let dests = by_fm.remove(&r.follow_me_uuid).unwrap_or_default();
         items.push(ser_follow_me(r, dests));
     }
-    envelope(items)
+    envelope(items).into_response()
 }
 
 async fn get_follow_me(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "follow_me_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match follow_me::Entity::find_by_id(id.clone())
@@ -1011,6 +1080,9 @@ async fn patch_follow_me(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "follow_me_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = follow_me::Entity::find_by_id(id.clone())
@@ -1076,6 +1148,9 @@ async fn delete_follow_me(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "follow_me_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match follow_me::Entity::find_by_id(id)
@@ -1142,6 +1217,9 @@ async fn create_call_forward(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_forward_add") {
+        return (s, j).into_response();
+    }
     if s(
         &payload,
         &["extension", "extension_uuid", "forward_all_destination"],
@@ -1188,6 +1266,9 @@ async fn create_call_forward(
 }
 
 async fn list_call_forward(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_forward_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = call_forwards::Entity::find()
@@ -1195,13 +1276,16 @@ async fn list_call_forward(Extension(claims): Extension<Claims>) -> impl IntoRes
         .all(db)
         .await
         .unwrap_or_default();
-    envelope(rows.iter().map(ser_call_forward).collect())
+    envelope(rows.iter().map(ser_call_forward).collect()).into_response()
 }
 
 async fn get_call_forward(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_forward_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match call_forwards::Entity::find_by_id(id)
@@ -1225,6 +1309,9 @@ async fn patch_call_forward(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_forward_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = call_forwards::Entity::find_by_id(id)
@@ -1270,6 +1357,9 @@ async fn delete_call_forward(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_forward_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match call_forwards::Entity::find_by_id(id)
@@ -1342,6 +1432,9 @@ async fn create_time_condition(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "time_condition_add") {
+        return (s, j).into_response();
+    }
     let name = match s(&payload, &["name", "time_condition_name"]) {
         Some(n) if !n.trim().is_empty() => n,
         _ => return unprocessable("name required").into_response(),
@@ -1381,6 +1474,9 @@ async fn create_time_condition(
 }
 
 async fn list_time_conditions(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "time_condition_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = time_conditions::Entity::find()
@@ -1388,13 +1484,16 @@ async fn list_time_conditions(Extension(claims): Extension<Claims>) -> impl Into
         .all(db)
         .await
         .unwrap_or_default();
-    envelope(rows.iter().map(ser_time_condition).collect())
+    envelope(rows.iter().map(ser_time_condition).collect()).into_response()
 }
 
 async fn get_time_condition(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "time_condition_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match time_conditions::Entity::find_by_id(id)
@@ -1418,6 +1517,9 @@ async fn patch_time_condition(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "time_condition_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = time_conditions::Entity::find_by_id(id)
@@ -1487,6 +1589,9 @@ async fn delete_time_condition(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "time_condition_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match time_conditions::Entity::find_by_id(id)

@@ -61,6 +61,9 @@ async fn create_conf(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<ConferenceCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "conference_add") {
+        return (s, j).into_response();
+    }
     if payload.conference_name.trim().is_empty() {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -111,6 +114,9 @@ async fn list_conf(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "conference_view") {
+        return (s, j).into_response();
+    }
     let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
@@ -137,16 +143,20 @@ async fn list_conf(
         crate::paged_headers("/api/v1/conferences", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),
     )
+        .into_response()
 }
 
 async fn health_conf() -> impl IntoResponse {
-    Json(serde_json::json!({"status": "ok", "service": "conferences"}))
+    Json(serde_json::json!({"status": "ok", "service": "conferences"})).into_response()
 }
 
 async fn get_conf(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "conference_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match conf_or_404(db, domain, &id).await {
@@ -164,6 +174,9 @@ async fn patch_conf(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "conference_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = conf_or_404(db, domain, &id).await else {
@@ -205,6 +218,9 @@ async fn delete_conf(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "conference_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     for u in conference_users::Entity::find()
@@ -240,6 +256,9 @@ async fn list_users(
     axum::extract::Path(id): axum::extract::Path<String>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "conference_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if conf_or_404(db, domain, &id).await.is_none() {
@@ -287,6 +306,9 @@ async fn add_user(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "conference_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if conf_or_404(db, domain, &id).await.is_none() {

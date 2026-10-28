@@ -33,6 +33,9 @@ async fn create_feature_code(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "feature_code_add") {
+        return (s, j).into_response();
+    }
     let Some(name) = s(&payload, &["feature_code_name", "name"]) else {
         return unprocessable("name required").into_response();
     };
@@ -61,6 +64,9 @@ async fn create_feature_code(
 }
 
 async fn list_feature_codes(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "feature_code_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = feature_codes::Entity::find()
@@ -68,13 +74,16 @@ async fn list_feature_codes(Extension(claims): Extension<Claims>) -> impl IntoRe
         .all(db)
         .await
         .unwrap_or_default();
-    envelope(rows.iter().map(ser_feature_code).collect())
+    envelope(rows.iter().map(ser_feature_code).collect()).into_response()
 }
 
 async fn get_feature_code(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "feature_code_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match feature_codes::Entity::find_by_id(id)
@@ -98,6 +107,9 @@ async fn patch_feature_code(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "feature_code_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = feature_codes::Entity::find_by_id(id)
@@ -147,6 +159,9 @@ async fn delete_feature_code(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "feature_code_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match feature_codes::Entity::find_by_id(id)
@@ -200,6 +215,9 @@ async fn create_moh(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "music_on_hold_add") {
+        return (s, j).into_response();
+    }
     let Some(name) = s(&payload, &["music_name", "name"]) else {
         return unprocessable("name required").into_response();
     };
@@ -232,6 +250,9 @@ async fn create_moh(
 }
 
 async fn list_moh(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "music_on_hold_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = music_on_hold::Entity::find()
@@ -239,13 +260,16 @@ async fn list_moh(Extension(claims): Extension<Claims>) -> impl IntoResponse {
         .all(db)
         .await
         .unwrap_or_default();
-    envelope(rows.iter().map(ser_moh).collect())
+    envelope(rows.iter().map(ser_moh).collect()).into_response()
 }
 
 async fn get_moh(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "music_on_hold_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match music_on_hold::Entity::find_by_id(id)
@@ -267,6 +291,9 @@ async fn patch_moh(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "music_on_hold_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = music_on_hold::Entity::find_by_id(id)
@@ -312,6 +339,9 @@ async fn delete_moh(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "music_on_hold_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match music_on_hold::Entity::find_by_id(id)
@@ -374,6 +404,9 @@ async fn create_phrase(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "phrase_add") {
+        return (s, j).into_response();
+    }
     let Some(name) = s(&payload, &["phrase_name", "name"]) else {
         return unprocessable("name required").into_response();
     };
@@ -401,6 +434,9 @@ async fn create_phrase(
 }
 
 async fn list_phrases(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "phrase_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = phrases::Entity::find()
@@ -408,7 +444,7 @@ async fn list_phrases(Extension(claims): Extension<Claims>) -> impl IntoResponse
         .all(db)
         .await
         .unwrap_or_default();
-    envelope(rows.iter().map(ser_phrase).collect())
+    envelope(rows.iter().map(ser_phrase).collect()).into_response()
 }
 
 async fn scoped_phrase(
@@ -430,6 +466,9 @@ async fn get_phrase(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "phrase_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match scoped_phrase(db, domain, &id).await {
@@ -447,6 +486,9 @@ async fn patch_phrase(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "phrase_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = scoped_phrase(db, domain, &id).await else {
@@ -482,6 +524,9 @@ async fn delete_phrase(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "phrase_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match scoped_phrase(db, domain, &id).await {
@@ -503,6 +548,9 @@ async fn create_phrase_detail(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "phrase_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if scoped_phrase(db, domain, &id).await.is_none() {
@@ -537,6 +585,9 @@ async fn list_phrase_details(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "phrase_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if scoped_phrase(db, domain, &id).await.is_none() {
@@ -589,6 +640,9 @@ async fn create_pin(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "pin_number_add") {
+        return (s, j).into_response();
+    }
     let Some(number) = s(&payload, &["pin_number", "number"]) else {
         return unprocessable("number required").into_response();
     };
@@ -616,6 +670,9 @@ async fn create_pin(
 }
 
 async fn list_pins(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "pin_number_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = pin_numbers::Entity::find()
@@ -623,13 +680,16 @@ async fn list_pins(Extension(claims): Extension<Claims>) -> impl IntoResponse {
         .all(db)
         .await
         .unwrap_or_default();
-    envelope(rows.iter().map(ser_pin).collect())
+    envelope(rows.iter().map(ser_pin).collect()).into_response()
 }
 
 async fn get_pin(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "pin_number_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match pin_numbers::Entity::find_by_id(id)
@@ -651,6 +711,9 @@ async fn patch_pin(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "pin_number_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = pin_numbers::Entity::find_by_id(id)
@@ -693,6 +756,9 @@ async fn delete_pin(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "pin_number_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match pin_numbers::Entity::find_by_id(id)
@@ -756,6 +822,9 @@ async fn create_nt(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "number_translation_add") {
+        return (s, j).into_response();
+    }
     let Some(name) = s(&payload, &["number_translation_name", "name"]) else {
         return unprocessable("name required").into_response();
     };
@@ -791,6 +860,9 @@ async fn create_nt(
 }
 
 async fn list_nt(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "number_translation_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = number_translations::Entity::find()
@@ -798,7 +870,7 @@ async fn list_nt(Extension(claims): Extension<Claims>) -> impl IntoResponse {
         .all(db)
         .await
         .unwrap_or_default();
-    envelope(rows.iter().map(ser_nt).collect())
+    envelope(rows.iter().map(ser_nt).collect()).into_response()
 }
 
 async fn scoped_nt(
@@ -820,6 +892,9 @@ async fn get_nt(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "number_translation_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match scoped_nt(db, domain, &id).await {
@@ -837,6 +912,9 @@ async fn patch_nt(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "number_translation_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = scoped_nt(db, domain, &id).await else {
@@ -871,6 +949,9 @@ async fn delete_nt(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "number_translation_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match scoped_nt(db, domain, &id).await {
@@ -892,6 +973,9 @@ async fn create_nt_detail(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "number_translation_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if scoped_nt(db, domain, &id).await.is_none() {
@@ -936,6 +1020,9 @@ async fn list_nt_details(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "number_translation_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if scoped_nt(db, domain, &id).await.is_none() {
@@ -987,6 +1074,9 @@ async fn create_stream(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "stream_add") {
+        return (s, j).into_response();
+    }
     let Some(name) = s(&payload, &["stream_name", "name"]) else {
         return unprocessable("name required").into_response();
     };
@@ -1014,6 +1104,9 @@ async fn create_stream(
 }
 
 async fn list_streams(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "stream_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = streams::Entity::find()
@@ -1021,13 +1114,16 @@ async fn list_streams(Extension(claims): Extension<Claims>) -> impl IntoResponse
         .all(db)
         .await
         .unwrap_or_default();
-    envelope(rows.iter().map(ser_stream).collect())
+    envelope(rows.iter().map(ser_stream).collect()).into_response()
 }
 
 async fn get_stream(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "stream_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match streams::Entity::find_by_id(id)
@@ -1049,6 +1145,9 @@ async fn patch_stream(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "stream_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = streams::Entity::find_by_id(id)
@@ -1098,6 +1197,9 @@ async fn delete_stream(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "stream_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match streams::Entity::find_by_id(id)

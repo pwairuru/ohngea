@@ -60,6 +60,9 @@ async fn create_gateway(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     Json(payload): Json<GatewayCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "gateway_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
@@ -68,7 +71,8 @@ async fn create_gateway(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
-            );
+            )
+                .into_response();
         }
     };
     let now = crate::routing_db::now();
@@ -125,7 +129,8 @@ async fn create_gateway(
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-        );
+        )
+            .into_response();
     }
     let _ = txn.commit().await;
     let rec = Gateway {
@@ -138,16 +143,19 @@ async fn create_gateway(
         enabled: true,
     };
     let _rescan_reply = pbx_fs::esl::EsClient::sofia_rescan(&pbx_fs::esl::MockEsClient, &profile);
-    (StatusCode::CREATED, Json(serde_json::json!(masked(rec))))
+    (StatusCode::CREATED, Json(serde_json::json!(masked(rec)))).into_response()
 }
 
 async fn list_gateways(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "gateway_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
-        Err(_) => return Json(serde_json::json!({"data": [], "total": 0})),
+        Err(_) => return Json(serde_json::json!({"data": [], "total": 0})).into_response(),
     };
     let domain_id = crate::routing_db::domain(&claims);
     let rows = pbx_db::entities::gateways::Entity::find()
@@ -158,13 +166,16 @@ async fn list_gateways(
     let _ = txn.commit().await;
     let items: Vec<Gateway> = rows.iter().map(row_to_gateway).map(masked).collect();
     let total = items.len();
-    Json(serde_json::json!({"data": items, "total": total}))
+    Json(serde_json::json!({"data": items, "total": total})).into_response()
 }
 
 async fn get_gateway(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "gateway_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
@@ -225,6 +236,9 @@ async fn patch_gateway(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "gateway_edit") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
@@ -383,6 +397,9 @@ async fn delete_gateway(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "gateway_delete") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,

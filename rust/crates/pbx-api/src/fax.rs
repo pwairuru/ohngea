@@ -70,6 +70,9 @@ async fn create_fax(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_add") {
+        return (s, j).into_response();
+    }
     let ext = payload
         .get("fax_extension")
         .and_then(|v| v.as_str())
@@ -133,6 +136,9 @@ async fn list_fax(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_view") {
+        return (s, j).into_response();
+    }
     let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
@@ -150,12 +156,16 @@ async fn list_fax(
         crate::paged_headers("/api/v1/fax", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),
     )
+        .into_response()
 }
 
 async fn get_fax(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match fax_or_404(db, domain, &id).await {
@@ -173,6 +183,9 @@ async fn patch_fax(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = fax_or_404(db, domain, &id).await else {
@@ -207,6 +220,9 @@ async fn delete_fax(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     // Set deletes: 3 statements, no per-row fetch-then-delete round-trips.
@@ -248,6 +264,9 @@ async fn list_files(
     axum::extract::Path(id): axum::extract::Path<String>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if fax_or_404(db, domain, &id).await.is_none() {
@@ -290,6 +309,9 @@ async fn upload_file(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if fax_or_404(db, domain, &id).await.is_none() {
@@ -331,6 +353,9 @@ async fn list_logs(
     axum::extract::Path(id): axum::extract::Path<String>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if fax_or_404(db, domain, &id).await.is_none() {
@@ -373,6 +398,9 @@ async fn list_users(
     axum::extract::Path(id): axum::extract::Path<String>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if fax_or_404(db, domain, &id).await.is_none() {
@@ -415,6 +443,9 @@ async fn send_fax(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(f) = fax_or_404(db, domain, &id).await else {
@@ -469,6 +500,9 @@ async fn submit_queue(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<FaxQueueSubmit>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_queue_add") {
+        return (s, j).into_response();
+    }
     if payload.fax_extension.trim().is_empty() || payload.destination.trim().is_empty() {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -517,6 +551,9 @@ async fn list_queue(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_queue_view") {
+        return (s, j).into_response();
+    }
     let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
@@ -534,6 +571,7 @@ async fn list_queue(
         crate::paged_headers("/api/v1/fax_queue", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),
     )
+        .into_response()
 }
 
 async fn queue_or_404(
@@ -552,6 +590,9 @@ async fn get_queue(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_queue_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match queue_or_404(db, domain, &id).await {
@@ -569,6 +610,9 @@ async fn patch_queue(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_queue_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = queue_or_404(db, domain, &id).await else {
@@ -599,6 +643,9 @@ async fn delete_queue(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_queue_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = queue_or_404(db, domain, &id).await else {
@@ -623,6 +670,9 @@ async fn status_queue(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match queue_or_404(db, domain, &id).await {
@@ -648,6 +698,9 @@ async fn retry_queue(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fax_queue_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = queue_or_404(db, domain, &id).await else {

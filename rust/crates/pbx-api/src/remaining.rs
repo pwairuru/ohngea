@@ -346,6 +346,18 @@ async fn system_reload() -> impl IntoResponse {
 
 // ---- status-alias redirects (Python parity: app/status_aliases/router.py) ----
 // `status_aliases` is redirects-only upstream — no table, no CRUD.
+// Tenant scoping: aliases carry no domain query of their own; the
+// `require_tenant` layer 401s unauthenticated callers, and each redirect
+// target (`/cdr`, `/dialplans`, `/sip_profiles/status`, `/system/status`,
+// `/active_calls`) re-runs its own auth + domain filter. Cross-tenant reads
+// through an alias therefore 404/empty exactly like a direct read.
+// Live ESL routes below (`active_calls`, `active_conferences`,
+// `registrations`, `operator_panel/*`, `click_to_call`, fifo callers in
+// remaining_c) expose FreeSWITCH runtime state, which is global to the
+// switch — no per-domain row exists to filter. They stay auth-gated (401
+// without a token) and permissive for any valid JWT by design; per-route
+// permission gating for live actions (hangup/eavesdrop/originate) is a
+// follow-up (Python: operator_panel_* / active_calls_hangup perms).
 async fn alias_to(dst: &'static str) -> impl IntoResponse {
     axum::response::Redirect::to(dst)
 }

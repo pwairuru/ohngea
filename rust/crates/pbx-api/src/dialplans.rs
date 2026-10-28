@@ -31,6 +31,9 @@ async fn create_dialplan(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     Json(payload): Json<DialplanCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "dialplan_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
@@ -39,7 +42,8 @@ async fn create_dialplan(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
-            );
+            )
+                .into_response();
         }
     };
     let now = crate::routing_db::now();
@@ -69,7 +73,8 @@ async fn create_dialplan(
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-        );
+        )
+            .into_response();
     }
     let _ = txn.commit().await;
     let rec = Dialplan {
@@ -79,16 +84,19 @@ async fn create_dialplan(
         domain: domain_str,
         enabled,
     };
-    (StatusCode::CREATED, Json(serde_json::json!(rec)))
+    (StatusCode::CREATED, Json(serde_json::json!(rec))).into_response()
 }
 
 async fn list_dialplans(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "dialplan_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
-        Err(_) => return Json(serde_json::json!({"data": [], "total": 0})),
+        Err(_) => return Json(serde_json::json!({"data": [], "total": 0})).into_response(),
     };
     let domain_id = crate::routing_db::domain(&claims);
     let rows = pbx_db::entities::dialplans::Entity::find()
@@ -108,13 +116,16 @@ async fn list_dialplans(
         })
         .collect();
     let total = items.len();
-    Json(serde_json::json!({"data": items, "total": total}))
+    Json(serde_json::json!({"data": items, "total": total})).into_response()
 }
 
 async fn get_dialplan(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "dialplan_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
@@ -181,6 +192,9 @@ async fn patch_dialplan(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "dialplan_edit") {
+        return (s, j).into_response();
+    }
     use sea_orm::ActiveModelTrait;
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
@@ -248,6 +262,9 @@ async fn delete_dialplan(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "dialplan_delete") {
+        return (s, j).into_response();
+    }
     use sea_orm::ActiveModelTrait;
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {

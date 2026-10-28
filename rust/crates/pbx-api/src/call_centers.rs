@@ -109,6 +109,9 @@ async fn create_queue(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<QueueCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_add") {
+        return (s, j).into_response();
+    }
     if payload.queue_name.trim().is_empty() {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -152,6 +155,9 @@ async fn list_queues(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_view") {
+        return (s, j).into_response();
+    }
     let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
@@ -169,12 +175,16 @@ async fn list_queues(
         crate::paged_headers("/api/v1/call_centers", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),
     )
+        .into_response()
 }
 
 async fn get_queue(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match queue_or_404(db, domain, &id).await {
@@ -192,6 +202,9 @@ async fn patch_queue(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = queue_or_404(db, domain, &id).await else {
@@ -226,6 +239,9 @@ async fn delete_queue(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     for a in call_center_agents::Entity::find()
@@ -297,6 +313,9 @@ async fn create_agent_legacy(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<AgentCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_add") {
+        return (s, j).into_response();
+    }
     let Some(qid) = payload.queue_id.clone() else {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -334,6 +353,9 @@ async fn list_agents(
     axum::extract::Path(qid): axum::extract::Path<String>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if queue_or_404(db, domain, &qid).await.is_none() {
@@ -372,6 +394,9 @@ async fn create_agent_nested(
     axum::extract::Path(qid): axum::extract::Path<String>,
     Json(payload): Json<AgentCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match insert_agent(db, domain, &qid, &payload).await {
@@ -408,6 +433,9 @@ async fn patch_agent(
     axum::extract::Path((qid, aid)): axum::extract::Path<(String, String)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = agent_or_404(db, domain, &qid, &aid).await else {
@@ -441,6 +469,9 @@ async fn delete_agent(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((qid, aid)): axum::extract::Path<(String, String)>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = agent_or_404(db, domain, &qid, &aid).await else {
@@ -467,6 +498,9 @@ async fn list_tiers(
     axum::extract::Path(qid): axum::extract::Path<String>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_view") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if queue_or_404(db, domain, &qid).await.is_none() {
@@ -505,6 +539,9 @@ async fn create_tier(
     axum::extract::Path(qid): axum::extract::Path<String>,
     Json(payload): Json<TierCreate>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if queue_or_404(db, domain, &qid).await.is_none() {
@@ -568,6 +605,9 @@ async fn patch_tier(
     axum::extract::Path((qid, tid)): axum::extract::Path<(String, String)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = tier_or_404(db, domain, &qid, &tid).await else {
@@ -601,6 +641,9 @@ async fn delete_tier(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((qid, tid)): axum::extract::Path<(String, String)>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let Some(r) = tier_or_404(db, domain, &qid, &tid).await else {
@@ -626,6 +669,9 @@ async fn join_queue(
     axum::extract::Path(qid): axum::extract::Path<String>,
     Json(payload): Json<JoinReq>,
 ) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_add") {
+        return (s, j).into_response();
+    }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     if queue_or_404(db, domain, &qid).await.is_none() {
