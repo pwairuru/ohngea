@@ -1,5 +1,6 @@
 mod analytics;
 mod auth;
+mod backup;
 mod call_centers;
 mod calls;
 mod cdr;
@@ -322,6 +323,7 @@ pub fn build_app() -> axum::Router {
         .merge(fax::fax_router())
         .merge(cdr::cdr_router())
         .merge(recordings::recordings_router())
+        .merge(backup::backup_router())
         .merge(users::users_router())
         .merge(settings::settings_router())
         .merge(groups::groups_router())

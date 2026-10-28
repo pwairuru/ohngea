@@ -27,6 +27,8 @@ struct CdrJson {
     #[serde(default)]
     caller_id_number: Option<String>,
     #[serde(default)]
+    caller_id_name: Option<String>,
+    #[serde(default)]
     destination_number: Option<String>,
     #[serde(default)]
     hangup_cause: Option<String>,
@@ -36,6 +38,37 @@ struct CdrJson {
     billsec: Option<i32>,
     #[serde(default)]
     duration: Option<i32>,
+    #[serde(default)]
+    sip_call_id: Option<String>,
+    #[serde(default)]
+    accountcode: Option<String>,
+    #[serde(default)]
+    context: Option<String>,
+    #[serde(default)]
+    record_path: Option<String>,
+    #[serde(default)]
+    record_name: Option<String>,
+    #[serde(default)]
+    read_codec: Option<String>,
+    #[serde(default)]
+    write_codec: Option<String>,
+    #[serde(default)]
+    network_addr: Option<String>,
+}
+
+fn ext_from_json(j: &CdrJson) -> CdrExtended {
+    CdrExtended {
+        caller_id_name: j.caller_id_name.clone(),
+        sip_call_id: j.sip_call_id.clone(),
+        accountcode: j.accountcode.clone(),
+        context: j.context.clone(),
+        record_path: j.record_path.clone(),
+        record_name: j.record_name.clone(),
+        read_codec: j.read_codec.clone(),
+        write_codec: j.write_codec.clone(),
+        network_addr: j.network_addr.clone(),
+        ..CdrExtended::default()
+    }
 }
 
 // ---- handlers ----
@@ -109,6 +142,80 @@ fn parse_cdr_xml(body: &str) -> (Option<String>, String, Option<String>, Option<
     (Some(caller), dest, hangup, direction)
 }
 
+/// Extended CDR fields toward PHP `v_xml_cdr` (~50 cols): codecs,
+/// network address, PDD, recording pointer, disposition. All optional.
+#[derive(Debug, Default, Clone)]
+pub struct CdrExtended {
+    pub caller_id_name: Option<String>,
+    pub sip_call_id: Option<String>,
+    pub accountcode: Option<String>,
+    pub context: Option<String>,
+    pub leg: Option<String>,
+    pub status: Option<String>,
+    pub bridge_uuid: Option<String>,
+    pub record_path: Option<String>,
+    pub record_name: Option<String>,
+    pub read_codec: Option<String>,
+    pub write_codec: Option<String>,
+    pub network_addr: Option<String>,
+    pub pdd_ms: Option<i32>,
+    pub record_length: Option<i32>,
+    pub call_disposition: Option<String>,
+    pub hangup_cause_q850: Option<String>,
+    pub sip_hangup_disposition: Option<String>,
+    pub mos_score: Option<f32>,
+}
+
+pub fn parse_cdr_extended(body: &str) -> CdrExtended {
+    CdrExtended {
+        caller_id_name: find_tag(body, "caller_id_name"),
+        sip_call_id: find_tag(body, "sip_call_id").or_else(|| find_tag(body, "uuid")),
+        accountcode: find_tag(body, "accountcode"),
+        context: find_tag(body, "context"),
+        leg: find_tag(body, "leg"),
+        status: find_tag(body, "status"),
+        bridge_uuid: find_tag(body, "bridge_uuid").or_else(|| find_tag(body, "bleg_uuid")),
+        record_path: find_tag(body, "record_path"),
+        record_name: find_tag(body, "record_name"),
+        read_codec: find_tag(body, "read_codec"),
+        write_codec: find_tag(body, "write_codec"),
+        network_addr: find_tag(body, "network_addr"),
+        pdd_ms: find_tag(body, "pdd_ms").and_then(|v| v.parse().ok()),
+        record_length: find_tag(body, "record_length").and_then(|v| v.parse().ok()),
+        call_disposition: find_tag(body, "call_disposition"),
+        hangup_cause_q850: find_tag(body, "hangup_cause_q850"),
+        sip_hangup_disposition: find_tag(body, "sip_hangup_disposition"),
+        mos_score: find_tag(body, "rtp_audio_in_mos")
+            .or_else(|| find_tag(body, "mos_score"))
+            .and_then(|v| v.parse().ok()),
+    }
+}
+
+/// Summary over `(duration, billsec)` pairs: answered = billsec > 0.
+/// Pure — unit-testable (powers GET /cdr/statistics).
+pub fn cdr_statistics_summary(rows: &[(Option<i32>, Option<i32>)]) -> serde_json::Value {
+    let total = rows.len() as u64;
+    let mut answered = 0u64;
+    let mut dur_sum: i64 = 0;
+    let mut bill_sum: i64 = 0;
+    for (d, b) in rows {
+        let bv = b.unwrap_or(0);
+        bill_sum += i64::from(bv);
+        dur_sum += i64::from(d.unwrap_or(0));
+        if bv > 0 {
+            answered += 1;
+        }
+    }
+    let missed = total.saturating_sub(answered);
+    serde_json::json!({
+        "total": total,
+        "answered": answered,
+        "missed": missed,
+        "avg_duration": if total > 0 { dur_sum as f64 / total as f64 } else { 0.0 },
+        "avg_billsec": if total > 0 { bill_sum as f64 / total as f64 } else { 0.0 },
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn store_row(
     domain: uuid::Uuid,
@@ -121,17 +228,63 @@ async fn store_row(
     raw: Option<String>,
     malformed: bool,
 ) -> String {
+    store_row_ext(
+        domain,
+        caller,
+        dest,
+        hangup,
+        direction,
+        billsec,
+        duration,
+        raw,
+        malformed,
+        CdrExtended::default(),
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn store_row_ext(
+    domain: uuid::Uuid,
+    caller: Option<String>,
+    dest: String,
+    hangup: Option<String>,
+    direction: Option<String>,
+    billsec: Option<i32>,
+    duration: Option<i32>,
+    raw: Option<String>,
+    malformed: bool,
+    ext: CdrExtended,
+) -> String {
     let db = crate::routing_db::conn().await;
     let id = crate::routing_db::new_uuid();
     let am = cdr::ActiveModel {
         cdr_uuid: Set(id.clone()),
         domain_id: Set(domain),
         caller_id_number: Set(caller),
+        caller_id_name: Set(ext.caller_id_name),
         destination_number: Set(dest),
         billsec: Set(billsec),
         duration: Set(duration),
         hangup_cause: Set(hangup),
         direction: Set(direction),
+        sip_call_id: Set(ext.sip_call_id),
+        accountcode: Set(ext.accountcode),
+        context: Set(ext.context),
+        leg: Set(ext.leg),
+        status: Set(ext.status),
+        bridge_uuid: Set(ext.bridge_uuid),
+        record_path: Set(ext.record_path),
+        record_name: Set(ext.record_name),
+        read_codec: Set(ext.read_codec),
+        write_codec: Set(ext.write_codec),
+        network_addr: Set(ext.network_addr),
+        pdd_ms: Set(ext.pdd_ms),
+        record_length: Set(ext.record_length),
+        call_disposition: Set(ext.call_disposition),
+        hangup_cause_q850: Set(ext.hangup_cause_q850),
+        sip_hangup_disposition: Set(ext.sip_hangup_disposition),
+        mos_score: Set(ext.mos_score),
         raw_xml: Set(raw),
         malformed: Set(malformed),
         ..Default::default()
@@ -163,8 +316,12 @@ async fn import_cdr(
     if ctype.contains("json") || trimmed.starts_with('{') {
         match serde_json::from_str::<CdrJson>(trimmed) {
             Ok(j) => {
-                let dest = j.destination_number.unwrap_or_else(|| "unknown".to_owned());
-                let id = store_row(
+                let dest = j
+                    .destination_number
+                    .clone()
+                    .unwrap_or_else(|| "unknown".to_owned());
+                let ext = ext_from_json(&j);
+                let id = store_row_ext(
                     domain,
                     j.caller_id_number,
                     dest,
@@ -174,6 +331,7 @@ async fn import_cdr(
                     j.duration,
                     None,
                     false,
+                    ext,
                 )
                 .await;
                 return (
@@ -217,8 +375,9 @@ async fn import_cdr(
     let (caller, dest, hangup, direction) = parse_cdr_xml(&text);
     let billsec = find_tag(&text, "billsec").and_then(|v| v.parse().ok());
     let duration = find_tag(&text, "duration").and_then(|v| v.parse().ok());
+    let ext = parse_cdr_extended(&text);
     let raw = text.into_owned();
-    let id = store_row(
+    let id = store_row_ext(
         domain,
         caller,
         dest,
@@ -228,6 +387,7 @@ async fn import_cdr(
         duration,
         Some(raw),
         malformed,
+        ext,
     )
     .await;
     (
@@ -264,11 +424,21 @@ async fn list_cdr(
             serde_json::json!({
                 "cdr_uuid": r.cdr_uuid,
                 "caller_id_number": r.caller_id_number,
+                "caller_id_name": r.caller_id_name,
                 "destination_number": r.destination_number,
                 "billsec": r.billsec,
                 "duration": r.duration,
                 "hangup_cause": r.hangup_cause,
                 "direction": r.direction,
+                "sip_call_id": r.sip_call_id,
+                "accountcode": r.accountcode,
+                "context": r.context,
+                "record_path": r.record_path,
+                "record_name": r.record_name,
+                "read_codec": r.read_codec,
+                "write_codec": r.write_codec,
+                "network_addr": r.network_addr,
+                "pdd_ms": r.pdd_ms,
                 "malformed": r.malformed,
             })
         })
@@ -286,8 +456,10 @@ async fn create_cdr(
     let domain = crate::routing_db::domain(&claims);
     let dest = payload
         .destination_number
+        .clone()
         .unwrap_or_else(|| "unknown".to_owned());
-    let id = store_row(
+    let ext = ext_from_json(&payload);
+    let id = store_row_ext(
         domain,
         payload.caller_id_number,
         dest,
@@ -297,6 +469,7 @@ async fn create_cdr(
         payload.duration,
         None,
         false,
+        ext,
     )
     .await;
     (
@@ -325,11 +498,22 @@ async fn get_cdr(
             Json(serde_json::json!({
                 "cdr_uuid": r.cdr_uuid,
                 "caller_id_number": r.caller_id_number,
+                "caller_id_name": r.caller_id_name,
                 "destination_number": r.destination_number,
                 "billsec": r.billsec,
                 "duration": r.duration,
                 "hangup_cause": r.hangup_cause,
                 "direction": r.direction,
+                "sip_call_id": r.sip_call_id,
+                "accountcode": r.accountcode,
+                "context": r.context,
+                "record_path": r.record_path,
+                "record_name": r.record_name,
+                "read_codec": r.read_codec,
+                "write_codec": r.write_codec,
+                "network_addr": r.network_addr,
+                "pdd_ms": r.pdd_ms,
+                "mos_score": r.mos_score,
                 "malformed": r.malformed,
             })),
         )
@@ -460,14 +644,211 @@ pub fn extension_summary(rows: &[(String, Option<i32>)]) -> serde_json::Value {
     serde_json::Value::Object(obj)
 }
 
+fn row_to_export(r: &cdr::Model) -> CdrExportRow {
+    CdrExportRow {
+        cdr_uuid: r.cdr_uuid.clone(),
+        caller_id_number: r.caller_id_number.clone(),
+        caller_id_name: r.caller_id_name.clone(),
+        destination_number: r.destination_number.clone(),
+        start_stamp: r.start_stamp.map(|s| s.to_rfc3339()),
+        answer_stamp: r.answer_stamp.map(|s| s.to_rfc3339()),
+        end_stamp: r.end_stamp.map(|s| s.to_rfc3339()),
+        duration: r.duration,
+        billsec: r.billsec,
+        direction: r.direction.clone(),
+        hangup_cause: r.hangup_cause.clone(),
+    }
+}
+
+/// GET /api/v1/cdr/export — CSV dump (PHP `xml_cdr_export.php` parity,
+/// capped at 20k rows). Permission: `cdr_view`. Tenant-scoped.
+async fn export_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_view") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let rows = cdr::Entity::find()
+        .filter(cdr::Column::DomainId.eq(domain))
+        .limit(20_000)
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let export: Vec<CdrExportRow> = rows.iter().map(row_to_export).collect();
+    let csv = build_cdr_csv(&export);
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "text/csv")],
+        csv,
+    )
+        .into_response()
+}
+
+/// GET /api/v1/cdr/extension_summary — per-extension count + billsec total
+/// (PHP `xml_cdr_extension_summary.php` parity). Permission: `cdr_view`.
+async fn extension_summary_ep(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_view") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let pairs: Vec<(String, Option<i32>)> = cdr::Entity::find()
+        .filter(cdr::Column::DomainId.eq(domain))
+        .select_only()
+        .column(cdr::Column::DestinationNumber)
+        .column(cdr::Column::Billsec)
+        .into_tuple::<(String, Option<i32>)>()
+        .all(db)
+        .await
+        .unwrap_or_default();
+    Json(extension_summary(&pairs)).into_response()
+}
+
+/// GET /api/v1/cdr/statistics — total/answered/missed + averages +
+/// by_hangup (PHP `xml_cdr_statistics*.php` parity). Permission: `cdr_view`.
+async fn statistics_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_view") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let pairs: Vec<(Option<i32>, Option<i32>)> = cdr::Entity::find()
+        .filter(cdr::Column::DomainId.eq(domain))
+        .select_only()
+        .column(cdr::Column::Duration)
+        .column(cdr::Column::Billsec)
+        .into_tuple::<(Option<i32>, Option<i32>)>()
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let mut summary = cdr_statistics_summary(&pairs);
+    let causes: Vec<Option<String>> = cdr::Entity::find()
+        .filter(cdr::Column::DomainId.eq(domain))
+        .select_only()
+        .column(cdr::Column::HangupCause)
+        .into_tuple::<Option<String>>()
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let mut by_hangup: HashMap<String, u64> = HashMap::new();
+    for h in &causes {
+        *by_hangup
+            .entry(h.clone().unwrap_or_else(|| "unknown".to_owned()))
+            .or_insert(0) += 1;
+    }
+    summary["by_hangup_cause"] = serde_json::to_value(&by_hangup).unwrap_or_default();
+    Json(summary).into_response()
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct ArchiveReq {
+    /// Archive rows with `start_stamp` older than this RFC3339 instant.
+    /// When omitted, `days_older_than` (default 90) is used.
+    #[serde(default)]
+    before: Option<String>,
+    #[serde(default)]
+    days_older_than: Option<i64>,
+}
+
+/// POST /api/v1/cdr/archive — move old rows to `cdr_archive` then delete
+/// (PHP `xml_cdr_archive.php` parity, date-based). Permission: `cdr_add`
+/// (write op). Tenant-scoped; returns `{archived: N}`.
+async fn archive_cdr(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    Json(payload): Json<ArchiveReq>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_add") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let cutoff = payload
+        .before
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+        .map(|d| d.with_timezone(&chrono::Utc))
+        .unwrap_or_else(|| {
+            let days = payload.days_older_than.unwrap_or(90).max(1);
+            chrono::Utc::now() - chrono::Duration::days(days)
+        });
+    let rows = cdr::Entity::find()
+        .filter(cdr::Column::DomainId.eq(domain))
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let mut archived = 0u64;
+    for r in rows {
+        let old = r.start_stamp.map(|s| s < cutoff).unwrap_or(false);
+        if !old {
+            continue;
+        }
+        let am = pbx_db::entities::cdr_archive::ActiveModel {
+            cdr_uuid: Set(r.cdr_uuid.clone()),
+            domain_id: Set(r.domain_id),
+            caller_id_number: Set(r.caller_id_number.clone()),
+            caller_id_name: Set(r.caller_id_name.clone()),
+            destination_number: Set(r.destination_number.clone()),
+            start_stamp: Set(r.start_stamp),
+            answer_stamp: Set(r.answer_stamp),
+            end_stamp: Set(r.end_stamp),
+            billsec: Set(r.billsec),
+            duration: Set(r.duration),
+            billmsec: Set(r.billmsec),
+            mduration: Set(r.mduration),
+            hold_accum_seconds: Set(r.hold_accum_seconds),
+            hangup_cause: Set(r.hangup_cause.clone()),
+            direction: Set(r.direction.clone()),
+            sip_call_id: Set(r.sip_call_id.clone()),
+            accountcode: Set(r.accountcode.clone()),
+            context: Set(r.context.clone()),
+            leg: Set(r.leg.clone()),
+            status: Set(r.status.clone()),
+            bridge_uuid: Set(r.bridge_uuid.clone()),
+            conference_id: Set(r.conference_id.clone()),
+            record_path: Set(r.record_path.clone()),
+            record_name: Set(r.record_name.clone()),
+            mos_score: Set(r.mos_score),
+            caller_extension: Set(r.caller_extension.clone()),
+            destination_extension: Set(r.destination_extension.clone()),
+            read_codec: Set(r.read_codec.clone()),
+            write_codec: Set(r.write_codec.clone()),
+            network_addr: Set(r.network_addr.clone()),
+            pdd_ms: Set(r.pdd_ms),
+            record_length: Set(r.record_length),
+            call_disposition: Set(r.call_disposition.clone()),
+            hangup_cause_q850: Set(r.hangup_cause_q850.clone()),
+            sip_hangup_disposition: Set(r.sip_hangup_disposition.clone()),
+            raw_xml: Set(r.raw_xml.clone()),
+            malformed: Set(r.malformed),
+            archived_at: Set(chrono::Utc::now()),
+        };
+        use sea_orm::ActiveModelTrait;
+        if am.insert(db).await.is_ok() {
+            use sea_orm::EntityTrait;
+            let _ = cdr::Entity::delete_by_id(r.cdr_uuid.clone()).exec(db).await;
+            archived += 1;
+        }
+    }
+    Json(serde_json::json!({"archived": archived})).into_response()
+}
+
 pub fn cdr_router() -> Router {
     Router::new()
         .route("/api/v1/cdr/import", post(import_cdr))
         .route("/api/v1/cdr/import/", post(import_cdr))
         .route("/api/v1/cdr", post(create_cdr).get(list_cdr))
         .route("/api/v1/cdr/", post(create_cdr).get(list_cdr))
+        .route("/api/v1/cdr/export", axum::routing::get(export_cdr))
+        .route("/api/v1/cdr/export/", axum::routing::get(export_cdr))
+        .route(
+            "/api/v1/cdr/extension_summary",
+            axum::routing::get(extension_summary_ep),
+        )
+        .route("/api/v1/cdr/statistics", axum::routing::get(statistics_cdr))
         .route("/api/v1/cdr/stats", axum::routing::get(stats_cdr))
         .route("/api/v1/cdr/stats/", axum::routing::get(stats_cdr))
+        .route("/api/v1/cdr/archive", axum::routing::post(archive_cdr))
         .route("/api/v1/cdr/{cdr_uuid}", axum::routing::get(get_cdr))
         .layer(axum::middleware::from_fn(crate::require_tenant))
 }
@@ -532,5 +913,54 @@ mod tests {
         assert_eq!(caller.as_deref(), Some("1001"));
         assert_eq!(dest, "1002");
         assert_eq!(hangup.as_deref(), Some("NORMAL_CLEARING"));
+    }
+
+    #[test]
+    fn cdr_extended_parse_extracts_codecs_netaddr_record() {
+        let xml = "<cdr><variables>".to_owned()
+            + "<variable name=\"caller_id_number\" value=\"1001\"/>"
+            + "<variable name=\"read_codec\" value=\"PCMU\"/>"
+            + "<variable name=\"write_codec\" value=\"PCMA\"/>"
+            + "<variable name=\"network_addr\" value=\"10.0.0.1\"/>"
+            + "<variable name=\"record_path\" value=\"/var/lib/freeswitch/recordings/a.wav\"/>"
+            + "<variable name=\"pdd_ms\" value=\"230\"/>"
+            + "</variables></cdr>";
+        let ext = super::parse_cdr_extended(&xml);
+        assert_eq!(ext.read_codec.as_deref(), Some("PCMU"));
+        assert_eq!(ext.write_codec.as_deref(), Some("PCMA"));
+        assert_eq!(ext.network_addr.as_deref(), Some("10.0.0.1"));
+        assert_eq!(
+            ext.record_path.as_deref(),
+            Some("/var/lib/freeswitch/recordings/a.wav")
+        );
+        assert_eq!(ext.pdd_ms, Some(230));
+    }
+
+    #[test]
+    fn cdr_csv_escapes_commas_and_quotes() {
+        let rows = vec![crate::CdrExportRow {
+            cdr_uuid: "u1".to_owned(),
+            caller_id_number: Some("1001".to_owned()),
+            caller_id_name: Some("Alice, \"Al\"".to_owned()),
+            destination_number: "1002".to_owned(),
+            start_stamp: None,
+            answer_stamp: None,
+            end_stamp: None,
+            duration: None,
+            billsec: None,
+            direction: None,
+            hangup_cause: None,
+        }];
+        let csv = build_cdr_csv(&rows);
+        assert!(csv.contains("\"Alice, \"\"Al\"\"\""));
+    }
+
+    #[test]
+    fn cdr_statistics_summary_counts_answered_missed() {
+        let rows = vec![(Some(60), Some(55)), (Some(30), Some(0)), (None, None)];
+        let v = super::cdr_statistics_summary(&rows);
+        assert_eq!(v["total"], 3);
+        assert_eq!(v["answered"], 1);
+        assert_eq!(v["missed"], 2);
     }
 }
