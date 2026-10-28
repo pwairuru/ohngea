@@ -1,10 +1,12 @@
+mod auth;
 mod health;
 
+use auth::auth_router;
 use health::health_router;
 
 #[tokio::main]
 async fn main() {
-    let app = health_router();
+    let app = health_router().merge(auth_router());
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }

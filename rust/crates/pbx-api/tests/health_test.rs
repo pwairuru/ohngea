@@ -12,4 +12,9 @@ async fn health_returns_ok() {
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), 1024 * 16)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v.get("status").and_then(|s| s.as_str()), Some("ok"));
 }
