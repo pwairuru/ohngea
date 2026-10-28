@@ -210,5 +210,10 @@ pub fn call_centers_router() -> Router {
         .route("/api/v1/call_centers/agents", post(create_agent))
         .route("/api/v1/call_centers/agents/", post(create_agent))
         .route("/api/v1/call_centers/{id}/join", post(join_queue))
+        // Singular alias: plugin manifest route is `/call_center`
+        // (ground truth `plugins/call_center/manifest.toml`); core wins
+        // per `app/main.py` skip list, so the alias reuses core handlers.
+        .route("/api/v1/call_center", post(create_queue).get(list_queues))
+        .route("/api/v1/call_center/", post(create_queue).get(list_queues))
         .layer(axum::middleware::from_fn(crate::require_tenant))
 }

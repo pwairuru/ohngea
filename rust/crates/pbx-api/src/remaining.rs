@@ -325,13 +325,9 @@ async fn list_modules() -> impl IntoResponse {
     Json(serde_json::json!({"data": data, "total": 3}))
 }
 
-async fn list_plugins() -> impl IntoResponse {
-    let data = serde_json::json!([
-        {"name": "operator_panel", "enabled": true},
-        {"name": "click_to_call", "enabled": true},
-    ]);
-    Json(serde_json::json!({"data": data, "total": 2}))
-}
+// NOTE: the old static `GET /api/v1/plugins` stub lived here; superseded by
+// the real manifest registry in `crate::plugins::plugins_router`
+// (all 9 `plugins/*/manifest.toml`, license gate, enriched shape).
 
 async fn log_viewer() -> impl IntoResponse {
     // Prod tails FS logs; mock transport has no log stream.
@@ -521,7 +517,6 @@ pub fn remaining_router() -> Router {
         axum::routing::get(click_to_call_info).post(click_to_call_originate),
     )
     .route("/api/v1/modules", axum::routing::get(list_modules))
-    .route("/api/v1/plugins", axum::routing::get(list_plugins))
     .route("/api/v1/log_viewer", axum::routing::get(log_viewer))
     .route(
         "/api/v1/database_transactions",

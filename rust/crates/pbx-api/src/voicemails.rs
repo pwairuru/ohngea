@@ -163,6 +163,11 @@ pub fn voicemails_router() -> Router {
         .route("/api/v1/voicemails", post(create_vm).get(list_vm))
         .route("/api/v1/voicemails/", post(create_vm).get(list_vm))
         .route("/api/v1/voicemails/{id}/greetings", post(create_greeting))
+        // Singular alias: plugin manifest route is `/voicemail`
+        // (ground truth `plugins/voicemail/manifest.toml`); core wins
+        // per `app/main.py` skip list, so the alias reuses core handlers.
+        .route("/api/v1/voicemail", post(create_vm).get(list_vm))
+        .route("/api/v1/voicemail/", post(create_vm).get(list_vm))
         .layer(axum::middleware::from_fn(crate::require_tenant))
 }
 

@@ -96,6 +96,23 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL
     )",
     "CREATE INDEX IF NOT EXISTS ix_domain_settings_domain ON domain_settings (domain_id)",
+    "CREATE TABLE IF NOT EXISTS domain_plugins (
+      id UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      plugin_name VARCHAR(64) NOT NULL,
+      enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_domain_plugins_domain ON domain_plugins (domain_id)",
+    "CREATE TABLE IF NOT EXISTS domain_apps (
+      id UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      app_name VARCHAR(64) NOT NULL,
+      enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL,
+      UNIQUE (domain_id, app_name)
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_domain_apps_domain ON domain_apps (domain_id)",
     // extensions — full parity columns
     "CREATE TABLE IF NOT EXISTS extensions (
       extension_uuid UUID PRIMARY KEY,
@@ -731,6 +748,8 @@ impl MigrationTrait for M20260101_000001PgParity {
         }
         // Drop in reverse dependency order (children first).
         let tables = [
+            "domain_plugins",
+            "domain_apps",
             "remaining_records",
             "email_queue",
             "contacts",
@@ -745,6 +764,8 @@ impl MigrationTrait for M20260101_000001PgParity {
             "ivr_menu_options",
             "ivr_menus",
             "call_center_tiers",
+            "domain_plugins",
+            "domain_apps",
             "call_center_agents",
             "call_centers",
             "ring_group_members",

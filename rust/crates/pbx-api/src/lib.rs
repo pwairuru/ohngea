@@ -16,6 +16,7 @@ mod groups;
 mod health;
 mod ivr_menus;
 mod permissions;
+pub mod plugins;
 mod recordings;
 mod remaining;
 mod ring_groups;
@@ -90,6 +91,11 @@ pub fn build_app() -> axum::Router {
         .merge(devices::provision_router())
         .merge(email_queue::email_queue_router())
         .merge(remaining::remaining_router())
+        .merge(plugins::plugins_router())
+        .merge(plugins::plugins_available_router())
+        .merge(plugins::example_router())
+        .merge(plugins::domain_plugin_router())
+        .layer(axum::middleware::from_fn(plugins::plugin_gate))
         .layer(axum::middleware::from_fn(accept_compat_middleware))
 }
 

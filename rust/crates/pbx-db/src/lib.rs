@@ -90,6 +90,27 @@ const DDL_DOMAIN_SETTINGS: &str = "CREATE TABLE IF NOT EXISTS domain_settings (
 const DDL_DOMAIN_SETTINGS_IDX: &str =
     "CREATE INDEX IF NOT EXISTS ix_domain_settings_domain ON domain_settings (domain_id)";
 
+const DDL_DOMAIN_PLUGINS: &str = "CREATE TABLE IF NOT EXISTS domain_plugins (
+  id TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+  plugin_name VARCHAR(64) NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL
+)";
+const DDL_DOMAIN_PLUGINS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_domain_plugins_domain ON domain_plugins (domain_id)";
+
+const DDL_DOMAIN_APPS: &str = "CREATE TABLE IF NOT EXISTS domain_apps (
+  id TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+  app_name VARCHAR(64) NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  UNIQUE (domain_id, app_name)
+)";
+const DDL_DOMAIN_APPS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_domain_apps_domain ON domain_apps (domain_id)";
+
 const DDL_DOMAINS: &str = "CREATE TABLE IF NOT EXISTS domains (
   domain_id TEXT PRIMARY KEY,
   domain_name VARCHAR(255) NOT NULL UNIQUE,
@@ -688,6 +709,10 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_DEFAULT_SETTINGS_IDX,
         DDL_DOMAIN_SETTINGS,
         DDL_DOMAIN_SETTINGS_IDX,
+        DDL_DOMAIN_PLUGINS,
+        DDL_DOMAIN_PLUGINS_IDX,
+        DDL_DOMAIN_APPS,
+        DDL_DOMAIN_APPS_IDX,
         DDL_DOMAINS,
         DDL_EXTENSIONS,
         DDL_EXTENSIONS_IDX,

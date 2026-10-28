@@ -18,6 +18,8 @@ pub mod device_settings;
 pub mod devices;
 pub mod dialplan_details;
 pub mod dialplans;
+pub mod domain_apps;
+pub mod domain_plugins;
 pub mod domain_settings;
 pub mod domains;
 pub mod email_queue;
