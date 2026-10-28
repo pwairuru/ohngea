@@ -710,6 +710,68 @@ async fn join_queue(
         .into_response()
 }
 
+// ---- call_center_active live view (parity: fusionpbx/app/call_center_active/) ----
+// Live queue snapshot: DB queues/agents for this tenant enriched with an ESL
+// `callcenter_config` poll. `source` is `esl` when the switch answered over
+// TCP 8021, `db` when the shared EsClient fell back to the mock transport.
+async fn call_center_active(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_active_view") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let queues = call_centers::Entity::find()
+        .filter(call_centers::Column::DomainId.eq(domain))
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let agents = call_center_agents::Entity::find()
+        .filter(call_center_agents::Column::DomainId.eq(domain))
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let esl = pbx_fs::esl::RealEs::from_env();
+    let probe = esl.api("callcenter_config queue list");
+    let source = if probe.contains("mock-fallback") {
+        "db"
+    } else {
+        "esl"
+    };
+    let data: Vec<serde_json::Value> = queues
+        .iter()
+        .map(|q| {
+            let q_agents: Vec<serde_json::Value> = agents
+                .iter()
+                .filter(|a| a.queue_id == q.call_center_queue_uuid)
+                .map(|a| {
+                    serde_json::json!({
+                        "agent_name": a.agent_name,
+                        "agent_contact": a.agent_contact,
+                        "agent_status": a.agent_status,
+                    })
+                })
+                .collect();
+            serde_json::json!({
+                "queue_uuid": q.call_center_queue_uuid,
+                "queue_name": q.queue_name,
+                "queue_extension": q.queue_extension,
+                "queue_strategy": q.queue_strategy,
+                "queue_enabled": true,
+                "agent_count": q_agents.len(),
+                "agents": q_agents,
+            })
+        })
+        .collect();
+    let total = data.len() as u64;
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"data": data, "total": total, "source": source})),
+    )
+        .into_response()
+}
+
 pub fn call_centers_router() -> Router {
     Router::new()
         .route("/api/v1/call_centers", post(create_queue).get(list_queues))
@@ -739,6 +801,10 @@ pub fn call_centers_router() -> Router {
             axum::routing::patch(patch_tier).delete(delete_tier),
         )
         .route("/api/v1/call_centers/{id}/join", post(join_queue))
+        .route(
+            "/api/v1/call_center_active",
+            axum::routing::get(call_center_active),
+        )
         // Singular alias: plugin manifest route is `/call_center`
         // (ground truth `plugins/call_center/manifest.toml`); core wins
         // per `app/main.py` skip list, so the alias reuses core handlers.

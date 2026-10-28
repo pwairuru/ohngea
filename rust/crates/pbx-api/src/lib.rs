@@ -4,6 +4,7 @@ mod call_centers;
 mod calls;
 mod cdr;
 mod conference_centers;
+mod conference_controls;
 mod conferences;
 mod contacts;
 mod devices;
@@ -316,6 +317,7 @@ pub fn build_app() -> axum::Router {
         .merge(ivr_menus::ivr_menus_router())
         .merge(voicemails::voicemails_router())
         .merge(conferences::conferences_router())
+        .merge(conference_controls::conference_controls_router())
         .merge(conference_centers::conference_centers_router())
         .merge(fax::fax_router())
         .merge(cdr::cdr_router())

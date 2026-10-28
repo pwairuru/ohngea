@@ -596,6 +596,30 @@ const DDL_CONFERENCE_USERS: &str = "CREATE TABLE IF NOT EXISTS conference_users 
   updated_at TEXT NOT NULL
 )";
 
+const DDL_CONFERENCE_CONTROLS: &str = "CREATE TABLE IF NOT EXISTS conference_controls (
+  conference_control_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  control_name VARCHAR(128) NOT NULL,
+  control_enabled BOOLEAN NOT NULL DEFAULT 1,
+  control_description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_CONFERENCE_CONTROLS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_conference_controls_domain ON conference_controls (domain_id)";
+
+const DDL_CONFERENCE_PROFILES: &str = "CREATE TABLE IF NOT EXISTS conference_profiles (
+  conference_profile_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  profile_name VARCHAR(128) NOT NULL,
+  profile_enabled BOOLEAN NOT NULL DEFAULT 1,
+  profile_description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_CONFERENCE_PROFILES_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_conference_profiles_domain ON conference_profiles (domain_id)";
+
 const DDL_CONFERENCE_CENTERS: &str = "CREATE TABLE IF NOT EXISTS conference_centers (
   conference_center_uuid TEXT PRIMARY KEY,
   domain_id TEXT NOT NULL,
@@ -1409,6 +1433,10 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_CONFERENCE_SESSIONS,
         DDL_CONFERENCE_SESSION_DETAILS,
         DDL_CONFERENCE_USERS,
+        DDL_CONFERENCE_CONTROLS,
+        DDL_CONFERENCE_CONTROLS_IDX,
+        DDL_CONFERENCE_PROFILES,
+        DDL_CONFERENCE_PROFILES_IDX,
         DDL_FAX_QUEUE,
         DDL_FAX_QUEUE_IDX,
         DDL_FAXES,

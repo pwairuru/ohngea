@@ -333,7 +333,12 @@ fn find_header_end(haystack: &[u8]) -> Option<usize> {
         .windows(4)
         .position(|w| w == b"\r\n\r\n")
         .map(|i| i + 4)
-        .or_else(|| haystack.windows(2).position(|w| w == b"\n\n").map(|i| i + 2))
+        .or_else(|| {
+            haystack
+                .windows(2)
+                .position(|w| w == b"\n\n")
+                .map(|i| i + 2)
+        })
 }
 
 impl RealEs {

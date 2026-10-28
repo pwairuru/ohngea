@@ -19,6 +19,8 @@ pub mod call_recordings;
 pub mod cdr;
 pub mod cdr_archive;
 pub mod conference_centers;
+pub mod conference_controls;
+pub mod conference_profiles;
 pub mod conference_rooms;
 pub mod conference_session_details;
 pub mod conference_sessions;

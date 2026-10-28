@@ -309,6 +309,8 @@ fn ser_broadcast(r: &call_broadcasts::Model) -> Value {
         "broadcast_caller_id_name": r.broadcast_caller_id_name,
         "broadcast_caller_id_number": r.broadcast_caller_id_number,
         "broadcast_destination_type": r.broadcast_destination_type,
+        "broadcast_destination_data": r.broadcast_destination_data,
+        "broadcast_phone_numbers": r.broadcast_phone_numbers,
         "broadcast_enabled": r.broadcast_enabled,
         "enabled": r.broadcast_enabled,
     })
@@ -338,6 +340,7 @@ async fn create_broadcast(
         broadcast_caller_id_number: Set(s(&payload, &["broadcast_caller_id_number"])),
         broadcast_destination_type: Set(s(&payload, &["broadcast_destination_type"])),
         broadcast_destination_data: Set(s(&payload, &["broadcast_destination_data"])),
+        broadcast_phone_numbers: Set(s(&payload, &["broadcast_phone_numbers"])),
         broadcast_enabled: Set(b(&payload, &["broadcast_enabled", "enabled"], true)),
         created_at: Set(now),
         updated_at: Set(now),
@@ -434,6 +437,15 @@ async fn patch_broadcast(
     if let Some(v) = s(&payload, &["broadcast_description", "description"]) {
         am.broadcast_description = Set(Some(v));
     }
+    if let Some(v) = s(&payload, &["broadcast_destination_type"]) {
+        am.broadcast_destination_type = Set(Some(v));
+    }
+    if let Some(v) = s(&payload, &["broadcast_destination_data"]) {
+        am.broadcast_destination_data = Set(Some(v));
+    }
+    if let Some(v) = s(&payload, &["broadcast_phone_numbers"]) {
+        am.broadcast_phone_numbers = Set(Some(v));
+    }
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
         Ok(r) => (StatusCode::OK, Json(ser_broadcast(&r))).into_response(),
@@ -472,6 +484,148 @@ async fn delete_broadcast(
     }
 }
 
+/// POST `/{id}/send` — start a broadcast campaign (parity:
+/// `app/call_broadcast/router.py::send_ep`). Enables the row, then originates
+/// to each listed number via ESL `bgapi` (best effort, mock-fallback offline).
+async fn send_broadcast(
+    Extension(claims): Extension<Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    use pbx_fs::esl::EsClient;
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_broadcast_add") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let Some(r) = call_broadcasts::Entity::find_by_id(id.clone())
+        .one(db)
+        .await
+        .unwrap_or(None)
+    else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "Call broadcast not found"})),
+        )
+            .into_response();
+    };
+    if r.domain_id != domain {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "Call broadcast not found"})),
+        )
+            .into_response();
+    }
+    let (Some(dest_type), Some(dest_data)) = (
+        r.broadcast_destination_type.clone(),
+        r.broadcast_destination_data.clone(),
+    ) else {
+        return unprocessable(
+            "broadcast_destination_type and broadcast_destination_data required to send",
+        )
+        .into_response();
+    };
+    if dest_type.trim().is_empty() || dest_data.trim().is_empty() {
+        return unprocessable(
+            "broadcast_destination_type and broadcast_destination_data required to send",
+        )
+        .into_response();
+    }
+    let mut am: call_broadcasts::ActiveModel = r.into();
+    am.broadcast_enabled = Set(true);
+    am.updated_at = Set(crate::routing_db::now());
+    let Ok(r) = am.update(db).await else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": "update failed"})),
+        )
+            .into_response();
+    };
+    let esl = pbx_fs::esl::RealEs::from_env();
+    let caller = r.broadcast_caller_id_number.clone().unwrap_or_default();
+    let numbers: Vec<String> = r
+        .broadcast_phone_numbers
+        .as_deref()
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+        .take(100)
+        .map(str::to_owned)
+        .collect();
+    let results: Vec<Value> = numbers
+        .iter()
+        .map(|n| {
+            let cmd = format!(
+                "originate {{origination_caller_id_number={caller}}}user/{n} &transfer({dest_data} {dest_type})"
+            );
+            let reply: String = esl.bgapi(&cmd);
+            let short: String = reply.chars().take(300).collect();
+            serde_json::json!({"number": n, "result": short})
+        })
+        .collect();
+    let attempted = results.len();
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "call_broadcast_uuid": r.call_broadcast_uuid,
+            "broadcast_enabled": r.broadcast_enabled,
+            "send": {"attempted": attempted, "results": results},
+        })),
+    )
+        .into_response()
+}
+
+/// POST `/{id}/stop` — stop a broadcast campaign (parity:
+/// `app/call_broadcast/router.py::stop_ep`). Disables the row so no further
+/// legs originate.
+async fn stop_broadcast(
+    Extension(claims): Extension<Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_broadcast_add") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let Some(r) = call_broadcasts::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "Call broadcast not found"})),
+        )
+            .into_response();
+    };
+    if r.domain_id != domain {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "Call broadcast not found"})),
+        )
+            .into_response();
+    }
+    let mut am: call_broadcasts::ActiveModel = r.into();
+    am.broadcast_enabled = Set(false);
+    am.updated_at = Set(crate::routing_db::now());
+    match am.update(db).await {
+        Ok(r) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "call_broadcast_uuid": r.call_broadcast_uuid,
+                "broadcast_enabled": r.broadcast_enabled,
+                "send": {"attempted": 0, "stopped": true},
+            })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
 fn broadcast_router() -> Router {
     // Legacy `/api/v1/call_broadcast` kept; Python-canonical
     // `/api/v1/call_broadcasts` mounted alongside.
@@ -487,6 +641,14 @@ fn broadcast_router() -> Router {
                 .delete(delete_broadcast),
         )
         .route(
+            "/api/v1/call_broadcast/{id}/send",
+            axum::routing::post(send_broadcast),
+        )
+        .route(
+            "/api/v1/call_broadcast/{id}/stop",
+            axum::routing::post(stop_broadcast),
+        )
+        .route(
             "/api/v1/call_broadcasts",
             axum::routing::post(create_broadcast).get(list_broadcast),
         )
@@ -495,6 +657,14 @@ fn broadcast_router() -> Router {
             axum::routing::get(get_broadcast)
                 .patch(patch_broadcast)
                 .delete(delete_broadcast),
+        )
+        .route(
+            "/api/v1/call_broadcasts/{id}/send",
+            axum::routing::post(send_broadcast),
+        )
+        .route(
+            "/api/v1/call_broadcasts/{id}/stop",
+            axum::routing::post(stop_broadcast),
         )
 }
 

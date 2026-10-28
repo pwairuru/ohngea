@@ -588,6 +588,26 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     )",
+    "CREATE TABLE IF NOT EXISTS conference_controls (
+      conference_control_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      control_name VARCHAR(128) NOT NULL,
+      control_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      control_description VARCHAR(512),
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_conference_controls_domain ON conference_controls (domain_id)",
+    "CREATE TABLE IF NOT EXISTS conference_profiles (
+      conference_profile_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      profile_name VARCHAR(128) NOT NULL,
+      profile_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      profile_description VARCHAR(512),
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_conference_profiles_domain ON conference_profiles (domain_id)",
     "CREATE TABLE IF NOT EXISTS conference_centers (
       conference_center_uuid UUID PRIMARY KEY,
       domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,

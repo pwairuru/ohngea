@@ -60,6 +60,161 @@ async fn list_active_conferences() -> impl IntoResponse {
     Json(serde_json::json!({"data": data, "total": total}))
 }
 
+// ---- active_calls per-channel control (parity: app/active_calls/router.py) ----
+async fn get_active_call(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(uid): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    let _ = &claims;
+    // Mirrors `uuid_exists {uid}` against the shared mock channel store
+    // (same store `POST /api/v1/calls/originate` writes).
+    match pbx_fs::esl::mock_channels()
+        .into_iter()
+        .find(|c| c.uuid == uid)
+    {
+        Some(c) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "call_uuid": c.uuid,
+                "call_id": c.uuid,
+                "from": c.from,
+                "to": c.to,
+                "state": c.state,
+                "exists": true,
+            })),
+        )
+            .into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "Active call not found"})),
+        )
+            .into_response(),
+    }
+}
+
+async fn hangup_active_call(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(uid): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "active_calls_hangup") {
+        return (s, j).into_response();
+    }
+    // Mirrors `uuid_kill {uid}`; also drops the mock leg so a later GET 404s.
+    let _ = esl().api(&format!("uuid_kill {uid}"));
+    let _ = pbx_fs::esl::mock_kill(&uid);
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"result": "hangup queued (ESL offline)", "call_uuid": uid})),
+    )
+        .into_response()
+}
+
+// ---- active_conferences member control (parity: conferences_active/conference_exec.php) ----
+async fn count_active_conferences(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "conference_active_view") {
+        return (s, j).into_response();
+    }
+    let rooms = MockEs::default().conference_list("default");
+    let count = rooms.len() as u64;
+    Json(serde_json::json!({"count": count})).into_response()
+}
+
+async fn list_conference_members(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(conf): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "conference_active_view") {
+        return (s, j).into_response();
+    }
+    // Best-effort `conference {name} xml_list` parse; mock transport has no
+    // live rooms, so the snapshot is empty offline.
+    let reply = esl().api(&format!("conference {conf} xml_list"));
+    let data = parse_conference_members(&reply);
+    Json(serde_json::json!({"conference": conf, "data": data, "total": data.len()})).into_response()
+}
+
+/// Minimal `xml_list` member extraction: `<member ...><uuid>…</uuid></member>`
+/// rows when FS answered live; empty when the reply is a mock fallback.
+fn parse_conference_members(reply: &str) -> Vec<Value> {
+    if reply.contains("mock-fallback") || !reply.contains("<member") {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    let mut rest = reply;
+    while let Some(start) = rest.find("<member") {
+        rest = &rest[start..];
+        let Some(end) = rest.find("</member>") else {
+            break;
+        };
+        let chunk = &rest[..end];
+        let uuid = chunk
+            .find("<uuid>")
+            .and_then(|s| {
+                chunk[s + 6..]
+                    .find("</uuid>")
+                    .map(|e| chunk[s + 6..s + 6 + e].trim())
+            })
+            .unwrap_or("")
+            .to_owned();
+        if !uuid.is_empty() {
+            out.push(serde_json::json!({"member_id": uuid, "uuid": uuid}));
+        }
+        rest = &rest[end + 9..];
+    }
+    out
+}
+
+/// Member actions mirroring `conference_exec.php` `$data` switch
+/// (mute/unmute/deaf/undeaf/kick/lock/unlock/energy/volume/record).
+fn valid_conf_action(action: &str) -> bool {
+    matches!(
+        action,
+        "mute"
+            | "unmute"
+            | "deaf"
+            | "undeaf"
+            | "kick"
+            | "lock"
+            | "unlock"
+            | "energy"
+            | "volume"
+            | "volume_in"
+            | "volume_out"
+            | "record"
+            | "norecord"
+    )
+}
+
+async fn conference_member_action(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path((conf, member, action)): axum::extract::Path<(String, String, String)>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "conference_active_view") {
+        return (s, j).into_response();
+    }
+    if !valid_conf_action(&action) {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({"detail": format!("unknown conference action: {action}")})),
+        )
+            .into_response();
+    }
+    // Mirrors `conference {name} {action} {member}` over ESL.
+    let result = esl().api(&format!("conference {conf} {action} {member}"));
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "conference": conf,
+            "member": member,
+            "action": action,
+            "result": result,
+        })),
+    )
+        .into_response()
+}
+
 async fn list_registrations() -> impl IntoResponse {
     // Mirrors `show registrations as json` over ESL; mock transport here.
     let regs = pbx_fs::esl::mock_registrations();
@@ -371,8 +526,25 @@ pub fn remaining_router() -> Router {
             axum::routing::get(list_active_calls),
         )
         .route(
+            "/api/v1/active_calls/{id}",
+            axum::routing::get(get_active_call),
+        )
+        .route("/api/v1/active_calls/{id}/hangup", post(hangup_active_call))
+        .route(
             "/api/v1/active_conferences",
             axum::routing::get(list_active_conferences),
+        )
+        .route(
+            "/api/v1/active_conferences/count",
+            axum::routing::get(count_active_conferences),
+        )
+        .route(
+            "/api/v1/active_conferences/{conf}/members",
+            axum::routing::get(list_conference_members),
+        )
+        .route(
+            "/api/v1/active_conferences/{conf}/members/{member}/{action}",
+            post(conference_member_action),
         )
         .route(
             "/api/v1/conferences_active",
