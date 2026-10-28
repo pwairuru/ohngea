@@ -591,6 +591,54 @@ async fn patch_profile_setting(
     (StatusCode::OK, Json(setting_to_json(&row))).into_response()
 }
 
+async fn delete_profile_setting(
+    AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
+    axum::extract::Path((pid, sid)): axum::extract::Path<(String, String)>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let (Ok(puid), Ok(suid)) = (pid.parse::<uuid::Uuid>(), sid.parse::<uuid::Uuid>()) else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let profile = pbx_db::entities::sip_profiles::Entity::find_by_id(puid)
+        .filter(pbx_db::entities::sip_profiles::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None);
+    if profile.is_none() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    }
+    let row = pbx_db::entities::sip_profile_settings::Entity::find_by_id(suid)
+        .filter(pbx_db::entities::sip_profile_settings::Column::SipProfileUuid.eq(puid))
+        .one(db)
+        .await
+        .unwrap_or(None);
+    let Some(r) = row else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let am: pbx_db::entities::sip_profile_settings::ActiveModel = r.into();
+    match am.delete(db).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
 /// Names of enabled profiles for sofia XML regen from DB.
 pub async fn profile_names() -> Vec<String> {
     let db = crate::routing_db::conn().await;
@@ -630,7 +678,7 @@ pub fn sip_router() -> Router {
         )
         .route(
             "/api/v1/sip_profiles/{id}/settings/{sid}",
-            axum::routing::patch(patch_profile_setting),
+            axum::routing::patch(patch_profile_setting).delete(delete_profile_setting),
         )
         .layer(axum::middleware::from_fn(crate::require_tenant))
 }

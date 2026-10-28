@@ -562,6 +562,18 @@ const DDL_VOICEMAIL_MESSAGES: &str = "CREATE TABLE IF NOT EXISTS voicemail_messa
   message_length INTEGER
 )";
 
+const DDL_VOICEMAIL_OPTIONS: &str = "CREATE TABLE IF NOT EXISTS voicemail_options (
+  voicemail_option_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  voicemail_uuid TEXT NOT NULL REFERENCES voicemails (voicemail_uuid),
+  digits VARCHAR(8),
+  action VARCHAR(64),
+  param VARCHAR(512),
+  description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+
 const DDL_CONFERENCES: &str = "CREATE TABLE IF NOT EXISTS conferences (
   conference_uuid TEXT PRIMARY KEY,
   domain_id TEXT NOT NULL,
@@ -575,6 +587,58 @@ const DDL_CONFERENCES: &str = "CREATE TABLE IF NOT EXISTS conferences (
 const DDL_CONFERENCES_IDX: &str =
     "CREATE INDEX IF NOT EXISTS ix_conferences_domain ON conferences (domain_id)";
 
+const DDL_CONFERENCE_USERS: &str = "CREATE TABLE IF NOT EXISTS conference_users (
+  conference_user_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  conference_uuid TEXT NOT NULL REFERENCES conferences (conference_uuid),
+  user_uuid TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+
+const DDL_CONFERENCE_CENTERS: &str = "CREATE TABLE IF NOT EXISTS conference_centers (
+  conference_center_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  conference_center_name VARCHAR(128) NOT NULL,
+  conference_center_extension VARCHAR(32),
+  conference_center_description VARCHAR(512),
+  conference_center_enabled BOOLEAN NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_CONFERENCE_CENTERS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_conference_centers_domain ON conference_centers (domain_id)";
+
+const DDL_CONFERENCE_ROOMS: &str = "CREATE TABLE IF NOT EXISTS conference_rooms (
+  conference_room_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  conference_center_uuid TEXT NOT NULL REFERENCES conference_centers (conference_center_uuid),
+  conference_room_name VARCHAR(128) NOT NULL,
+  max_members INTEGER,
+  enabled BOOLEAN NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+
+const DDL_CONFERENCE_SESSIONS: &str = "CREATE TABLE IF NOT EXISTS conference_sessions (
+  conference_session_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  conference_center_uuid TEXT REFERENCES conference_centers (conference_center_uuid),
+  conference_room_uuid TEXT REFERENCES conference_rooms (conference_room_uuid),
+  profile VARCHAR(64),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+
+const DDL_CONFERENCE_SESSION_DETAILS: &str =
+    "CREATE TABLE IF NOT EXISTS conference_session_details (
+  conference_session_detail_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  conference_session_uuid TEXT NOT NULL REFERENCES conference_sessions (conference_session_uuid),
+  username VARCHAR(32),
+  created_at TEXT NOT NULL
+)";
+
 const DDL_FAX_QUEUE: &str = "CREATE TABLE IF NOT EXISTS fax_queue (
   fax_queue_uuid TEXT PRIMARY KEY,
   domain_id TEXT NOT NULL,
@@ -584,6 +648,43 @@ const DDL_FAX_QUEUE: &str = "CREATE TABLE IF NOT EXISTS fax_queue (
 )";
 const DDL_FAX_QUEUE_IDX: &str =
     "CREATE INDEX IF NOT EXISTS ix_fax_queue_domain ON fax_queue (domain_id)";
+
+const DDL_FAXES: &str = "CREATE TABLE IF NOT EXISTS fax (
+  fax_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  fax_extension VARCHAR(32) NOT NULL,
+  fax_name VARCHAR(128) NOT NULL,
+  description VARCHAR(512),
+  enabled BOOLEAN NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_FAXES_IDX: &str = "CREATE INDEX IF NOT EXISTS ix_fax_domain ON fax (domain_id)";
+
+const DDL_FAX_FILES: &str = "CREATE TABLE IF NOT EXISTS fax_files (
+  fax_file_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  fax_uuid TEXT NOT NULL REFERENCES fax (fax_uuid),
+  file_name VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+
+const DDL_FAX_LOGS: &str = "CREATE TABLE IF NOT EXISTS fax_logs (
+  fax_log_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  fax_uuid TEXT NOT NULL REFERENCES fax (fax_uuid),
+  fax_result_text VARCHAR(512),
+  created_at TEXT NOT NULL
+)";
+
+const DDL_FAX_USERS: &str = "CREATE TABLE IF NOT EXISTS fax_users (
+  fax_user_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  fax_uuid TEXT NOT NULL REFERENCES fax (fax_uuid),
+  user_uuid TEXT,
+  created_at TEXT NOT NULL
+)";
 
 const DDL_CDR: &str = "CREATE TABLE IF NOT EXISTS cdr (
   cdr_uuid TEXT PRIMARY KEY,
@@ -674,6 +775,52 @@ const DDL_CONTACTS: &str = "CREATE TABLE IF NOT EXISTS contacts (
 )";
 const DDL_CONTACTS_IDX: &str =
     "CREATE INDEX IF NOT EXISTS ix_contacts_domain ON contacts (domain_id)";
+
+const DDL_CONTACT_ADDRESSES: &str = "CREATE TABLE IF NOT EXISTS contact_addresses (
+  contact_address_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  contact_uuid TEXT NOT NULL REFERENCES contacts (contact_uuid),
+  address_label VARCHAR(64),
+  address_street VARCHAR(255),
+  address_locality VARCHAR(128),
+  created_at TEXT NOT NULL
+)";
+
+const DDL_CONTACT_PHONES: &str = "CREATE TABLE IF NOT EXISTS contact_phones (
+  contact_phone_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  contact_uuid TEXT NOT NULL REFERENCES contacts (contact_uuid),
+  phone_label VARCHAR(64),
+  phone_number VARCHAR(32) NOT NULL,
+  phone_primary BOOLEAN NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+)";
+
+const DDL_CONTACT_EMAILS: &str = "CREATE TABLE IF NOT EXISTS contact_emails (
+  contact_email_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  contact_uuid TEXT NOT NULL REFERENCES contacts (contact_uuid),
+  email_label VARCHAR(64),
+  email_address VARCHAR(255) NOT NULL,
+  created_at TEXT NOT NULL
+)";
+
+const DDL_CONTACT_URLS: &str = "CREATE TABLE IF NOT EXISTS contact_urls (
+  contact_url_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  contact_uuid TEXT NOT NULL REFERENCES contacts (contact_uuid),
+  url_label VARCHAR(64),
+  url_address VARCHAR(512) NOT NULL,
+  created_at TEXT NOT NULL
+)";
+
+const DDL_CONTACT_NOTES: &str = "CREATE TABLE IF NOT EXISTS contact_notes (
+  contact_note_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  contact_uuid TEXT NOT NULL REFERENCES contacts (contact_uuid),
+  contact_note VARCHAR(1024) NOT NULL,
+  created_at TEXT NOT NULL
+)";
 
 const DDL_EMAIL_QUEUE: &str = "CREATE TABLE IF NOT EXISTS email_queue (
   email_queue_uuid TEXT PRIMARY KEY,
@@ -1180,10 +1327,22 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_VOICEMAILS_IDX,
         DDL_VOICEMAIL_GREETINGS,
         DDL_VOICEMAIL_MESSAGES,
+        DDL_VOICEMAIL_OPTIONS,
         DDL_CONFERENCES,
         DDL_CONFERENCES_IDX,
+        DDL_CONFERENCE_CENTERS,
+        DDL_CONFERENCE_CENTERS_IDX,
+        DDL_CONFERENCE_ROOMS,
+        DDL_CONFERENCE_SESSIONS,
+        DDL_CONFERENCE_SESSION_DETAILS,
+        DDL_CONFERENCE_USERS,
         DDL_FAX_QUEUE,
         DDL_FAX_QUEUE_IDX,
+        DDL_FAXES,
+        DDL_FAXES_IDX,
+        DDL_FAX_FILES,
+        DDL_FAX_LOGS,
+        DDL_FAX_USERS,
         DDL_CDR,
         DDL_CDR_IDX,
         DDL_RECORDINGS,
@@ -1198,6 +1357,11 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_GROUP_PERMISSIONS,
         DDL_CONTACTS,
         DDL_CONTACTS_IDX,
+        DDL_CONTACT_ADDRESSES,
+        DDL_CONTACT_PHONES,
+        DDL_CONTACT_EMAILS,
+        DDL_CONTACT_URLS,
+        DDL_CONTACT_NOTES,
         DDL_EMAIL_QUEUE,
         DDL_EMAIL_QUEUE_IDX,
         DDL_REMAINING_RECORDS,

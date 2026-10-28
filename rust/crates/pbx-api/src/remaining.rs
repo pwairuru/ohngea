@@ -15,7 +15,7 @@
 //! esl: `RealEs::from_env` with graceful fallback to the mock transport
 //! (same `EsClient` trait as batch 2b `calls.rs`).
 
-use axum::{http::StatusCode, response::IntoResponse, routing::post, Json, Router};
+use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
 use serde_json::Value;
 
 // ---- models ----
@@ -148,6 +148,171 @@ async fn operator_originate(Json(payload): Json<Value>) -> impl IntoResponse {
     click_to_call_originate(Json(payload)).await
 }
 
+// ---- operator_panel live actions (parity: app/operator_panel/router.py) ----
+async fn operator_calls() -> impl IntoResponse {
+    let chans = pbx_fs::esl::mock_channels();
+    let data: Vec<Value> = chans
+        .iter()
+        .map(|c| serde_json::json!({"call_id": c.uuid, "from": c.from, "to": c.to, "state": c.state}))
+        .collect();
+    let total = data.len();
+    Json(serde_json::json!({"data": data, "total": total}))
+}
+
+async fn op_hangup(axum::extract::Path(uid): axum::extract::Path<String>) -> impl IntoResponse {
+    let _ = esl().api(&format!("uuid_kill {uid}"));
+    Json(serde_json::json!({"result": "hangup queued (ESL offline)", "call_uuid": uid}))
+}
+
+async fn op_eavesdrop(
+    axum::extract::Path(uid): axum::extract::Path<String>,
+    Json(payload): Json<Value>,
+) -> impl IntoResponse {
+    let _ = payload;
+    let _ = esl().api(&format!("uuid_eavesdrop {uid}"));
+    Json(
+        serde_json::json!({"result": "eavesdrop queued (ESL offline)", "call_uuid": uid, "action": "eavesdrop"}),
+    )
+}
+
+async fn op_coach(
+    axum::extract::Path(uid): axum::extract::Path<String>,
+    Json(payload): Json<Value>,
+) -> impl IntoResponse {
+    let _ = payload;
+    let _ = esl().api(&format!("uuid_coach {uid}"));
+    Json(
+        serde_json::json!({"result": "coach queued (ESL offline)", "call_uuid": uid, "action": "coach"}),
+    )
+}
+
+async fn op_record(
+    axum::extract::Path(uid): axum::extract::Path<String>,
+    Json(payload): Json<Value>,
+) -> impl IntoResponse {
+    let _ = payload;
+    let _ = esl().api(&format!("uuid_record {uid}"));
+    Json(
+        serde_json::json!({"result": "record queued (ESL offline)", "call_uuid": uid, "action": "record"}),
+    )
+}
+
+async fn provision_registration(
+    axum::extract::Path(uid): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    let _ = esl().api(&format!("sofia profile internal rescan {uid}"));
+    Json(serde_json::json!({"uid": uid, "action": "provision", "success": true}))
+}
+
+async fn reboot_registration(
+    axum::extract::Path(uid): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    let _ = esl().api(&format!("sofia profile internal reboot {uid}"));
+    Json(serde_json::json!({"uid": uid, "action": "reboot", "success": true}))
+}
+
+// ---- webrtc credentials (parity: app/webrtc/credentials_router.py) ----
+async fn webrtc_credentials(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    Json(payload): Json<Value>,
+) -> impl IntoResponse {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let settings = pbx_db::entities::webrtc_settings::Entity::find_by_id(domain)
+        .one(db)
+        .await
+        .unwrap_or(None);
+    let Some(s) = settings else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"detail": "WebPhone disabled for this domain"})),
+        )
+            .into_response();
+    };
+    if !s.enabled {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"detail": "WebPhone disabled for this domain"})),
+        )
+            .into_response();
+    }
+    let Some(wss_url) = s.wss_url.filter(|u| !u.trim().is_empty()) else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"detail": "wss_url not configured"})),
+        )
+            .into_response();
+    };
+    let sip_domain = s.sip_domain.unwrap_or_else(|| "example.com".to_owned());
+    if let Some(ext_val) = payload.get("extension").and_then(|v| v.as_str()) {
+        if s.auth_mode != "extension" && s.auth_mode != "both" {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"detail": "extension auth disabled"})),
+            )
+                .into_response();
+        }
+        let ext = pbx_db::entities::extensions::Entity::find()
+            .filter(pbx_db::entities::extensions::Column::DomainId.eq(domain))
+            .filter(pbx_db::entities::extensions::Column::Extension.eq(ext_val.to_owned()))
+            .one(db)
+            .await
+            .unwrap_or(None);
+        let Some(e) = ext.filter(|e| e.enabled) else {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"detail": "Extension not found"})),
+            )
+                .into_response();
+        };
+        return (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "sip_uri": format!("sip:{}@{sip_domain}", e.extension),
+                "wss_url": wss_url,
+                "auth_user": e.extension,
+                "password": e.password.unwrap_or_else(|| "1234".to_owned()),
+                "display_name": e.effective_caller_id_name,
+                "expires_in": 3600,
+                "ice_servers": s.ice_servers.unwrap_or_else(|| serde_json::json!([{"urls": "stun:stun.l.google.com:19302"}])),
+            })),
+        )
+            .into_response();
+    }
+    if let Some(user) = payload.get("webrtc_user").and_then(|v| v.as_str()) {
+        if s.auth_mode != "webrtc" && s.auth_mode != "both" {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"detail": "webrtc auth disabled"})),
+            )
+                .into_response();
+        }
+        let pwd = payload
+            .get("webrtc_pass")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        return (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "sip_uri": format!("sip:{user}@{sip_domain}"),
+                "wss_url": wss_url,
+                "auth_user": user,
+                "password": pwd,
+                "display_name": user,
+                "expires_in": 3600,
+                "ice_servers": s.ice_servers.unwrap_or_else(|| serde_json::json!([{"urls": "stun:stun.l.google.com:19302"}])),
+            })),
+        )
+            .into_response();
+    }
+    (
+        StatusCode::UNPROCESSABLE_ENTITY,
+        Json(serde_json::json!({"detail": "Provide extension or webrtc_user"})),
+    )
+        .into_response()
+}
+
 // ---- registry ----
 async fn list_modules() -> impl IntoResponse {
     // Mirrors `app/modules` registry (static manifest list; DB enablement follow-up).
@@ -209,11 +374,32 @@ pub fn remaining_router() -> Router {
             "/api/v1/registrations/{uid}/unregister",
             post(unregister_registration),
         )
+        .route(
+            "/api/v1/registrations/{uid}/provision",
+            post(provision_registration),
+        )
+        .route(
+            "/api/v1/registrations/{uid}/reboot",
+            post(reboot_registration),
+        )
         .route("/api/v1/operator_panel", axum::routing::get(operator_panel))
         .route("/api/v1/operator_panel/originate", post(operator_originate))
         .route(
+            "/api/v1/operator_panel/calls",
+            axum::routing::get(operator_calls),
+        )
+        .route("/api/v1/operator_panel/hangup/{uid}", post(op_hangup))
+        .route("/api/v1/operator_panel/eavesdrop/{uid}", post(op_eavesdrop))
+        .route("/api/v1/operator_panel/coach/{uid}", post(op_coach))
+        .route("/api/v1/operator_panel/record/{uid}", post(op_record))
+        .route("/api/v1/webrtc/credentials", post(webrtc_credentials))
+        .route(
             "/api/v1/click_to_call",
             axum::routing::get(click_to_call_info).post(click_to_call_originate),
+        )
+        .route(
+            "/api/v1/click_to_call/originate",
+            post(click_to_call_originate),
         )
         .route("/api/v1/modules", axum::routing::get(list_modules))
         .route("/api/v1/log_viewer", axum::routing::get(log_viewer))

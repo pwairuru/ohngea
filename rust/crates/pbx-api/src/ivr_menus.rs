@@ -50,7 +50,8 @@ async fn create_ivr(
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(serde_json::json!({"detail": "name required"})),
-        );
+        )
+            .into_response();
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
@@ -70,7 +71,8 @@ async fn create_ivr(
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": "insert failed"})),
-        );
+        )
+            .into_response();
     }
     let mut out_opts = Vec::new();
     for (idx, o) in payload.options.iter().enumerate() {
@@ -98,9 +100,15 @@ async fn create_ivr(
             options: out_opts,
         })),
     )
+        .into_response()
 }
 
-async fn list_ivr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
+async fn list_ivr(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
+) -> impl IntoResponse {
+    let (per_page, offset) = pq.normalized();
+    let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = ivr_menus::Entity::find()
@@ -108,9 +116,11 @@ async fn list_ivr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl 
         .all(db)
         .await
         .unwrap_or_default();
-    let total = rows.len();
+    let total = rows.len() as u64;
     let data: Vec<serde_json::Value> = rows
         .iter()
+        .skip(offset as usize)
+        .take(per_page as usize)
         .map(|r| {
             serde_json::json!({
                 "ivr_menu_uuid": r.ivr_menu_uuid,
@@ -120,9 +130,291 @@ async fn list_ivr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl 
             })
         })
         .collect();
-    Json(serde_json::json!({"data": data, "total": total}))
+    (
+        crate::paged_headers("/api/v1/ivr_menus", page, per_page, total),
+        Json(crate::paged_body(data, total, page, per_page)),
+    )
 }
 
+async fn ivr_or_404(
+    db: &sea_orm::DatabaseConnection,
+    domain: uuid::Uuid,
+    id: &str,
+) -> Option<ivr_menus::Model> {
+    ivr_menus::Entity::find_by_id(id.to_owned())
+        .filter(ivr_menus::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None)
+}
+
+async fn patch_ivr(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let Some(r) = ivr_or_404(db, domain, &id).await else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "IVR menu not found"})),
+        )
+            .into_response();
+    };
+    let mut am: ivr_menus::ActiveModel = r.into();
+    if let Some(v) = payload.get("name").and_then(|v| v.as_str()) {
+        am.name = Set(v.to_owned());
+    }
+    if payload.get("extension").is_some() {
+        am.extension = Set(payload
+            .get("extension")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned));
+    }
+    if let Some(v) = payload.get("description").and_then(|v| v.as_str()) {
+        am.description = Set(Some(v.to_owned()));
+    }
+    if let Some(v) = payload.get("enabled").and_then(|v| v.as_bool()) {
+        am.enabled = Set(v);
+    }
+    am.updated_at = Set(crate::routing_db::now());
+    match am.update(db).await {
+        Ok(r) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ivr_menu_uuid": r.ivr_menu_uuid,
+                "name": r.name,
+                "extension": r.extension,
+            })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn delete_ivr(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    for o in ivr_menu_options::Entity::find()
+        .filter(ivr_menu_options::Column::IvrMenuUuid.eq(id.clone()))
+        .filter(ivr_menu_options::Column::DomainId.eq(domain))
+        .all(db)
+        .await
+        .unwrap_or_default()
+    {
+        let oam: ivr_menu_options::ActiveModel = o.into();
+        let _ = oam.delete(db).await;
+    }
+    let Some(r) = ivr_or_404(db, domain, &id).await else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "IVR menu not found"})),
+        )
+            .into_response();
+    };
+    let am: ivr_menus::ActiveModel = r.into();
+    match am.delete(db).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+// ---- options (standalone CRUD under menu; mirrors Python nested routers) ----
+fn ser_opt(r: &ivr_menu_options::Model) -> serde_json::Value {
+    serde_json::json!({
+        "option_uuid": r.option_uuid,
+        "ivr_menu_uuid": r.ivr_menu_uuid,
+        "digits": r.digits,
+        "action": r.action,
+        "param": r.param,
+    })
+}
+
+async fn opt_or_404(
+    db: &sea_orm::DatabaseConnection,
+    domain: uuid::Uuid,
+    menu: &str,
+    oid: &str,
+) -> Option<ivr_menu_options::Model> {
+    ivr_menu_options::Entity::find_by_id(oid.to_owned())
+        .filter(ivr_menu_options::Column::IvrMenuUuid.eq(menu.to_owned()))
+        .filter(ivr_menu_options::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None)
+}
+
+async fn list_options(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    if ivr_or_404(db, domain, &id).await.is_none() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "IVR menu not found"})),
+        )
+            .into_response();
+    }
+    let (per_page, offset) = pq.normalized();
+    let page = pq.page.max(1);
+    let rows = ivr_menu_options::Entity::find()
+        .filter(ivr_menu_options::Column::IvrMenuUuid.eq(id.clone()))
+        .filter(ivr_menu_options::Column::DomainId.eq(domain))
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let total = rows.len() as u64;
+    let data: Vec<serde_json::Value> = rows
+        .iter()
+        .skip(offset as usize)
+        .take(per_page as usize)
+        .map(ser_opt)
+        .collect();
+    (
+        crate::paged_headers(
+            &format!("/api/v1/ivr_menus/{id}/options"),
+            page,
+            per_page,
+            total,
+        ),
+        Json(crate::paged_body(data, total, page, per_page)),
+    )
+        .into_response()
+}
+
+async fn create_option(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    if ivr_or_404(db, domain, &id).await.is_none() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "IVR menu not found"})),
+        )
+            .into_response();
+    }
+    let digits = payload.get("digits").and_then(|v| v.as_str()).unwrap_or("");
+    let action = payload.get("action").and_then(|v| v.as_str()).unwrap_or("");
+    if digits.trim().is_empty() || action.trim().is_empty() {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({"detail": "digits/action required"})),
+        )
+            .into_response();
+    }
+    let oid = crate::routing_db::new_uuid();
+    let am = ivr_menu_options::ActiveModel {
+        option_uuid: Set(oid.clone()),
+        ivr_menu_uuid: Set(id.clone()),
+        domain_id: Set(domain),
+        digits: Set(digits.to_owned()),
+        action: Set(action.to_owned()),
+        param: Set(payload
+            .get("param")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        option_order: Set(payload
+            .get("option_order")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0) as i32),
+    };
+    match am.insert(db).await {
+        Ok(_) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({
+                "option_uuid": oid,
+                "ivr_menu_uuid": id,
+                "digits": digits,
+                "action": action,
+            })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn patch_option(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path((id, oid)): axum::extract::Path<(String, String)>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let Some(r) = opt_or_404(db, domain, &id, &oid).await else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "Option not found"})),
+        )
+            .into_response();
+    };
+    let mut am: ivr_menu_options::ActiveModel = r.into();
+    if let Some(v) = payload.get("digits").and_then(|v| v.as_str()) {
+        am.digits = Set(v.to_owned());
+    }
+    if let Some(v) = payload.get("action").and_then(|v| v.as_str()) {
+        am.action = Set(v.to_owned());
+    }
+    if payload.get("param").is_some() {
+        am.param = Set(payload
+            .get("param")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned));
+    }
+    match am.update(db).await {
+        Ok(r) => (StatusCode::OK, Json(ser_opt(&r))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn delete_option(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path((id, oid)): axum::extract::Path<(String, String)>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let Some(r) = opt_or_404(db, domain, &id, &oid).await else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "Option not found"})),
+        )
+            .into_response();
+    };
+    let am: ivr_menu_options::ActiveModel = r.into();
+    match am.delete(db).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
 async fn get_ivr(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -138,7 +430,8 @@ async fn get_ivr(
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
-        );
+        )
+            .into_response();
     };
     let opts = ivr_menu_options::Entity::find()
         .filter(ivr_menu_options::Column::IvrMenuUuid.eq(id))
@@ -162,6 +455,7 @@ async fn get_ivr(
             options,
         })),
     )
+        .into_response()
 }
 
 // ---- xml ----
@@ -184,7 +478,20 @@ pub fn ivr_menus_router() -> Router {
     Router::new()
         .route("/api/v1/ivr_menus", post(create_ivr).get(list_ivr))
         .route("/api/v1/ivr_menus/", post(create_ivr).get(list_ivr))
-        .route("/api/v1/ivr_menus/{id}", axum::routing::get(get_ivr))
+        .route(
+            "/api/v1/ivr_menus/{id}",
+            axum::routing::get(get_ivr)
+                .patch(patch_ivr)
+                .delete(delete_ivr),
+        )
+        .route(
+            "/api/v1/ivr_menus/{id}/options",
+            axum::routing::get(list_options).post(create_option),
+        )
+        .route(
+            "/api/v1/ivr_menus/{id}/options/{oid}",
+            axum::routing::patch(patch_option).delete(delete_option),
+        )
         .layer(axum::middleware::from_fn(crate::require_tenant))
 }
 

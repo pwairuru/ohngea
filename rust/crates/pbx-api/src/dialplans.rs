@@ -167,6 +167,130 @@ pub fn dialplans_router() -> Router {
             "/api/v1/dialplans",
             post(create_dialplan).get(list_dialplans),
         )
-        .route("/api/v1/dialplans/{id}", axum::routing::get(get_dialplan))
+        .route(
+            "/api/v1/dialplans/{id}",
+            axum::routing::get(get_dialplan)
+                .patch(patch_dialplan)
+                .delete(delete_dialplan),
+        )
         .layer(axum::middleware::from_fn(crate::require_tenant))
+}
+
+async fn patch_dialplan(
+    AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    use sea_orm::ActiveModelTrait;
+    let db = crate::routing_db::conn().await;
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
+            )
+                .into_response();
+        }
+    };
+    let domain_id = crate::routing_db::domain(&claims);
+    let Ok(uid) = id.parse::<uuid::Uuid>() else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let row = pbx_db::entities::dialplans::Entity::find()
+        .filter(pbx_db::entities::dialplans::Column::DialplanUuid.eq(uid))
+        .filter(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
+        .one(&txn)
+        .await
+        .unwrap_or(None);
+    let Some(r) = row else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let mut am: pbx_db::entities::dialplans::ActiveModel = r.into();
+    if let Some(v) = payload.get("name").and_then(|v| v.as_str()) {
+        am.name = sea_orm::Set(v.to_owned());
+    }
+    if let Some(v) = payload.get("description").and_then(|v| v.as_str()) {
+        am.description = sea_orm::Set(Some(v.to_owned()));
+    }
+    if let Some(v) = payload.get("enabled").and_then(|v| v.as_bool()) {
+        am.enabled = sea_orm::Set(v);
+    }
+    if let Some(v) = payload.get("context").and_then(|v| v.as_str()) {
+        am.context = sea_orm::Set(v.to_owned());
+    }
+    match am.update(&txn).await {
+        Ok(r) => {
+            let _ = txn.commit().await;
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({"dialplan_uuid": r.dialplan_uuid, "name": r.name})),
+            )
+                .into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn delete_dialplan(
+    AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    use sea_orm::ActiveModelTrait;
+    let db = crate::routing_db::conn().await;
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
+            )
+                .into_response();
+        }
+    };
+    let domain_id = crate::routing_db::domain(&claims);
+    let Ok(uid) = id.parse::<uuid::Uuid>() else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let row = pbx_db::entities::dialplans::Entity::find()
+        .filter(pbx_db::entities::dialplans::Column::DialplanUuid.eq(uid))
+        .filter(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
+        .one(&txn)
+        .await
+        .unwrap_or(None);
+    let Some(r) = row else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let am: pbx_db::entities::dialplans::ActiveModel = r.into();
+    match am.delete(&txn).await {
+        Ok(_) => {
+            let _ = txn.commit().await;
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+        )
+            .into_response(),
+    }
 }

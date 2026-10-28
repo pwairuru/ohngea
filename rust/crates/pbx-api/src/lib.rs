@@ -3,6 +3,7 @@ mod auth;
 mod call_centers;
 mod calls;
 mod cdr;
+mod conference_centers;
 mod conferences;
 mod contacts;
 mod devices;
@@ -201,6 +202,88 @@ async fn openapi_json() -> axum::Json<serde_json::Value> {
     }))
 }
 
+/// Fallback pagination parity (Python routers): any JSON `{"data": [...],
+/// "total": N}` list that a handler returned *without* `X-Total-Count` gets
+/// the header here, plus `page`/`per_page` echo and `Link: rel="next"` when
+/// more pages remain. Handlers that already set headers/body are untouched.
+async fn pagination_fallback_middleware(
+    req: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use axum::body::Body;
+    let path = req.uri().path().to_owned();
+    let query = req.uri().query().unwrap_or("").to_owned();
+    let res = next.run(req).await;
+    if res.headers().contains_key("x-total-count") {
+        return res;
+    }
+    let ctype = res
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_owned();
+    if !ctype.contains("application/json") {
+        return res;
+    }
+    let (mut parts, body) = res.into_parts();
+    let Ok(bytes) = axum::body::to_bytes(body, 1024 * 1024 * 4).await else {
+        return axum::response::Response::from_parts(parts, Body::empty());
+    };
+    let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+        return axum::response::Response::from_parts(parts, Body::from(bytes));
+    };
+    let Some(total) = v.get("total").and_then(|t| t.as_u64()) else {
+        return axum::response::Response::from_parts(parts, Body::from(bytes));
+    };
+    if v.get("data").and_then(|d| d.as_array()).is_none() {
+        return axum::response::Response::from_parts(parts, Body::from(bytes));
+    }
+    // page/per_page echo (defaults mirror PageQuery when absent/invalid).
+    let mut page: u64 = 1;
+    let mut per_page: u64 = 20;
+    for kv in query.split('&') {
+        let mut it = kv.splitn(2, '=');
+        match (it.next(), it.next()) {
+            (Some("page"), Some(n)) => {
+                page = n.parse().unwrap_or(1).max(1);
+            }
+            (Some("per_page"), Some(n)) => {
+                per_page = n.parse().unwrap_or(20).clamp(1, 100);
+            }
+            _ => {}
+        }
+    }
+    if v.get("page").is_none() {
+        v["page"] = serde_json::json!(page);
+    }
+    if v.get("per_page").is_none() {
+        v["per_page"] = serde_json::json!(per_page);
+    }
+    parts.headers.insert(
+        "x-total-count",
+        total
+            .to_string()
+            .parse()
+            .unwrap_or_else(|_| axum::http::HeaderValue::from_static("0")),
+    );
+    if page * per_page < total {
+        let link = format!(
+            "<{path}?page={}&per_page={per_page}>; rel=\"next\"",
+            page + 1
+        );
+        if let Ok(hv) = link.parse() {
+            parts.headers.insert(axum::http::header::LINK, hv);
+        }
+    }
+    parts.headers.insert(
+        "access-control-expose-headers",
+        axum::http::HeaderValue::from_static("X-Total-Count, Link"),
+    );
+    let body = Body::from(serde_json::to_vec(&v).unwrap_or_else(|_| bytes.to_vec()));
+    axum::response::Response::from_parts(parts, body)
+}
+
 fn root_router() -> axum::Router {
     axum::Router::new()
         .route("/api/v1", axum::routing::get(api_root))
@@ -232,6 +315,7 @@ pub fn build_app() -> axum::Router {
         .merge(ivr_menus::ivr_menus_router())
         .merge(voicemails::voicemails_router())
         .merge(conferences::conferences_router())
+        .merge(conference_centers::conference_centers_router())
         .merge(fax::fax_router())
         .merge(cdr::cdr_router())
         .merge(recordings::recordings_router())
@@ -242,6 +326,7 @@ pub fn build_app() -> axum::Router {
         .merge(permissions::permissions_router())
         .merge(contacts::contacts_router())
         .merge(devices::devices_router())
+        .merge(devices::device_sub_router())
         .merge(devices::provision_router())
         .merge(email_queue::email_queue_router())
         .merge(remaining::remaining_router())
@@ -250,6 +335,7 @@ pub fn build_app() -> axum::Router {
         .merge(plugins::example_router())
         .merge(plugins::domain_plugin_router())
         .layer(axum::middleware::from_fn(plugins::plugin_gate))
+        .layer(axum::middleware::from_fn(pagination_fallback_middleware))
         .layer(axum::middleware::from_fn(accept_compat_middleware))
 }
 

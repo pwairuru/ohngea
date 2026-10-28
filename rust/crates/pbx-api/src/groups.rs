@@ -205,7 +205,12 @@ pub fn groups_router() -> Router {
         .route("/api/v1/groups", post(create_group).get(list_groups))
         .route("/api/v1/groups/", post(create_group).get(list_groups))
         .route("/api/v1/groups/bulk", post(bulk_groups))
-        .route("/api/v1/groups/{id}", axum::routing::get(get_group))
+        .route(
+            "/api/v1/groups/{id}",
+            axum::routing::get(get_group)
+                .patch(patch_group)
+                .delete(delete_group),
+        )
         .route("/api/v1/groups/{id}/copy", post(copy_group))
         .route("/api/v1/groups/{id}/toggle", post(toggle_group))
         .route(
@@ -768,4 +773,78 @@ async fn put_group_permissions(
         Json(serde_json::json!({"data": data, "total": total})),
     )
         .into_response()
+}
+
+async fn group_scoped(
+    db: &sea_orm::DatabaseConnection,
+    domain: uuid::Uuid,
+    id: &uuid::Uuid,
+) -> Option<groups::Model> {
+    let row = groups::Entity::find_by_id(*id)
+        .one(db)
+        .await
+        .unwrap_or(None)?;
+    if row.domain_id.is_some() && row.domain_id != Some(domain) {
+        return None;
+    }
+    Some(row)
+}
+
+async fn patch_group(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let Some(r) = group_scoped(db, domain, &id).await else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let mut am: groups::ActiveModel = r.into();
+    if let Some(v) = payload.get("name").and_then(|v| v.as_str()) {
+        am.name = Set(v.to_owned());
+    }
+    if let Some(v) = payload.get("description").and_then(|v| v.as_str()) {
+        am.description = Set(Some(v.to_owned()));
+    }
+    match am.update(db).await {
+        Ok(r) => (
+            StatusCode::OK,
+            Json(serde_json::json!({"group_uuid": r.group_uuid, "name": r.name})),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn delete_group(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let Some(r) = group_scoped(db, domain, &id).await else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let am: groups::ActiveModel = r.into();
+    match am.delete(db).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+        )
+            .into_response(),
+    }
 }

@@ -464,15 +464,33 @@ async fn delete_device(
         )
             .into_response();
     };
-    // cascade: device_lines has no DB-level cascade, remove explicitly.
-    let lines = device_lines::Entity::find()
+    // cascade: child tables have no DB-level cascade, remove explicitly.
+    for l in device_lines::Entity::find()
         .filter(device_lines::Column::DeviceUuid.eq(id))
         .all(db)
         .await
-        .unwrap_or_default();
-    for l in lines {
+        .unwrap_or_default()
+    {
         let lam: device_lines::ActiveModel = l.into();
         let _ = lam.delete(db).await;
+    }
+    for k in device_keys::Entity::find()
+        .filter(device_keys::Column::DeviceUuid.eq(id))
+        .all(db)
+        .await
+        .unwrap_or_default()
+    {
+        let kam: device_keys::ActiveModel = k.into();
+        let _ = kam.delete(db).await;
+    }
+    for st in device_settings::Entity::find()
+        .filter(device_settings::Column::DeviceUuid.eq(id))
+        .all(db)
+        .await
+        .unwrap_or_default()
+    {
+        let sam: device_settings::ActiveModel = st.into();
+        let _ = sam.delete(db).await;
     }
     let am: devices::ActiveModel = r.into();
     match am.delete(db).await {
@@ -491,4 +509,734 @@ pub fn provision_router() -> Router {
     // get_provision strips an optional ".cfg" suffix in the handler.
     // GET /provision/{mac} + GET /provision/{mac}.cfg (same handler).
     Router::new().route("/provision/{mac}", axum::routing::get(get_provision))
+}
+
+// ---- keys/lines/settings + device_profiles (parity: app/devices/router.py) ----
+use pbx_db::entities::{device_keys, device_profiles, device_settings};
+
+async fn device_or_404(
+    db: &sea_orm::DatabaseConnection,
+    domain: uuid::Uuid,
+    id: &uuid::Uuid,
+) -> Option<devices::Model> {
+    devices::Entity::find_by_id(*id)
+        .filter(devices::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None)
+}
+
+async fn list_keys(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+    axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
+) -> impl IntoResponse {
+    let (per_page, offset) = pq.normalized();
+    let page = pq.page.max(1);
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    if device_or_404(db, domain, &id).await.is_none() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    }
+    let rows = device_keys::Entity::find()
+        .filter(device_keys::Column::DeviceUuid.eq(id))
+        .filter(device_keys::Column::DomainId.eq(domain))
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let total = rows.len() as u64;
+    let data: Vec<serde_json::Value> = rows.iter().skip(offset as usize).take(per_page as usize).map(|r| {
+        serde_json::json!({"device_key_uuid": r.device_key_uuid, "device_uuid": r.device_uuid, "device_key_value": r.device_key_value, "device_key_label": r.device_key_label})
+    }).collect();
+    (
+        crate::paged_headers(&format!("/api/v1/devices/{id}/keys"), page, per_page, total),
+        Json(crate::paged_body(data, total, page, per_page)),
+    )
+        .into_response()
+}
+
+async fn create_key(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    if device_or_404(db, domain, &id).await.is_none() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    }
+    let now = crate::routing_db::now();
+    let kid = uuid::Uuid::now_v7();
+    let am = device_keys::ActiveModel {
+        device_key_uuid: Set(kid),
+        domain_id: Set(domain),
+        device_uuid: Set(id),
+        device_profile_uuid: Set(None),
+        device_key_id: Set(payload
+            .get("device_key_id")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32)),
+        device_key_category: Set(payload
+            .get("device_key_category")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        device_key_vendor: Set(None),
+        device_key_type: Set(payload
+            .get("device_key_type")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        device_key_subtype: Set(None),
+        device_key_line: Set(payload
+            .get("device_key_line")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32)),
+        device_key_value: Set(payload
+            .get("device_key_value")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        device_key_extension: Set(payload
+            .get("device_key_extension")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        device_key_protected: Set(None),
+        device_key_label: Set(payload
+            .get("device_key_label")
+            .or_else(|| payload.get("label"))
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        device_key_icon: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+    };
+    match am.insert(db).await {
+        Ok(_) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({"device_key_uuid": kid, "device_uuid": id})),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn patch_key(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path((id, kid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let row = device_keys::Entity::find_by_id(kid)
+        .filter(device_keys::Column::DeviceUuid.eq(id))
+        .filter(device_keys::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None);
+    let Some(r) = row else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let mut am: device_keys::ActiveModel = r.into();
+    if let Some(v) = payload.get("device_key_value").and_then(|v| v.as_str()) {
+        am.device_key_value = Set(Some(v.to_owned()));
+    }
+    if let Some(v) = payload.get("device_key_label").and_then(|v| v.as_str()) {
+        am.device_key_label = Set(Some(v.to_owned()));
+    }
+    am.updated_at = Set(crate::routing_db::now());
+    match am.update(db).await {
+        Ok(r) => (StatusCode::OK, Json(serde_json::json!({"device_key_uuid": r.device_key_uuid, "device_key_value": r.device_key_value}))).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("update failed: {e}")}))).into_response(),
+    }
+}
+
+async fn delete_key(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path((id, kid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let row = device_keys::Entity::find_by_id(kid)
+        .filter(device_keys::Column::DeviceUuid.eq(id))
+        .filter(device_keys::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None);
+    let Some(r) = row else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let am: device_keys::ActiveModel = r.into();
+    match am.delete(db).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn list_lines(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+    axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
+) -> impl IntoResponse {
+    let (per_page, offset) = pq.normalized();
+    let page = pq.page.max(1);
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    if device_or_404(db, domain, &id).await.is_none() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    }
+    let rows = device_lines::Entity::find()
+        .filter(device_lines::Column::DeviceUuid.eq(id))
+        .filter(device_lines::Column::DomainId.eq(domain))
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let total = rows.len() as u64;
+    let data: Vec<serde_json::Value> = rows.iter().skip(offset as usize).take(per_page as usize).map(|r| {
+        serde_json::json!({"device_line_uuid": r.device_line_uuid, "device_uuid": r.device_uuid, "line_number": r.line_number, "user_id": r.user_id})
+    }).collect();
+    (
+        crate::paged_headers(
+            &format!("/api/v1/devices/{id}/lines"),
+            page,
+            per_page,
+            total,
+        ),
+        Json(crate::paged_body(data, total, page, per_page)),
+    )
+        .into_response()
+}
+
+async fn create_line(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    if device_or_404(db, domain, &id).await.is_none() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    }
+    let now = crate::routing_db::now();
+    let lid = uuid::Uuid::now_v7();
+    let am = device_lines::ActiveModel {
+        device_line_uuid: Set(lid),
+        domain_id: Set(domain),
+        device_uuid: Set(id),
+        line_number: Set(payload
+            .get("line_number")
+            .and_then(|v| v.as_str())
+            .unwrap_or("1")
+            .to_owned()),
+        server_address: Set(payload
+            .get("server_address")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        server_address_primary: Set(None),
+        server_address_secondary: Set(None),
+        outbound_proxy_primary: Set(None),
+        outbound_proxy_secondary: Set(None),
+        label: Set(payload
+            .get("label")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        display_name: Set(payload
+            .get("display_name")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        user_id: Set(payload
+            .get("user_id")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        auth_id: Set(payload
+            .get("auth_id")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        password: Set(payload
+            .get("password")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        sip_port: Set(None),
+        sip_transport: Set(None),
+        register_expires: Set(None),
+        shared_line: Set(None),
+        enabled: Set(true),
+        created_at: Set(now),
+    };
+    match am.insert(db).await {
+        Ok(_) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({"device_line_uuid": lid, "device_uuid": id})),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn patch_line(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path((id, lid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let row = device_lines::Entity::find_by_id(lid)
+        .filter(device_lines::Column::DeviceUuid.eq(id))
+        .filter(device_lines::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None);
+    let Some(r) = row else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let mut am: device_lines::ActiveModel = r.into();
+    if let Some(v) = payload.get("user_id").and_then(|v| v.as_str()) {
+        am.user_id = Set(Some(v.to_owned()));
+    }
+    if let Some(v) = payload.get("enabled").and_then(|v| v.as_bool()) {
+        am.enabled = Set(v);
+    }
+    match am.update(db).await {
+        Ok(r) => (
+            StatusCode::OK,
+            Json(serde_json::json!({"device_line_uuid": r.device_line_uuid, "user_id": r.user_id})),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn delete_line(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path((id, lid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let row = device_lines::Entity::find_by_id(lid)
+        .filter(device_lines::Column::DeviceUuid.eq(id))
+        .filter(device_lines::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None);
+    let Some(r) = row else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let am: device_lines::ActiveModel = r.into();
+    match am.delete(db).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn list_settings(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+    axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
+) -> impl IntoResponse {
+    let (per_page, offset) = pq.normalized();
+    let page = pq.page.max(1);
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    if device_or_404(db, domain, &id).await.is_none() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    }
+    let rows = device_settings::Entity::find()
+        .filter(device_settings::Column::DeviceUuid.eq(id))
+        .filter(device_settings::Column::DomainId.eq(domain))
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let total = rows.len() as u64;
+    let data: Vec<serde_json::Value> = rows.iter().skip(offset as usize).take(per_page as usize).map(|r| {
+        serde_json::json!({"device_setting_uuid": r.device_setting_uuid, "device_uuid": r.device_uuid, "device_setting_name": r.device_setting_name, "device_setting_value": r.device_setting_value})
+    }).collect();
+    (
+        crate::paged_headers(
+            &format!("/api/v1/devices/{id}/settings"),
+            page,
+            per_page,
+            total,
+        ),
+        Json(crate::paged_body(data, total, page, per_page)),
+    )
+        .into_response()
+}
+
+async fn create_setting(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    if device_or_404(db, domain, &id).await.is_none() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    }
+    let name = payload
+        .get("device_setting_name")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .unwrap_or("");
+    if name.is_empty() {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({"detail": "device_setting_name required"})),
+        )
+            .into_response();
+    }
+    let now = crate::routing_db::now();
+    let sid = uuid::Uuid::now_v7();
+    let am = device_settings::ActiveModel {
+        device_setting_uuid: Set(sid),
+        domain_id: Set(domain),
+        device_uuid: Set(id),
+        device_profile_uuid: Set(None),
+        device_setting_category: Set(payload
+            .get("device_setting_category")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        device_setting_subcategory: Set(None),
+        device_setting_name: Set(name.to_owned()),
+        device_setting_value: Set(payload
+            .get("device_setting_value")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        device_setting_enabled: Set(true),
+        device_setting_description: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+    };
+    match am.insert(db).await {
+        Ok(_) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({"device_setting_uuid": sid, "device_uuid": id})),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn patch_setting(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path((id, sid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let row = device_settings::Entity::find_by_id(sid)
+        .filter(device_settings::Column::DeviceUuid.eq(id))
+        .filter(device_settings::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None);
+    let Some(r) = row else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let mut am: device_settings::ActiveModel = r.into();
+    if let Some(v) = payload.get("device_setting_value").and_then(|v| v.as_str()) {
+        am.device_setting_value = Set(Some(v.to_owned()));
+    }
+    if let Some(v) = payload
+        .get("device_setting_enabled")
+        .or_else(|| payload.get("enabled"))
+        .and_then(|v| v.as_bool())
+    {
+        am.device_setting_enabled = Set(v);
+    }
+    am.updated_at = Set(crate::routing_db::now());
+    match am.update(db).await {
+        Ok(r) => (StatusCode::OK, Json(serde_json::json!({"device_setting_uuid": r.device_setting_uuid, "device_setting_value": r.device_setting_value}))).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("update failed: {e}")}))).into_response(),
+    }
+}
+
+async fn delete_setting(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path((id, sid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let row = device_settings::Entity::find_by_id(sid)
+        .filter(device_settings::Column::DeviceUuid.eq(id))
+        .filter(device_settings::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None);
+    let Some(r) = row else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let am: device_settings::ActiveModel = r.into();
+    match am.delete(db).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+// ---- device_profiles CRUD ----
+async fn list_profiles(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
+) -> impl IntoResponse {
+    let (per_page, offset) = pq.normalized();
+    let page = pq.page.max(1);
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let rows = device_profiles::Entity::find()
+        .filter(device_profiles::Column::DomainId.eq(domain))
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let total = rows.len() as u64;
+    let data: Vec<serde_json::Value> = rows.iter().skip(offset as usize).take(per_page as usize).map(|r| {
+        serde_json::json!({"device_profile_uuid": r.device_profile_uuid, "device_profile_name": r.device_profile_name, "device_profile_enabled": r.device_profile_enabled})
+    }).collect();
+    (
+        crate::paged_headers("/api/v1/device_profiles", page, per_page, total),
+        Json(crate::paged_body(data, total, page, per_page)),
+    )
+        .into_response()
+}
+
+async fn create_profile(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let name = payload
+        .get("device_profile_name")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .unwrap_or("");
+    if name.is_empty() {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({"detail": "device_profile_name required"})),
+        )
+            .into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let now = crate::routing_db::now();
+    let pid = uuid::Uuid::now_v7();
+    let am = device_profiles::ActiveModel {
+        device_profile_uuid: Set(pid),
+        domain_id: Set(domain),
+        device_profile_name: Set(name.to_owned()),
+        device_profile_enabled: Set(true),
+        device_profile_description: Set(payload
+            .get("device_profile_description")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        created_at: Set(now),
+        updated_at: Set(now),
+    };
+    match am.insert(db).await {
+        Ok(_) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({"device_profile_uuid": pid, "device_profile_name": name})),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn get_profile(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let row = device_profiles::Entity::find_by_id(id)
+        .filter(device_profiles::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None);
+    match row {
+        Some(r) => (StatusCode::OK, Json(serde_json::json!({"device_profile_uuid": r.device_profile_uuid, "device_profile_name": r.device_profile_name}))).into_response(),
+        None => (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response(),
+    }
+}
+
+async fn patch_profile(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let row = device_profiles::Entity::find_by_id(id)
+        .filter(device_profiles::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None);
+    let Some(r) = row else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let mut am: device_profiles::ActiveModel = r.into();
+    if let Some(v) = payload.get("device_profile_name").and_then(|v| v.as_str()) {
+        am.device_profile_name = Set(v.to_owned());
+    }
+    if let Some(v) = payload
+        .get("device_profile_description")
+        .and_then(|v| v.as_str())
+    {
+        am.device_profile_description = Set(Some(v.to_owned()));
+    }
+    am.updated_at = Set(crate::routing_db::now());
+    match am.update(db).await {
+        Ok(r) => (StatusCode::OK, Json(serde_json::json!({"device_profile_uuid": r.device_profile_uuid, "device_profile_name": r.device_profile_name}))).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("update failed: {e}")}))).into_response(),
+    }
+}
+
+async fn delete_profile(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let row = device_profiles::Entity::find_by_id(id)
+        .filter(device_profiles::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None);
+    let Some(r) = row else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let am: device_profiles::ActiveModel = r.into();
+    match am.delete(db).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+pub fn device_sub_router() -> Router {
+    Router::new()
+        .route(
+            "/api/v1/devices/{id}/keys",
+            axum::routing::get(list_keys).post(create_key),
+        )
+        .route(
+            "/api/v1/devices/{id}/keys/{kid}",
+            axum::routing::patch(patch_key).delete(delete_key),
+        )
+        .route(
+            "/api/v1/devices/{id}/lines",
+            axum::routing::get(list_lines).post(create_line),
+        )
+        .route(
+            "/api/v1/devices/{id}/lines/{lid}",
+            axum::routing::patch(patch_line).delete(delete_line),
+        )
+        .route(
+            "/api/v1/devices/{id}/settings",
+            axum::routing::get(list_settings).post(create_setting),
+        )
+        .route(
+            "/api/v1/devices/{id}/settings/{sid}",
+            axum::routing::patch(patch_setting).delete(delete_setting),
+        )
+        .route(
+            "/api/v1/device_profiles",
+            post(create_profile).get(list_profiles),
+        )
+        .route(
+            "/api/v1/device_profiles/",
+            post(create_profile).get(list_profiles),
+        )
+        .route(
+            "/api/v1/device_profiles/{id}",
+            axum::routing::get(get_profile)
+                .patch(patch_profile)
+                .delete(delete_profile),
+        )
+        .layer(axum::middleware::from_fn(crate::require_tenant))
 }

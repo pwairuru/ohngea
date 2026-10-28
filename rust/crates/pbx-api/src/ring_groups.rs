@@ -200,7 +200,101 @@ async fn get_rg(
     )
 }
 
-// ---- xml ----
+async fn health_rg() -> impl IntoResponse {
+    Json(serde_json::json!({"status": "ok", "service": "ring_groups"}))
+}
+
+async fn rg_or_404(
+    db: &sea_orm::DatabaseConnection,
+    domain: uuid::Uuid,
+    id: &str,
+) -> Option<ring_groups::Model> {
+    ring_groups::Entity::find_by_id(id.to_owned())
+        .filter(ring_groups::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None)
+}
+
+async fn patch_rg(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let Some(r) = rg_or_404(db, domain, &id).await else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "Ring group not found"})),
+        )
+            .into_response();
+    };
+    let mut am: ring_groups::ActiveModel = r.into();
+    if let Some(v) = payload.get("name").and_then(|v| v.as_str()) {
+        am.name = Set(v.to_owned());
+    }
+    if let Some(v) = payload.get("description").and_then(|v| v.as_str()) {
+        am.description = Set(Some(v.to_owned()));
+    }
+    if let Some(v) = payload.get("enabled").and_then(|v| v.as_bool()) {
+        am.enabled = Set(v);
+    }
+    if let Some(v) = payload.get("strategy").and_then(|v| v.as_str()) {
+        am.strategy = Set(v.to_owned());
+    }
+    am.updated_at = Set(crate::routing_db::now());
+    match am.update(db).await {
+        Ok(r) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ring_group_uuid": r.ring_group_uuid,
+                "name": r.name,
+                "extension": r.extension,
+            })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn delete_rg(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let Some(r) = rg_or_404(db, domain, &id).await else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "Ring group not found"})),
+        )
+            .into_response();
+    };
+    let mems = ring_group_members::Entity::find()
+        .filter(ring_group_members::Column::RingGroupUuid.eq(id.clone()))
+        .filter(ring_group_members::Column::DomainId.eq(domain))
+        .all(db)
+        .await
+        .unwrap_or_default();
+    for m in mems {
+        let mam: ring_group_members::ActiveModel = m.into();
+        let _ = mam.delete(db).await;
+    }
+    let am: ring_groups::ActiveModel = r.into();
+    match am.delete(db).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
 // Dialplan for a ring group (sequential/simultaneous bridge of members).
 // Mirrors `app/ring_groups/service.py` dialplan render + FS `dialplan` section.
 pub fn build_ring_group_dialplan_xml(name: &str, members: &[String]) -> String {
@@ -214,9 +308,13 @@ pub fn build_ring_group_dialplan_xml(name: &str, members: &[String]) -> String {
 
 pub fn ring_groups_router() -> Router {
     Router::new()
+        .route("/api/v1/ring_groups/health", axum::routing::get(health_rg))
         .route("/api/v1/ring_groups", post(create_rg).get(list_rg))
         .route("/api/v1/ring_groups/", post(create_rg).get(list_rg))
-        .route("/api/v1/ring_groups/{id}", axum::routing::get(get_rg))
+        .route(
+            "/api/v1/ring_groups/{id}",
+            axum::routing::get(get_rg).patch(patch_rg).delete(delete_rg),
+        )
         .layer(axum::middleware::from_fn(crate::require_tenant))
 }
 

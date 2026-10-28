@@ -193,6 +193,80 @@ pub fn domains_router() -> Router {
     Router::new()
         .route("/api/v1/domains", post(create_domain).get(list_domains))
         .route("/api/v1/domains/", post(create_domain).get(list_domains))
-        .route("/api/v1/domains/{id}", axum::routing::get(get_domain))
+        .route(
+            "/api/v1/domains/{id}",
+            axum::routing::get(get_domain)
+                .patch(patch_domain)
+                .delete(delete_domain),
+        )
         .layer(axum::middleware::from_fn(crate::require_tenant))
+}
+
+async fn patch_domain(
+    Extension(_claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let row = domains::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None);
+    let Some(r) = row else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let mut am: domains::ActiveModel = r.into();
+    if let Some(v) = payload.get("domain_name").and_then(|v| v.as_str()) {
+        am.domain_name = Set(v.to_owned());
+    }
+    if let Some(v) = payload.get("description").and_then(|v| v.as_str()) {
+        am.description = Set(Some(v.to_owned()));
+    }
+    if let Some(v) = payload.get("enabled").and_then(|v| v.as_bool()) {
+        am.enabled = Set(v);
+    }
+    am.updated_at = Set(crate::routing_db::now());
+    match am.update(db).await {
+        Ok(r) => (
+            StatusCode::OK,
+            Json(serde_json::json!({"domain_id": r.domain_id, "domain_name": r.domain_name})),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn delete_domain(
+    Extension(_claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let row = domains::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None);
+    let Some(r) = row else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let am: domains::ActiveModel = r.into();
+    match am.delete(db).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+        )
+            .into_response(),
+    }
 }

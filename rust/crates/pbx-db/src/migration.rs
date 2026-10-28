@@ -546,6 +546,17 @@ const DDL_TABLES: &[&str] = &[
       file_name VARCHAR(512),
       message_length INTEGER
     )",
+    "CREATE TABLE IF NOT EXISTS voicemail_options (
+      voicemail_option_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      voicemail_uuid UUID NOT NULL REFERENCES voicemails (voicemail_uuid) ON DELETE CASCADE,
+      digits VARCHAR(8),
+      action VARCHAR(64),
+      param VARCHAR(512),
+      description VARCHAR(512),
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
     "CREATE TABLE IF NOT EXISTS conferences (
       conference_uuid UUID PRIMARY KEY,
       domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
@@ -557,6 +568,51 @@ const DDL_TABLES: &[&str] = &[
       updated_at TIMESTAMPTZ NOT NULL
     )",
     "CREATE INDEX IF NOT EXISTS ix_conferences_domain ON conferences (domain_id)",
+    "CREATE TABLE IF NOT EXISTS conference_users (
+      conference_user_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      conference_uuid UUID NOT NULL REFERENCES conferences (conference_uuid) ON DELETE CASCADE,
+      user_uuid UUID NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE TABLE IF NOT EXISTS conference_centers (
+      conference_center_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      conference_center_name VARCHAR(128) NOT NULL,
+      conference_center_extension VARCHAR(32),
+      conference_center_description VARCHAR(512),
+      conference_center_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_conference_centers_domain ON conference_centers (domain_id)",
+    "CREATE TABLE IF NOT EXISTS conference_rooms (
+      conference_room_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      conference_center_uuid UUID NOT NULL REFERENCES conference_centers (conference_center_uuid) ON DELETE CASCADE,
+      conference_room_name VARCHAR(128) NOT NULL,
+      max_members INTEGER,
+      enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE TABLE IF NOT EXISTS conference_sessions (
+      conference_session_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      conference_center_uuid UUID REFERENCES conference_centers (conference_center_uuid) ON DELETE CASCADE,
+      conference_room_uuid UUID REFERENCES conference_rooms (conference_room_uuid) ON DELETE CASCADE,
+      profile VARCHAR(64),
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE TABLE IF NOT EXISTS conference_session_details (
+      conference_session_detail_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      conference_session_uuid UUID NOT NULL REFERENCES conference_sessions (conference_session_uuid) ON DELETE CASCADE,
+      username VARCHAR(32),
+      created_at TIMESTAMPTZ NOT NULL
+    )",
     "CREATE TABLE IF NOT EXISTS fax_queue (
       fax_queue_uuid UUID PRIMARY KEY,
       domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
@@ -565,6 +621,39 @@ const DDL_TABLES: &[&str] = &[
       status VARCHAR(32) NOT NULL DEFAULT 'waiting'
     )",
     "CREATE INDEX IF NOT EXISTS ix_fax_queue_domain ON fax_queue (domain_id)",
+    "CREATE TABLE IF NOT EXISTS fax (
+      fax_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      fax_extension VARCHAR(32) NOT NULL,
+      fax_name VARCHAR(128) NOT NULL,
+      description VARCHAR(512),
+      enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_fax_domain ON fax (domain_id)",
+    "CREATE TABLE IF NOT EXISTS fax_files (
+      fax_file_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      fax_uuid UUID NOT NULL REFERENCES fax (fax_uuid) ON DELETE CASCADE,
+      file_name VARCHAR(512),
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE TABLE IF NOT EXISTS fax_logs (
+      fax_log_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      fax_uuid UUID NOT NULL REFERENCES fax (fax_uuid) ON DELETE CASCADE,
+      fax_result_text VARCHAR(512),
+      created_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE TABLE IF NOT EXISTS fax_users (
+      fax_user_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      fax_uuid UUID NOT NULL REFERENCES fax (fax_uuid) ON DELETE CASCADE,
+      user_uuid UUID,
+      created_at TIMESTAMPTZ NOT NULL
+    )",
     "CREATE TABLE IF NOT EXISTS cdr (
       cdr_uuid UUID PRIMARY KEY,
       domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
@@ -604,6 +693,47 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL
     )",
     "CREATE INDEX IF NOT EXISTS ix_contacts_domain ON contacts (domain_id)",
+    "CREATE TABLE IF NOT EXISTS contact_addresses (
+      contact_address_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      contact_uuid UUID NOT NULL REFERENCES contacts (contact_uuid) ON DELETE CASCADE,
+      address_label VARCHAR(64),
+      address_street VARCHAR(255),
+      address_locality VARCHAR(128),
+      created_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE TABLE IF NOT EXISTS contact_phones (
+      contact_phone_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      contact_uuid UUID NOT NULL REFERENCES contacts (contact_uuid) ON DELETE CASCADE,
+      phone_label VARCHAR(64),
+      phone_number VARCHAR(32) NOT NULL,
+      phone_primary BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE TABLE IF NOT EXISTS contact_emails (
+      contact_email_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      contact_uuid UUID NOT NULL REFERENCES contacts (contact_uuid) ON DELETE CASCADE,
+      email_label VARCHAR(64),
+      email_address VARCHAR(255) NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE TABLE IF NOT EXISTS contact_urls (
+      contact_url_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      contact_uuid UUID NOT NULL REFERENCES contacts (contact_uuid) ON DELETE CASCADE,
+      url_label VARCHAR(64),
+      url_address VARCHAR(512) NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE TABLE IF NOT EXISTS contact_notes (
+      contact_note_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      contact_uuid UUID NOT NULL REFERENCES contacts (contact_uuid) ON DELETE CASCADE,
+      contact_note VARCHAR(1024) NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL
+    )",
     "CREATE TABLE IF NOT EXISTS email_queue (
       email_queue_uuid UUID PRIMARY KEY,
       domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
@@ -1036,6 +1166,21 @@ const STRICT_TABLES: &[&str] = &[
     "ivr_menu_options",
     "voicemail_greetings",
     "voicemail_messages",
+    "voicemail_options",
+    "conference_centers",
+    "conference_rooms",
+    "conference_sessions",
+    "conference_session_details",
+    "conference_users",
+    "fax",
+    "fax_files",
+    "fax_logs",
+    "fax_users",
+    "contact_addresses",
+    "contact_phones",
+    "contact_emails",
+    "contact_urls",
+    "contact_notes",
     "dialplan_details",
     "device_lines",
     "device_settings",
@@ -1170,6 +1315,21 @@ impl MigrationTrait for M20260101_000001PgParity {
             "fax_queue",
             "conferences",
             "voicemail_messages",
+            "voicemail_options",
+            "conference_centers",
+            "conference_rooms",
+            "conference_sessions",
+            "conference_session_details",
+            "conference_users",
+            "fax",
+            "fax_files",
+            "fax_logs",
+            "fax_users",
+            "contact_addresses",
+            "contact_phones",
+            "contact_emails",
+            "contact_urls",
+            "contact_notes",
             "voicemail_greetings",
             "voicemails",
             "ivr_menu_options",

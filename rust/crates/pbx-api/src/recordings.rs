@@ -120,10 +120,134 @@ async fn presign_rec(
     }
 }
 
+async fn rec_or_404(
+    db: &sea_orm::DatabaseConnection,
+    domain: uuid::Uuid,
+    id: &str,
+) -> Option<recordings::Model> {
+    recordings::Entity::find_by_id(id.to_owned())
+        .filter(recordings::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None)
+}
+
+fn ser_rec(r: &recordings::Model) -> serde_json::Value {
+    serde_json::json!({
+        "recording_uuid": r.recording_uuid,
+        "name": r.name,
+        "file_path": r.file_path,
+        "storage_backend": r.storage_backend,
+    })
+}
+
+async fn get_rec(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    match rec_or_404(db, domain, &id).await {
+        Some(r) => (StatusCode::OK, Json(ser_rec(&r))).into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response(),
+    }
+}
+
+async fn playback_rec(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    match rec_or_404(db, domain, &id).await {
+        Some(r) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "recording_uuid": r.recording_uuid,
+                "file_path": r.file_path,
+                "playback_url": format!("/api/v1/recordings/{}/playback", r.recording_uuid),
+            })),
+        )
+            .into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response(),
+    }
+}
+
+async fn patch_rec(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let Some(r) = rec_or_404(db, domain, &id).await else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let mut am: recordings::ActiveModel = r.into();
+    if let Some(v) = payload.get("name").and_then(|v| v.as_str()) {
+        am.name = Set(v.to_owned());
+    }
+    am.updated_at = Set(crate::routing_db::now());
+    match am.update(db).await {
+        Ok(r) => (StatusCode::OK, Json(ser_rec(&r))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn delete_rec(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let Some(r) = rec_or_404(db, domain, &id).await else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let am: recordings::ActiveModel = r.into();
+    match am.delete(db).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
 pub fn recordings_router() -> Router {
     Router::new()
         .route("/api/v1/recordings", post(create_rec).get(list_rec))
         .route("/api/v1/recordings/", post(create_rec).get(list_rec))
+        .route(
+            "/api/v1/recordings/{id}",
+            axum::routing::get(get_rec)
+                .patch(patch_rec)
+                .delete(delete_rec),
+        )
+        .route(
+            "/api/v1/recordings/{id}/playback",
+            axum::routing::get(playback_rec),
+        )
         .route(
             "/api/v1/recordings/{id}/presign",
             axum::routing::get(presign_rec),
