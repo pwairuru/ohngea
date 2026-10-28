@@ -1,12 +1,19 @@
-import { defineConfig } from "vite";
+import path from "node:path";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
-export default defineConfig({
+// API host port follows API_PORT in root .env (single source of truth).
+export default defineConfig(({ mode }) => {
+  const rootEnv = loadEnv(mode, path.resolve(__dirname, ".."), "");
+  const api = `http://localhost:${rootEnv.API_PORT || "8010"}`;
+  return {
   plugins: [
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      // E2E: inject manifest link under `vite dev` too (default is build-only).
+      devOptions: { enabled: true },
       manifest: {
         name: "Ohngea PBX",
         short_name: "Ohngea",
@@ -22,13 +29,17 @@ export default defineConfig({
       },
     }),
   ],
-  server: {
-    proxy: {
-      "/api": "http://localhost:8000",
-      "/health": "http://localhost:8000",
+    server: {
+      // Same backend prefixes as frontend/nginx.conf so `npm run dev` matches docker.
+      proxy: {
+        "/api": api,
+        "/auth": api,
+        "/health": api,
+        "/provision": api,
+      },
     },
-  },
-  build: {
-    outDir: "dist",
-  },
+    build: {
+      outDir: "dist",
+    },
+  };
 });

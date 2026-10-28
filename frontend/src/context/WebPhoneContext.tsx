@@ -82,11 +82,20 @@ export function WebPhoneProvider({children}:{children:React.ReactNode}){
     }
   },[storageKey]);
 
-  // persist history to localStorage on every HISTORY_APPEND/CLEAR/LOAD via effect
+  // persist history to localStorage on every HISTORY_APPEND/CLEAR/LOAD via effect.
+  // E2E: skip mount write when state is still initial-empty but storage holds
+  // seeded data (StrictMode double-effects otherwise wipe the seed before the
+  // hydrate effect above dispatches HISTORY_LOAD). Explicit clearHistory()
+  // writes [] itself, so genuine clears still persist.
   React.useEffect(()=>{
     const hk = getHistoryKey();
     if(!hk) return;
-    try{ localStorage.setItem(hk, JSON.stringify(storeState.history)); }catch{}
+    try{
+      const next = JSON.stringify(storeState.history);
+      const cur = localStorage.getItem(hk);
+      if(cur !== null && cur !== "[]" && storeState.history.length === 0) return;
+      if(cur !== next) localStorage.setItem(hk, next);
+    }catch{}
   },[storeState.history]);
 
   // TODO(phase2): BroadcastChannel single-UA enforcement — parked per final review.

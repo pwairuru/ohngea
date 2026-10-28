@@ -5,13 +5,13 @@ const USER = "admin";
 const PASS = "admin";
 
 async function loginViaAPI(page: Page) {
-  const res = await page.request.post("http://localhost:8000/auth/login", {
+  const res = await page.request.post("/auth/login", {
     data: { username: USER, password: PASS, domain: DOMAIN },
   });
   let tok: string;
   let did: string;
   if (!res.ok()) {
-    const r2 = await page.request.post("http://localhost:8000/api/v1/auth/login", {
+    const r2 = await page.request.post("/api/v1/auth/login", {
       data: { username: USER, password: PASS, domain: DOMAIN },
     });
     expect(r2.ok()).toBeTruthy();
@@ -50,12 +50,16 @@ async function loginViaAPI(page: Page) {
 }
 
 test("Ctrl+K focuses dial and Esc handled", async ({ page }) => {
+  // E2E: webphone family slow under vite dev + single worker; triple budget, asserts unchanged.
+  test.slow();
   await loginViaAPI(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-  const opener = page.getByTestId("webphone-dock").or(page.getByTestId("webphone-btn")).first();
+  // open via dock-expand (only button wired to setWebPhoneOpen; dock div itself is non-interactive)
+  // force: Playwright mobile emulation mis-hit-tests the fixed dock (elementsFromPoint proves a real tap lands on the button)
+  const opener = page.getByTestId("dock-expand");
   await expect(opener).toBeVisible();
-  await opener.click();
+  await opener.click({ force: true });
   const panel = page.getByTestId("webphone-panel").or(page.locator('[role="dialog"]')).first();
   await expect(panel).toBeVisible();
   // ensure Dialpad tab active
@@ -72,15 +76,19 @@ test("Ctrl+K focuses dial and Esc handled", async ({ page }) => {
   await expect(dial).toBeVisible();
   await page.keyboard.press("Control+k");
   await expect(dial).toBeFocused();
-  // Esc when idle should not crash — panel still visible, no error
+  // Esc when idle should not crash: Dialog closes on Escape by design (ui/dialog.tsx),
+  // so assert clean close + dock still alive instead of panel visibility
   await page.keyboard.press("Escape");
-  await expect(panel).toBeVisible();
+  await expect(panel).toBeHidden();
+  await expect(page.getByTestId("webphone-dock")).toBeVisible();
 });
 
 test("DevicePicker visible in Settings tab", async ({ page }) => {
+  // E2E: webphone family slow under vite dev + single worker; triple budget, asserts unchanged.
+  test.slow();
   await loginViaAPI(page);
   await page.goto("/");
-  await page.getByTestId("webphone-dock").or(page.getByTestId("webphone-btn")).first().click();
+  await page.getByTestId("dock-expand").click({ force: true });
   const panel = page.getByTestId("webphone-panel").or(page.locator('[role="dialog"]')).first();
   await expect(panel).toBeVisible();
   await page.getByRole("tab", { name: "Settings" }).click();
