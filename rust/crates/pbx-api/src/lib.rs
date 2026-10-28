@@ -1,6 +1,13 @@
 mod auth;
+mod calls;
+mod dialplans;
+mod extensions;
+mod fs_xml;
+mod gateways;
 mod health;
+mod sip;
 pub mod tenant;
+mod vars_fs;
 
 pub use auth::auth_router;
 pub use health::health_router;
@@ -29,23 +36,19 @@ async fn accept_compat_middleware(
     res
 }
 
-fn extensions_router() -> axum::Router {
-    axum::Router::new()
-        .route(
-            "/api/v1/extensions",
-            axum::routing::get(|| async {
-                axum::Json(serde_json::json!({"data": [], "total": 0}))
-            }),
-        )
-        .layer(axum::middleware::from_fn(require_tenant))
-}
-
-/// Full production router: health + auth + guarded extensions + Accept compat.
+/// Full production router: health + auth + telephony routers (each with the
+/// `require_tenant` guard) + FS XML + Accept compat.
 /// `main.rs` serves this; `test_app()` returns this so tests see prod routes.
 pub fn build_app() -> axum::Router {
     health_router()
         .merge(auth_router())
-        .merge(extensions_router())
+        .merge(extensions::extensions_router())
+        .merge(dialplans::dialplans_router())
+        .merge(gateways::gateways_router())
+        .merge(sip::sip_router())
+        .merge(vars_fs::vars_router())
+        .merge(fs_xml::fs_xml_router())
+        .merge(calls::calls_router())
         .layer(axum::middleware::from_fn(accept_compat_middleware))
 }
 
