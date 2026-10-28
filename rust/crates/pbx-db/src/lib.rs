@@ -568,6 +568,8 @@ const DDL_CDR: &str = "CREATE TABLE IF NOT EXISTS cdr (
   domain_id TEXT NOT NULL,
   caller_id_number VARCHAR(32),
   destination_number VARCHAR(32) NOT NULL,
+  billsec INTEGER,
+  duration INTEGER,
   hangup_cause VARCHAR(64),
   direction VARCHAR(16),
   raw_xml TEXT,

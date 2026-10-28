@@ -30,6 +30,10 @@ struct CdrJson {
     hangup_cause: Option<String>,
     #[serde(default)]
     direction: Option<String>,
+    #[serde(default)]
+    billsec: Option<i32>,
+    #[serde(default)]
+    duration: Option<i32>,
 }
 
 // ---- handlers ----
@@ -76,12 +80,15 @@ fn parse_cdr_xml(body: &str) -> (Option<String>, String, Option<String>, Option<
     (Some(caller), dest, hangup, direction)
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn store_row(
     domain: uuid::Uuid,
     caller: Option<String>,
     dest: String,
     hangup: Option<String>,
     direction: Option<String>,
+    billsec: Option<i32>,
+    duration: Option<i32>,
     raw: Option<String>,
     malformed: bool,
 ) -> String {
@@ -92,6 +99,8 @@ async fn store_row(
         domain_id: Set(domain),
         caller_id_number: Set(caller),
         destination_number: Set(dest),
+        billsec: Set(billsec),
+        duration: Set(duration),
         hangup_cause: Set(hangup),
         direction: Set(direction),
         raw_xml: Set(raw),
@@ -126,6 +135,8 @@ async fn import_cdr(
                     dest,
                     j.hangup_cause,
                     j.direction,
+                    j.billsec,
+                    j.duration,
                     None,
                     false,
                 )
@@ -142,6 +153,8 @@ async fn import_cdr(
                     domain,
                     None,
                     "unknown".to_owned(),
+                    None,
+                    None,
                     None,
                     None,
                     Some(text),
@@ -167,12 +180,16 @@ async fn import_cdr(
             || trimmed.contains("<broken>");
     // Tolerant field extraction regardless of well-formedness.
     let (caller, dest, hangup, direction) = parse_cdr_xml(&text);
+    let billsec = find_tag(&text, "billsec").and_then(|v| v.parse().ok());
+    let duration = find_tag(&text, "duration").and_then(|v| v.parse().ok());
     let id = store_row(
         domain,
         caller,
         dest,
         hangup,
         direction,
+        billsec,
+        duration,
         Some(text),
         malformed,
     )
@@ -200,6 +217,8 @@ async fn list_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl 
                 "cdr_uuid": r.cdr_uuid,
                 "caller_id_number": r.caller_id_number,
                 "destination_number": r.destination_number,
+                "billsec": r.billsec,
+                "duration": r.duration,
                 "hangup_cause": r.hangup_cause,
                 "direction": r.direction,
                 "malformed": r.malformed,
@@ -207,6 +226,65 @@ async fn list_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl 
         })
         .collect();
     Json(serde_json::json!({"data": data, "total": total}))
+}
+
+async fn create_cdr(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    Json(payload): Json<CdrJson>,
+) -> impl IntoResponse {
+    let domain = crate::routing_db::domain(&claims);
+    let dest = payload
+        .destination_number
+        .unwrap_or_else(|| "unknown".to_owned());
+    let id = store_row(
+        domain,
+        payload.caller_id_number,
+        dest,
+        payload.hangup_cause,
+        payload.direction,
+        payload.billsec,
+        payload.duration,
+        None,
+        false,
+    )
+    .await;
+    (
+        StatusCode::CREATED,
+        Json(serde_json::json!({"status": "stored", "cdr_uuid": id})),
+    )
+}
+
+async fn get_cdr(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(cdr_uuid): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let row = cdr::Entity::find_by_id(cdr_uuid)
+        .one(db)
+        .await
+        .unwrap_or(None);
+    match row {
+        Some(r) if r.domain_id == domain => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "cdr_uuid": r.cdr_uuid,
+                "caller_id_number": r.caller_id_number,
+                "destination_number": r.destination_number,
+                "billsec": r.billsec,
+                "duration": r.duration,
+                "hangup_cause": r.hangup_cause,
+                "direction": r.direction,
+                "malformed": r.malformed,
+            })),
+        )
+            .into_response(),
+        _ => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response(),
+    }
 }
 
 async fn stats_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
@@ -247,9 +325,10 @@ pub fn cdr_router() -> Router {
     Router::new()
         .route("/api/v1/cdr/import", post(import_cdr))
         .route("/api/v1/cdr/import/", post(import_cdr))
-        .route("/api/v1/cdr", axum::routing::get(list_cdr))
-        .route("/api/v1/cdr/", axum::routing::get(list_cdr))
+        .route("/api/v1/cdr", post(create_cdr).get(list_cdr))
+        .route("/api/v1/cdr/", post(create_cdr).get(list_cdr))
         .route("/api/v1/cdr/stats", axum::routing::get(stats_cdr))
         .route("/api/v1/cdr/stats/", axum::routing::get(stats_cdr))
+        .route("/api/v1/cdr/{cdr_uuid}", axum::routing::get(get_cdr))
         .layer(axum::middleware::from_fn(crate::require_tenant))
 }
