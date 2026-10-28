@@ -9,7 +9,7 @@
 //! (15s-cache parity is in-memory process-local here).
 
 use axum::{Extension as AxExtension, Json, Router};
-use pbx_fs::esl::{EsClient, RealEs};
+use pbx_fs::esl::{is_connected_body, strip_esl_body, EsClient, RealEs};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 fn esl() -> RealEs {
@@ -20,8 +20,14 @@ fn esl() -> RealEs {
 fn probe_connected() -> (bool, Option<u64>, Option<String>) {
     let client = esl();
     match client.try_api("status") {
-        Some(resp) if resp.contains("+OK") => (true, Some(0), None),
-        Some(resp) => (false, None, Some(resp.chars().take(300).collect())),
+        Some(resp) => {
+            let body = strip_esl_body(&resp);
+            if is_connected_body(body) {
+                (true, Some(0), None)
+            } else {
+                (false, None, Some(body.chars().take(300).collect()))
+            }
+        }
         None => (
             false,
             None,

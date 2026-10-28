@@ -8,7 +8,7 @@
 //! `fs_status.connected` flag.
 
 use axum::{Json, Router};
-use pbx_fs::esl::{EsClient, RealEs};
+use pbx_fs::esl::{is_connected_body, strip_esl_body, EsClient, RealEs};
 use std::collections::HashMap;
 
 async fn logs_list(
@@ -28,7 +28,7 @@ async fn logs_list(
         content.push(format!("[sofia] {name} {state}"));
     }
     match client.try_api("status") {
-        Some(r) if r.contains("+OK") => {
+        Some(r) if is_connected_body(strip_esl_body(&r)) => {
             content.push(format!("[FS] connected {}:{}", client.host, client.port));
         }
         _ => content.push(format!("[FS] disconnected {}:{}", client.host, client.port)),
@@ -67,8 +67,14 @@ async fn freeswitch_logs() -> Json<serde_json::Value> {
     let regs = client.api("show registrations");
     let channels = client.api("show channels");
     let (connected, _, error) = match client.try_api("status") {
-        Some(r) if r.contains("+OK") => (true, None::<u64>, None::<String>),
-        Some(r) => (false, None, Some(r.chars().take(300).collect())),
+        Some(r) => {
+            let body = strip_esl_body(&r);
+            if is_connected_body(body) {
+                (true, None::<u64>, None::<String>)
+            } else {
+                (false, None, Some(body.chars().take(300).collect()))
+            }
+        }
         None => (
             false,
             None,

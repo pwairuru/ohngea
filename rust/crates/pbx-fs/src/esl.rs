@@ -179,7 +179,40 @@ impl RealEs {
             password: std::env::var("FS_ESL_PASSWORD").unwrap_or_else(|_| "ClueCon".to_owned()),
         }
     }
+}
 
+/// Strip ESL `api/response` headers (`Content-Type`/`Content-Length`) and
+/// return the body (mirrors `app/freeswitch/esl_client.py::_strip_esl_headers`).
+/// Splits at the first blank line; returns the raw trimmed input when there
+/// are no headers.
+pub fn strip_esl_body(raw: &str) -> &str {
+    if raw.is_empty() {
+        return "";
+    }
+    if let Some(idx) = raw.find("\r\n\r\n") {
+        return raw[idx + 4..].trim();
+    }
+    if let Some(idx) = raw.find("\n\n") {
+        return raw[idx + 2..].trim();
+    }
+    raw.trim()
+}
+
+/// Connected when the (stripped) `api status` body looks like a live FS reply:
+/// contains `up` / `+ok` / `freeswitch` / `content-length` (case-insensitive).
+/// Empty bodies are never connected (mirrors `esl_client.py::check_status`).
+pub fn is_connected_body(body: &str) -> bool {
+    if body.trim().is_empty() {
+        return false;
+    }
+    let low = body.to_lowercase();
+    low.contains("up")
+        || low.contains("+ok")
+        || low.contains("freeswitch")
+        || low.contains("content-length")
+}
+
+impl RealEs {
     /// Best-effort raw `api` over TCP; `None` when FS is down.
     pub fn try_api(&self, command: &str) -> Option<String> {
         use std::io::{Read, Write};
