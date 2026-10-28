@@ -1829,13 +1829,16 @@ name = "pbx-api"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "chrono",
  "pbx-core",
  "pbx-db",
  "pbx-fs",
+ "sea-orm",
  "serde",
  "serde_json",
  "tokio",
  "tower",
+ "uuid",
 ]
 
 [[package]]

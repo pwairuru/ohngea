@@ -1,5 +1,12 @@
 // Batch 1 settings first, then batch 2a telephony in dependency order:
-// domains → extensions → dialplans → gateways → sip → devices.
+// domains → extensions → dialplans → gateways → sip → devices,
+// then batch 3a call-routing: ring/callcenter/ivr/voicemail/conf/fax/cdr.
+pub mod call_center_agents;
+pub mod call_center_tiers;
+pub mod call_centers;
+pub mod call_recordings;
+pub mod cdr;
+pub mod conferences;
 pub mod default_settings;
 pub mod device_keys;
 pub mod device_lines;
@@ -13,9 +20,18 @@ pub mod dialplans;
 pub mod domain_settings;
 pub mod domains;
 pub mod extensions;
+pub mod fax_queue;
 pub mod gateways;
+pub mod ivr_menu_options;
+pub mod ivr_menus;
+pub mod recordings;
+pub mod ring_group_members;
+pub mod ring_groups;
 pub mod sip_profile_domains;
 pub mod sip_profile_settings;
 pub mod sip_profiles;
 pub mod sofia_global_settings;
 pub mod vars;
+pub mod voicemail_greetings;
+pub mod voicemail_messages;
+pub mod voicemails;

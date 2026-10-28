@@ -12,6 +12,10 @@
 //! - `sip_profiles` / `sip_profile_domains` / `sip_profile_settings`
 //!   — app/sip_profiles/models.py
 //! - `devices` (+ lines/settings/keys/profiles) — app/devices/models.py
+//! - batch 3a call-routing: `ring_groups` + `ring_group_members`,
+//!   `call_centers` + `call_center_agents` + `call_center_tiers`,
+//!   `ivr_menus` + `ivr_menu_options`, `voicemails` + greetings/messages,
+//!   `conferences`, `fax_queue`, `cdr`, `recordings` + `call_recordings`.
 //!
 //! Sofia XML lives in `pbx-fs::sofia` (verbatim port of
 //! `app/freeswitch/sofia_config.py::_build_sofia_xml`).
@@ -424,6 +428,171 @@ const DDL_DEVICE_PROFILE_SETTINGS: &str = "CREATE TABLE IF NOT EXISTS device_pro
   updated_at TEXT NOT NULL
 )";
 
+const DDL_RING_GROUPS: &str = "CREATE TABLE IF NOT EXISTS ring_groups (
+  ring_group_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  extension VARCHAR(32) NOT NULL,
+  strategy VARCHAR(32) NOT NULL DEFAULT 'simultaneous',
+  enabled BOOLEAN NOT NULL DEFAULT 1,
+  description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_RING_GROUPS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_ring_groups_domain ON ring_groups (domain_id)";
+
+const DDL_RING_GROUP_MEMBERS: &str = "CREATE TABLE IF NOT EXISTS ring_group_members (
+  ring_group_member_uuid TEXT PRIMARY KEY,
+  ring_group_uuid TEXT NOT NULL REFERENCES ring_groups (ring_group_uuid),
+  domain_id TEXT NOT NULL,
+  destination VARCHAR(128) NOT NULL,
+  delay INTEGER NOT NULL DEFAULT 0,
+  timeout INTEGER NOT NULL DEFAULT 30
+)";
+const DDL_RING_GROUP_MEMBERS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_ring_group_members_parent ON ring_group_members (ring_group_uuid)";
+
+const DDL_CALL_CENTERS: &str = "CREATE TABLE IF NOT EXISTS call_centers (
+  call_center_queue_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  queue_name VARCHAR(128) NOT NULL,
+  queue_extension VARCHAR(32),
+  queue_strategy VARCHAR(32) NOT NULL DEFAULT 'longest-idle-agent',
+  queue_enabled BOOLEAN NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_CALL_CENTERS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_call_centers_domain ON call_centers (domain_id)";
+
+const DDL_CALL_CENTER_AGENTS: &str = "CREATE TABLE IF NOT EXISTS call_center_agents (
+  call_center_agent_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  queue_id TEXT NOT NULL REFERENCES call_centers (call_center_queue_uuid),
+  agent_name VARCHAR(128) NOT NULL,
+  agent_contact VARCHAR(128) NOT NULL,
+  agent_status VARCHAR(32) NOT NULL DEFAULT 'available'
+)";
+const DDL_CALL_CENTER_AGENTS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_call_center_agents_queue ON call_center_agents (queue_id)";
+
+const DDL_CALL_CENTER_TIERS: &str = "CREATE TABLE IF NOT EXISTS call_center_tiers (
+  call_center_tier_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  queue_id TEXT NOT NULL REFERENCES call_centers (call_center_queue_uuid),
+  agent_name VARCHAR(128) NOT NULL,
+  tier_level INTEGER NOT NULL DEFAULT 1,
+  tier_position INTEGER NOT NULL DEFAULT 1
+)";
+
+const DDL_IVR_MENUS: &str = "CREATE TABLE IF NOT EXISTS ivr_menus (
+  ivr_menu_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  extension VARCHAR(32),
+  enabled BOOLEAN NOT NULL DEFAULT 1,
+  description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_IVR_MENUS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_ivr_menus_domain ON ivr_menus (domain_id)";
+
+const DDL_IVR_MENU_OPTIONS: &str = "CREATE TABLE IF NOT EXISTS ivr_menu_options (
+  option_uuid TEXT PRIMARY KEY,
+  ivr_menu_uuid TEXT NOT NULL REFERENCES ivr_menus (ivr_menu_uuid),
+  domain_id TEXT NOT NULL,
+  digits VARCHAR(8) NOT NULL,
+  action VARCHAR(64) NOT NULL,
+  param VARCHAR(512),
+  option_order INTEGER NOT NULL DEFAULT 0
+)";
+const DDL_IVR_MENU_OPTIONS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_ivr_menu_options_parent ON ivr_menu_options (ivr_menu_uuid)";
+
+const DDL_VOICEMAILS: &str = "CREATE TABLE IF NOT EXISTS voicemails (
+  voicemail_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  voicemail_id VARCHAR(32) NOT NULL,
+  voicemail_password VARCHAR(32) NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT 1,
+  description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_VOICEMAILS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_voicemails_domain ON voicemails (domain_id)";
+
+const DDL_VOICEMAIL_GREETINGS: &str = "CREATE TABLE IF NOT EXISTS voicemail_greetings (
+  voicemail_greeting_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  voicemail_uuid TEXT NOT NULL REFERENCES voicemails (voicemail_uuid),
+  greeting_name VARCHAR(128) NOT NULL,
+  greeting_text VARCHAR(1024)
+)";
+
+const DDL_VOICEMAIL_MESSAGES: &str = "CREATE TABLE IF NOT EXISTS voicemail_messages (
+  voicemail_message_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  voicemail_uuid TEXT NOT NULL REFERENCES voicemails (voicemail_uuid),
+  file_name VARCHAR(512),
+  message_length INTEGER
+)";
+
+const DDL_CONFERENCES: &str = "CREATE TABLE IF NOT EXISTS conferences (
+  conference_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  conference_name VARCHAR(128) NOT NULL,
+  conference_extension VARCHAR(32) NOT NULL,
+  conference_profile VARCHAR(64) NOT NULL DEFAULT 'default',
+  conference_enabled BOOLEAN NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_CONFERENCES_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_conferences_domain ON conferences (domain_id)";
+
+const DDL_FAX_QUEUE: &str = "CREATE TABLE IF NOT EXISTS fax_queue (
+  fax_queue_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  fax_extension VARCHAR(32) NOT NULL,
+  destination VARCHAR(32) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'waiting'
+)";
+const DDL_FAX_QUEUE_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_fax_queue_domain ON fax_queue (domain_id)";
+
+const DDL_CDR: &str = "CREATE TABLE IF NOT EXISTS cdr (
+  cdr_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  caller_id_number VARCHAR(32),
+  destination_number VARCHAR(32) NOT NULL,
+  hangup_cause VARCHAR(64),
+  direction VARCHAR(16),
+  raw_xml TEXT,
+  malformed BOOLEAN NOT NULL DEFAULT 0
+)";
+const DDL_CDR_IDX: &str = "CREATE INDEX IF NOT EXISTS ix_cdr_domain ON cdr (domain_id)";
+
+const DDL_RECORDINGS: &str = "CREATE TABLE IF NOT EXISTS recordings (
+  recording_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  file_path VARCHAR(512) NOT NULL,
+  storage_backend VARCHAR(32) NOT NULL DEFAULT 's3',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+
+const DDL_CALL_RECORDINGS: &str = "CREATE TABLE IF NOT EXISTS call_recordings (
+  call_recording_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  cdr_uuid TEXT,
+  recording_path VARCHAR(512),
+  recording_name VARCHAR(255)
+)";
+
 /// Create all tables (sqlite bootstrap for tests / local dev).
 /// Production schema comes from alembic migrations.
 pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr> {
@@ -459,6 +628,31 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_DEVICE_PROFILES,
         DDL_DEVICE_PROFILE_KEYS,
         DDL_DEVICE_PROFILE_SETTINGS,
+        DDL_RING_GROUPS,
+        DDL_RING_GROUPS_IDX,
+        DDL_RING_GROUP_MEMBERS,
+        DDL_RING_GROUP_MEMBERS_IDX,
+        DDL_CALL_CENTERS,
+        DDL_CALL_CENTERS_IDX,
+        DDL_CALL_CENTER_AGENTS,
+        DDL_CALL_CENTER_AGENTS_IDX,
+        DDL_CALL_CENTER_TIERS,
+        DDL_IVR_MENUS,
+        DDL_IVR_MENUS_IDX,
+        DDL_IVR_MENU_OPTIONS,
+        DDL_IVR_MENU_OPTIONS_IDX,
+        DDL_VOICEMAILS,
+        DDL_VOICEMAILS_IDX,
+        DDL_VOICEMAIL_GREETINGS,
+        DDL_VOICEMAIL_MESSAGES,
+        DDL_CONFERENCES,
+        DDL_CONFERENCES_IDX,
+        DDL_FAX_QUEUE,
+        DDL_FAX_QUEUE_IDX,
+        DDL_CDR,
+        DDL_CDR_IDX,
+        DDL_RECORDINGS,
+        DDL_CALL_RECORDINGS,
     ] {
         db.execute_unprepared(ddl).await?;
     }

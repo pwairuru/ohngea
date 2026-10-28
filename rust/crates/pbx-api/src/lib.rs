@@ -1,13 +1,22 @@
 mod auth;
+mod call_centers;
 mod calls;
+mod cdr;
+mod conferences;
 mod dialplans;
 mod extensions;
+mod fax;
 mod fs_xml;
 mod gateways;
 mod health;
+mod ivr_menus;
+mod recordings;
+mod ring_groups;
+pub(crate) mod routing_db;
 mod sip;
 pub mod tenant;
 mod vars_fs;
+mod voicemails;
 
 pub use auth::auth_router;
 pub use health::health_router;
@@ -49,6 +58,14 @@ pub fn build_app() -> axum::Router {
         .merge(vars_fs::vars_router())
         .merge(fs_xml::fs_xml_router())
         .merge(calls::calls_router())
+        .merge(ring_groups::ring_groups_router())
+        .merge(call_centers::call_centers_router())
+        .merge(ivr_menus::ivr_menus_router())
+        .merge(voicemails::voicemails_router())
+        .merge(conferences::conferences_router())
+        .merge(fax::fax_router())
+        .merge(cdr::cdr_router())
+        .merge(recordings::recordings_router())
         .layer(axum::middleware::from_fn(accept_compat_middleware))
 }
 
