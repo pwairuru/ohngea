@@ -1,24 +1,62 @@
 //! Shared SeaORM connection for call-routing routers.
 //!
-//! sqlite `:memory:` for tests (single connection so the DB is shared),
-//! postgres via `DATABASE_URL` at runtime. One global connection per
-//! process — `test_app()` builds a fresh router per request, so per-router
-//! state would lose rows between POST and GET in tests.
+//! Postgres via `DATABASE_URL` at runtime (pool parity with `app/db.py`:
+//! max 5, timeout 30, pre-ping via `test_before_acquire`), sqlite file for
+//! unit tests only. One global connection per process — `test_app()` builds
+//! a fresh router per request, so per-router state would lose rows between
+//! POST and GET in tests.
+//!
+//! No sqlite fallback when `DATABASE_URL` is postgres: postgres URL always
+//! uses `pbx_db::connect_postgres` + `Migrator::up`, never `create_schema`.
 
 use sea_orm::DatabaseConnection;
 use tokio::sync::OnceCell;
 
 static DB: OnceCell<DatabaseConnection> = OnceCell::const_new();
 
+/// Normalize Python `postgresql+asyncpg://` / `postgresql://` to SeaORM
+/// `postgres://`. Pure — unit-testable.
+#[must_use]
+pub fn normalize_database_url(url: &str) -> String {
+    if let Some(rest) = url.strip_prefix("postgresql+asyncpg://") {
+        return format!("postgres://{rest}");
+    }
+    if let Some(rest) = url.strip_prefix("postgresql://") {
+        return format!("postgres://{rest}");
+    }
+    url.to_owned()
+}
+
+fn is_postgres_url(url: &str) -> bool {
+    let u = normalize_database_url(url);
+    u.starts_with("postgres://") || u.starts_with("postgresql://")
+}
+
 async fn init_db() -> DatabaseConnection {
     if let Ok(url) = std::env::var("DATABASE_URL") {
-        let mut opt = sea_orm::ConnectOptions::new(url);
-        opt.max_connections(5);
-        let db = sea_orm::Database::connect(opt)
-            .await
-            .expect("DATABASE_URL connect");
-        pbx_db::create_schema(&db).await.expect("schema");
-        return db;
+        let url = normalize_database_url(url.trim());
+        if is_postgres_url(&url) {
+            let db = pbx_db::connect_postgres(&url)
+                .await
+                .expect("DATABASE_URL postgres connect");
+            use sea_orm_migration::MigratorTrait;
+            pbx_db::migration::Migrator::up(&db, None)
+                .await
+                .expect("postgres migrate on boot");
+            return db;
+        }
+        if url.starts_with("sqlite") {
+            let mut opt = sea_orm::ConnectOptions::new(url);
+            opt.max_connections(1);
+            let db = sea_orm::Database::connect(opt)
+                .await
+                .expect("sqlite connect");
+            pbx_db::create_schema(&db).await.expect("schema");
+            return db;
+        }
+        // Unknown scheme with DATABASE_URL set: fail fast, never silently
+        // fall back to sqlite when caller asked for a real DB.
+        panic!("unsupported DATABASE_URL scheme (expected postgres:// or sqlite:)");
     }
     // File-backed sqlite (NOT :memory:): each #[tokio::test] gets its own
     // runtime, and runtimes shut down between tests — a :memory: DB dies
@@ -86,4 +124,25 @@ pub fn now() -> chrono::DateTime<chrono::Utc> {
 
 pub fn new_uuid() -> String {
     uuid::Uuid::now_v7().to_string()
+}
+
+/// Per-request tenant scoping: `SET LOCAL app.domain_uuid` (Postgres RLS,
+/// `app/db.py::set_tenant` parity). No-op on sqlite unit tests.
+pub async fn set_tenant(db: &DatabaseConnection, claims: &pbx_core::auth::Claims) {
+    let id = domain(claims);
+    let _ = pbx_db::set_tenant(db, &id.to_string()).await;
+}
+
+/// Transaction scoped to tenant: `BEGIN` + `SET LOCAL app.domain_uuid`.
+/// Required for FORCE RLS (each pooled connection needs GUC inside txn).
+/// Falls back to plain txn on sqlite (set_tenant no-op there).
+pub async fn tenant_txn(
+    db: &DatabaseConnection,
+    claims: &pbx_core::auth::Claims,
+) -> Result<sea_orm::DatabaseTransaction, sea_orm::DbErr> {
+    use sea_orm::TransactionTrait;
+    let txn = db.begin().await?;
+    let id = domain(claims);
+    pbx_db::set_tenant(&txn, &id.to_string()).await?;
+    Ok(txn)
 }

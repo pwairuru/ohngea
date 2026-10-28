@@ -2,17 +2,13 @@
 //! (directory/dialplan/configuration) with a 60s in-memory cache
 //! (mirrors `app/freeswitch/cache.py`) and IP-fallback note.
 //!
-//! Types → validation → handlers → xml → esl ordering: query parsing,
-//! cache lookup, DB-backed render, cache store.
+//! Cache sits in front of the SeaORM/postgres render; `invalidate_cache`
+//! is the invalidation hook vars PATCH/DELETE already call.
 
-use axum::{http::StatusCode, response::IntoResponse, Router};
+use axum::{http::StatusCode, response::IntoResponse, Extension as AxExtension, Router};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
-/// SWAP POINT: process-global 60s XML cache (mirrors
-/// `app/freeswitch/cache.py`). Prod keeps this cache in front of the
-/// SeaORM/postgres render; `invalidate_cache` is the invalidation hook
-/// vars PATCH/DELETE already call.
 fn cache() -> &'static Mutex<pbx_fs::cache::XmlCache> {
     static C: OnceLock<Mutex<pbx_fs::cache::XmlCache>> = OnceLock::new();
     C.get_or_init(|| Mutex::new(pbx_fs::cache::XmlCache::new()))
@@ -49,18 +45,43 @@ fn cached_or_render(key: &str, render: impl FnOnce() -> String) -> String {
     doc
 }
 
+async fn cached_or_render_async<F, Fut>(key: &str, render: F) -> String
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = String>,
+{
+    if let Some(hit) = cache()
+        .lock()
+        .expect("cache lock")
+        .get(key)
+        .map(str::to_owned)
+    {
+        return hit;
+    }
+    let doc = render().await;
+    cache()
+        .lock()
+        .expect("cache lock")
+        .insert(key.to_owned(), doc.clone());
+    doc
+}
+
 async fn fs_xml_handler(
+    AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Query(params): axum::extract::Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
+    // Per-request tenant scoping for RLS (no-op on sqlite unit tests).
+    let db = crate::routing_db::conn().await;
+    crate::routing_db::set_tenant(db, &claims).await;
     let section = params.get("section").cloned().unwrap_or_default();
     let key_value = params.get("key_value").cloned().unwrap_or_default();
     match section.as_str() {
         "directory" => {
             let (user, domain) = split_user_domain(&key_value);
             let key = format!("directory:{domain}:{user}");
-            let doc = cached_or_render(&key, || {
-                // Query pbx-db state (in-memory store here).
-                match crate::extensions::find_extension(&user, &domain) {
+            let doc = cached_or_render_async(&key, || async {
+                // SeaORM/postgres render source.
+                match crate::extensions::find_extension(&user, &domain).await {
                     Some(rec) => pbx_fs::xml::build_directory_xml_with_password(
                         &rec.domain,
                         &rec.extension,
@@ -69,7 +90,8 @@ async fn fs_xml_handler(
                     // IP fallback: unknown user still renders a shell with the domain.
                     None => pbx_fs::xml::build_directory_xml(&domain, &user),
                 }
-            });
+            })
+            .await;
             (
                 StatusCode::OK,
                 [(axum::http::header::CONTENT_TYPE, "application/xml")],

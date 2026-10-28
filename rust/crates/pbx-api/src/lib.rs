@@ -96,3 +96,10 @@ pub fn build_app() -> axum::Router {
 pub fn test_app() -> axum::Router {
     build_app()
 }
+
+/// Migrate on boot: initialize shared SeaORM connection (Postgres
+/// `Migrator::up`, sqlite `create_schema`) before serving. Called by
+/// `main.rs`; keeps fresh `db` volumes current (see rust/Dockerfile CMD).
+pub async fn migrate_on_boot() {
+    let _ = crate::routing_db::conn().await;
+}

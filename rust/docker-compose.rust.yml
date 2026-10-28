@@ -8,5 +8,11 @@ services:
     build: ./rust
     ports: ["8000:8000"]
     environment:
-      DATABASE_URL: postgres://pbx:pbx@db:5432/pbx
+      # Parity with main stack (docker-compose.yml api/worker):
+      # postgresql+asyncpg://ohngea:ohngea@db:5432/ohngea.
+      # pbx-api normalizes postgresql+asyncpg:// → postgres:// for SeaORM.
+      DATABASE_URL: postgresql+asyncpg://ohngea:ohngea@db:5432/ohngea
       JWT_SECRET: test-secret
+    depends_on:
+      db:
+        condition: service_healthy

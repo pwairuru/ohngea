@@ -25,6 +25,7 @@
 pub mod entities;
 pub mod extensions;
 pub mod gateways;
+pub mod migration;
 pub mod pagination;
 pub mod seeds;
 pub mod tenant;
@@ -677,6 +678,7 @@ const DDL_REMAINING_RECORDS_IDX: &str =
     "CREATE INDEX IF NOT EXISTS ix_remaining_resource_domain ON remaining_records (resource, domain_id)";
 /// Create all tables (sqlite bootstrap for tests / local dev).
 /// Production schema comes from alembic migrations.
+/// Production Postgres uses `migration::Migrator` (sea-orm-migration).
 pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr> {
     for ddl in [
         DDL_VARS,
@@ -753,4 +755,38 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         db.execute_unprepared(ddl).await?;
     }
     Ok(())
+}
+
+/// Postgres pool parity with `app/db.py:12-18`.
+/// pool_size 5, max_overflow 10 (sqlx single max_connections 5 — overflow
+/// folded in; pg backs pressure via acquire timeout), timeout 30, pre_ping.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PostgresPoolConfig {
+    pub max_connections: u32,
+    pub timeout_secs: u64,
+    pub pre_ping: bool,
+}
+
+/// Pure pool knobs — unit-testable without a DB.
+#[must_use]
+pub fn postgres_connect_options(_url: &str) -> PostgresPoolConfig {
+    PostgresPoolConfig {
+        max_connections: 5,
+        timeout_secs: 30,
+        pre_ping: true,
+    }
+}
+
+fn postgres_sea_options(url: &str) -> sea_orm::ConnectOptions {
+    let cfg = postgres_connect_options(url);
+    let mut opt = sea_orm::ConnectOptions::new(url.to_owned());
+    opt.max_connections(cfg.max_connections)
+        .connect_timeout(std::time::Duration::from_secs(cfg.timeout_secs))
+        .test_before_acquire(cfg.pre_ping);
+    opt
+}
+
+/// Connect to Postgres with parity pool opts. Caller runs `Migrator::up`.
+pub async fn connect_postgres(url: &str) -> Result<sea_orm::DatabaseConnection, DbErr> {
+    sea_orm::Database::connect(postgres_sea_options(url)).await
 }

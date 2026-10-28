@@ -14,4 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/release/pbx-api /usr/local/bin/pbx-api
 EXPOSE 8000
+# Migrate on boot: pbx-api runs `pbx_db::migration::Migrator::up` at startup
+# (see pbx-api src/main.rs + routing_db::init_db) before serving, so Postgres
+# schema/RLS/views are current even on fresh `db` volumes.
 CMD ["pbx-api"]

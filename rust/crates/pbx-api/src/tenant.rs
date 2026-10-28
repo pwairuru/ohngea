@@ -37,6 +37,12 @@ pub async fn require_tenant(
 ) -> Result<Response, StatusCode> {
     let token = bearer_or_cookie_token(req.headers()).ok_or(StatusCode::UNAUTHORIZED)?;
     let claims = pbx_core::auth::decode_test_token(&token).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    // Per-request RLS scoping (`app/db.py::set_tenant` parity): best-effort
+    // `SET LOCAL app.domain_uuid` on the shared pool + stash claims for
+    // handler-level tenant txns (FORCE RLS requires txn-scoped GUC).
+    // No-op on sqlite unit tests; never fails the request.
+    let db = crate::routing_db::conn().await;
+    crate::routing_db::set_tenant(db, &claims).await;
     // Stash verified claims for downstream handlers / db layer (SET LOCAL app.domain_uuid).
     req.extensions_mut().insert(claims);
     Ok(next.run(req).await)

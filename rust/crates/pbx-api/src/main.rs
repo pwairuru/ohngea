@@ -7,6 +7,8 @@ use pbx_api::build_app;
 
 #[tokio::main]
 async fn main() {
+    // Migrate on boot (Postgres Migrator up / sqlite bootstrap) before serving.
+    pbx_api::migrate_on_boot().await;
     let app = build_app();
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
     axum::serve(listener, app).await.unwrap();

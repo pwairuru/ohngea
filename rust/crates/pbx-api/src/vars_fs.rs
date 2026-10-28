@@ -1,46 +1,148 @@
 //! Vars CRUD + sofia XML regen — mirrors `app/vars/router.py:13-74`
-//! and `service.py`. PATCH invalidates the FS XML cache and regens
-//! sofia XML from DB sip profiles.
+//! and `service.py`. SeaORM backed with per-request tenant txn
+//! (FORCE RLS parity). PATCH/DELETE invalidate the FS XML cache and regen
+//! sofia XML from DB.
 
-use axum::{http::StatusCode, response::IntoResponse, routing::post, Json, Router};
-use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use axum::{
+    http::StatusCode, response::IntoResponse, routing::post, Extension as AxExtension, Json, Router,
+};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
-/// SWAP POINT: process-global in-memory store (tests + local dev only).
-/// Prod wiring is SeaORM/postgres via `pbx_db::entities::vars`
-/// (see `crate::routing_db::conn`); handler signatures stay unchanged.
-fn store() -> &'static Mutex<HashMap<String, serde_json::Value>> {
-    static S: OnceLock<Mutex<HashMap<String, serde_json::Value>>> = OnceLock::new();
-    S.get_or_init(|| Mutex::new(HashMap::new()))
+fn var_to_json(r: &pbx_db::entities::vars::Model) -> serde_json::Value {
+    serde_json::json!({
+        "var_uuid": r.var_uuid.to_string(),
+        "var_category": r.var_category,
+        "var_name": r.var_name,
+        "var_value": r.var_value,
+        "var_enabled": r.var_enabled,
+        "var_description": r.var_description,
+        "var_order": r.var_order,
+        "var_command": r.var_command,
+        "var_hostname": r.var_hostname,
+    })
 }
 
-static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-
-async fn create_var(Json(mut payload): Json<serde_json::Value>) -> impl IntoResponse {
-    let id = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let uuid = format!("var-{id}");
-    payload["var_uuid"] = serde_json::json!(uuid);
-    store()
-        .lock()
-        .expect("vars lock")
-        .insert(uuid, payload.clone());
-    (StatusCode::CREATED, Json(payload))
+async fn create_var(
+    AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
+            );
+        }
+    };
+    let now = crate::routing_db::now();
+    let id = uuid::Uuid::now_v7();
+    let am = pbx_db::entities::vars::ActiveModel {
+        var_uuid: Set(id),
+        domain_id: Set(domain_id),
+        var_category: Set(payload
+            .get("var_category")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default")
+            .to_owned()),
+        var_name: Set(payload
+            .get("var_name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("var")
+            .to_owned()),
+        var_value: Set(payload
+            .get("var_value")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_owned()),
+        var_enabled: Set(payload
+            .get("var_enabled")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true)),
+        var_description: Set(payload
+            .get("var_description")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        var_order: Set(payload
+            .get("var_order")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32)),
+        var_command: Set(payload
+            .get("var_command")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        var_hostname: Set(payload
+            .get("var_hostname")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        created_at: Set(now),
+        updated_at: Set(now),
+    };
+    let row = match am.insert(&txn).await {
+        Ok(r) => r,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
+            );
+        }
+    };
+    let _ = txn.commit().await;
+    (StatusCode::CREATED, Json(var_to_json(&row)))
 }
 
-async fn list_vars() -> impl IntoResponse {
-    let items: Vec<serde_json::Value> = store()
-        .lock()
-        .expect("vars lock")
-        .values()
-        .cloned()
-        .collect();
+async fn list_vars(AxExtension(claims): AxExtension<pbx_core::auth::Claims>) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(_) => return Json(serde_json::json!({"data": [], "total": 0})),
+    };
+    let domain_id = crate::routing_db::domain(&claims);
+    let rows = pbx_db::entities::vars::Entity::find()
+        .filter(pbx_db::entities::vars::Column::DomainId.eq(domain_id))
+        .all(&txn)
+        .await
+        .unwrap_or_default();
+    let _ = txn.commit().await;
+    let items: Vec<serde_json::Value> = rows.iter().map(var_to_json).collect();
     let total = items.len();
     Json(serde_json::json!({"data": items, "total": total}))
 }
 
-async fn get_var(axum::extract::Path(id): axum::extract::Path<String>) -> impl IntoResponse {
-    match store().lock().expect("vars lock").get(&id).cloned() {
-        Some(v) => (StatusCode::OK, Json(v)).into_response(),
+async fn get_var(
+    AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
+            )
+                .into_response();
+        }
+    };
+    let domain_id = crate::routing_db::domain(&claims);
+    let Ok(uid) = id.parse::<uuid::Uuid>() else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let row = pbx_db::entities::vars::Entity::find()
+        .filter(pbx_db::entities::vars::Column::VarUuid.eq(uid))
+        .filter(pbx_db::entities::vars::Column::DomainId.eq(domain_id))
+        .one(&txn)
+        .await
+        .unwrap_or(None);
+    let _ = txn.commit().await;
+    match row {
+        Some(r) => (StatusCode::OK, Json(var_to_json(&r))).into_response(),
         None => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -50,45 +152,109 @@ async fn get_var(axum::extract::Path(id): axum::extract::Path<String>) -> impl I
 }
 
 async fn patch_var(
+    AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(patch): Json<serde_json::Value>,
 ) -> impl IntoResponse {
-    let mut map = store().lock().expect("vars lock");
-    match map.get_mut(&id) {
-        Some(v) => {
-            for (k, val) in patch.as_object().cloned().unwrap_or_default() {
-                v[k] = val;
-            }
-            // Invalidate FS cache + regen sofia XML from DB profiles.
-            crate::fs_xml::invalidate_cache();
-            let names = crate::sip::profile_names();
-            let inputs: Vec<pbx_fs::sofia::SofiaProfileInput> = names
-                .iter()
-                .map(|n| pbx_fs::sofia::SofiaProfileInput {
-                    name: n.clone(),
-                    sip_port: 5060,
-                    ..Default::default()
-                })
-                .collect();
-            let _regen = pbx_fs::sofia::build_sofia_xml(&inputs);
-            let out = v.clone();
-            (StatusCode::OK, Json(out)).into_response()
+    let db = crate::routing_db::conn().await;
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
+            )
+                .into_response();
         }
-        None => (
+    };
+    let domain_id = crate::routing_db::domain(&claims);
+    let Ok(uid) = id.parse::<uuid::Uuid>() else {
+        return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
         )
-            .into_response(),
+            .into_response();
+    };
+    let row = pbx_db::entities::vars::Entity::find()
+        .filter(pbx_db::entities::vars::Column::VarUuid.eq(uid))
+        .filter(pbx_db::entities::vars::Column::DomainId.eq(domain_id))
+        .one(&txn)
+        .await
+        .unwrap_or(None);
+    let Some(r) = row else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let mut am: pbx_db::entities::vars::ActiveModel = r.into();
+    if let Some(v) = patch.get("var_value").and_then(|v| v.as_str()) {
+        am.var_value = Set(v.to_owned());
     }
+    if let Some(v) = patch.get("var_enabled").and_then(|v| v.as_bool()) {
+        am.var_enabled = Set(v);
+    }
+    let row = match am.update(&txn).await {
+        Ok(r) => r,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+            )
+                .into_response();
+        }
+    };
+    let _ = txn.commit().await;
+    crate::fs_xml::invalidate_cache();
+    let names = crate::sip::profile_names().await;
+    let inputs: Vec<pbx_fs::sofia::SofiaProfileInput> = names
+        .iter()
+        .map(|n| pbx_fs::sofia::SofiaProfileInput {
+            name: n.clone(),
+            sip_port: 5060,
+            ..Default::default()
+        })
+        .collect();
+    let _regen = pbx_fs::sofia::build_sofia_xml(&inputs);
+    (StatusCode::OK, Json(var_to_json(&row))).into_response()
 }
 
-async fn delete_var(axum::extract::Path(id): axum::extract::Path<String>) -> impl IntoResponse {
-    match store().lock().expect("vars lock").remove(&id) {
-        Some(_) => {
+async fn delete_var(
+    AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
+            )
+                .into_response();
+        }
+    };
+    let domain_id = crate::routing_db::domain(&claims);
+    let Ok(uid) = id.parse::<uuid::Uuid>() else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let res = pbx_db::entities::vars::Entity::delete_many()
+        .filter(pbx_db::entities::vars::Column::VarUuid.eq(uid))
+        .filter(pbx_db::entities::vars::Column::DomainId.eq(domain_id))
+        .exec(&txn)
+        .await;
+    match res {
+        Ok(r) if r.rows_affected > 0 => {
+            let _ = txn.commit().await;
             crate::fs_xml::invalidate_cache();
             StatusCode::NO_CONTENT.into_response()
         }
-        None => (
+        _ => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
         )
