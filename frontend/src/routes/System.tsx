@@ -88,7 +88,14 @@ export function System() {
   }
 
   const os = info?.os || {};
-  const loadAvg: number[] | null = metrics?.load_avg ?? info?.load_avg ?? null;
+  // Contract: backend returns load_avg as [1m,5m,15m] triple; tolerate legacy
+  // bare-number payloads (and null) so one shape skew never crashes the route.
+  const raw: unknown = metrics?.load_avg ?? info?.load_avg ?? null;
+  const loadAvg: number[] | null = Array.isArray(raw)
+    ? (raw as number[]).filter((v): v is number => typeof v === "number")
+    : typeof raw === "number"
+      ? [raw]
+      : null;
   const cpuTotal: number | null = metrics?.cpu_total ?? info?.cpu?.total_percent ?? null;
   const cpuCores: number = metrics?.cpu_cores ?? info?.cpu?.cores ?? 0;
   const uptime: string = metrics?.uptime ?? info?.uptime ?? "—";

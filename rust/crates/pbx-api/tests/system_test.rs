@@ -319,3 +319,22 @@ async fn freeswitch_status_and_logs_exist() {
     assert_eq!(s, StatusCode::OK, "fs logs: {b}");
     assert!(b.get("fs_status").is_some(), "fs_status: {b}");
 }
+
+// Contract: load_avg must be a 3-element [1m,5m,15m] array (frontend System.tsx does .map).
+// Never a bare number, never null-when-possible (fallback [0,0,0]).
+#[tokio::test]
+async fn load_avg_is_triple_array() {
+    let token = login_token().await;
+    for path in ["/api/v1/system/metrics", "/api/v1/system/info"] {
+        let (s, b) = get_json(&token, path).await;
+        assert_eq!(s, StatusCode::OK, "{path}: {b}");
+        let arr = b
+            .get("load_avg")
+            .and_then(|v| v.as_array())
+            .unwrap_or_else(|| panic!("{path} load_avg must be array, got: {b}"));
+        assert_eq!(arr.len(), 3, "{path} load_avg len 3: {b}");
+        for (i, v) in arr.iter().enumerate() {
+            assert!(v.is_number(), "{path} load_avg[{i}] must be number: {b}");
+        }
+    }
+}

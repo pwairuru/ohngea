@@ -13,7 +13,7 @@ import { MobileDrawer } from "./components/shell/MobileDrawer";
 import { CommandPalette } from "./components/shell/CommandPalette";
 import { PaletteProvider, usePalette } from "./components/shell/paletteContext";
 import { UserMenu } from "./components/shell/UserMenu";
-import { ErrorBoundary } from "./components/ErrorBoundary";
+import { RouteErrorBoundary } from "./components/ErrorBoundary";
 import { Dashboard } from "./routes/Dashboard";
 import { Extensions } from "./routes/Extensions";
 import { Gateways } from "./routes/Gateways";
@@ -135,7 +135,7 @@ function Nav() {
         <Sidebar />
         <MobileDrawer open={open} onClose={() => setOpen(false)} />
         <main className="min-w-0 flex-1 bg-muted/20 min-h-[calc(100vh-3.5rem)]">
-          <ErrorBoundary>
+          <RouteErrorBoundary>
             <div className="p-4 md:p-6 space-y-4">
               <Routes>
                 <Route path="/" element={<Dashboard />} />
@@ -200,7 +200,7 @@ function Nav() {
                 <Route path="*" element={<div className="p-4">Not found</div>} />
               </Routes>
             </div>
-          </ErrorBoundary>
+          </RouteErrorBoundary>
         </main>
       </div>
     </>

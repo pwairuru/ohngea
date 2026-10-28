@@ -24,11 +24,25 @@ fn hostname() -> String {
         .unwrap_or_else(|| std::env::var("HOSTNAME").unwrap_or_else(|_| "pbx".to_owned()))
 }
 
-fn load_avg() -> Option<f64> {
-    // /proc/loadavg parity with Python os.getloadavg (1-min avg).
+fn load_avg() -> Vec<f64> {
+    // Parity with Python os.getloadavg() triple [1m,5m,15m] (app/system/service.py).
+    // Frontend System.tsx does loadAvg.map — never return bare number or null.
+    // Fallback [0,0,0] when /proc/loadavg unreadable.
     std::fs::read_to_string("/proc/loadavg")
         .ok()
-        .and_then(|s| s.split_whitespace().next()?.parse().ok())
+        .and_then(|s| {
+            let vals: Vec<f64> = s
+                .split_whitespace()
+                .take(3)
+                .filter_map(|p| p.parse().ok())
+                .collect();
+            if vals.len() == 3 {
+                Some(vals)
+            } else {
+                None
+            }
+        })
+        .unwrap_or(vec![0.0, 0.0, 0.0])
 }
 
 fn mem_kb() -> Option<(u64, u64)> {
