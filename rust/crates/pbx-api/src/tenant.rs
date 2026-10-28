@@ -1,21 +1,43 @@
+use axum::http::Request;
 use axum::{
-    http::{Request, StatusCode},
+    http::{header, HeaderMap, StatusCode},
     middleware::Next,
     response::Response,
 };
 
+fn bearer_or_cookie_token(headers: &HeaderMap) -> Option<String> {
+    if let Some(auth) = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+    {
+        if let Some(token) = auth.strip_prefix("Bearer ") {
+            let token = token.trim();
+            if !token.is_empty() {
+                return Some(token.to_string());
+            }
+        }
+    }
+    // Cookie fallback (matches Python app/auth/deps.py accepting httpOnly access_token cookie).
+    let cookie = headers.get(header::COOKIE)?.to_str().ok()?;
+    for part in cookie.split(';') {
+        let part = part.trim();
+        if let Some(value) = part.strip_prefix("access_token=") {
+            let value = value.trim();
+            if !value.is_empty() {
+                return Some(value.to_string());
+            }
+        }
+    }
+    None
+}
+
 pub async fn require_tenant(
-    req: Request<axum::body::Body>,
+    mut req: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let auth = req
-        .headers()
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    if !auth.starts_with("Bearer ") || auth.len() < 20 {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-    // Real impl: decode JWT, stash domain_id in extensions, run SET LOCAL in db layer (Task 4 wires pool)
+    let token = bearer_or_cookie_token(req.headers()).ok_or(StatusCode::UNAUTHORIZED)?;
+    let claims = pbx_core::auth::decode_test_token(&token).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    // Stash verified claims for downstream handlers / db layer (SET LOCAL app.domain_id).
+    req.extensions_mut().insert(claims);
     Ok(next.run(req).await)
 }

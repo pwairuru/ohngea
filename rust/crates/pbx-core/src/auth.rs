@@ -1,11 +1,17 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: String,
     pub domain_id: String,
     pub perms: Vec<String>,
     pub exp: usize,
+}
+
+fn jwt_secret() -> Vec<u8> {
+    std::env::var("JWT_SECRET")
+        .unwrap_or_else(|_| "test-secret".to_string())
+        .into_bytes()
 }
 
 pub fn encode_test_token() -> String {
@@ -18,7 +24,7 @@ pub fn encode_test_token() -> String {
     jsonwebtoken::encode(
         &jsonwebtoken::Header::default(),
         &claims,
-        &jsonwebtoken::EncodingKey::from_secret(b"test-secret"),
+        &jsonwebtoken::EncodingKey::from_secret(&jwt_secret()),
     )
     .unwrap()
 }
@@ -26,7 +32,7 @@ pub fn encode_test_token() -> String {
 pub fn decode_test_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
     let data = jsonwebtoken::decode::<Claims>(
         token,
-        &jsonwebtoken::DecodingKey::from_secret(b"test-secret"),
+        &jsonwebtoken::DecodingKey::from_secret(&jwt_secret()),
         &jsonwebtoken::Validation::default(),
     )?;
     Ok(data.claims)

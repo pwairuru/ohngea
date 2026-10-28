@@ -205,3 +205,4 @@ freebsd/mfsbsd/mfsbsd.iso
 *.temp
 .dump.rdb
 .worktrees/
+rust/target/
