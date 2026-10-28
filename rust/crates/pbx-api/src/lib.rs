@@ -349,7 +349,9 @@ pub fn test_app() -> axum::Router {
 pub async fn migrate_on_boot() {
     let db = crate::routing_db::conn().await;
     // Seed reference data on boot (idempotent, row-count guarded).
-    let _ = seed_on_boot_inner(db).await;
+    if let Err(e) = seed_on_boot_inner(db).await {
+        eprintln!("migrate_on_boot seed failed: {e:?}");
+    }
 }
 
 /// Idempotent boot seed for the default tenant (matches the stub-login
@@ -359,7 +361,9 @@ pub async fn migrate_on_boot() {
 /// Public so tests prove `GET /api/v1/vars` is non-empty after boot.
 pub async fn seed_on_boot() {
     let db = crate::routing_db::conn().await;
-    let _ = seed_on_boot_inner(db).await;
+    if let Err(e) = seed_on_boot_inner(db).await {
+        eprintln!("seed_on_boot failed: {e:?}");
+    }
 }
 
 async fn seed_on_boot_inner(db: &sea_orm::DatabaseConnection) -> Result<u64, sea_orm::DbErr> {
