@@ -39,9 +39,45 @@ pub async fn conn() -> &'static DatabaseConnection {
     DB.get_or_init(init_db).await
 }
 
-/// Tenant domain from verified JWT claims (opaque string; UUIDs stringify).
-pub fn domain(claims: &pbx_core::auth::Claims) -> String {
-    claims.domain_id.clone()
+/// Tenant domain from verified JWT claims as Uuid (RULING: domain_id unified
+/// to Uuid across batch1/2a/3a for RLS join parity).
+/// Test tokens carry opaque strings ("default"); those map deterministically
+/// via UUIDv5 (DNS namespace) so tenant isolation still holds in tests.
+/// Prod tokens carry real UUID strings and parse directly.
+pub fn domain(claims: &pbx_core::auth::Claims) -> uuid::Uuid {
+    if let Ok(id) = claims.domain_id.parse::<uuid::Uuid>() {
+        return id;
+    }
+    uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_DNS, claims.domain_id.as_bytes())
+}
+
+/// Tenant domain from verified JWT claims as Uuid, ensuring the parent
+/// `domains` row exists (FK targets in batch1/2a/3a reference it).
+/// Name: real UUID claims get `tenant-{uuid}`; opaque test strings ("default")
+/// are kept as the domain_name for readability.
+pub async fn tenant_domain(
+    db: &sea_orm::DatabaseConnection,
+    claims: &pbx_core::auth::Claims,
+) -> uuid::Uuid {
+    let d = domain(claims);
+    let name = if claims.domain_id.parse::<uuid::Uuid>().is_ok() {
+        format!("tenant-{d}")
+    } else {
+        claims.domain_id.clone()
+    };
+    let now = now();
+    let am = pbx_db::entities::domains::ActiveModel {
+        domain_id: sea_orm::Set(d),
+        domain_name: sea_orm::Set(name),
+        enabled: sea_orm::Set(true),
+        description: sea_orm::Set(None),
+        created_at: sea_orm::Set(now),
+        updated_at: sea_orm::Set(now),
+    };
+    use sea_orm::EntityTrait;
+    // Already-bootstrapped / raced insert → ignore conflict.
+    let _ = pbx_db::entities::domains::Entity::insert(am).exec(db).await;
+    d
 }
 
 pub fn now() -> chrono::DateTime<chrono::Utc> {

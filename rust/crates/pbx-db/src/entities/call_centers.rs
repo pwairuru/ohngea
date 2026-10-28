@@ -2,13 +2,14 @@
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
+use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "call_centers")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub call_center_queue_uuid: String,
-    pub domain_id: String,
+    pub domain_id: Uuid,
     pub queue_name: String,
     pub queue_extension: Option<String>,
     pub queue_strategy: String,

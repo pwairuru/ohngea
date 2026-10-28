@@ -58,7 +58,7 @@ async fn create_ivr(
     let now = crate::routing_db::now();
     let am = ivr_menus::ActiveModel {
         ivr_menu_uuid: Set(id.clone()),
-        domain_id: Set(domain.clone()),
+        domain_id: Set(domain),
         name: Set(payload.name.trim().to_owned()),
         extension: Set(payload.extension),
         enabled: Set(true),
@@ -77,7 +77,7 @@ async fn create_ivr(
         let oam = ivr_menu_options::ActiveModel {
             option_uuid: Set(crate::routing_db::new_uuid()),
             ivr_menu_uuid: Set(id.clone()),
-            domain_id: Set(domain.clone()),
+            domain_id: Set(domain),
             digits: Set(o.digits.clone()),
             action: Set(o.action.clone()),
             param: Set(o.param.clone()),
@@ -130,7 +130,7 @@ async fn get_ivr(
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let row = ivr_menus::Entity::find_by_id(id.clone())
-        .filter(ivr_menus::Column::DomainId.eq(domain.clone()))
+        .filter(ivr_menus::Column::DomainId.eq(domain))
         .one(db)
         .await
         .unwrap_or(None);

@@ -1,13 +1,14 @@
 //! `voicemail_messages` — stored messages (metadata only here).
 
 use sea_orm::entity::prelude::*;
+use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "voicemail_messages")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub voicemail_message_uuid: String,
-    pub domain_id: String,
+    pub domain_id: Uuid,
     pub voicemail_uuid: String,
     pub file_name: Option<String>,
     pub message_length: Option<i32>,

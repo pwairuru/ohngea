@@ -593,6 +593,77 @@ const DDL_CALL_RECORDINGS: &str = "CREATE TABLE IF NOT EXISTS call_recordings (
   recording_name VARCHAR(255)
 )";
 
+const DDL_USERS: &str = "CREATE TABLE IF NOT EXISTS users (
+  user_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL REFERENCES domains (domain_id),
+  username VARCHAR(64) NOT NULL,
+  email VARCHAR(255),
+  password_hash VARCHAR(255) NOT NULL DEFAULT '',
+  enabled BOOLEAN NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_USERS_IDX: &str = "CREATE INDEX IF NOT EXISTS ix_users_domain ON users (domain_id)";
+
+const DDL_GROUPS: &str = "CREATE TABLE IF NOT EXISTS groups (
+  group_uuid TEXT PRIMARY KEY,
+  domain_id TEXT REFERENCES domains (domain_id),
+  name VARCHAR(64) NOT NULL,
+  description TEXT,
+  group_level INTEGER NOT NULL DEFAULT 10,
+  group_protected BOOLEAN NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_GROUPS_IDX: &str = "CREATE INDEX IF NOT EXISTS ix_groups_domain ON groups (domain_id)";
+
+const DDL_USER_GROUPS: &str = "CREATE TABLE IF NOT EXISTS user_groups (
+  id TEXT PRIMARY KEY,
+  user_uuid TEXT NOT NULL REFERENCES users (user_uuid),
+  group_uuid TEXT NOT NULL REFERENCES groups (group_uuid),
+  domain_id TEXT NOT NULL
+)";
+const DDL_USER_GROUPS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_user_groups_group ON user_groups (group_uuid)";
+
+const DDL_PERMISSIONS: &str = "CREATE TABLE IF NOT EXISTS permissions (
+  permission_uuid TEXT PRIMARY KEY,
+  name VARCHAR(64) NOT NULL UNIQUE,
+  description TEXT
+)";
+
+const DDL_GROUP_PERMISSIONS: &str = "CREATE TABLE IF NOT EXISTS group_permissions (
+  id TEXT PRIMARY KEY,
+  group_uuid TEXT NOT NULL REFERENCES groups (group_uuid),
+  permission_uuid TEXT NOT NULL REFERENCES permissions (permission_uuid),
+  domain_id TEXT
+)";
+
+const DDL_CONTACTS: &str = "CREATE TABLE IF NOT EXISTS contacts (
+  contact_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL REFERENCES domains (domain_id),
+  name VARCHAR(128) NOT NULL,
+  number VARCHAR(32) NOT NULL,
+  email VARCHAR(255),
+  organization VARCHAR(128),
+  created_at TEXT NOT NULL
+)";
+const DDL_CONTACTS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_contacts_domain ON contacts (domain_id)";
+
+const DDL_EMAIL_QUEUE: &str = "CREATE TABLE IF NOT EXISTS email_queue (
+  email_queue_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL REFERENCES domains (domain_id),
+  email_from VARCHAR(512) NOT NULL,
+  email_to VARCHAR(512) NOT NULL,
+  email_subject VARCHAR(512),
+  email_body TEXT,
+  email_status VARCHAR(32) NOT NULL DEFAULT 'waiting',
+  created_at TEXT NOT NULL
+)";
+const DDL_EMAIL_QUEUE_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_email_queue_domain ON email_queue (domain_id)";
+
 /// Create all tables (sqlite bootstrap for tests / local dev).
 /// Production schema comes from alembic migrations.
 pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr> {
@@ -653,6 +724,18 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_CDR_IDX,
         DDL_RECORDINGS,
         DDL_CALL_RECORDINGS,
+        DDL_USERS,
+        DDL_USERS_IDX,
+        DDL_GROUPS,
+        DDL_GROUPS_IDX,
+        DDL_USER_GROUPS,
+        DDL_USER_GROUPS_IDX,
+        DDL_PERMISSIONS,
+        DDL_GROUP_PERMISSIONS,
+        DDL_CONTACTS,
+        DDL_CONTACTS_IDX,
+        DDL_EMAIL_QUEUE,
+        DDL_EMAIL_QUEUE_IDX,
     ] {
         db.execute_unprepared(ddl).await?;
     }

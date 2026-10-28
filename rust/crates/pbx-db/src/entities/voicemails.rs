@@ -2,13 +2,14 @@
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
+use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "voicemails")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub voicemail_uuid: String,
-    pub domain_id: String,
+    pub domain_id: Uuid,
     pub voicemail_id: String,
     pub voicemail_password: String,
     pub enabled: bool,

@@ -116,7 +116,7 @@ async fn create_greeting(
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let vm = voicemails::Entity::find_by_id(id.clone())
-        .filter(voicemails::Column::DomainId.eq(domain.clone()))
+        .filter(voicemails::Column::DomainId.eq(domain))
         .one(db)
         .await
         .unwrap_or(None);

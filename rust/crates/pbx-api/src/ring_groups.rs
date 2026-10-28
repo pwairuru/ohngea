@@ -87,7 +87,7 @@ async fn create_rg(
     let now = crate::routing_db::now();
     let am = ring_groups::ActiveModel {
         ring_group_uuid: Set(id.clone()),
-        domain_id: Set(domain.clone()),
+        domain_id: Set(domain),
         name: Set(payload.name.trim().to_owned()),
         extension: Set(payload.extension.trim().to_owned()),
         strategy: Set(payload.strategy.clone()),
@@ -107,7 +107,7 @@ async fn create_rg(
         let mam = ring_group_members::ActiveModel {
             ring_group_member_uuid: Set(crate::routing_db::new_uuid()),
             ring_group_uuid: Set(id.clone()),
-            domain_id: Set(domain.clone()),
+            domain_id: Set(domain),
             destination: Set(m.destination.clone()),
             delay: Set(m.delay),
             timeout: Set(m.timeout),
@@ -163,7 +163,7 @@ async fn get_rg(
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let row = ring_groups::Entity::find_by_id(id.clone())
-        .filter(ring_groups::Column::DomainId.eq(domain.clone()))
+        .filter(ring_groups::Column::DomainId.eq(domain))
         .one(db)
         .await
         .unwrap_or(None);

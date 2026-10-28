@@ -2,13 +2,14 @@
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
+use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "ivr_menus")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub ivr_menu_uuid: String,
-    pub domain_id: String,
+    pub domain_id: Uuid,
     pub name: String,
     pub extension: Option<String>,
     pub enabled: bool,

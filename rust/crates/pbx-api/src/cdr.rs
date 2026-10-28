@@ -77,7 +77,7 @@ fn parse_cdr_xml(body: &str) -> (Option<String>, String, Option<String>, Option<
 }
 
 async fn store_row(
-    domain: &str,
+    domain: uuid::Uuid,
     caller: Option<String>,
     dest: String,
     hangup: Option<String>,
@@ -89,7 +89,7 @@ async fn store_row(
     let id = crate::routing_db::new_uuid();
     let am = cdr::ActiveModel {
         cdr_uuid: Set(id.clone()),
-        domain_id: Set(domain.to_owned()),
+        domain_id: Set(domain),
         caller_id_number: Set(caller),
         destination_number: Set(dest),
         hangup_cause: Set(hangup),
@@ -121,7 +121,7 @@ async fn import_cdr(
             Ok(j) => {
                 let dest = j.destination_number.unwrap_or_else(|| "unknown".to_owned());
                 let id = store_row(
-                    &domain,
+                    domain,
                     j.caller_id_number,
                     dest,
                     j.hangup_cause,
@@ -139,7 +139,7 @@ async fn import_cdr(
             Err(_) => {
                 // malformed JSON: still store + count (tolerant contract).
                 let id = store_row(
-                    &domain,
+                    domain,
                     None,
                     "unknown".to_owned(),
                     None,
@@ -168,7 +168,7 @@ async fn import_cdr(
     // Tolerant field extraction regardless of well-formedness.
     let (caller, dest, hangup, direction) = parse_cdr_xml(&text);
     let id = store_row(
-        &domain,
+        domain,
         caller,
         dest,
         hangup,

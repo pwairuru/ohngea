@@ -1,16 +1,17 @@
 //! `ring_groups` + `ring_group_members` — columns from app/ring_groups/models.py.
-//! `domain_id` is String (tenant claims carry opaque strings in tests,
+//! `domain_id` is Uuid (unified RULING; test opaque strings map via UUIDv5 in routing_db::domain),
 //! UUIDs stringify in prod). Members mirror RingGroupMember destinations.
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
+use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "ring_groups")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub ring_group_uuid: String,
-    pub domain_id: String,
+    pub domain_id: Uuid,
     pub name: String,
     pub extension: String,
     pub strategy: String,

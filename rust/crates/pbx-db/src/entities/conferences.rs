@@ -2,13 +2,14 @@
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
+use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "conferences")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub conference_uuid: String,
-    pub domain_id: String,
+    pub domain_id: Uuid,
     pub conference_name: String,
     pub conference_extension: String,
     pub conference_profile: String,

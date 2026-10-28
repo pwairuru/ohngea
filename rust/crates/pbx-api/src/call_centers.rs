@@ -101,7 +101,7 @@ async fn create_agent(
     let domain = crate::routing_db::domain(&claims);
     // queue must exist in this tenant
     let q = call_centers::Entity::find_by_id(payload.queue_id.clone())
-        .filter(call_centers::Column::DomainId.eq(domain.clone()))
+        .filter(call_centers::Column::DomainId.eq(domain))
         .one(db)
         .await
         .unwrap_or(None);
@@ -166,7 +166,7 @@ async fn join_queue(
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let q = call_centers::Entity::find_by_id(qid.clone())
-        .filter(call_centers::Column::DomainId.eq(domain.clone()))
+        .filter(call_centers::Column::DomainId.eq(domain))
         .one(db)
         .await
         .unwrap_or(None);
