@@ -334,11 +334,31 @@ pub fn cdr_router() -> Router {
 
 #[cfg(test)]
 mod tests {
-    use super::build_cdr_xml;
+    use super::{build_cdr_xml, parse_cdr_xml};
 
     #[test]
     fn cdr_xml_carries_caller_dest_hangup() {
         let xml = build_cdr_xml("1001", "1002", "NORMAL_CLEARING");
         assert!(xml.contains("1001") && xml.contains("1002") && xml.contains("NORMAL_CLEARING"));
+    }
+
+    #[test]
+    fn cdr_xml_with_tz_stamps_still_parses_no_500() {
+        // Python parity: mod_xml_cdr posts +00:00/Z stamps; Rust stores no
+        // timestamps so these must never break ingest (no sea-orm tz bug).
+        let xml = "<cdr><variables>"
+            .to_owned()
+            + "<variable name=\"caller_id_number\" value=\"1001\"/>"
+            + "<variable name=\"destination_number\" value=\"1002\"/>"
+            + "<variable name=\"start_stamp\" value=\"2026-10-28T15:18:00+00:00\"/>"
+            + "<variable name=\"answer_stamp\" value=\"2026-10-28T15:18:05Z\"/>"
+            + "<variable name=\"end_stamp\" value=\"2026-10-28T15:18:17+00:00\"/>"
+            + "<variable name=\"billsec\" value=\"12\"/>"
+            + "<variable name=\"hangup_cause\" value=\"NORMAL_CLEARING\"/>"
+            + "</variables></cdr>";
+        let (caller, dest, hangup, _dir) = parse_cdr_xml(&xml);
+        assert_eq!(caller.as_deref(), Some("1001"));
+        assert_eq!(dest, "1002");
+        assert_eq!(hangup.as_deref(), Some("NORMAL_CLEARING"));
     }
 }
