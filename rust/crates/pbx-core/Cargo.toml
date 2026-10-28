@@ -8,3 +8,4 @@ rust-version = "1.80"
 serde = { version = "1", features = ["derive"] }
 jsonwebtoken = { version = "11", features = ["rust_crypto"] }
 argon2 = "0.6"
+bcrypt = "0.17"

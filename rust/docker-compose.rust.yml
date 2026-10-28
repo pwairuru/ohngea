@@ -8,10 +8,11 @@ services:
     build: ./rust
     ports: ["8000:8000"]
     environment:
-      # Parity with main stack (docker-compose.yml api/worker):
-      # postgresql+asyncpg://ohngea:ohngea@db:5432/ohngea.
-      # pbx-api normalizes postgresql+asyncpg:// → postgres:// for SeaORM.
-      DATABASE_URL: postgresql+asyncpg://ohngea:ohngea@db:5432/ohngea
+      # Parity with main stack (docker-compose.yml api/worker).
+      # RULING: sqlx scheme — postgresql:// (NOT postgresql+asyncpg://, which
+      # is a Python/SQLAlchemy scheme). pbx-api still normalizes legacy
+      # postgresql+asyncpg:// / postgresql:// → postgres:// for SeaORM.
+      DATABASE_URL: postgresql://ohngea:ohngea@db:5432/ohngea
       JWT_SECRET: test-secret
     depends_on:
       db:

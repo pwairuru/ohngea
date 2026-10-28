@@ -80,7 +80,12 @@ async fn create_vm(
     )
 }
 
-async fn list_vm(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
+async fn list_vm(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
+) -> impl IntoResponse {
+    let (per_page, offset) = pq.normalized();
+    let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let rows = voicemails::Entity::find()
@@ -88,9 +93,11 @@ async fn list_vm(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl I
         .all(db)
         .await
         .unwrap_or_default();
-    let total = rows.len();
+    let total = rows.len() as u64;
     let data: Vec<serde_json::Value> = rows
         .iter()
+        .skip(offset as usize)
+        .take(per_page as usize)
         .map(|r| {
             serde_json::json!({
                 "voicemail_uuid": r.voicemail_uuid,
@@ -99,7 +106,10 @@ async fn list_vm(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl I
             })
         })
         .collect();
-    Json(serde_json::json!({"data": data, "total": total}))
+    (
+        crate::paged_headers("/api/v1/voicemails", page, per_page, total),
+        Json(crate::paged_body(data, total, page, per_page)),
+    )
 }
 
 async fn create_greeting(

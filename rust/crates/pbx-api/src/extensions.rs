@@ -131,12 +131,20 @@ async fn create_extension(
 
 async fn list_extensions(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
+    axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    let (per_page, offset) = pq.normalized();
+    let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
         Err(_) => {
-            return Json(serde_json::json!({"data": [], "total": 0}));
+            return (
+                crate::paged_headers("/api/v1/extensions", page, per_page, 0),
+                Json(
+                    serde_json::json!({"data": [], "total": 0, "page": page, "per_page": per_page}),
+                ),
+            );
         }
     };
     let domain_id = crate::routing_db::domain(&claims);
@@ -146,16 +154,21 @@ async fn list_extensions(
         .await
         .unwrap_or_default();
     let _ = txn.commit().await;
+    let total = rows.len() as u64;
     let items: Vec<Extension> = rows
         .into_iter()
+        .skip(offset as usize)
+        .take(per_page as usize)
         .map(|r| Extension {
             extension: r.extension,
             password: r.password.unwrap_or_default(),
             domain: r.dial_string.unwrap_or_else(|| claims.domain_id.clone()),
         })
         .collect();
-    let total = items.len();
-    Json(serde_json::json!({"data": items, "total": total}))
+    (
+        crate::paged_headers("/api/v1/extensions", page, per_page, total),
+        Json(crate::paged_body(items, total, page, per_page)),
+    )
 }
 
 /// Lookup used by the FS XML directory handler (SeaORM backed).

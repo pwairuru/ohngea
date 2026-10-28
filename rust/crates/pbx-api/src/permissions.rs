@@ -52,22 +52,28 @@ async fn seed_once(db: &sea_orm::DatabaseConnection) {
 // ---- handlers ----
 async fn list_permissions(
     Extension(_claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
+    let (per_page, offset) = pq.normalized();
+    let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     seed_once(db).await;
     let rows = permissions::Entity::find()
         .all(db)
         .await
         .unwrap_or_default();
-    let total = rows.len();
+    let total = rows.len() as u64;
     if total == 0 {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
+            crate::paged_headers("/api/v1/permissions", page, per_page, 0),
             Json(serde_json::json!({"detail": "no permissions"})),
         );
     }
     let data: Vec<serde_json::Value> = rows
         .iter()
+        .skip(offset as usize)
+        .take(per_page as usize)
         .map(|r| {
             serde_json::json!({
                 "permission_uuid": r.permission_uuid,
@@ -78,7 +84,8 @@ async fn list_permissions(
         .collect();
     (
         StatusCode::OK,
-        Json(serde_json::json!({"data": data, "total": total})),
+        crate::paged_headers("/api/v1/permissions", page, per_page, total),
+        Json(crate::paged_body(data, total, page, per_page)),
     )
 }
 

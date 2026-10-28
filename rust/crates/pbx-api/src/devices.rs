@@ -162,7 +162,12 @@ async fn create_device(
     )
 }
 
-async fn list_devices(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
+async fn list_devices(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
+) -> impl IntoResponse {
+    let (per_page, offset) = pq.normalized();
+    let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let rows = devices::Entity::find()
@@ -170,9 +175,9 @@ async fn list_devices(Extension(claims): Extension<pbx_core::auth::Claims>) -> i
         .all(db)
         .await
         .unwrap_or_default();
-    let total = rows.len();
+    let total = rows.len() as u64;
     let mut data = Vec::new();
-    for r in &rows {
+    for r in rows.iter().skip(offset as usize).take(per_page as usize) {
         let line = device_lines::Entity::find()
             .filter(device_lines::Column::DeviceUuid.eq(r.device_uuid))
             .one(db)
@@ -190,7 +195,10 @@ async fn list_devices(Extension(claims): Extension<pbx_core::auth::Claims>) -> i
             "domain": line.as_ref().and_then(|l| l.server_address.clone()),
         }));
     }
-    Json(serde_json::json!({"data": data, "total": total}))
+    (
+        crate::paged_headers("/api/v1/devices", page, per_page, total),
+        Json(crate::paged_body(data, total, page, per_page)),
+    )
 }
 
 async fn get_device(
@@ -356,12 +364,115 @@ pub fn devices_router() -> Router {
     Router::new()
         .route("/api/v1/devices", post(create_device).get(list_devices))
         .route("/api/v1/devices/", post(create_device).get(list_devices))
-        .route("/api/v1/devices/{id}", axum::routing::get(get_device))
+        .route(
+            "/api/v1/devices/{id}",
+            axum::routing::get(get_device)
+                .patch(patch_device)
+                .delete(delete_device),
+        )
         .layer(axum::middleware::from_fn(crate::require_tenant))
 }
 
+async fn patch_device(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let row = devices::Entity::find_by_id(id)
+        .filter(devices::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None);
+    let Some(r) = row else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let mut am: devices::ActiveModel = r.into();
+    if let Some(mac) = payload.get("mac").and_then(|v| v.as_str()) {
+        am.mac = Set(mac.trim().to_lowercase());
+    }
+    if let Some(vendor) = payload.get("vendor").and_then(|v| v.as_str()) {
+        am.vendor = Set(vendor.trim().to_lowercase());
+    }
+    if let Some(model) = payload.get("model").and_then(|v| v.as_str()) {
+        am.model = Set(Some(model.to_owned()));
+    }
+    if let Some(label) = payload.get("label").and_then(|v| v.as_str()) {
+        am.label = Set(Some(label.to_owned()));
+        am.device_label = Set(Some(label.to_owned()));
+    }
+    if let Some(enabled) = payload.get("enabled").and_then(|v| v.as_bool()) {
+        am.enabled = Set(enabled);
+    }
+    am.updated_at = Set(crate::routing_db::now());
+    match am.update(db).await {
+        Ok(r) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "device_uuid": r.device_uuid,
+                "mac": r.mac,
+                "vendor": r.vendor,
+                "model": r.model,
+                "enabled": r.enabled,
+            })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn delete_device(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+) -> impl IntoResponse {
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let row = devices::Entity::find_by_id(id)
+        .filter(devices::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None);
+    let Some(r) = row else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    // cascade: device_lines has no DB-level cascade, remove explicitly.
+    let lines = device_lines::Entity::find()
+        .filter(device_lines::Column::DeviceUuid.eq(id))
+        .all(db)
+        .await
+        .unwrap_or_default();
+    for l in lines {
+        let lam: device_lines::ActiveModel = l.into();
+        let _ = lam.delete(db).await;
+    }
+    let am: devices::ActiveModel = r.into();
+    match am.delete(db).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
 pub fn provision_router() -> Router {
-    // Single param route; optional ".cfg" suffix is stripped in the handler
-    // (axum allows only one param per segment, so no "{mac}.cfg" pattern).
+    // Single param route covers BOTH bare MAC and `.cfg` suffix:
+    // axum allows only one param per segment (no "{mac}.cfg" pattern), so
+    // get_provision strips an optional ".cfg" suffix in the handler.
+    // GET /provision/{mac} + GET /provision/{mac}.cfg (same handler).
     Router::new().route("/provision/{mac}", axum::routing::get(get_provision))
 }
