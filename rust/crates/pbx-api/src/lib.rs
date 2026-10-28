@@ -16,6 +16,7 @@ mod groups;
 mod health;
 mod ivr_menus;
 mod permissions;
+pub mod plugin_sandbox;
 pub mod plugins;
 pub mod provision;
 mod recordings;

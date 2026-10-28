@@ -346,8 +346,7 @@ mod tests {
     fn cdr_xml_with_tz_stamps_still_parses_no_500() {
         // Python parity: mod_xml_cdr posts +00:00/Z stamps; Rust stores no
         // timestamps so these must never break ingest (no sea-orm tz bug).
-        let xml = "<cdr><variables>"
-            .to_owned()
+        let xml = "<cdr><variables>".to_owned()
             + "<variable name=\"caller_id_number\" value=\"1001\"/>"
             + "<variable name=\"destination_number\" value=\"1002\"/>"
             + "<variable name=\"start_stamp\" value=\"2026-10-28T15:18:00+00:00\"/>"

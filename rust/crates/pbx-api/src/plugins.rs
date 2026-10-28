@@ -15,9 +15,10 @@
 //! (`/call_center` → `call_centers`, `/voicemail` → `voicemails`; aliases
 //! live on the core routers). The registry still lists all 9 manifests.
 //!
-//! NOTE (no Extism WASM yet): this is the host registry + license gate +
-//! tenant gating. WASM sandboxing of plugin code is the follow-up step —
-//! do NOT add an `extism` dependency in this batch, keep scope tight.
+//! WASM sandboxing of plugin code lives in [`crate::plugin_sandbox`]
+//! (`PluginSandbox`: manifest-gated, WASI off, fuel + timeout + memory cap,
+//! `pbx_log` / `db_get`-stub host fns). The `example` reference route below
+//! runs its guest through the sandbox to prove the path.
 //!
 //! BUG FIX vs Python: `app/domains/router.py::toggle_plugin` disables a
 //! plugin per-tenant but nothing enforces it — disabled plugin routes still
@@ -365,6 +366,10 @@ async fn available_plugins() -> impl IntoResponse {
 
 /// `GET /api/v1/example` — reference plugin route (mirrors
 /// `plugins/example/router.py`). Per-handler gate check backs the global one.
+/// Sandbox hook: after the gate, the reference guest
+/// (`plugins/example/plugin.wasm`) runs through `PluginSandbox` and its
+/// output is embedded additively (`sandbox`) — proves the exec path without
+/// changing the `{plugin, status}` contract.
 async fn example_handler(
     Extension(claims): Extension<pbx_core::auth::Claims>,
 ) -> impl IntoResponse {
@@ -376,11 +381,28 @@ async fn example_handler(
         )
             .into_response();
     }
+    let sandbox = {
+        let mut sb = crate::plugin_sandbox::PluginSandbox::new();
+        match sb.register(
+            &parse_example_manifest(),
+            crate::plugin_sandbox::EXAMPLE_GUEST_WASM.to_vec(),
+        ) {
+            Ok(()) => match sb.call_plugin("example", "handle", b"example") {
+                Ok(out) => serde_json::json!({
+                    "ok": true,
+                    "output": String::from_utf8_lossy(&out),
+                }),
+                Err(e) => serde_json::json!({"ok": false, "error": e.to_string()}),
+            },
+            Err(e) => serde_json::json!({"ok": false, "error": e.to_string()}),
+        }
+    };
     (
         StatusCode::OK,
         Json(serde_json::json!({
             "plugin": "example",
             "status": "ok",
+            "sandbox": sandbox,
             "_links": {"self": {"href": "/api/v1/example"}},
         })),
     )
