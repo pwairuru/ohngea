@@ -1,5 +1,5 @@
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -14,6 +14,20 @@ from app.db import get_session, set_tenant
 from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
 
 router = APIRouter(prefix="/api/v1", tags=["cdr"])
+
+
+def _to_naive_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """Strip tz to naive UTC — CDR stamps are TIMESTAMP WITHOUT TIME ZONE.
+
+    asyncpg rejects tz-aware values bound to naive columns (500 on import).
+    Rest of app compares against naive ``datetime.now(timezone.utc).replace(tzinfo=None)``
+    (see analytics_summary), so store naive UTC.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 
 def parse_cdr_xml(xml_str: str, default_domain_id: Optional[UUID] = None) -> dict:
@@ -42,15 +56,15 @@ def parse_cdr_xml(xml_str: str, default_domain_id: Optional[UUID] = None) -> dic
             try:
                 # try parse as epoch or iso
                 if val.isdigit():
-                    data[ts] = datetime.fromtimestamp(int(val) / 1000000 if len(val) > 10 else int(val))
+                    data[ts] = _to_naive_utc(datetime.fromtimestamp(int(val) / 1000000 if len(val) > 10 else int(val), tz=timezone.utc))
                 else:
-                    data[ts] = datetime.fromisoformat(val.replace("Z", "+00:00"))
+                    data[ts] = _to_naive_utc(datetime.fromisoformat(val.replace("Z", "+00:00")))
             except Exception:
                 data[ts] = None
         else:
             data[ts] = None
     if not data.get("start_stamp"):
-        data["start_stamp"] = datetime.utcnow()
+        data["start_stamp"] = datetime.now(timezone.utc).replace(tzinfo=None)
     data["duration"] = int(find("duration") or 0)
     data["billsec"] = int(find("billsec") or 0)
     data["direction"] = find("direction") or "inbound"
@@ -113,7 +127,9 @@ async def import_cdr(
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     session: AsyncSession = Depends(get_session),
 ):
-    # FS may not be authed via JWT; allow either JWT or basic? For now allow without auth if FS IP, or require JWT
+    import logging
+    log = logging.getLogger("app.cdr")
+    # FS may not be authed via JWT; allow either verified JWT or FS Basic shared secret.
     # Check Idempotency via Valkey/Redis
     if idempotency_key:
         try:
@@ -129,36 +145,57 @@ async def import_cdr(
                 response.headers["Location"] = exists.decode() if isinstance(exists, bytes) else exists
                 await r.aclose()
                 return {"status": "duplicate", "cdr_uuid": exists.decode() if isinstance(exists, bytes) else exists}
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("idempotency check failed: %s", e, exc_info=True)
 
     body = await request.body()
     content_type = request.headers.get("content-type", "")
-    # try determine domain_id from auth if present
+    # Determine domain_id from verified JWT only. X-Domain-Id requires verified superadmin.
     domain_id = None
     auth = request.headers.get("authorization", "")
     if auth.startswith("Bearer "):
         try:
-            import jwt
-            from app.config import settings
-            payload = jwt.decode(body, options={"verify_signature": False})  # not body, but token
-        except Exception:
-            pass
-        # actually decode token from header
-        try:
-            import jwt
-            from app.config import settings
+            from app.auth.service import decode_token
             token = auth.removeprefix("Bearer ").strip()
-            payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
-            domain_id = UUID(payload["domain_id"])
+            payload = decode_token(token)
+            if payload.get("domain_id"):
+                domain_id = UUID(payload["domain_id"])
         except Exception:
-            pass
-
-    # also allow X-Domain-Id header for FS
-    hdr_domain = request.headers.get("x-domain-id") or request.headers.get("x-domain-uuid")
-    if hdr_domain:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    elif auth.startswith("Basic "):
+        # FreeSWITCH shared-secret path
+        import base64
+        from app.config import settings as _s
         try:
-            domain_id = UUID(hdr_domain)
+            decoded = base64.b64decode(auth.removeprefix("Basic ").strip()).decode()
+            u, p = decoded.split(":", 1)
+            if not (u == _s.fs_xml_user and p == _s.fs_xml_password):
+                raise HTTPException(status_code=401, detail="FS auth failed")
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(status_code=401, detail="FS auth failed")
+    else:
+        raise HTTPException(status_code=401, detail="Missing credentials")
+
+    # also allow X-Domain-Id header only when caller is verified superadmin
+    hdr_domain = request.headers.get("x-domain-id") or request.headers.get("x-domain-uuid")
+    if hdr_domain and auth.startswith("Bearer "):
+        try:
+            from app.auth.service import decode_token as _dt
+            from app.auth.service import get_user_permissions
+            from app.auth.models import User as _U
+            _tok = auth.removeprefix("Bearer ").strip()
+            _pl = _dt(_tok)
+            _uid = _pl.get("sub")
+            if _uid:
+                from sqlalchemy import select as _sel
+                _ru = await session.execute(_sel(_U).where(_U.user_uuid == UUID(_uid)))
+                _uu = _ru.scalar_one_or_none()
+                if _uu is not None:
+                    _perms = await get_user_permissions(session, _uu)
+                    if "*" in _perms:
+                        domain_id = UUID(hdr_domain)
         except Exception:
             pass
 
@@ -184,9 +221,9 @@ async def import_cdr(
                 "domain_id": UUID(j.get("domain_id") or j.get("domain_uuid")) if j.get("domain_id") or j.get("domain_uuid") else domain_id,
                 "caller_id_number": j.get("caller_id_number", "unknown"),
                 "destination_number": j.get("destination_number", "unknown"),
-                "start_stamp": datetime.fromisoformat(j["start_stamp"]) if j.get("start_stamp") else datetime.utcnow(),
-                "answer_stamp": datetime.fromisoformat(j["answer_stamp"]) if j.get("answer_stamp") else None,
-                "end_stamp": datetime.fromisoformat(j["end_stamp"]) if j.get("end_stamp") else None,
+                "start_stamp": _to_naive_utc(datetime.fromisoformat(j["start_stamp"])) if j.get("start_stamp") else datetime.now(timezone.utc).replace(tzinfo=None),
+                "answer_stamp": _to_naive_utc(datetime.fromisoformat(j["answer_stamp"])) if j.get("answer_stamp") else None,
+                "end_stamp": _to_naive_utc(datetime.fromisoformat(j["end_stamp"])) if j.get("end_stamp") else None,
                 "duration": j.get("duration", 0),
                 "billsec": j.get("billsec", 0),
                 "direction": j.get("direction", "inbound"),
@@ -197,18 +234,25 @@ async def import_cdr(
                 raise HTTPException(status_code=400, detail="domain_id required")
         except HTTPException:
             raise
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Invalid CDR payload: {e}")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid CDR payload")
 
     # ensure tenant
     await set_tenant(session, data["domain_id"])
     cdr = Cdr(**data)
+    # Cdr columns bind as TIMESTAMP WITHOUT TIME ZONE (naive model type);
+    # strip any residual aware datetimes (e.g. created_at default) to naive UTC.
+    for _attr in ("start_stamp", "answer_stamp", "end_stamp", "created_at"):
+        _v = getattr(cdr, _attr, None)
+        if isinstance(_v, datetime) and _v.tzinfo is not None:
+            setattr(cdr, _attr, _v.astimezone(timezone.utc).replace(tzinfo=None))
     session.add(cdr)
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(cdr)
     location = f"/api/v1/cdr/{cdr.cdr_uuid}"
     response.headers["Location"] = location
@@ -259,7 +303,10 @@ async def list_cdr(
 
     count_q = select(func.count()).select_from(base.subquery())
     total = (await session.execute(count_q)).scalar() or 0
-    # sorting
+    # sorting — allowlist only
+    _allowed_sort = {"start_stamp", "answer_stamp", "end_stamp", "duration", "billsec", "destination_number", "caller_id_number", "direction", "hangup_cause", "created_at"}
+    if sort not in _allowed_sort:
+        sort = "start_stamp"
     col = getattr(Cdr, sort, Cdr.start_stamp)
     if order == "desc":
         base = base.order_by(col.desc())
@@ -301,6 +348,50 @@ async def list_cdr(
         }
         data.append(d)
     return {"data": data, "total": total, "page": page, "per_page": per_page}
+
+
+@router.get("/cdr/export")
+async def export_cdr(
+    request: Request,
+    filter_extension: Optional[str] = Query(None, alias="filter[extension]"),
+    filter_caller: Optional[str] = Query(None, alias="filter[caller_id_number]"),
+    q: Optional[str] = Query(None),
+    limit: int = Query(5000, ge=1, le=20000),
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """CSV export of filtered CDRs (cap 20k rows)."""
+    import csv
+    import io
+
+    from fastapi.responses import PlainTextResponse
+
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    base = select(Cdr).where(Cdr.domain_id == domain_id).order_by(Cdr.start_stamp.desc()).limit(limit)
+    if filter_extension:
+        base = base.where(Cdr.destination_number == filter_extension)
+    if filter_caller:
+        base = base.where(Cdr.caller_id_number == filter_caller)
+    if q:
+        base = base.where((Cdr.destination_number.ilike(f"%{q}%")) | (Cdr.caller_id_number.ilike(f"%{q}%")))
+    fp = request.query_params.get("filter[extension]")
+    if fp:
+        base = base.where(Cdr.destination_number == fp)
+    r = await session.execute(base)
+    items = r.scalars().all()
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["cdr_uuid", "caller_id_number", "caller_id_name", "destination_number", "start_stamp", "answer_stamp", "end_stamp", "duration", "billsec", "direction", "hangup_cause"])
+    for c in items:
+        w.writerow([
+            str(c.cdr_uuid), c.caller_id_number, getattr(c, "caller_id_name", None), c.destination_number,
+            c.start_stamp.isoformat() if c.start_stamp else None,
+            c.answer_stamp.isoformat() if getattr(c, "answer_stamp", None) else None,
+            c.end_stamp.isoformat() if getattr(c, "end_stamp", None) else None,
+            c.duration, c.billsec, c.direction, getattr(c, "hangup_cause", None),
+        ])
+    return PlainTextResponse(buf.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=cdr-export.csv"})
 
 
 @router.get("/cdr/{cdr_uuid}")

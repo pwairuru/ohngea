@@ -22,19 +22,32 @@ SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSe
 
 @event.listens_for(Session, "before_flush")
 def _coerce_naive_datetimes(session, flush_context, instances):
-    """Backstop: assume UTC for any stray naive datetimes before INSERT/UPDATE.
+    """Backstop: assume UTC for stray naive datetimes on TZ-aware columns only.
 
-    Models default to tz-aware ``datetime.now(timezone.utc)`` while columns
+    Models default to tz-aware ``datetime.now(timezone.utc)`` while most columns
     are TIMESTAMPTZ (asyncpg/SQLModel reject naive values). This coerces any
     remaining naive value (e.g. Core inserts bypassing model defaults).
     Covers AsyncSession too (it wraps a sync Session).
+
+    Naive-column models (e.g. CDR stamps, stored as TIMESTAMP WITHOUT TIME ZONE
+    / naive UTC by convention) are left alone — coercing them reintroduces the
+    tz-aware-into-naive 500 on import.
     """
     for obj in session.new.union(session.dirty):
+        table = getattr(obj, "__table__", None)
         for attr, value in vars(obj).items():
             if attr.startswith("_") or not isinstance(value, datetime):
                 continue
-            if value.tzinfo is None:
-                setattr(obj, attr, value.replace(tzinfo=timezone.utc))
+            if value.tzinfo is not None:
+                continue
+            if table is not None:
+                try:
+                    col = table.columns.get(attr)
+                    if col is not None and not bool(getattr(col.type, "timezone", False)):
+                        continue
+                except Exception:
+                    pass
+            setattr(obj, attr, value.replace(tzinfo=timezone.utc))
 
 
 async def dispose_engine() -> None:

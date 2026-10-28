@@ -66,7 +66,9 @@ def esl_checks() -> None:
     asyncio.run(run())
 
 
-def wait_for_cdr(c: httpx.Client, tok: str, dest: str, timeout_s: int) -> dict:
+def wait_for_cdr(c: httpx.Client, tok: str, dest: str, timeout_s: int, recency_min: int = 10) -> dict:
+    from datetime import datetime, timezone
+
     headers = {"Authorization": f"Bearer {tok}"}
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
@@ -76,8 +78,20 @@ def wait_for_cdr(c: httpx.Client, tok: str, dest: str, timeout_s: int) -> dict:
                 full = c.get(f"/api/v1/cdr/{cdr['cdr_uuid']}", headers=headers).json()
                 cause = (full.get("hangup_cause") or "").upper()
                 billsec = int(full.get("billsec") or 0)
-                if cause == "NORMAL_CLEARING" and billsec >= 1:
-                    return full
+                if cause != "NORMAL_CLEARING" or billsec < 1:
+                    continue
+                # Recency check: reject stale rows from previous runs (e.g. Sept).
+                start = full.get("start_stamp")
+                try:
+                    dt = datetime.fromisoformat(str(start).replace("Z", "+00:00"))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    age_s = (datetime.now(timezone.utc) - dt).total_seconds()
+                except Exception:
+                    continue
+                if age_s < 0 or age_s > recency_min * 60:
+                    continue
+                return full
         time.sleep(2)
     sys.exit(
         f"no answered CDR for {dest} within {timeout_s}s "
@@ -98,6 +112,7 @@ def parse_args(argv=None):
     p.add_argument("--out", default="test-results/e2e.json", help="result JSON path (with --json)")
     p.add_argument("--dest", default=DEST, help="destination extension to look for")
     p.add_argument("--timeout", type=int, default=TIMEOUT_S, help="CDR poll timeout seconds")
+    p.add_argument("--recency", type=int, default=10, help="max CDR age in minutes (reject stale rows)")
     return p.parse_args(argv)
 
 
@@ -107,7 +122,7 @@ def main(argv=None) -> None:
         esl_checks()
         with httpx.Client(base_url=API, timeout=15) as c:
             tok = token(c)
-            cdr = wait_for_cdr(c, tok, args.dest, args.timeout)
+            cdr = wait_for_cdr(c, tok, args.dest, args.timeout, args.recency)
     except SystemExit as e:
         if args.json:
             write_result(args.out, {"pass": False, "error": str(e.code or e)})
