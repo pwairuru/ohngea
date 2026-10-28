@@ -1,0 +1,12 @@
+# Rust parity service overlay (Task 5 contract harness).
+# Usage: docker compose -f docker-compose.yml -f rust/docker-compose.rust.yml up -d rust-api
+# NOTE: build context ./rust requires a rust/Dockerfile (not yet present —
+# compose up fails until a later phase adds it; `cargo run -p pbx-api`
+# listening on 0.0.0.0:8000 is the local pass path meanwhile).
+services:
+  rust-api:
+    build: ./rust
+    ports: ["8000:8000"]
+    environment:
+      DATABASE_URL: postgres://pbx:pbx@db:5432/pbx
+      JWT_SECRET: test-secret
