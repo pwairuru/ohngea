@@ -664,6 +664,15 @@ const DDL_EMAIL_QUEUE: &str = "CREATE TABLE IF NOT EXISTS email_queue (
 const DDL_EMAIL_QUEUE_IDX: &str =
     "CREATE INDEX IF NOT EXISTS ix_email_queue_domain ON email_queue (domain_id)";
 
+const DDL_REMAINING_RECORDS: &str = "CREATE TABLE IF NOT EXISTS remaining_records (
+  id TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  resource VARCHAR(64) NOT NULL,
+  data TEXT NOT NULL,
+  created_at TEXT NOT NULL
+)";
+const DDL_REMAINING_RECORDS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_remaining_resource_domain ON remaining_records (resource, domain_id)";
 /// Create all tables (sqlite bootstrap for tests / local dev).
 /// Production schema comes from alembic migrations.
 pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr> {
@@ -736,6 +745,8 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_CONTACTS_IDX,
         DDL_EMAIL_QUEUE,
         DDL_EMAIL_QUEUE_IDX,
+        DDL_REMAINING_RECORDS,
+        DDL_REMAINING_RECORDS_IDX,
     ] {
         db.execute_unprepared(ddl).await?;
     }

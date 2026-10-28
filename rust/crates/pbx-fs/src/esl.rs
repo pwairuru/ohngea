@@ -99,6 +99,15 @@ pub fn mock_channels() -> Vec<MockChannel> {
     global_mock().lock().expect("mock lock").channel_list()
 }
 
+/// List registrations via the shared mock (mirrors `show registrations`).
+pub fn mock_registrations() -> HashMap<String, String> {
+    global_mock()
+        .lock()
+        .expect("mock lock")
+        .registrations
+        .clone()
+}
+
 /// ESL client trait (mirrors `ESLClient` methods).
 pub trait EsClient: Send + Sync {
     fn api(&self, command: &str) -> String;

@@ -17,6 +17,7 @@ mod health;
 mod ivr_menus;
 mod permissions;
 mod recordings;
+mod remaining;
 mod ring_groups;
 pub(crate) mod routing_db;
 mod sip;
@@ -82,6 +83,7 @@ pub fn build_app() -> axum::Router {
         .merge(devices::devices_router())
         .merge(devices::provision_router())
         .merge(email_queue::email_queue_router())
+        .merge(remaining::remaining_router())
         .layer(axum::middleware::from_fn(accept_compat_middleware))
 }
 

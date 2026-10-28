@@ -30,6 +30,7 @@ pub mod ivr_menu_options;
 pub mod ivr_menus;
 pub mod permissions;
 pub mod recordings;
+pub mod remaining_record;
 pub mod ring_group_members;
 pub mod ring_groups;
 pub mod sip_profile_domains;
