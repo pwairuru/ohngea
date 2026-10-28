@@ -5,7 +5,8 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait,
+    QueryFilter, Set,
 };
 use uuid::Uuid;
 
@@ -393,6 +394,62 @@ pub async fn seed_sip_profiles(db: &DatabaseConnection, domain_id: Uuid) -> Resu
         }
     }
     Ok(n)
+}
+
+/// Idempotent boot seed: fills empty tables only (row-count guarded).
+/// Ensures the tenant `domains` row first (FK parent), then seeds each
+/// empty store: vars + domain_settings + dialplans + sip_profiles
+/// (per-domain), sofia + default_settings (global). Returns rows inserted.
+/// Safe to call on every boot and concurrently (unique guards dedupe).
+pub async fn seed_on_boot(
+    db: &DatabaseConnection,
+    domain_id: Uuid,
+    domain_name: &str,
+) -> Result<u64, DbErr> {
+    let mut total = 0u64;
+    // Parent first: FK targets in batch1/2a reference domains.
+    total += seed_domains(db, domain_id, domain_name).await?;
+    // Per-table guards: Entity::find counts (portable sqlite + postgres,
+    // no raw-SQL dialect risk). Seed only when empty.
+    // (vars/domain_settings/dialplans/sip_profiles scoped to this domain;
+    // sofia/default_settings global.)
+    let vars_n = vars::Entity::find()
+        .filter(vars::Column::DomainId.eq(domain_id))
+        .count(db)
+        .await?;
+    if vars_n == 0 {
+        total += seed_vars(db, domain_id).await?;
+    }
+    let sofia_n = sofia_global_settings::Entity::find().count(db).await?;
+    if sofia_n == 0 {
+        total += seed_sofia(db).await?;
+    }
+    let defaults_n = default_settings::Entity::find().count(db).await?;
+    if defaults_n == 0 {
+        total += seed_default_settings(db).await?;
+    }
+    let dset_n = domain_settings::Entity::find()
+        .filter(domain_settings::Column::DomainId.eq(domain_id))
+        .count(db)
+        .await?;
+    if dset_n == 0 {
+        total += seed_domain_settings(db, domain_id).await?;
+    }
+    let dp_n = dialplans::Entity::find()
+        .filter(dialplans::Column::DomainId.eq(domain_id))
+        .count(db)
+        .await?;
+    if dp_n == 0 {
+        total += seed_dialplans(db, domain_id, domain_name).await?;
+    }
+    let sip_n = sip_profiles::Entity::find()
+        .filter(sip_profiles::Column::DomainId.eq(domain_id))
+        .count(db)
+        .await?;
+    if sip_n == 0 {
+        total += seed_sip_profiles(db, domain_id).await?;
+    }
+    Ok(total)
 }
 
 /// In-memory lookup of a default by (category, subcategory, name).

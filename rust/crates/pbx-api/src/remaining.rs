@@ -172,10 +172,6 @@ async fn database_transactions() -> impl IntoResponse {
     Json(serde_json::json!({"data": [], "total": 0}))
 }
 
-async fn system_status() -> impl IntoResponse {
-    Json(serde_json::json!({"status": "ok", "reloadxml": "available"}))
-}
-
 async fn system_reload() -> impl IntoResponse {
     // Prod issues `reloadxml` over ESL 8021 (+ sofia rescan on conf regen);
     // here the shared EsClient falls back to the mock when FS is down.
@@ -225,7 +221,6 @@ pub fn remaining_router() -> Router {
             "/api/v1/database_transactions",
             axum::routing::get(database_transactions),
         )
-        .route("/api/v1/system/status", axum::routing::get(system_status))
         .route("/api/v1/system/reload", post(system_reload))
         // Canonical alias redirects (Python `status_aliases` parity).
         // NOTE: `/api/v1/conferences_active` is already served directly

@@ -280,3 +280,42 @@ async fn email_queue_submit() {
         "envelope: {b}"
     );
 }
+
+// RED: system/info carries version (crate versions + uptime)
+#[tokio::test]
+async fn system_info_has_version() {
+    let token = login_token().await;
+    let (s, b) = get_json(&token, "/api/v1/system/info").await;
+    assert_eq!(s, StatusCode::OK, "system info: {b}");
+    assert!(
+        b.get("version").and_then(|v| v.as_str()).is_some(),
+        "version: {b}"
+    );
+}
+
+// RED: system/status is live (freeswitch + system keys, not static stub)
+#[tokio::test]
+async fn system_status_is_live() {
+    let token = login_token().await;
+    let (s, b) = get_json(&token, "/api/v1/system/status").await;
+    assert_eq!(s, StatusCode::OK, "system status: {b}");
+    assert!(b.get("freeswitch").is_some(), "freeswitch key: {b}");
+    assert!(b.get("system").is_some(), "system key: {b}");
+}
+
+// RED: freeswitch status + logs endpoints exist (RealEs->mock fallback)
+#[tokio::test]
+async fn freeswitch_status_and_logs_exist() {
+    let token = login_token().await;
+    let (s, b) = get_json(&token, "/api/v1/freeswitch/status").await;
+    assert_eq!(s, StatusCode::OK, "fs status: {b}");
+    assert!(
+        b.get("connected").and_then(|c| c.as_bool()).is_some(),
+        "connected: {b}"
+    );
+    let (s, b) = get_json(&token, "/api/v1/logs").await;
+    assert_eq!(s, StatusCode::OK, "logs: {b}");
+    let (s, b) = get_json(&token, "/api/v1/logs/freeswitch").await;
+    assert_eq!(s, StatusCode::OK, "fs logs: {b}");
+    assert!(b.get("fs_status").is_some(), "fs_status: {b}");
+}

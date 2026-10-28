@@ -351,3 +351,41 @@ async fn cdr_stats_counts_by_disposition() {
         "stats shape: {b}"
     );
 }
+
+// RED: analytics summary returns dashboard keys (zeros when empty, never 500)
+#[tokio::test]
+async fn analytics_summary_returns_required_keys() {
+    let token = login_token().await;
+    let (s, b) = get_json(pbx_api::test_app(), &token, "/api/v1/analytics/summary").await;
+    assert_eq!(s, StatusCode::OK, "analytics summary: {b}");
+    assert!(
+        b.get("total_calls").and_then(|v| v.as_u64()).is_some(),
+        "total_calls: {b}"
+    );
+    assert!(
+        b.get("today_calls").and_then(|v| v.as_u64()).is_some(),
+        "today_calls: {b}"
+    );
+    assert!(
+        b.get("avg_duration").and_then(|v| v.as_f64()).is_some(),
+        "avg_duration: {b}"
+    );
+}
+
+// RED: analytics detail endpoints return {data} (zeros when empty, never 500)
+#[tokio::test]
+async fn analytics_detail_endpoints_return_data() {
+    let token = login_token().await;
+    for path in [
+        "/api/v1/analytics/daily",
+        "/api/v1/analytics/by_direction",
+        "/api/v1/analytics/by_hangup",
+        "/api/v1/analytics/top_extensions",
+        "/api/v1/analytics/hourly",
+        "/api/v1/analytics/system_counts",
+        "/api/v1/analytics/answer_rate",
+    ] {
+        let (s, b) = get_json(pbx_api::test_app(), &token, path).await;
+        assert_eq!(s, StatusCode::OK, "{path}: {b}");
+    }
+}

@@ -1,3 +1,4 @@
+mod analytics;
 mod auth;
 mod call_centers;
 mod calls;
@@ -10,11 +11,14 @@ mod domains;
 mod email_queue;
 mod extensions;
 mod fax;
+mod fs_status;
+pub(crate) use fs_status::fs_status_probe;
 mod fs_xml;
 mod gateways;
 mod groups;
 mod health;
 mod ivr_menus;
+mod logs;
 mod permissions;
 pub mod plugin_sandbox;
 pub mod plugins;
@@ -27,6 +31,7 @@ mod remaining_c;
 mod ring_groups;
 pub(crate) mod routing_db;
 mod sip;
+mod system;
 pub mod tenant;
 mod users;
 mod vars_fs;
@@ -162,6 +167,12 @@ async fn api_root() -> axum::Json<serde_json::Value> {
             "contacts": {"href": "/api/v1/contacts"},
             "email_queue": {"href": "/api/v1/email_queue"},
             "vars": {"href": "/api/v1/vars"},
+            "analytics_summary": {"href": "/api/v1/analytics/summary"},
+            "sip_profiles_status": {"href": "/api/v1/sip_profiles/status"},
+            "freeswitch_status": {"href": "/api/v1/freeswitch/status"},
+            "system_status": {"href": "/api/v1/system/status"},
+            "system_info": {"href": "/api/v1/system/info"},
+            "logs": {"href": "/api/v1/logs"},
             "plugins": {"href": "/api/v1/plugins"},
             "health": {"href": "/health"},
             "openapi": {"href": "/api/v1/openapi.json"},
@@ -211,6 +222,10 @@ pub fn build_app() -> axum::Router {
         .merge(sip::sip_router())
         .merge(vars_fs::vars_router())
         .merge(fs_xml::fs_xml_router())
+        .merge(fs_status::fs_status_router())
+        .merge(system::system_router())
+        .merge(logs::logs_router())
+        .merge(analytics::analytics_router())
         .merge(calls::calls_router())
         .merge(ring_groups::ring_groups_router())
         .merge(call_centers::call_centers_router())
@@ -244,7 +259,24 @@ pub fn test_app() -> axum::Router {
 
 /// Migrate on boot: initialize shared SeaORM connection (Postgres
 /// `Migrator::up`, sqlite `create_schema`) before serving. Called by
-/// `main.rs`; keeps fresh `db` volumes current (see rust/Dockerfile CMD).
+/// `main.rs`; keeps fresh `db` volumes current (see rust/docker-compose.rust.yml).
 pub async fn migrate_on_boot() {
-    let _ = crate::routing_db::conn().await;
+    let db = crate::routing_db::conn().await;
+    // Seed reference data on boot (idempotent, row-count guarded).
+    let _ = seed_on_boot_inner(db).await;
+}
+
+/// Idempotent boot seed for the default tenant (matches the stub-login
+/// `domain_id = "default"` → UUIDv5 DNS namespace mapping in
+/// `routing_db::domain`). Seeds vars (68) + sofia (6) + dialplans +
+/// sip profiles + default/domain settings when their tables are empty.
+/// Public so tests prove `GET /api/v1/vars` is non-empty after boot.
+pub async fn seed_on_boot() {
+    let db = crate::routing_db::conn().await;
+    let _ = seed_on_boot_inner(db).await;
+}
+
+async fn seed_on_boot_inner(db: &sea_orm::DatabaseConnection) -> Result<u64, sea_orm::DbErr> {
+    let domain_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_DNS, "default".as_bytes());
+    pbx_db::seeds::seed_on_boot(db, domain_id, "default").await
 }

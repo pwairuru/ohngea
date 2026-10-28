@@ -292,3 +292,30 @@ async fn esl_originate_bridge_and_kill_call_flow() {
         "killed call must be gone: {b}"
     );
 }
+
+// RED: vars non-empty after boot-seed (seeds run at boot, not only in tests)
+#[tokio::test]
+async fn vars_nonempty_after_boot_seed() {
+    pbx_api::seed_on_boot().await;
+    let token = login_token().await;
+    let (s, b, _) = get_json(pbx_api::test_app(), &token, "/api/v1/vars").await;
+    assert_eq!(s, StatusCode::OK, "list vars: {b}");
+    let total = b.get("total").and_then(|t| t.as_u64()).unwrap_or(0);
+    assert!(total >= 1, "vars must be seeded at boot, got: {b}");
+}
+
+// RED: sip_profiles/status returns {profiles, connected} (RealEs->mock fallback)
+#[tokio::test]
+async fn sip_profiles_status_returns_profiles_and_connected() {
+    let token = login_token().await;
+    let (s, b, _) = get_json(pbx_api::test_app(), &token, "/api/v1/sip_profiles/status").await;
+    assert_eq!(s, StatusCode::OK, "sip status: {b}");
+    assert!(
+        b.get("profiles").and_then(|p| p.as_array()).is_some(),
+        "profiles array: {b}"
+    );
+    assert!(
+        b.get("connected").and_then(|c| c.as_bool()).is_some(),
+        "connected flag: {b}"
+    );
+}
