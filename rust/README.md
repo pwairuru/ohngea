@@ -140,6 +140,25 @@ Rust overlay alternative: `docker compose -f docker-compose.yml
 NOTE: the overlay ships `JWT_SECRET=test-secret` for local parity only —
 release binaries refuse to boot with that value (see Production runbook).
 
+Rust + real-FreeSWITCH overlay (Task 7 live harness): `rust/docker-compose.fs.yml`
+adds `freeswitch` (real, pinned image) + `rust-api` with an `api` network
+alias, so stock FS `gateway-url http://api:8000/...` / CDR
+`http://...@api:8000/...` need no retargeting. `FS_ESL_HOST=freeswitch:8021`,
+`FS_XML_USER/PASSWORD` match `xml_curl.conf.xml`; host-mapped
+`rust-api :${RUST_API_PORT:-8001}` never collides with base `api :8000`
+(host `${API_PORT:-8010}`); FS ESL is host `:8022`.
+
+```bash
+docker compose -f docker-compose.yml -f rust/docker-compose.fs.yml up -d db freeswitch rust-api
+FS_ESL_HOST=127.0.0.1 FS_ESL_PORT=8022 cargo test -p pbx-api --test live_fs_ignored_test -- --ignored
+```
+
+`live_fs_ignored_test` is `#[ignore]` (skipped by default): it fails loudly
+when ESL is unreachable and proves Basic directory fetch (REGISTER path) +
+dialplan + `sofia status` RUNNING + `originate user/from@domain
+&bridge(user/to@domain)` + channels via `show channels as json` + real
+`uuid_kill` + CDR `NORMAL_CLEARING` poll against the live switch.
+
 ## Production runbook
 
 Env vars (12-factor; see root `.env.example` for local defaults):

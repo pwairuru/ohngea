@@ -112,6 +112,146 @@ pub fn mock_registrations() -> HashMap<String, String> {
         .clone()
 }
 
+/// Build an `originate` command, domain-qualified when a domain is
+/// available (e2e parity: `originate user/1001@test.example.com
+/// &bridge(user/1002@test.example.com)`). Legs that already carry `@`
+/// are left untouched; empty/`None` domain falls back to the legacy
+/// `originate user/{from} &bridge(user/{to})` form.
+pub fn originate_command(from: &str, to: &str, domain: Option<&str>) -> String {
+    let d = domain.map(str::trim).filter(|s| !s.is_empty());
+    match d {
+        Some(dom) => {
+            let f = if from.contains('@') {
+                from.to_owned()
+            } else {
+                format!("{from}@{dom}")
+            };
+            let t = if to.contains('@') {
+                to.to_owned()
+            } else {
+                format!("{to}@{dom}")
+            };
+            format!("originate user/{f} &bridge(user/{t})")
+        }
+        None => format!("originate user/{from} &bridge(user/{to})"),
+    }
+}
+
+/// Parse an `originate` reply body into the new call UUID.
+/// Live FS answers `+OK <uuid>`; returns `None` on `-ERR` / empty.
+pub fn parse_originate_uuid(resp: &str) -> Option<String> {
+    let body = strip_esl_body(resp);
+    let mut words = body.split_whitespace();
+    for w in words.by_ref() {
+        if w.eq_ignore_ascii_case("+OK") {
+            if let Some(id) = words.next() {
+                let id = id.trim().trim_matches(|c| c == '"' || c == '\'');
+                if !id.is_empty() && id.len() >= 8 {
+                    return Some(id.to_owned());
+                }
+            }
+            return None;
+        }
+    }
+    None
+}
+
+fn find_json_string(haystack: &str, keys: &[&str]) -> Option<String> {
+    for key in keys {
+        let pat = format!("\"{key}\"");
+        let mut start = 0;
+        while let Some(i) = haystack[start..].find(&pat) {
+            let ks = start + i + pat.len();
+            let rest = &haystack[ks..];
+            let Some(colon) = rest.find(':') else {
+                break;
+            };
+            let mut val = rest[colon + 1..].trim_start();
+            // Skip nested openings that are not the value (e.g. arrays).
+            if val.starts_with('"') {
+                val = &val[1..];
+                if let Some(end) = val.find('"') {
+                    let s = val[..end].trim();
+                    if !s.is_empty() {
+                        return Some(s.to_owned());
+                    }
+                }
+            } else if !val.starts_with('{') && !val.starts_with('[') {
+                let end = val
+                    .find(|c| c == ',' || c == '}' || c == ']' || c == '"' || c == ' ')
+                    .unwrap_or(val.len());
+                let s = val[..end].trim();
+                if !s.is_empty() && s != "null" {
+                    return Some(s.to_owned());
+                }
+            }
+            start = ks + 1;
+            if start >= haystack.len() {
+                break;
+            }
+        }
+    }
+    None
+}
+
+/// Parse `show channels as json` into mock-shaped channels (tolerant:
+/// accepts `{"rows":[...]}` / `{"data":[...]}` / bare arrays, skips
+/// non-object noise). Each row yields `{uuid, from, to, state}` via
+/// `uuid|call_uuid`, `cid_num|caller_id_number|from`, and
+/// `dest|destination_number|to` keys.
+pub fn parse_show_channels_json(text: &str) -> Vec<MockChannel> {
+    let mut out = Vec::new();
+    // Split into candidate `{...}` objects; rows without `uuid` are skipped.
+    let mut depth = 0usize;
+    let mut obj_start: Option<usize> = None;
+    for (i, c) in text.char_indices() {
+        match c {
+            '{' => {
+                if depth == 0 {
+                    obj_start = Some(i);
+                }
+                depth += 1;
+            }
+            '}' => {
+                if depth > 0 {
+                    depth -= 1;
+                }
+                if depth == 0 {
+                    if let Some(s) = obj_start {
+                        let obj = &text[s..=i];
+                        if let Some(uuid) = find_json_string(obj, &["uuid", "call_uuid"]) {
+                            let from = find_json_string(
+                                obj,
+                                &["cid_num", "caller_id_number", "caller_caller_id_number", "from"],
+                            )
+                            .unwrap_or_default();
+                            let to = find_json_string(
+                                obj,
+                                &["dest", "destination_number", "callee", "to"],
+                            )
+                            .unwrap_or_default();
+                            let state = find_json_string(
+                                obj,
+                                &["state", "callstate", "call_state"],
+                            )
+                            .unwrap_or_else(|| "ACTIVE".to_owned());
+                            out.push(MockChannel {
+                                uuid,
+                                from,
+                                to,
+                                state,
+                            });
+                        }
+                        obj_start = None;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
 /// Parse `sofia status` reply lines into `{profile: STATE}` without
 /// per-line `to_uppercase()` clones: token match is `eq_ignore_ascii_case`
 /// over borrowed word slices, no intermediate `Vec` per line.
@@ -368,6 +508,53 @@ impl RealEs {
         stream.flush().ok()?;
         read_esl_packet(&mut stream)
     }
+
+    /// Originate with tenant domain: `originate user/from@domain
+    /// &bridge(user/to@domain)` when `domain` is available (e2e parity),
+    /// legacy legs otherwise. Live FS returns the real call UUID parsed
+    /// from `+OK <uuid>` (so `uuid_kill` targets a real id); FS-down
+    /// falls back to the mock transport with domain-qualified legs.
+    pub fn originate_with_domain(
+        &self,
+        from: &str,
+        to: &str,
+        domain: Option<&str>,
+    ) -> String {
+        let cmd = originate_command(from, to, domain);
+        if let Some(resp) = self.try_api(&cmd) {
+            if resp.contains("+OK") {
+                if let Some(uuid) = parse_originate_uuid(&resp) {
+                    return uuid;
+                }
+                return format!("real-{from}-{to}");
+            }
+        }
+        let d = domain.map(str::trim).filter(|s| !s.is_empty());
+        let (qf, qt) = match d {
+            Some(dom) => (
+                if from.contains('@') {
+                    from.to_owned()
+                } else {
+                    format!("{from}@{dom}")
+                },
+                if to.contains('@') {
+                    to.to_owned()
+                } else {
+                    format!("{to}@{dom}")
+                },
+            ),
+            None => (from.to_owned(), to.to_owned()),
+        };
+        mock_originate(&qf, &qt)
+    }
+}
+
+/// Live channel snapshot via `show channels as json` (tolerant parse).
+/// `Some` (possibly empty) when FS answered, `None` when FS is down —
+/// callers fall back to the mock transport on `None`.
+pub fn live_channels(esl: &RealEs) -> Option<Vec<MockChannel>> {
+    let resp = esl.try_api("show channels as json")?;
+    Some(parse_show_channels_json(&resp))
 }
 
 impl EsClient for RealEs {
@@ -390,20 +577,21 @@ impl EsClient for RealEs {
         parse_sofia_status(&self.api("sofia status"))
     }
     fn originate(&self, from: &str, to: &str) -> String {
-        // Try real originate; fall back to mock transport.
-        let cmd = format!("originate user/{from} &bridge(user/{to})");
-        if let Some(resp) = self.try_api(&cmd) {
-            if resp.contains("+OK") {
-                return format!("real-{from}-{to}");
-            }
-        }
-        mock_originate(from, to)
+        // Legacy legs (no domain); live FS yields the real call UUID.
+        self.originate_with_domain(from, to, None)
     }
     fn kill(&self, call_id: &str) -> bool {
-        if call_id.starts_with("real-") {
-            let _ = self.try_api(&format!("uuid_kill {call_id}"));
-            return true;
+        // Mock ids (`call-…`) live in the mock transport; anything else is
+        // a real FS uuid (or legacy `real-…` synthetic) → `uuid_kill`.
+        if call_id.starts_with("call-") {
+            return mock_kill(call_id);
         }
-        mock_kill(call_id)
+        if let Some(resp) = self.try_api(&format!("uuid_kill {call_id}")) {
+            return resp.contains("+OK");
+        }
+        // FS down: best-effort mock removal (covers raced entries), but
+        // report unreachable (loud, no fake success).
+        let _ = mock_kill(call_id);
+        false
     }
 }

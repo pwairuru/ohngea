@@ -1,0 +1,101 @@
+# Rust + real-FreeSWITCH compose overlay (Task 7 live-FS harness).
+#
+# Usage (from repo root):
+#   docker compose -f docker-compose.yml -f rust/docker-compose.fs.yml up -d db freeswitch rust-api
+#   FS_ESL_HOST=127.0.0.1 FS_ESL_PORT=8022 \
+#     cargo test -p pbx-api --test live_fs_ignored_test -- --ignored
+#
+# What this gives you:
+# - Postgres (`db`, from the base file) as the Rust API's store.
+# - Real FreeSWITCH (`freeswitch`, safarov image pinned like
+#   docker-compose.e2e.yml) serving directory/dialplan over mod_xml_curl
+#   from the API and posting CDRs via mod_xml_cdr.
+# - `rust-api` (Axum, `rust/Dockerfile`, build context = repo ROOT so
+#   `provision/include_str!` sees `templates/`) with a `api` network alias:
+#   FreeSWITCH's stock `gateway-url http://api:8000/...` and CDR
+#   `http://...@api:8000/...` keep working with NO conf retargeting.
+#   Bring up ONLY `rust-api` (not base `api`): both answer as `api`,
+#   so running both splits FS traffic unpredictably.
+#
+# Ports (host): NO 8000 collision with base `api:8000`.
+# - base `api` maps `${API_PORT:-8010}:8000`; `rust-api` maps
+#   `${RUST_API_PORT:-8001}:8000`.
+# - FreeSWITCH ESL maps `8022:8021` (host 8022, e2e convention): in-container
+#   ESL is `freeswitch:8021` (`FS_ESL_HOST/PORT`), host runners point at
+#   `127.0.0.1:8022` (`FS_ESL_PORT=8022 cargo test ... -- --ignored`).
+# - SIP/RTP mirror `docker-compose.e2e.yml` (`5060/udp`, `16384-16386/udp`).
+#
+# Env (12-factor; see root `.env.example` for local defaults):
+# - `FS_ESL_HOST=freeswitch`, `FS_ESL_PORT=8021`, `FS_ESL_PASSWORD=ClueCon`
+#   reach the real switch from inside `rust-api`.
+# - `FS_XML_USER=freeswitch` / `FS_XML_PASSWORD=ClueCon` match
+#   `docker/freeswitch/conf/autoload_configs/xml_curl.conf.xml`
+#   `gateway-credentials` (and the CDR URL userinfo), so REGISTER-time
+#   Basic directory fetches authenticate.
+# - NOTE: `JWT_SECRET=test-secret` is local-parity only — release binaries
+#   refuse to boot with it (see rust/README.md Production runbook).
+#
+# 16k header tolerance: axum 0.8 serve has no max_buf_size hook — enforce at
+# the edge proxy with `large_client_header_buffers 4 16k;`
+# (see pbx-api `MAX_HEADER_BYTES` + `rust/docker-compose.rust.yml`).
+
+services:
+  freeswitch:
+    # community Debian image with the full module set (mod_xml_curl,
+    # mod_xml_cdr, mod_sofia, fs_cli). Pinned 2026-09-25, same digest as
+    # docker-compose.e2e.yml.
+    image: safarov/freeswitch:latest@sha256:b31c743f4c911a19687c61e3214968f2a24f93f9d3d667cc26284192e158ffc
+    command: ["freeswitch", "-nonat", "-nf"]
+    environment:
+      LAN_IP: ${LAN_IP:-192.168.100.82}
+    volumes:
+      # NOTE: multi-file `docker compose -f A -f B` resolves ALL relative
+      # paths against the FIRST file's directory (repo root here), so these
+      # are root-relative even though this overlay lives in `rust/`.
+      - ./docker/freeswitch/conf:/etc/freeswitch
+    ports:
+      - "5060:5060/udp"
+      - "5066:5066"
+      - "7443:7443"
+      - "8022:8021"
+      - "16384-16386:16384-16386/udp"
+    depends_on:
+      rust-api:
+        condition: service_started
+
+  rust-api:
+    build:
+      # Root-relative (see freeswitch volume note): repo ROOT context so
+      # `rust/Dockerfile` + `provision/include_str!` see `templates/`.
+      context: .
+      dockerfile: rust/Dockerfile
+    networks:
+      default:
+        aliases:
+          # Answer as `api` so the stock FS conf
+          # (`gateway-url http://api:8000/...`, CDR `http://...@api:8000/...`)
+          # reaches this service with no retargeting. Run `rust-api`
+          # INSTEAD of base `api` (both aliasing `api` splits traffic).
+          - api
+    ports:
+      # Host port follows $RUST_API_PORT (default 8001): base `api` already
+      # maps ${API_PORT:-8010}:8000, so 8001 avoids any host collision while
+      # the container keeps serving :8000 for FS xml_curl/CDR.
+      - "${RUST_API_PORT:-8001}:8000"
+    environment:
+      # RULING: sqlx scheme — postgresql:// (NOT postgresql+asyncpg://, which
+      # is a Python/SQLAlchemy scheme). pbx-api still normalizes legacy
+      # postgresql+asyncpg:// / postgresql:// → postgres:// for SeaORM.
+      DATABASE_URL: postgresql://ohngea:ohngea@db:5432/ohngea
+      JWT_SECRET: test-secret
+      # Live switch (in-container DNS): the real FreeSWITCH above.
+      FS_ESL_HOST: freeswitch
+      FS_ESL_PORT: 8021
+      FS_ESL_PASSWORD: ClueCon
+      # Must match xml_curl `gateway-credentials` (REGISTER-time Basic auth
+      # on /api/internal/freeswitch/xml + mod_xml_cdr userinfo).
+      FS_XML_USER: freeswitch
+      FS_XML_PASSWORD: ClueCon
+    depends_on:
+      db:
+        condition: service_healthy
