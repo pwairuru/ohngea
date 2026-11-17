@@ -37,6 +37,46 @@ fn esl() -> RealEs {
     RealEs::from_env()
 }
 
+// ---- tones (Task 6; `fusionpbx/app/tones/app_config.php` parity) ----
+//
+// Tones are `v_vars` rows with `var_category = 'Tones'` (PHP destinations
+// query). Minimal read surface: PHP ships no tone CRUD pages, so only
+// `GET /api/v1/tones` exists. Shape mirrors the destinations mapping:
+// `{uuid, name, destination, description}`.
+async fn list_tones(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+) -> impl IntoResponse {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "tone_destinations") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let rows = pbx_db::entities::vars::Entity::find()
+        .filter(pbx_db::entities::vars::Column::DomainId.eq(domain))
+        .filter(pbx_db::entities::vars::Column::VarCategory.eq("Tones".to_owned()))
+        .order_by(
+            pbx_db::entities::vars::Column::VarName,
+            sea_orm::Order::Asc,
+        )
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "uuid": r.var_uuid.to_string(),
+                "name": r.var_name,
+                "destination": r.var_value,
+                "description": r.var_description,
+            })
+        })
+        .collect();
+    let total = data.len() as u64;
+    Json(serde_json::json!({"data": data, "total": total})).into_response()
+}
+
 async fn list_active_calls() -> impl IntoResponse {
     let chans = pbx_fs::esl::mock_channels();
     let data: Vec<Value> = chans
@@ -469,15 +509,8 @@ async fn webrtc_credentials(
 }
 
 // ---- registry ----
-async fn list_modules() -> impl IntoResponse {
-    // Mirrors `app/modules` registry (static manifest list; DB enablement follow-up).
-    let data = serde_json::json!([
-        {"name": "mod_sofia", "enabled": true},
-        {"name": "mod_conference", "enabled": true},
-        {"name": "mod_fifo", "enabled": true},
-    ]);
-    Json(serde_json::json!({"data": data, "total": 3}))
-}
+// NOTE: GET /api/v1/modules lives in `crate::missing_tables` (DB-backed
+// v_modules CRUD). No static stub here.
 
 // NOTE: the old static `GET /api/v1/plugins` stub lived here; superseded by
 // the real manifest registry in `crate::plugins::plugins_router`
@@ -488,8 +521,35 @@ async fn log_viewer() -> impl IntoResponse {
     Json(serde_json::json!({"data": [], "total": 0}))
 }
 
-async fn database_transactions() -> impl IntoResponse {
-    Json(serde_json::json!({"data": [], "total": 0}))
+async fn database_transactions(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let rows = pbx_db::entities::database_transactions::Entity::find()
+        .filter(pbx_db::entities::database_transactions::Column::DomainId.eq(domain))
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let data: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "database_transaction_uuid": r.database_transaction_uuid,
+                "app_name": r.app_name,
+                "app_uuid": r.app_uuid,
+                "transaction_code": r.transaction_code,
+                "transaction_address": r.transaction_address,
+                "transaction_type": r.transaction_type,
+                "transaction_date": r.transaction_date,
+                "transaction_old": r.transaction_old,
+                "transaction_new": r.transaction_new,
+                "transaction_result": r.transaction_result,
+                "user_uuid": r.user_uuid,
+            })
+        })
+        .collect();
+    let total = data.len();
+    Json(serde_json::json!({"data": data, "total": total}))
 }
 
 async fn system_reload() -> impl IntoResponse {
@@ -521,6 +581,8 @@ pub fn remaining_router() -> Router {
     crate::remaining_a::spillover_a_router()
         .merge(crate::remaining_b::spillover_b_router())
         .merge(crate::remaining_c::spillover_c_router())
+        .route("/api/v1/tones", axum::routing::get(list_tones))
+        .route("/api/v1/tones/", axum::routing::get(list_tones))
         .route(
             "/api/v1/active_calls",
             axum::routing::get(list_active_calls),
@@ -585,7 +647,6 @@ pub fn remaining_router() -> Router {
             "/api/v1/click_to_call/originate",
             post(click_to_call_originate),
         )
-        .route("/api/v1/modules", axum::routing::get(list_modules))
         .route("/api/v1/log_viewer", axum::routing::get(log_viewer))
         .route(
             "/api/v1/database_transactions",

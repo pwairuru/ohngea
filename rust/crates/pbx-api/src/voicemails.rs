@@ -4,7 +4,7 @@
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 // ---- models ----
 use pbx_db::entities::{voicemail_greetings, voicemail_messages, voicemail_options, voicemails};
@@ -14,6 +14,24 @@ use pbx_db::entities::{voicemail_greetings, voicemail_messages, voicemail_option
 struct VoicemailCreate {
     voicemail_id: String,
     voicemail_password: String,
+    #[serde(default)] description: Option<String>,
+    #[serde(default)] enabled: Option<bool>,
+    #[serde(default)] voicemail_tutorial: Option<bool>,
+    #[serde(default)] greeting_id: Option<String>,
+    #[serde(default, alias = "alternate_greet_id")] voicemail_alternate_greet_id: Option<String>,
+    #[serde(default)] voicemail_recording_instructions: Option<bool>,
+    #[serde(default)] voicemail_recording_options: Option<String>,
+    #[serde(default)] voicemail_mail_to: Option<String>,
+    #[serde(default)] voicemail_sms_to: Option<String>,
+    #[serde(default)] voicemail_transcription_enabled: Option<bool>,
+    #[serde(default)] voicemail_attach_file: Option<bool>,
+    #[serde(default)] voicemail_file: Option<String>,
+    #[serde(default)] voicemail_local_after_email: Option<bool>,
+    #[serde(default)] voicemail_local_after_forward: Option<bool>,
+    #[serde(default)] voicemail_transcription_prompt_enabled: Option<bool>,
+    #[serde(default)] voicemail_transcription_prompt: Option<String>,
+    #[serde(default)] alternate_voicemail_destination: Option<String>,
+    #[serde(default)] alternate_voicemail_enabled: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -21,12 +39,18 @@ struct GreetingCreate {
     greeting_name: String,
     #[serde(default)]
     greeting_text: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct VoicemailOut {
-    voicemail_uuid: String,
-    voicemail_id: String,
+    #[serde(default)]
+    greeting_id: Option<String>,
+    #[serde(default)]
+    greeting_voice: Option<String>,
+    #[serde(default)]
+    greeting_message: Option<String>,
+    #[serde(default)]
+    greeting_filename: Option<String>,
+    #[serde(default)]
+    greeting_description: Option<String>,
+    #[serde(default)]
+    greeting_base64: Option<String>,
 }
 
 // ---- handlers ----
@@ -36,11 +60,30 @@ fn valid_mailbox(s: &str) -> bool {
 }
 
 fn ser_vm(r: &voicemails::Model) -> serde_json::Value {
-    serde_json::json!({
+    let mut v = serde_json::json!({
         "voicemail_uuid": r.voicemail_uuid,
         "voicemail_id": r.voicemail_id,
         "enabled": r.enabled,
-    })
+        "description": r.description,
+        "voicemail_tutorial": r.voicemail_tutorial,
+        "greeting_id": r.greeting_id,
+        "voicemail_alternate_greet_id": r.voicemail_alternate_greet_id,
+        "voicemail_recording_instructions": r.voicemail_recording_instructions,
+        "voicemail_recording_options": r.voicemail_recording_options,
+        "voicemail_mail_to": r.voicemail_mail_to,
+        "voicemail_sms_to": r.voicemail_sms_to,
+        "voicemail_transcription_enabled": r.voicemail_transcription_enabled,
+        "voicemail_transcription_prompt_enabled": r.voicemail_transcription_prompt_enabled,
+        "voicemail_transcription_prompt": r.voicemail_transcription_prompt,
+        "voicemail_attach_file": r.voicemail_attach_file,
+        "voicemail_file": r.voicemail_file,
+        "voicemail_local_after_email": r.voicemail_local_after_email,
+        "voicemail_local_after_forward": r.voicemail_local_after_forward,
+        "alternate_voicemail_destination": r.alternate_voicemail_destination,
+        "alternate_voicemail_enabled": r.alternate_voicemail_enabled,
+    });
+    crate::alias::emit_aliases(&mut v);
+    v
 }
 
 async fn vm_or_404(
@@ -85,8 +128,25 @@ async fn create_vm(
         domain_id: Set(domain),
         voicemail_id: Set(payload.voicemail_id.trim().to_owned()),
         voicemail_password: Set(payload.voicemail_password),
-        enabled: Set(true),
-        description: Set(None),
+        enabled: Set(payload.enabled.unwrap_or(true)),
+        description: Set(payload.description.clone()),
+        voicemail_tutorial: Set(payload.voicemail_tutorial),
+        greeting_id: Set(payload.greeting_id.clone()),
+        voicemail_alternate_greet_id: Set(payload.voicemail_alternate_greet_id.clone()),
+        voicemail_recording_instructions: Set(payload.voicemail_recording_instructions),
+        voicemail_recording_options: Set(payload.voicemail_recording_options.clone()),
+        voicemail_mail_to: Set(payload.voicemail_mail_to.clone()),
+        voicemail_sms_to: Set(payload.voicemail_sms_to.clone()),
+        voicemail_transcription_enabled: Set(payload.voicemail_transcription_enabled),
+        voicemail_transcription_prompt_enabled: Set(payload.voicemail_transcription_prompt_enabled),
+        voicemail_transcription_prompt: Set(payload.voicemail_transcription_prompt.clone()),
+        voicemail_attach_file: Set(payload.voicemail_attach_file),
+        voicemail_file: Set(payload.voicemail_file.clone()),
+        voicemail_local_after_email: Set(payload.voicemail_local_after_email),
+        voicemail_local_after_forward: Set(payload.voicemail_local_after_forward),
+        alternate_voicemail_destination: Set(payload.alternate_voicemail_destination.clone()),
+        alternate_voicemail_enabled: Set(payload.alternate_voicemail_enabled),
+        voicemail_name_base64: Set(None),
         created_at: Set(now),
         updated_at: Set(now),
     };
@@ -97,14 +157,19 @@ async fn create_vm(
         )
             .into_response();
     }
-    (
-        StatusCode::CREATED,
-        Json(serde_json::json!(VoicemailOut {
-            voicemail_uuid: id,
-            voicemail_id: payload.voicemail_id,
-        })),
-    )
-        .into_response()
+    match vm_or_404(db, domain, &id).await {
+        Some(r) => {
+            // Directory joins voicemails (Task 3) — invalidate so the new
+            // mailbox shows up in served directory XML.
+            crate::fs_xml::invalidate_cache();
+            (StatusCode::CREATED, Json(ser_vm(&r))).into_response()
+        }
+        None => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": "insert failed"})),
+        )
+            .into_response(),
+    }
 }
 
 async fn list_vm(
@@ -162,6 +227,7 @@ async fn patch_vm(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
         return (s, j).into_response();
     }
@@ -181,9 +247,43 @@ async fn patch_vm(
     if let Some(v) = payload.get("enabled").and_then(|v| v.as_bool()) {
         am.enabled = Set(v);
     }
+    for key in ["voicemail_mail_to", "voicemail_sms_to", "voicemail_file", "voicemail_transcription_prompt", "greeting_id", "voicemail_alternate_greet_id", "alternate_voicemail_destination", "voicemail_recording_options", "description"] {
+        if key == "description" {
+            continue;
+        }
+        if let Some(v) = payload.get(key).and_then(|v| v.as_str()) {
+            match key {
+                "voicemail_mail_to" => am.voicemail_mail_to = Set(Some(v.to_owned())),
+                "voicemail_sms_to" => am.voicemail_sms_to = Set(Some(v.to_owned())),
+                "voicemail_file" => am.voicemail_file = Set(Some(v.to_owned())),
+                "voicemail_transcription_prompt" => am.voicemail_transcription_prompt = Set(Some(v.to_owned())),
+                "greeting_id" => am.greeting_id = Set(Some(v.to_owned())),
+                "voicemail_alternate_greet_id" => am.voicemail_alternate_greet_id = Set(Some(v.to_owned())),
+                "voicemail_recording_options" => am.voicemail_recording_options = Set(Some(v.to_owned())),
+                _ => am.alternate_voicemail_destination = Set(Some(v.to_owned())),
+            }
+        }
+    }
+    for (key, slot) in [
+        ("voicemail_tutorial", &mut am.voicemail_tutorial),
+        ("voicemail_recording_instructions", &mut am.voicemail_recording_instructions),
+        ("voicemail_transcription_enabled", &mut am.voicemail_transcription_enabled),
+        ("voicemail_transcription_prompt_enabled", &mut am.voicemail_transcription_prompt_enabled),
+        ("voicemail_attach_file", &mut am.voicemail_attach_file),
+        ("voicemail_local_after_email", &mut am.voicemail_local_after_email),
+        ("voicemail_local_after_forward", &mut am.voicemail_local_after_forward),
+        ("alternate_voicemail_enabled", &mut am.alternate_voicemail_enabled),
+    ] {
+        if let Some(v) = payload.get(key).and_then(|v| v.as_bool()) {
+            *slot = Set(Some(v));
+        }
+    }
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
-        Ok(r) => (StatusCode::OK, Json(ser_vm(&r))).into_response(),
+        Ok(r) => {
+            crate::fs_xml::invalidate_cache();
+            (StatusCode::OK, Json(ser_vm(&r))).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("update failed: {e}")})),
@@ -240,7 +340,10 @@ async fn delete_vm(
     };
     let am: voicemails::ActiveModel = r.into();
     match am.delete(db).await {
-        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Ok(_) => {
+            crate::fs_xml::invalidate_cache();
+            StatusCode::NO_CONTENT.into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
@@ -251,12 +354,21 @@ async fn delete_vm(
 
 // ---- messages ----
 fn ser_msg(r: &voicemail_messages::Model) -> serde_json::Value {
-    serde_json::json!({
+    let mut v = serde_json::json!({
         "voicemail_message_uuid": r.voicemail_message_uuid,
         "voicemail_uuid": r.voicemail_uuid,
         "file_name": r.file_name,
         "message_length": r.message_length,
-    })
+        "created_epoch": r.created_epoch,
+        "read_epoch": r.read_epoch,
+        "caller_id_name": r.caller_id_name,
+        "caller_id_number": r.caller_id_number,
+        "message_status": r.message_status,
+        "message_priority": r.message_priority,
+        "message_transcription": r.message_transcription,
+    });
+    crate::alias::emit_aliases(&mut v);
+    v
 }
 
 async fn list_messages(
@@ -330,6 +442,15 @@ async fn create_message(
             .get("message_length")
             .and_then(|v| v.as_i64())
             .map(|v| v as i32)),
+        created_epoch: Set(payload.get("created_epoch").and_then(|v| v.as_i64())),
+        read_epoch: Set(payload.get("read_epoch").and_then(|v| v.as_i64())),
+        caller_id_name: Set(payload.get("caller_id_name").and_then(|v| v.as_str()).map(str::to_owned)),
+        caller_id_number: Set(payload.get("caller_id_number").and_then(|v| v.as_str()).map(str::to_owned)),
+        message_status: Set(payload.get("message_status").and_then(|v| v.as_str()).map(str::to_owned)),
+        message_priority: Set(payload.get("message_priority").and_then(|v| v.as_str()).map(str::to_owned)),
+        message_intro_base64: Set(None),
+        message_base64: Set(payload.get("message_base64").and_then(|v| v.as_str()).map(str::to_owned)),
+        message_transcription: Set(payload.get("message_transcription").and_then(|v| v.as_str()).map(str::to_owned)),
     };
     match am.insert(db).await {
         Ok(_) => (
@@ -368,6 +489,7 @@ async fn patch_message(
     axum::extract::Path((id, mid)): axum::extract::Path<(String, String)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
         return (s, j).into_response();
     }
@@ -590,6 +712,7 @@ async fn patch_option(
     axum::extract::Path((id, oid)): axum::extract::Path<(String, String)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
         return (s, j).into_response();
     }
@@ -682,6 +805,12 @@ async fn create_greeting(
         voicemail_uuid: Set(id.clone()),
         greeting_name: Set(payload.greeting_name.clone()),
         greeting_text: Set(payload.greeting_text.clone()),
+        greeting_id: Set(None),
+        greeting_voice: Set(payload.greeting_voice.clone()),
+        greeting_message: Set(payload.greeting_message.clone()),
+        greeting_filename: Set(payload.greeting_filename.clone()),
+        greeting_description: Set(payload.greeting_description.clone()),
+        greeting_base64: Set(payload.greeting_base64.clone()),
     };
     if gam.insert(db).await.is_err() {
         return (
@@ -702,12 +831,20 @@ async fn create_greeting(
 }
 
 fn ser_greeting(r: &voicemail_greetings::Model) -> serde_json::Value {
-    serde_json::json!({
+    let mut v = serde_json::json!({
         "voicemail_greeting_uuid": r.voicemail_greeting_uuid,
         "voicemail_uuid": r.voicemail_uuid,
         "greeting_name": r.greeting_name,
         "greeting_text": r.greeting_text,
-    })
+        "greeting_id": r.greeting_id,
+        "greeting_voice": r.greeting_voice,
+        "greeting_message": r.greeting_message,
+        "greeting_filename": r.greeting_filename,
+        "greeting_description": r.greeting_description,
+        "greeting_base64": r.greeting_base64,
+    });
+    crate::alias::emit_aliases(&mut v);
+    v
 }
 
 async fn list_greetings(
@@ -807,6 +944,12 @@ async fn create_greeting_standalone(
             .get("greeting_text")
             .and_then(|v| v.as_str())
             .map(str::to_owned)),
+        greeting_id: Set(payload.get("greeting_id").and_then(|v| v.as_str()).map(str::to_owned)),
+        greeting_voice: Set(payload.get("greeting_voice").and_then(|v| v.as_str()).map(str::to_owned)),
+        greeting_message: Set(payload.get("greeting_message").and_then(|v| v.as_str()).map(str::to_owned)),
+        greeting_filename: Set(payload.get("greeting_filename").and_then(|v| v.as_str()).map(str::to_owned)),
+        greeting_description: Set(payload.get("greeting_description").and_then(|v| v.as_str()).map(str::to_owned)),
+        greeting_base64: Set(payload.get("greeting_base64").and_then(|v| v.as_str()).map(str::to_owned)),
     };
     match gam.insert(db).await {
         Ok(_) => (
@@ -862,6 +1005,7 @@ async fn patch_greeting(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
         return (s, j).into_response();
     }
@@ -883,6 +1027,18 @@ async fn patch_greeting(
             .get("greeting_text")
             .and_then(|v| v.as_str())
             .map(str::to_owned));
+    }
+    for key in ["greeting_id", "greeting_voice", "greeting_message", "greeting_filename", "greeting_description", "greeting_base64"] {
+        if let Some(v) = payload.get(key).and_then(|v| v.as_str()) {
+            match key {
+                "greeting_id" => am.greeting_id = Set(Some(v.to_owned())),
+                "greeting_voice" => am.greeting_voice = Set(Some(v.to_owned())),
+                "greeting_message" => am.greeting_message = Set(Some(v.to_owned())),
+                "greeting_filename" => am.greeting_filename = Set(Some(v.to_owned())),
+                "greeting_description" => am.greeting_description = Set(Some(v.to_owned())),
+                _ => am.greeting_base64 = Set(Some(v.to_owned())),
+            }
+        }
     }
     match am.update(db).await {
         Ok(r) => (StatusCode::OK, Json(ser_greeting(&r))).into_response(),

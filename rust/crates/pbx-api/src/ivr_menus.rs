@@ -16,6 +16,10 @@ struct OptionIn {
     action: String,
     #[serde(default)]
     param: Option<String>,
+    #[serde(default)]
+    ivr_menu_id: Option<String>,
+    #[serde(default)]
+    ivr_menu_option_enabled: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -25,6 +29,62 @@ struct IvrCreate {
     extension: Option<String>,
     #[serde(default)]
     options: Vec<OptionIn>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    enabled: Option<bool>,
+    #[serde(default)]
+    greet_long: Option<String>,
+    #[serde(default)]
+    greet_short: Option<String>,
+    #[serde(default)]
+    invalid_sound: Option<String>,
+    #[serde(default)]
+    exit_sound: Option<String>,
+    #[serde(default)]
+    confirm_macro: Option<String>,
+    #[serde(default)]
+    confirm_key: Option<String>,
+    #[serde(default)]
+    tts_engine: Option<String>,
+    #[serde(default)]
+    tts_voice: Option<String>,
+    #[serde(default)]
+    confirm_attempts: Option<i32>,
+    #[serde(default)]
+    timeout: Option<i32>,
+    #[serde(default)]
+    inter_digit_timeout: Option<i32>,
+    #[serde(default)]
+    max_failures: Option<i32>,
+    #[serde(default)]
+    max_timeouts: Option<i32>,
+    #[serde(default)]
+    digit_len: Option<i32>,
+    #[serde(default)]
+    dialplan_uuid: Option<String>,
+    #[serde(default)]
+    parent_uuid: Option<String>,
+    #[serde(default)]
+    language: Option<String>,
+    #[serde(default)]
+    dialect: Option<String>,
+    #[serde(default)]
+    voice: Option<String>,
+    #[serde(default)]
+    pin_number: Option<String>,
+    #[serde(default)]
+    ringback: Option<String>,
+    #[serde(default)]
+    cid_prefix: Option<String>,
+    #[serde(default)]
+    context: Option<String>,
+    #[serde(default)]
+    direct_dial: Option<bool>,
+    #[serde(default)]
+    exit_app: Option<String>,
+    #[serde(default)]
+    exit_data: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -60,13 +120,47 @@ async fn create_ivr(
     let domain = crate::routing_db::domain(&claims);
     let id = crate::routing_db::new_uuid();
     let now = crate::routing_db::now();
+    // PHP mints the dialplan row alongside the menu.
+    let dp_id = crate::ring_groups::parse_dialplan_id(payload.dialplan_uuid.as_deref())
+        .unwrap_or_else(crate::ring_groups::new_dialplan_id);
+    let ivr_name = payload.name.trim().to_owned();
+    let ivr_number = payload.extension.clone().unwrap_or_default();
+    let ivr_context = payload.context.clone();
+    let ivr_enabled = payload.enabled.unwrap_or(true);
+    let ivr_description = payload.description.clone();
     let am = ivr_menus::ActiveModel {
         ivr_menu_uuid: Set(id.clone()),
         domain_id: Set(domain),
         name: Set(payload.name.trim().to_owned()),
         extension: Set(payload.extension),
-        enabled: Set(true),
-        description: Set(None),
+        enabled: Set(payload.enabled.unwrap_or(true)),
+        description: Set(payload.description),
+        greet_long: Set(payload.greet_long),
+        greet_short: Set(payload.greet_short),
+        invalid_sound: Set(payload.invalid_sound),
+        exit_sound: Set(payload.exit_sound),
+        confirm_macro: Set(payload.confirm_macro),
+        confirm_key: Set(payload.confirm_key),
+        tts_engine: Set(payload.tts_engine),
+        tts_voice: Set(payload.tts_voice),
+        confirm_attempts: Set(payload.confirm_attempts),
+        timeout: Set(payload.timeout),
+        inter_digit_timeout: Set(payload.inter_digit_timeout),
+        max_failures: Set(payload.max_failures),
+        max_timeouts: Set(payload.max_timeouts),
+        digit_len: Set(payload.digit_len),
+        dialplan_uuid: Set(Some(dp_id.to_string())),
+        parent_uuid: Set(payload.parent_uuid),
+        language: Set(payload.language),
+        dialect: Set(payload.dialect),
+        voice: Set(payload.voice),
+        pin_number: Set(payload.pin_number),
+        ringback: Set(payload.ringback),
+        cid_prefix: Set(payload.cid_prefix),
+        context: Set(payload.context),
+        direct_dial: Set(payload.direct_dial),
+        exit_app: Set(payload.exit_app),
+        exit_data: Set(payload.exit_data),
         created_at: Set(now),
         updated_at: Set(now),
     };
@@ -87,6 +181,8 @@ async fn create_ivr(
             action: Set(o.action.clone()),
             param: Set(o.param.clone()),
             option_order: Set(idx as i32),
+            ivr_menu_id: Set(o.ivr_menu_id.clone()),
+            ivr_menu_option_enabled: Set(o.ivr_menu_option_enabled.or(Some(true))),
         };
         let _ = oam.insert(db).await;
         out_opts.push(OptionOut {
@@ -94,6 +190,31 @@ async fn create_ivr(
             action: o.action.clone(),
             param: o.param.clone(),
         });
+    }
+    // PHP `ivr_menu_edit.php` dialplan: mint/update the linked row + lua glue.
+    // Menus without an extension still get a row (PHP parity); an empty
+    // number simply never matches — callers should set an extension.
+    let number = ivr_number;
+    if !number.trim().is_empty() {
+        let spec = ivr_spec(
+            &ivr_name,
+            number.trim(),
+            &id,
+            &dp_id,
+            ivr_context,
+            ivr_enabled,
+            ivr_description,
+        );
+        if let Err(e) = crate::ring_groups::sync_app_dialplan(db, domain, dp_id, &spec).await
+        {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": e})),
+            )
+                .into_response();
+        }
+    } else {
+        crate::fs_xml::invalidate_cache();
     }
     (
         StatusCode::CREATED,
@@ -133,6 +254,33 @@ async fn list_ivr(
                 "name": r.name,
                 "extension": r.extension,
                 "enabled": r.enabled,
+                "description": r.description,
+                "greet_long": r.greet_long,
+                "greet_short": r.greet_short,
+                "invalid_sound": r.invalid_sound,
+                "exit_sound": r.exit_sound,
+                "confirm_macro": r.confirm_macro,
+                "confirm_key": r.confirm_key,
+                "tts_engine": r.tts_engine,
+                "tts_voice": r.tts_voice,
+                "confirm_attempts": r.confirm_attempts,
+                "timeout": r.timeout,
+                "inter_digit_timeout": r.inter_digit_timeout,
+                "max_failures": r.max_failures,
+                "max_timeouts": r.max_timeouts,
+                "digit_len": r.digit_len,
+                "dialplan_uuid": r.dialplan_uuid,
+                "parent_uuid": r.parent_uuid,
+                "language": r.language,
+                "dialect": r.dialect,
+                "voice": r.voice,
+                "pin_number": r.pin_number,
+                "ringback": r.ringback,
+                "cid_prefix": r.cid_prefix,
+                "context": r.context,
+                "direct_dial": r.direct_dial,
+                "exit_app": r.exit_app,
+                "exit_data": r.exit_data,
             })
         })
         .collect();
@@ -160,6 +308,7 @@ async fn patch_ivr(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ivr_menu_edit") {
         return (s, j).into_response();
     }
@@ -173,6 +322,26 @@ async fn patch_ivr(
             .into_response();
     };
     let mut am: ivr_menus::ActiveModel = r.into();
+    macro_rules! set_str_opt {
+        ($field:ident) => {
+            if payload.get(stringify!($field)).is_some() {
+                am.$field = Set(payload
+                    .get(stringify!($field))
+                    .and_then(|v| v.as_str())
+                    .map(str::to_owned));
+            }
+        };
+    }
+    macro_rules! set_int_opt {
+        ($field:ident) => {
+            if payload.get(stringify!($field)).is_some() {
+                am.$field = Set(payload
+                    .get(stringify!($field))
+                    .and_then(|v| v.as_i64())
+                    .map(|v| v as i32));
+            }
+        };
+    }
     if let Some(v) = payload.get("name").and_then(|v| v.as_str()) {
         am.name = Set(v.to_owned());
     }
@@ -188,17 +357,87 @@ async fn patch_ivr(
     if let Some(v) = payload.get("enabled").and_then(|v| v.as_bool()) {
         am.enabled = Set(v);
     }
+    set_str_opt!(greet_long);
+    set_str_opt!(greet_short);
+    set_str_opt!(invalid_sound);
+    set_str_opt!(exit_sound);
+    set_str_opt!(confirm_macro);
+    set_str_opt!(confirm_key);
+    set_str_opt!(tts_engine);
+    set_str_opt!(tts_voice);
+    set_int_opt!(confirm_attempts);
+    set_int_opt!(timeout);
+    set_int_opt!(inter_digit_timeout);
+    set_int_opt!(max_failures);
+    set_int_opt!(max_timeouts);
+    set_int_opt!(digit_len);
+    set_str_opt!(dialplan_uuid);
+    set_str_opt!(parent_uuid);
+    set_str_opt!(language);
+    set_str_opt!(dialect);
+    set_str_opt!(voice);
+    set_str_opt!(pin_number);
+    set_str_opt!(ringback);
+    set_str_opt!(cid_prefix);
+    set_str_opt!(context);
+    if payload.get("direct_dial").is_some() {
+        am.direct_dial = Set(payload.get("direct_dial").and_then(|v| v.as_bool()));
+    }
+    set_str_opt!(exit_app);
+    set_str_opt!(exit_data);
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
-        Ok(r) => (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "ivr_menu_uuid": r.ivr_menu_uuid,
-                "name": r.name,
-                "extension": r.extension,
-            })),
-        )
-            .into_response(),
+        Ok(r) => {
+            // Refresh the linked dialplan (mint one for legacy rows); an
+            // extension change re-points the number (PHP parity).
+            let dp_id = crate::ring_groups::parse_dialplan_id(r.dialplan_uuid.as_deref())
+                .unwrap_or_else(crate::ring_groups::new_dialplan_id);
+            if let Some(ext) = r.extension.clone().filter(|s| !s.trim().is_empty()) {
+                let spec = ivr_spec(
+                    &r.name,
+                    ext.trim(),
+                    &r.ivr_menu_uuid,
+                    &dp_id,
+                    r.context.clone(),
+                    r.enabled,
+                    r.description.clone(),
+                );
+                if let Err(e) =
+                    crate::ring_groups::sync_app_dialplan(db, domain, dp_id, &spec).await
+                {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({"detail": e})),
+                    )
+                        .into_response();
+                }
+            } else {
+                crate::fs_xml::invalidate_cache();
+            }
+            if r.dialplan_uuid.is_none() {
+                use sea_orm::{ActiveModelTrait, EntityTrait};
+                if let Ok(Some(row)) =
+                    ivr_menus::Entity::find_by_id(r.ivr_menu_uuid.clone())
+                        .one(db)
+                        .await
+                {
+                    let mut fix: ivr_menus::ActiveModel = row.into();
+                    fix.dialplan_uuid = Set(Some(dp_id.to_string()));
+                    let _ = fix.update(db).await;
+                }
+            }
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "ivr_menu_uuid": r.ivr_menu_uuid,
+                    "name": r.name,
+                    "extension": r.extension,
+                    "greet_long": r.greet_long,
+                    "timeout": r.timeout,
+                })),
+            )
+                .into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("update failed: {e}")})),
@@ -233,8 +472,17 @@ async fn delete_ivr(
         )
             .into_response();
     };
+    let dp_link = crate::ring_groups::parse_dialplan_id(r.dialplan_uuid.as_deref());
     let am: ivr_menus::ActiveModel = r.into();
     match am.delete(db).await {
+        Ok(_) => {
+            if let Some(dp) = dp_link {
+                crate::ring_groups::delete_app_dialplan(db, domain, dp).await;
+            } else {
+                crate::fs_xml::invalidate_cache();
+            }
+            StatusCode::NO_CONTENT.into_response()
+        }
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -244,15 +492,66 @@ async fn delete_ivr(
     }
 }
 
+// ---- dialplan fan-out (Task 6; PHP ivr_menu_edit.php:323-462 parity) ----
+//
+// `lua ivr_menu.lua` glue, order 101, app `a5788e9b-…`. Shared row/detail
+// helpers live in `crate::ring_groups` (scope: no renderer/config/auth
+// changes); only the spec builder + CRUD hooks live here.
+
+fn ivr_spec(
+    name: &str,
+    extension: &str,
+    ivr_uuid: &str,
+    dialplan_uuid: &uuid::Uuid,
+    context: Option<String>,
+    enabled: bool,
+    description: Option<String>,
+) -> crate::ring_groups::AppDialplan {
+    use crate::ring_groups::{fanout_action, AppDialplan, FanoutCondition, IVR_APP_UUID};
+    let xml = format!(
+        "<extension name=\"{}\" continue=\"false\" uuid=\"{}\">\n\t<condition field=\"destination_number\" expression=\"^{}$\">\n\t\t<action application=\"ring_ready\" data=\"\"/>\n\t\t<action application=\"sleep\" data=\"1000\"/>\n\t\t<action application=\"set\" data=\"hangup_after_bridge=true\"/>\n\t\t<action application=\"set\" data=\"ivr_menu_uuid={}\"/>\n\t\t<action application=\"lua\" data=\"ivr_menu.lua\"/>\n\t</condition>\n</extension>\n",
+        name.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;"),
+        dialplan_uuid,
+        extension,
+        ivr_uuid,
+    );
+    AppDialplan {
+        name: name.to_owned(),
+        number: extension.to_owned(),
+        context,
+        enabled,
+        description,
+        app_uuid: IVR_APP_UUID,
+        order: 101,
+        xml,
+        conditions: vec![FanoutCondition {
+            expression: format!("^{extension}$"),
+            break_attr: None,
+            group: 0,
+            actions: vec![
+                fanout_action("ring_ready", ""),
+                fanout_action("sleep", "1000"),
+                fanout_action("set", "hangup_after_bridge=true"),
+                fanout_action("set", &format!("ivr_menu_uuid={ivr_uuid}")),
+                fanout_action("lua", "ivr_menu.lua"),
+            ],
+        }],
+    }
+}
+
 // ---- options (standalone CRUD under menu; mirrors Python nested routers) ----
 fn ser_opt(r: &ivr_menu_options::Model) -> serde_json::Value {
-    serde_json::json!({
+    let mut v = serde_json::json!({
         "option_uuid": r.option_uuid,
         "ivr_menu_uuid": r.ivr_menu_uuid,
         "digits": r.digits,
         "action": r.action,
         "param": r.param,
-    })
+        "ivr_menu_id": r.ivr_menu_id,
+        "ivr_menu_option_enabled": r.ivr_menu_option_enabled,
+    });
+    crate::alias::emit_aliases(&mut v);
+    v
 }
 
 async fn opt_or_404(
@@ -351,6 +650,8 @@ async fn create_option(
             .get("option_order")
             .and_then(|v| v.as_i64())
             .unwrap_or(0) as i32),
+        ivr_menu_id: Set(payload.get("ivr_menu_id").and_then(|v| v.as_str()).map(str::to_owned)),
+        ivr_menu_option_enabled: Set(payload.get("ivr_menu_option_enabled").and_then(|v| v.as_bool()).or(Some(true))),
     };
     match am.insert(db).await {
         Ok(_) => (
@@ -376,6 +677,7 @@ async fn patch_option(
     axum::extract::Path((id, oid)): axum::extract::Path<(String, String)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ivr_menu_edit") {
         return (s, j).into_response();
     }
@@ -400,6 +702,12 @@ async fn patch_option(
             .get("param")
             .and_then(|v| v.as_str())
             .map(str::to_owned));
+    }
+    if payload.get("ivr_menu_id").is_some() {
+        am.ivr_menu_id = Set(payload.get("ivr_menu_id").and_then(|v| v.as_str()).map(str::to_owned));
+    }
+    if payload.get("ivr_menu_option_enabled").is_some() {
+        am.ivr_menu_option_enabled = Set(payload.get("ivr_menu_option_enabled").and_then(|v| v.as_bool()));
     }
     match am.update(db).await {
         Ok(r) => (StatusCode::OK, Json(ser_opt(&r))).into_response(),

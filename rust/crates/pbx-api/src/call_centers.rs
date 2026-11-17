@@ -234,6 +234,196 @@ async fn queue_or_404(
         .unwrap_or(None)
 }
 
+// ---- dialplan fan-out (Task 6; PHP call_center_queue_edit.php:446-508) ----
+//
+// `callcenter ext@domain`, order 230, app `95788e50-…`. FAN-OUT ONLY —
+// the `callcenter.conf` configuration builders from Task 5 are untouched.
+// Shared row/detail helpers in `crate::ring_groups`; only the spec
+// builder + CRUD hooks live here.
+
+fn cc_non_empty(o: Option<&str>) -> Option<&str> {
+    o.filter(|s| !s.trim().is_empty())
+}
+
+fn cc_spec(
+    queue_name: &str,
+    queue_extension: &str,
+    queue_uuid: &str,
+    dialplan_uuid: &uuid::Uuid,
+    domain_name: &str,
+    language: Option<&str>,
+    dialect: Option<&str>,
+    voice: Option<&str>,
+    greeting: Option<&str>,
+    cid_prefix: Option<&str>,
+    cc_exit_keys: Option<&str>,
+    time_base_score_sec: Option<i32>,
+    queue_limit: Option<i32>,
+    context: Option<String>,
+    description: Option<String>,
+) -> crate::ring_groups::AppDialplan {
+    use crate::ring_groups::{
+        fanout_action, AppDialplan, FanoutCondition, CC_APP_UUID,
+    };
+    let esc = |s: &str| {
+        s.replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('"', "&quot;")
+    };
+    let non_empty = cc_non_empty;
+    let (lang, dial, voi) = match (non_empty(language), non_empty(dialect), non_empty(voice)) {
+        (None, None, None) => ("en", "us", "callie"),
+        (l, d, v) => (
+            l.unwrap_or(""),
+            d.unwrap_or(""),
+            v.unwrap_or(""),
+        ),
+    };
+    let mut conditions: Vec<FanoutCondition> = Vec::new();
+    let mut xml = format!(
+        "<extension name=\"{}\" continue=\"\" uuid=\"{}\">\n",
+        esc(queue_name),
+        dialplan_uuid,
+    );
+    let mut group = 0;
+    if let Some(limit) = queue_limit {
+        conditions.push(FanoutCondition {
+            expression: format!("^(callcenter\\+)?{queue_extension}$"),
+            break_attr: Some("on-false".to_owned()),
+            group,
+            actions: vec![fanout_action(
+                "limit",
+                &format!("hash inbound ${{destination_number}} {limit} !NORMAL_CIRCUIT_CONGESTION"),
+            )],
+        });
+        xml.push_str(&format!(
+            "\t<condition field=\"destination_number\" expression=\"^(callcenter\\+)?{}$\" break=\"on-false\">\n\t\t<action application=\"limit\" data=\"hash inbound ${{destination_number}} {limit} !NORMAL_CIRCUIT_CONGESTION\"/>\n\t</condition>\n",
+            esc(queue_extension),
+        ));
+        group += 1;
+    }
+    conditions.push(FanoutCondition {
+        expression: "^([^#]+#)(.*)$".to_owned(),
+        break_attr: Some("never".to_owned()),
+        group,
+        actions: vec![fanout_action("set", "caller_id_name=$2")],
+    });
+    xml.push_str("\t<condition field=\"destination_number\" expression=\"^([^#]+#)(.*)$\" break=\"never\">\n\t\t<action application=\"set\" data=\"caller_id_name=$2\"/>\n\t</condition>\n");
+    group += 1;
+    let mut actions = vec![
+        fanout_action("answer", ""),
+        fanout_action("set", &format!("sound_prefix=$${{sounds_dir}}/{lang}/{dial}/{voi}")),
+        fanout_action("set", &format!("call_center_queue_uuid={queue_uuid}")),
+    ];
+    if !queue_extension.trim().is_empty() {
+        actions.push(fanout_action("set", &format!("queue_extension={queue_extension}")));
+    }
+    actions.push(fanout_action(
+        "set",
+        "cc_export_vars=${cc_export_vars},call_center_queue_uuid,sip_h_Alert-Info,sound_prefix",
+    ));
+    actions.push(fanout_action("set", "hangup_after_bridge=true"));
+    if let Some(sec) = time_base_score_sec {
+        actions.push(fanout_action("set", &format!("cc_base_score={sec}")));
+    }
+    if let Some(g) = non_empty(greeting) {
+        actions.push(fanout_action("sleep", "1000"));
+        let parts: Vec<&str> = g.splitn(2, ':').collect();
+        if parts.len() == 1 {
+            actions.push(fanout_action("playback", g));
+        } else if ["say", "tone_stream", "phrase"].contains(&parts[0]) {
+            actions.push(fanout_action(parts[0], parts[1]));
+        }
+    }
+    if let Some(cid) = non_empty(cid_prefix) {
+        actions.push(fanout_action(
+            "set",
+            &format!("effective_caller_id_name={cid}#${{caller_id_name}}"),
+        ));
+    }
+    if let Some(keys) = cc_exit_keys {
+        actions.push(fanout_action("set", &format!("cc_exit_keys={keys}")));
+    }
+    actions.push(fanout_action(
+        "callcenter",
+        &format!("{queue_extension}@{domain_name}"),
+    ));
+    conditions.push(FanoutCondition {
+        expression: format!("^(callcenter\\+)?{queue_extension}$"),
+        break_attr: None,
+        group,
+        actions,
+    });
+    xml.push_str(&format!(
+        "\t<condition field=\"destination_number\" expression=\"^(callcenter\\+)?{}$\">\n",
+        esc(queue_extension),
+    ));
+    xml.push_str("\t\t<action application=\"answer\" data=\"\"/>\n");
+    xml.push_str(&format!(
+        "\t\t<action application=\"set\" data=\"sound_prefix=$${{sounds_dir}}/{}/{}/{}\"/>\n",
+        esc(lang),
+        esc(dial),
+        esc(voi),
+    ));
+    xml.push_str(&format!(
+        "\t\t<action application=\"set\" data=\"call_center_queue_uuid={}\"/>\n",
+        esc(queue_uuid),
+    ));
+    if !queue_extension.trim().is_empty() {
+        xml.push_str(&format!(
+            "\t\t<action application=\"set\" data=\"queue_extension={}\"/>\n",
+            esc(queue_extension),
+        ));
+    }
+    xml.push_str("\t\t<action application=\"set\" data=\"cc_export_vars=${cc_export_vars},call_center_queue_uuid,sip_h_Alert-Info,sound_prefix\"/>\n");
+    xml.push_str("\t\t<action application=\"set\" data=\"hangup_after_bridge=true\"/>\n");
+    if let Some(sec) = time_base_score_sec {
+        xml.push_str(&format!("\t\t<action application=\"set\" data=\"cc_base_score={sec}\"/>\n"));
+    }
+    if let Some(g) = non_empty(greeting) {
+        xml.push_str("\t\t<action application=\"sleep\" data=\"1000\"/>\n");
+        let parts: Vec<&str> = g.splitn(2, ':').collect();
+        if parts.len() == 1 {
+            xml.push_str(&format!("\t\t<action application=\"playback\" data=\"{}\"/>\n", esc(g)));
+        } else if ["say", "tone_stream", "phrase"].contains(&parts[0]) {
+            xml.push_str(&format!(
+                "\t\t<action application=\"{}\" data=\"{}\"/>\n",
+                esc(parts[0]),
+                esc(parts[1]),
+            ));
+        }
+    }
+    if let Some(cid) = non_empty(cid_prefix) {
+        xml.push_str(&format!(
+            "\t\t<action application=\"set\" data=\"effective_caller_id_name={}#${{caller_id_name}}\"/>\n",
+            esc(cid),
+        ));
+    }
+    if let Some(keys) = cc_exit_keys {
+        xml.push_str(&format!(
+            "\t\t<action application=\"set\" data=\"cc_exit_keys={}\"/>\n",
+            esc(keys),
+        ));
+    }
+    xml.push_str(&format!(
+        "\t\t<action application=\"callcenter\" data=\"{}@{}\"/>\n\t</condition>\n</extension>\n",
+        esc(queue_extension),
+        esc(domain_name),
+    ));
+    AppDialplan {
+        name: queue_name.to_owned(),
+        number: queue_extension.to_owned(),
+        context,
+        enabled: true,
+        description,
+        app_uuid: CC_APP_UUID,
+        order: 230,
+        xml,
+        conditions,
+    }
+}
+
 async fn create_queue(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<QueueCreate>,
@@ -252,6 +442,13 @@ async fn create_queue(
     let domain = crate::routing_db::domain(&claims);
     let id = crate::routing_db::new_uuid();
     let now = crate::routing_db::now();
+    // PHP mints the dialplan row alongside the queue (only meaningful
+    // with an extension; extension-less queues keep no linked row).
+    let ext = payload.queue_extension.clone().filter(|s| !s.trim().is_empty());
+    let dp_id = ext.as_ref().map(|_| {
+        crate::ring_groups::parse_dialplan_id(payload.dialplan_uuid.as_deref())
+            .unwrap_or_else(crate::ring_groups::new_dialplan_id)
+    });
     let am = call_centers::ActiveModel {
         call_center_queue_uuid: Set(id.clone()),
         domain_id: Set(domain),
@@ -259,7 +456,7 @@ async fn create_queue(
         queue_extension: Set(payload.queue_extension.clone()),
         queue_strategy: Set(payload.queue_strategy.clone()),
         queue_enabled: Set(true),
-        dialplan_uuid: Set(payload.dialplan_uuid.clone()),
+        dialplan_uuid: Set(dp_id.map(|u| u.to_string())),
         greeting: Set(payload.greeting.clone()),
         moh_sound: Set(payload.moh_sound.clone()),
         record_template: Set(match payload.queue_record_enabled {
@@ -308,6 +505,42 @@ async fn create_queue(
         .unwrap_or(None)
     {
         Some(r) => {
+            // Linked dialplan fan-out (PHP parity) before the Task 5
+            // callcenter.conf propagate.
+            if let (Some(dp), Some(qext)) = (dp_id, ext) {
+                let domain_name = crate::ring_groups::resolve_domain_name(
+                    db,
+                    domain,
+                    &crate::routing_db::tenant_display_name(&claims),
+                )
+                .await;
+                let spec = cc_spec(
+                    &r.queue_name,
+                    qext.trim(),
+                    &r.call_center_queue_uuid,
+                    &dp,
+                    &domain_name,
+                    r.language.as_deref(),
+                    r.dialect.as_deref(),
+                    r.voice.as_deref(),
+                    r.greeting.as_deref(),
+                    r.cid_prefix.as_deref(),
+                    r.cc_exit_keys.as_deref(),
+                    r.time_base_score_sec,
+                    r.queue_limit,
+                    r.context.clone(),
+                    r.queue_description.clone(),
+                );
+                if let Err(e) =
+                    crate::ring_groups::sync_app_dialplan(db, domain, dp, &spec).await
+                {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({"detail": e})),
+                    )
+                        .into_response();
+                }
+            }
             propagate_cc(Some(&fs_queue_name(db, domain, &r.queue_name).await));
             (StatusCode::CREATED, Json(ser_queue(&r))).into_response()
         }
@@ -417,8 +650,82 @@ async fn patch_queue(
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
         Ok(r) => {
-            propagate_cc(Some(&fs_queue_name(db, domain, &r.queue_name).await));
-            (StatusCode::OK, Json(ser_queue(&r))).into_response()
+            // Linked dialplan fan-out: re-point on extension change, drop
+            // the row when the extension is cleared (PHP parity).
+            let qext = r.queue_extension.clone().filter(|s| !s.trim().is_empty());
+            match qext {
+                Some(qext) => {
+                    let dp = crate::ring_groups::parse_dialplan_id(
+                        r.dialplan_uuid.as_deref(),
+                    )
+                    .unwrap_or_else(crate::ring_groups::new_dialplan_id);
+                    let domain_name = crate::ring_groups::resolve_domain_name(
+                        db,
+                        domain,
+                        &crate::routing_db::tenant_display_name(&claims),
+                    )
+                    .await;
+                    let spec = cc_spec(
+                        &r.queue_name,
+                        qext.trim(),
+                        &r.call_center_queue_uuid,
+                        &dp,
+                        &domain_name,
+                        r.language.as_deref(),
+                        r.dialect.as_deref(),
+                        r.voice.as_deref(),
+                        r.greeting.as_deref(),
+                        r.cid_prefix.as_deref(),
+                        r.cc_exit_keys.as_deref(),
+                        r.time_base_score_sec,
+                        r.queue_limit,
+                        r.context.clone(),
+                        r.queue_description.clone(),
+                    );
+                    if let Err(e) =
+                        crate::ring_groups::sync_app_dialplan(db, domain, dp, &spec).await
+                    {
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(serde_json::json!({"detail": e})),
+                        )
+                            .into_response();
+                    }
+                    if r.dialplan_uuid.as_deref() != Some(dp.to_string().as_str()) {
+                        use sea_orm::{ActiveModelTrait, EntityTrait};
+                        if let Ok(Some(row)) =
+                            call_centers::Entity::find_by_id(r.call_center_queue_uuid.clone())
+                                .one(db)
+                                .await
+                        {
+                            let mut fix: call_centers::ActiveModel = row.into();
+                            fix.dialplan_uuid = Set(Some(dp.to_string()));
+                            let _ = fix.update(db).await;
+                        }
+                    }
+                    propagate_cc(Some(&fs_queue_name(db, domain, &r.queue_name).await));
+                    (StatusCode::OK, Json(ser_queue(&r))).into_response()
+                }
+                None => {
+                    if let Some(dp) =
+                        crate::ring_groups::parse_dialplan_id(r.dialplan_uuid.as_deref())
+                    {
+                        crate::ring_groups::delete_app_dialplan(db, domain, dp).await;
+                        use sea_orm::{ActiveModelTrait, EntityTrait};
+                        if let Ok(Some(row)) =
+                            call_centers::Entity::find_by_id(r.call_center_queue_uuid.clone())
+                                .one(db)
+                                .await
+                        {
+                            let mut fix: call_centers::ActiveModel = row.into();
+                            fix.dialplan_uuid = Set(None);
+                            let _ = fix.update(db).await;
+                        }
+                    }
+                    propagate_cc(Some(&fs_queue_name(db, domain, &r.queue_name).await));
+                    (StatusCode::OK, Json(ser_queue(&r))).into_response()
+                }
+            }
         }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -465,10 +772,16 @@ async fn delete_queue(
             .into_response();
     };
     let qname = r.queue_name.clone();
+    let dp_link = crate::ring_groups::parse_dialplan_id(r.dialplan_uuid.as_deref());
     let am: call_centers::ActiveModel = r.into();
     let fs_name = fs_queue_name(db, domain, &qname).await;
     match am.delete(db).await {
         Ok(_) => {
+            if let Some(dp) = dp_link {
+                crate::ring_groups::delete_app_dialplan(db, domain, dp).await;
+            } else {
+                crate::fs_xml::invalidate_cache();
+            }
             propagate_cc(Some(&fs_name));
             StatusCode::NO_CONTENT.into_response()
         }
