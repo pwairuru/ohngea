@@ -293,6 +293,89 @@ async fn esl_originate_bridge_and_kill_call_flow() {
     );
 }
 
+// (4) FS directory per-user: enriched vars (alias/cidr/vm/variables block)
+// and tenant scoping (foreign domain never leaks the password).
+#[tokio::test]
+async fn fs_directory_per_user_enriched_vars_and_scoped() {
+    let token = login_token().await;
+    let (s, b) = post_json(
+        pbx_api::test_app(),
+        &token,
+        "/api/v1/extensions",
+        serde_json::json!({"extension":"1091","password":"pw-1091","domain":"dirtest.example.com","number_alias":"a1091","cidr":"10.9.0.0/16","toll_allow":"domestic","call_group":"sales","user_context":"dirtest.example.com","limit_destination":"1099","forward_busy_enabled":true,"forward_busy_destination":"1092","mwi_account":"1091@dirtest.example.com","auth_acl":"lan","absolute_codec_string":"PCMU,PCMA","effective_caller_id_name":"Dir Test"}),
+    )
+    .await;
+    assert!(
+        s == StatusCode::CREATED || s == StatusCode::CONFLICT,
+        "seed 1091: {b}"
+    );
+    let (s, b) = post_json(
+        pbx_api::test_app(),
+        &token,
+        "/api/v1/extensions",
+        serde_json::json!({"extension":"1092","password":"pw-1092","domain":"dirtest.example.com","voicemail_password":"vm-1092","voicemail_mail_to":"ops@dirtest.example.com"}),
+    )
+    .await;
+    assert!(
+        s == StatusCode::CREATED || s == StatusCode::CONFLICT,
+        "seed 1092: {b}"
+    );
+
+    let fetch = |path: &str| {
+        let token = token.clone();
+        let path = path.to_owned();
+        async move {
+            let app = pbx_api::test_app();
+            let res = app
+                .oneshot(auth(
+                    Request::get(path).body(Body::empty()).unwrap(),
+                    &token,
+                ))
+                .await
+                .unwrap();
+            assert_eq!(res.status(), StatusCode::OK);
+            let bytes = axum::body::to_bytes(res.into_body(), 1024 * 128)
+                .await
+                .unwrap();
+            String::from_utf8_lossy(&bytes).to_string()
+        }
+    };
+
+    let xml = fetch("/api/internal/freeswitch/xml?section=directory&key_value=1091@dirtest.example.com").await;
+    for needle in [
+        "number-alias=\"a1091\"",
+        "cidr=\"10.9.0.0/16\"",
+        "<variable name=\"toll_allow\" value=\"domestic\"/>",
+        "<variable name=\"call_group\" value=\"sales\"/>",
+        "<variable name=\"limit_max\" value=\"5\"/>",
+        "<variable name=\"limit_destination\" value=\"1099\"/>",
+        "<param name=\"MWI-Account\" value=\"1091@dirtest.example.com\"/>",
+        "<param name=\"auth-acl\" value=\"lan\"/>",
+        "<variable name=\"absolute_codec_string\" value=\"PCMU,PCMA\"/>",
+        "<variable name=\"forward_busy_enabled\" value=\"true\"/>",
+        "<variable name=\"forward_busy_destination\" value=\"1092\"/>",
+        "sofia_contact",
+        "pw-1091",
+    ] {
+        assert!(xml.contains(needle), "missing {needle}: {xml}");
+    }
+
+    let xml = fetch("/api/internal/freeswitch/xml?section=directory&key_value=1092@dirtest.example.com").await;
+    for needle in [
+        "<param name=\"vm-password\" value=\"vm-1092\"/>",
+        "<param name=\"vm-mailto\" value=\"ops@dirtest.example.com\"/>",
+    ] {
+        assert!(xml.contains(needle), "missing {needle}: {xml}");
+    }
+
+    // Foreign domain must not serve this tenant's password.
+    let xml = fetch("/api/internal/freeswitch/xml?section=directory&key_value=1091@other.example.com").await;
+    assert!(
+        !xml.contains("pw-1091"),
+        "cross-domain leak: {xml}"
+    );
+}
+
 // RED: vars non-empty after boot-seed (seeds run at boot, not only in tests)
 #[tokio::test]
 async fn vars_nonempty_after_boot_seed() {
