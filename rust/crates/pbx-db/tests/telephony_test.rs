@@ -304,6 +304,9 @@ fn sofia_xml_db_profile_mirrors_python_field_mapping() {
         local_network_acl: None, // -> localnet.auto
         hold_music: Some("$${hold_music}".to_owned()),
         record_path: None,
+        settings: vec![],
+        domains: vec![],
+        gateways: vec![],
     };
     let xml = build_sofia_xml(std::slice::from_ref(&p));
     for param in [
