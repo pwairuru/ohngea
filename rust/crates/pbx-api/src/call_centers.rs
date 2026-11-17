@@ -8,7 +8,7 @@
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
 use pbx_fs::esl::EsClient;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 // ---- models ----
 use pbx_db::entities::{call_center_agents, call_center_tiers, call_centers};
@@ -21,6 +21,37 @@ struct QueueCreate {
     queue_extension: Option<String>,
     #[serde(default = "default_strategy")]
     queue_strategy: String,
+    #[serde(default)] dialplan_uuid: Option<String>,
+    #[serde(default, alias = "queue_greeting")] greeting: Option<String>,
+    #[serde(default, alias = "queue_moh_sound")] moh_sound: Option<String>,
+    #[serde(default, alias = "queue_record_template")] record_template: Option<String>,
+    #[serde(default)] queue_record_enabled: Option<bool>,
+    #[serde(default, alias = "queue_language")] language: Option<String>,
+    #[serde(default, alias = "queue_dialect")] dialect: Option<String>,
+    #[serde(default, alias = "queue_voice")] voice: Option<String>,
+    #[serde(default)] queue_limit: Option<i32>,
+    #[serde(default)] time_base_score: Option<String>,
+    #[serde(default)] time_base_score_sec: Option<i32>,
+    #[serde(default, alias = "queue_max_wait_time")] max_wait_time: Option<i32>,
+    #[serde(default, alias = "queue_max_wait_time_with_no_agent")] max_wait_time_with_no_agent: Option<i32>,
+    #[serde(default, alias = "queue_max_wait_time_with_no_agent_time_reached")] max_wait_time_with_no_agent_time_reached: Option<i32>,
+    #[serde(default, alias = "queue_tier_rules_apply")] tier_rules_apply: Option<bool>,
+    #[serde(default, alias = "queue_tier_rule_wait_second")] tier_rule_wait_second: Option<i32>,
+    #[serde(default, alias = "queue_tier_rule_no_agent_no_wait")] tier_rule_no_agent_no_wait: Option<bool>,
+    #[serde(default, alias = "queue_timeout_action")] timeout_action: Option<String>,
+    #[serde(default, alias = "queue_discard_abandoned_after")] discard_abandoned_after: Option<i32>,
+    #[serde(default, alias = "queue_abandoned_resume_allowed")] abandoned_resume_allowed: Option<bool>,
+    #[serde(default, alias = "queue_tier_rule_wait_multiply_level")] tier_rule_wait_multiply_level: Option<bool>,
+    #[serde(default, alias = "queue_cid_prefix")] cid_prefix: Option<String>,
+    #[serde(default, alias = "queue_outbound_caller_id_name")] outbound_caller_id_name: Option<String>,
+    #[serde(default, alias = "queue_outbound_caller_id_number")] outbound_caller_id_number: Option<String>,
+    #[serde(default, alias = "queue_announce_position")] announce_position: Option<bool>,
+    #[serde(default, alias = "queue_announce_sound")] announce_sound: Option<String>,
+    #[serde(default, alias = "queue_announce_frequency")] announce_frequency: Option<i32>,
+    #[serde(default, alias = "queue_cc_exit_keys")] cc_exit_keys: Option<String>,
+    #[serde(default, alias = "queue_email_address")] email_address: Option<String>,
+    #[serde(default, alias = "queue_context")] context: Option<String>,
+    #[serde(default)] queue_description: Option<String>,
 }
 
 fn default_strategy() -> String {
@@ -33,6 +64,18 @@ struct AgentCreate {
     queue_id: Option<String>,
     agent_name: String,
     agent_contact: String,
+    #[serde(default)] user_uuid: Option<String>,
+    #[serde(default)] agent_type: Option<String>,
+    #[serde(default)] agent_call_timeout: Option<i32>,
+    #[serde(default)] agent_id: Option<String>,
+    #[serde(default)] agent_password: Option<String>,
+    #[serde(default)] agent_logout: Option<String>,
+    #[serde(default)] agent_max_no_answer: Option<i32>,
+    #[serde(default)] agent_wrap_up_time: Option<i32>,
+    #[serde(default)] agent_reject_delay_time: Option<i32>,
+    #[serde(default)] agent_busy_delay_time: Option<i32>,
+    #[serde(default)] agent_no_answer_delay_time: Option<i32>,
+    #[serde(default)] agent_record: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -42,6 +85,9 @@ struct TierCreate {
     tier_level: i32,
     #[serde(default = "default_tier_position")]
     tier_position: i32,
+    #[serde(default)] call_center_queue_uuid: Option<String>,
+    #[serde(default)] call_center_agent_uuid: Option<String>,
+    #[serde(default)] queue_name: Option<String>,
 }
 
 fn default_tier_level() -> i32 {
@@ -56,30 +102,110 @@ struct JoinReq {
     agent_name: String,
 }
 
-#[derive(Debug, Serialize)]
-struct QueueOut {
-    call_center_queue_uuid: String,
-    queue_name: String,
-    queue_extension: Option<String>,
+// ---- esl propagation (Task 5 triggers) ----
+
+/// FreeSWITCH propagation after call-center writes: per-key
+/// `callcenter.conf` invalidate + `reloadxml` (+ queue-scoped reload when
+/// the queue's FS name is known) over real ESL with loud failures.
+fn propagate_cc(queue: Option<&str>) {
+    crate::fs_xml::invalidate_key("configuration:callcenter.conf");
+    match queue {
+        Some(q) => crate::fs_xml::propagate_esl(&[
+            "reloadxml",
+            &format!("callcenter_config queue reload {q}"),
+        ]),
+        None => crate::fs_xml::propagate_esl(&["reloadxml"]),
+    }
 }
 
-// ---- handlers ----
+/// FS-side queue identity (`queue@domain`, spaces underscored — the same
+/// string `serve_callcenter_conf` renders).
+async fn fs_queue_name(
+    db: &sea_orm::DatabaseConnection,
+    domain: uuid::Uuid,
+    queue_name: &str,
+) -> String {
+    let label = pbx_db::entities::domains::Entity::find_by_id(domain)
+        .one(db)
+        .await
+        .unwrap_or(None)
+        .map(|d| d.domain_name)
+        .unwrap_or_else(|| format!("tenant-{domain}"));
+    format!("{}@{label}", queue_name.replace(' ', "_"))
+}
+
+async fn fs_queue_name_by_id(
+    db: &sea_orm::DatabaseConnection,
+    domain: uuid::Uuid,
+    qid: &str,
+) -> Option<String> {
+    match queue_or_404(db, domain, qid).await {
+        Some(q) => Some(fs_queue_name(db, domain, &q.queue_name).await),
+        None => None,
+    }
+}
 fn ser_queue(r: &call_centers::Model) -> serde_json::Value {
-    serde_json::json!({
+    let mut v = serde_json::json!({
         "call_center_queue_uuid": r.call_center_queue_uuid,
         "queue_name": r.queue_name,
         "queue_extension": r.queue_extension,
         "queue_strategy": r.queue_strategy,
-    })
+        "queue_enabled": r.queue_enabled,
+        "dialplan_uuid": r.dialplan_uuid,
+        "greeting": r.greeting,
+        "moh_sound": r.moh_sound,
+        "record_template": r.record_template,
+        "queue_record_enabled": r.record_template.as_deref().is_some_and(|s| !s.trim().is_empty()),
+        "language": r.language,
+        "dialect": r.dialect,
+        "voice": r.voice,
+        "queue_limit": r.queue_limit,
+        "time_base_score": r.time_base_score,
+        "time_base_score_sec": r.time_base_score_sec,
+        "max_wait_time": r.max_wait_time,
+        "max_wait_time_with_no_agent": r.max_wait_time_with_no_agent,
+        "max_wait_time_with_no_agent_time_reached": r.max_wait_time_with_no_agent_time_reached,
+        "tier_rules_apply": r.tier_rules_apply,
+        "tier_rule_wait_second": r.tier_rule_wait_second,
+        "tier_rule_no_agent_no_wait": r.tier_rule_no_agent_no_wait,
+        "timeout_action": r.timeout_action,
+        "discard_abandoned_after": r.discard_abandoned_after,
+        "abandoned_resume_allowed": r.abandoned_resume_allowed,
+        "tier_rule_wait_multiply_level": r.tier_rule_wait_multiply_level,
+        "cid_prefix": r.cid_prefix,
+        "outbound_caller_id_name": r.outbound_caller_id_name,
+        "outbound_caller_id_number": r.outbound_caller_id_number,
+        "announce_position": r.announce_position,
+        "announce_sound": r.announce_sound,
+        "announce_frequency": r.announce_frequency,
+        "cc_exit_keys": r.cc_exit_keys,
+        "email_address": r.email_address,
+        "context": r.context,
+        "queue_description": r.queue_description,
+    });
+    crate::alias::emit_aliases(&mut v);
+    v
 }
 
 fn ser_agent(r: &call_center_agents::Model) -> serde_json::Value {
     serde_json::json!({
         "call_center_agent_uuid": r.call_center_agent_uuid,
         "queue_id": r.queue_id,
+        "user_uuid": r.user_uuid,
         "agent_name": r.agent_name,
+        "agent_type": r.agent_type,
+        "agent_call_timeout": r.agent_call_timeout,
+        "agent_id": r.agent_id,
+        "agent_password": r.agent_password,
         "agent_contact": r.agent_contact,
         "agent_status": r.agent_status,
+        "agent_logout": r.agent_logout,
+        "agent_max_no_answer": r.agent_max_no_answer,
+        "agent_wrap_up_time": r.agent_wrap_up_time,
+        "agent_reject_delay_time": r.agent_reject_delay_time,
+        "agent_busy_delay_time": r.agent_busy_delay_time,
+        "agent_no_answer_delay_time": r.agent_no_answer_delay_time,
+        "agent_record": r.agent_record,
     })
 }
 
@@ -87,7 +213,10 @@ fn ser_tier(r: &call_center_tiers::Model) -> serde_json::Value {
     serde_json::json!({
         "call_center_tier_uuid": r.call_center_tier_uuid,
         "queue_id": r.queue_id,
+        "call_center_queue_uuid": r.call_center_queue_uuid,
+        "call_center_agent_uuid": r.call_center_agent_uuid,
         "agent_name": r.agent_name,
+        "queue_name": r.queue_name,
         "tier_level": r.tier_level,
         "tier_position": r.tier_position,
     })
@@ -130,6 +259,38 @@ async fn create_queue(
         queue_extension: Set(payload.queue_extension.clone()),
         queue_strategy: Set(payload.queue_strategy.clone()),
         queue_enabled: Set(true),
+        dialplan_uuid: Set(payload.dialplan_uuid.clone()),
+        greeting: Set(payload.greeting.clone()),
+        moh_sound: Set(payload.moh_sound.clone()),
+        record_template: Set(match payload.queue_record_enabled {
+            Some(false) => None,
+            _ => payload.record_template.clone(),
+        }),
+        language: Set(payload.language.clone()),        dialect: Set(payload.dialect.clone()),
+        voice: Set(payload.voice.clone()),
+        queue_limit: Set(payload.queue_limit),
+        time_base_score: Set(payload.time_base_score.clone()),
+        time_base_score_sec: Set(payload.time_base_score_sec),
+        max_wait_time: Set(payload.max_wait_time),
+        max_wait_time_with_no_agent: Set(payload.max_wait_time_with_no_agent),
+        max_wait_time_with_no_agent_time_reached: Set(payload.max_wait_time_with_no_agent_time_reached),
+        tier_rules_apply: Set(payload.tier_rules_apply),
+        tier_rule_wait_second: Set(payload.tier_rule_wait_second),
+        tier_rule_no_agent_no_wait: Set(payload.tier_rule_no_agent_no_wait),
+        timeout_action: Set(payload.timeout_action.clone()),
+        discard_abandoned_after: Set(payload.discard_abandoned_after),
+        abandoned_resume_allowed: Set(payload.abandoned_resume_allowed),
+        tier_rule_wait_multiply_level: Set(payload.tier_rule_wait_multiply_level),
+        cid_prefix: Set(payload.cid_prefix.clone()),
+        outbound_caller_id_name: Set(payload.outbound_caller_id_name.clone()),
+        outbound_caller_id_number: Set(payload.outbound_caller_id_number.clone()),
+        announce_position: Set(payload.announce_position),
+        announce_sound: Set(payload.announce_sound.clone()),
+        announce_frequency: Set(payload.announce_frequency),
+        cc_exit_keys: Set(payload.cc_exit_keys.clone()),
+        email_address: Set(payload.email_address.clone()),
+        context: Set(payload.context.clone()),
+        queue_description: Set(payload.queue_description.clone()),
         created_at: Set(now),
         updated_at: Set(now),
     };
@@ -140,15 +301,22 @@ async fn create_queue(
         )
             .into_response();
     }
-    (
-        StatusCode::CREATED,
-        Json(serde_json::json!(QueueOut {
-            call_center_queue_uuid: id,
-            queue_name: payload.queue_name,
-            queue_extension: payload.queue_extension,
-        })),
-    )
-        .into_response()
+    match call_centers::Entity::find_by_id(id)
+        .filter(call_centers::Column::DomainId.eq(domain))
+        .one(db)
+        .await
+        .unwrap_or(None)
+    {
+        Some(r) => {
+            propagate_cc(Some(&fs_queue_name(db, domain, &r.queue_name).await));
+            (StatusCode::CREATED, Json(ser_queue(&r))).into_response()
+        }
+        None => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": "insert failed"})),
+        )
+            .into_response(),
+    }
 }
 
 async fn list_queues(
@@ -202,6 +370,7 @@ async fn patch_queue(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_add") {
         return (s, j).into_response();
     }
@@ -215,6 +384,9 @@ async fn patch_queue(
             .into_response();
     };
     let mut am: call_centers::ActiveModel = r.into();
+    macro_rules! set_str { ($f:ident) => { if payload.get(stringify!($f)).is_some() { am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_str()).map(str::to_owned)); } }; }
+    macro_rules! set_int { ($f:ident) => { if payload.get(stringify!($f)).is_some() { am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_i64()).map(|v| v as i32)); } }; }
+    macro_rules! set_bool { ($f:ident) => { if payload.get(stringify!($f)).is_some() { am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_bool())); } }; }
     if let Some(v) = payload.get("queue_name").and_then(|v| v.as_str()) {
         am.queue_name = Set(v.to_owned());
     }
@@ -224,9 +396,30 @@ async fn patch_queue(
     if let Some(v) = payload.get("queue_strategy").and_then(|v| v.as_str()) {
         am.queue_strategy = Set(v.to_owned());
     }
+    if payload.get("queue_enabled").is_some() { am.queue_enabled = Set(payload.get("queue_enabled").and_then(|v| v.as_bool()).unwrap_or(true)); }
+    set_str!(dialplan_uuid); set_str!(greeting); set_str!(moh_sound);
+    if payload.get("queue_record_enabled").and_then(|v| v.as_bool()) == Some(false) {
+        am.record_template = Set(None);
+    } else {
+        set_str!(record_template);
+    }
+    set_str!(language); set_str!(dialect); set_str!(voice);
+    set_int!(queue_limit); set_str!(time_base_score); set_int!(time_base_score_sec);
+    set_int!(max_wait_time); set_int!(max_wait_time_with_no_agent);
+    set_int!(max_wait_time_with_no_agent_time_reached);
+    set_bool!(tier_rules_apply); set_int!(tier_rule_wait_second);
+    set_bool!(tier_rule_no_agent_no_wait);
+    set_str!(timeout_action); set_int!(discard_abandoned_after);
+    set_bool!(abandoned_resume_allowed); set_bool!(tier_rule_wait_multiply_level);
+    set_str!(cid_prefix); set_str!(outbound_caller_id_name); set_str!(outbound_caller_id_number);
+    set_bool!(announce_position); set_str!(announce_sound); set_int!(announce_frequency);
+    set_str!(cc_exit_keys); set_str!(email_address); set_str!(context); set_str!(queue_description);
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
-        Ok(r) => (StatusCode::OK, Json(ser_queue(&r))).into_response(),
+        Ok(r) => {
+            propagate_cc(Some(&fs_queue_name(db, domain, &r.queue_name).await));
+            (StatusCode::OK, Json(ser_queue(&r))).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("update failed: {e}")})),
@@ -271,9 +464,14 @@ async fn delete_queue(
         )
             .into_response();
     };
+    let qname = r.queue_name.clone();
     let am: call_centers::ActiveModel = r.into();
+    let fs_name = fs_queue_name(db, domain, &qname).await;
     match am.delete(db).await {
-        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Ok(_) => {
+            propagate_cc(Some(&fs_name));
+            StatusCode::NO_CONTENT.into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
@@ -300,9 +498,21 @@ async fn insert_agent(
         call_center_agent_uuid: Set(id),
         domain_id: Set(domain),
         queue_id: Set(queue_id.to_owned()),
+        user_uuid: Set(payload.user_uuid.clone()),
         agent_name: Set(payload.agent_name.clone()),
+        agent_type: Set(payload.agent_type.clone()),
+        agent_call_timeout: Set(payload.agent_call_timeout),
+        agent_id: Set(payload.agent_id.clone()),
+        agent_password: Set(payload.agent_password.clone()),
         agent_contact: Set(payload.agent_contact.clone()),
         agent_status: Set("available".to_owned()),
+        agent_logout: Set(payload.agent_logout.clone()),
+        agent_max_no_answer: Set(payload.agent_max_no_answer),
+        agent_wrap_up_time: Set(payload.agent_wrap_up_time),
+        agent_reject_delay_time: Set(payload.agent_reject_delay_time),
+        agent_busy_delay_time: Set(payload.agent_busy_delay_time),
+        agent_no_answer_delay_time: Set(payload.agent_no_answer_delay_time),
+        agent_record: Set(payload.agent_record),
     };
     am.insert(db)
         .await
@@ -326,15 +536,18 @@ async fn create_agent_legacy(
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match insert_agent(db, domain, &qid, &payload).await {
-        Ok(r) => (
-            StatusCode::CREATED,
-            Json(serde_json::json!({
-                "call_center_agent_uuid": r.call_center_agent_uuid,
-                "agent_name": r.agent_name,
-                "agent_contact": r.agent_contact,
-            })),
-        )
-            .into_response(),
+        Ok(r) => {
+            propagate_cc(fs_queue_name_by_id(db, domain, &qid).await.as_deref());
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({
+                    "call_center_agent_uuid": r.call_center_agent_uuid,
+                    "agent_name": r.agent_name,
+                    "agent_contact": r.agent_contact,
+                })),
+            )
+                .into_response()
+        }
         Err(e) if e == "NOT_FOUND" => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "queue not found"})),
@@ -400,7 +613,10 @@ async fn create_agent_nested(
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match insert_agent(db, domain, &qid, &payload).await {
-        Ok(r) => (StatusCode::CREATED, Json(ser_agent(&r))).into_response(),
+        Ok(r) => {
+            propagate_cc(fs_queue_name_by_id(db, domain, &qid).await.as_deref());
+            (StatusCode::CREATED, Json(ser_agent(&r))).into_response()
+        }
         Err(e) if e == "NOT_FOUND" => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Call center not found"})),
@@ -433,6 +649,7 @@ async fn patch_agent(
     axum::extract::Path((qid, aid)): axum::extract::Path<(String, String)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_add") {
         return (s, j).into_response();
     }
@@ -455,8 +672,12 @@ async fn patch_agent(
     if let Some(v) = payload.get("agent_name").and_then(|v| v.as_str()) {
         am.agent_name = Set(v.to_owned());
     }
+    let fs_name = fs_queue_name_by_id(db, domain, &qid).await;
     match am.update(db).await {
-        Ok(r) => (StatusCode::OK, Json(ser_agent(&r))).into_response(),
+        Ok(r) => {
+            propagate_cc(fs_name.as_deref());
+            (StatusCode::OK, Json(ser_agent(&r))).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("update failed: {e}")})),
@@ -482,8 +703,12 @@ async fn delete_agent(
             .into_response();
     };
     let am: call_center_agents::ActiveModel = r.into();
+    let fs_name = fs_queue_name_by_id(db, domain, &qid).await;
     match am.delete(db).await {
-        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Ok(_) => {
+            propagate_cc(fs_name.as_deref());
+            StatusCode::NO_CONTENT.into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
@@ -560,6 +785,9 @@ async fn create_tier(
     }
     let id = crate::routing_db::new_uuid();
     let am = call_center_tiers::ActiveModel {
+        call_center_queue_uuid: Set(payload.call_center_queue_uuid.clone().or_else(|| Some(qid.clone()))),
+        call_center_agent_uuid: Set(payload.call_center_agent_uuid.clone()),
+        queue_name: Set(payload.queue_name.clone()),
         call_center_tier_uuid: Set(id.clone()),
         domain_id: Set(domain),
         queue_id: Set(qid.clone()),
@@ -568,16 +796,19 @@ async fn create_tier(
         tier_position: Set(payload.tier_position),
     };
     match am.insert(db).await {
-        Ok(_) => (
-            StatusCode::CREATED,
-            Json(serde_json::json!({
-                "call_center_tier_uuid": id,
-                "queue_id": qid,
-                "agent_name": payload.agent_name,
-                "tier_level": payload.tier_level,
-            })),
-        )
-            .into_response(),
+        Ok(_) => {
+            propagate_cc(fs_queue_name_by_id(db, domain, &qid).await.as_deref());
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({
+                    "call_center_tier_uuid": id,
+                    "queue_id": qid,
+                    "agent_name": payload.agent_name,
+                    "tier_level": payload.tier_level,
+                })),
+            )
+                .into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
@@ -605,6 +836,7 @@ async fn patch_tier(
     axum::extract::Path((qid, tid)): axum::extract::Path<(String, String)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_center_add") {
         return (s, j).into_response();
     }
@@ -617,6 +849,7 @@ async fn patch_tier(
         )
             .into_response();
     };
+    let qid_of_tier = r.queue_id.clone();
     let mut am: call_center_tiers::ActiveModel = r.into();
     if let Some(v) = payload.get("tier_level").and_then(|v| v.as_i64()) {
         am.tier_level = Set(v as i32);
@@ -627,8 +860,12 @@ async fn patch_tier(
     if let Some(v) = payload.get("agent_name").and_then(|v| v.as_str()) {
         am.agent_name = Set(v.to_owned());
     }
+    let fs_name = fs_queue_name_by_id(db, domain, &qid_of_tier).await;
     match am.update(db).await {
-        Ok(r) => (StatusCode::OK, Json(ser_tier(&r))).into_response(),
+        Ok(r) => {
+            propagate_cc(fs_name.as_deref());
+            (StatusCode::OK, Json(ser_tier(&r))).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("update failed: {e}")})),
@@ -653,9 +890,14 @@ async fn delete_tier(
         )
             .into_response();
     };
+    let qid_of_tier = r.queue_id.clone();
     let am: call_center_tiers::ActiveModel = r.into();
+    let fs_name = fs_queue_name_by_id(db, domain, &qid_of_tier).await;
     match am.delete(db).await {
-        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Ok(_) => {
+            propagate_cc(fs_name.as_deref());
+            StatusCode::NO_CONTENT.into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("delete failed: {e}")})),

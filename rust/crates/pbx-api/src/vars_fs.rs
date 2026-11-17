@@ -22,6 +22,15 @@ fn var_to_json(r: &pbx_db::entities::vars::Model) -> serde_json::Value {
     })
 }
 
+/// FreeSWITCH propagation after var writes: per-key `vars.xml` + `sofia.conf`
+/// invalidates (vars feed sofia settings interpolation) + `reloadxml` over
+/// real ESL (loud failures, never a silent mock fallback).
+fn propagate_vars() {
+    crate::fs_xml::invalidate_key("configuration:vars.xml");
+    crate::fs_xml::invalidate_key("configuration:sofia.conf");
+    crate::fs_xml::propagate_esl(&["reloadxml"]);
+}
+
 async fn create_var(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     Json(payload): Json<serde_json::Value>,
@@ -95,6 +104,7 @@ async fn create_var(
         }
     };
     let _ = txn.commit().await;
+    propagate_vars();
     (StatusCode::CREATED, Json(var_to_json(&row))).into_response()
 }
 
@@ -220,17 +230,7 @@ async fn patch_var(
         }
     };
     let _ = txn.commit().await;
-    crate::fs_xml::invalidate_cache();
-    let names = crate::sip::profile_names().await;
-    let inputs: Vec<pbx_fs::sofia::SofiaProfileInput> = names
-        .iter()
-        .map(|n| pbx_fs::sofia::SofiaProfileInput {
-            name: n.clone(),
-            sip_port: 5060,
-            ..Default::default()
-        })
-        .collect();
-    let _regen = pbx_fs::sofia::build_sofia_xml(&inputs);
+    propagate_vars();
     (StatusCode::OK, Json(var_to_json(&row))).into_response()
 }
 
@@ -268,7 +268,7 @@ async fn delete_var(
     match res {
         Ok(r) if r.rows_affected > 0 => {
             let _ = txn.commit().await;
-            crate::fs_xml::invalidate_cache();
+            propagate_vars();
             StatusCode::NO_CONTENT.into_response()
         }
         _ => (

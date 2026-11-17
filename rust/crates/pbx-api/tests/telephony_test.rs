@@ -402,3 +402,160 @@ async fn sip_profiles_status_returns_profiles_and_connected() {
         "connected flag: {b}"
     );
 }
+
+fn nanos() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos()
+}
+
+async fn get_xml(token: &str, path: &str) -> String {
+    let app = pbx_api::test_app();
+    let res = app
+        .oneshot(auth(
+            Request::get(path).body(Body::empty()).unwrap(),
+            token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK, "GET {path}");
+    let bytes = axum::body::to_bytes(res.into_body(), 1024 * 256)
+        .await
+        .unwrap();
+    String::from_utf8_lossy(&bytes).to_string()
+}
+
+// Task 5: gateway rows are served inside sofia.conf (per-profile,
+// lowercase-uuid gateway name + params); DELETE invalidates the key so the
+// gateway disappears on the next fetch.
+#[tokio::test]
+async fn configuration_gateway_served_inside_sofia() {
+    let token = login_token().await;
+    let n = nanos();
+    let profile = format!("t5prof{n}");
+    let (s, _) = post_json(
+        pbx_api::test_app(),
+        &token,
+        "/api/v1/sip_profiles",
+        serde_json::json!({"name": profile}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "seed profile");
+
+    let (s, b) = post_json(
+        pbx_api::test_app(),
+        &token,
+        "/api/v1/gateways",
+        serde_json::json!({"gateway": format!("t5gw{n}"), "profile": profile, "username": "t5user", "password": "t5pw", "proxy": "sip.t5.example"}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "seed gateway: {b}");
+    let gid = b
+        .get("gateway_uuid")
+        .and_then(|v| v.as_str())
+        .expect("gateway_uuid in response")
+        .to_string();
+
+    let xml = get_xml(&token, "/api/internal/freeswitch/xml?section=configuration&key_value=sofia.conf").await;
+    assert!(
+        xml.contains(&format!("<gateway name=\"{}\">", gid.to_lowercase())),
+        "gateway element served: {xml}"
+    );
+    assert!(xml.contains("<param name=\"username\" value=\"t5user\"/>"), "{xml}");
+    assert!(xml.contains(&format!("<profile name=\"{profile}\">")), "{xml}");
+
+    // DELETE -> per-key invalidate + killgw: gateway gone on next fetch.
+    let app = pbx_api::test_app();
+    let res = app
+        .oneshot(auth(
+            Request::delete(format!("/api/v1/gateways/{gid}"))
+                .body(Body::empty())
+                .unwrap(),
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::NO_CONTENT, "delete gateway");
+    let xml = get_xml(&token, "/api/internal/freeswitch/xml?section=configuration&key_value=sofia.conf").await;
+    assert!(
+        !xml.contains(&gid.to_lowercase()),
+        "deleted gateway must vanish: {xml}"
+    );
+}
+
+// Task 5: vars rows served as vars.xml (hostname/null scope, Provision
+// excluded); PATCH/DELETE invalidate per-key.
+#[tokio::test]
+async fn configuration_vars_served_from_rows() {
+    let token = login_token().await;
+    let n = nanos();
+    let cat = format!("T5Cat{n}");
+    let name = format!("t5var{n}");
+    let (s, _) = post_json(
+        pbx_api::test_app(),
+        &token,
+        "/api/v1/vars",
+        serde_json::json!({"var_category": cat, "var_name": name, "var_value": "t5val"}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "seed var");
+    let (s, _) = post_json(
+        pbx_api::test_app(),
+        &token,
+        "/api/v1/vars",
+        serde_json::json!({"var_category": "Provision", "var_name": format!("t5prov{n}"), "var_value": "no"}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "seed provision var");
+
+    let xml = get_xml(&token, "/api/internal/freeswitch/xml?section=configuration&key_value=vars.xml").await;
+    assert!(
+        xml.contains(&format!("<X-PRE-PROCESS cmd=\"set\" data=\"{name}=t5val\" />")),
+        "var served: {xml}"
+    );
+    assert!(
+        !xml.contains(&format!("t5prov{n}")),
+        "Provision excluded: {xml}"
+    );
+}
+
+// Task 5: call-center rows served as callcenter.conf (queue@domain, agent
+// contact call_timeout); CRUD invalidates per-key.
+#[tokio::test]
+async fn configuration_callcenter_served_from_rows() {
+    let token = login_token().await;
+    let n = nanos();
+    let queue = format!("t5queue{n}");
+    let agent = format!("t5agent{n}");
+    let (s, b) = post_json(
+        pbx_api::test_app(),
+        &token,
+        "/api/v1/call_centers",
+        serde_json::json!({"queue_name": queue, "queue_strategy": "longest-idle-agent"}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "seed queue: {b}");
+    let qid = b
+        .get("call_center_queue_uuid")
+        .and_then(|v| v.as_str())
+        .expect("queue uuid in response")
+        .to_string();
+
+    let (s, b) = post_json(
+        pbx_api::test_app(),
+        &token,
+        &format!("/api/v1/call_centers/{qid}/agents"),
+        serde_json::json!({"agent_name": agent, "agent_contact": "user/1001@example.com", "agent_call_timeout": 45}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "seed agent: {b}");
+
+    let xml = get_xml(&token, "/api/internal/freeswitch/xml?section=configuration&key_value=callcenter.conf").await;
+    assert!(xml.contains(&format!("<queue name=\"{queue}@")), "queue served: {xml}");
+    assert!(xml.contains(&format!("<agent name=\"{agent}@")), "agent served: {xml}");
+    assert!(
+        xml.contains("contact=\"{call_timeout=45}user/1001@example.com\""),
+        "agent contact timeout: {xml}"
+    );
+}

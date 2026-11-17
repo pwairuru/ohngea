@@ -22,6 +22,42 @@ pub fn invalidate_cache() {
     }
 }
 
+/// Drop one FS XML cache key (Task 5 CRUD triggers: per-key invalidate,
+/// not full wipe).
+pub fn invalidate_key(key: &str) {
+    if let Ok(mut guard) = cache().try_write() {
+        guard.remove(key);
+    }
+}
+
+/// Drop every FS XML cache key with `prefix` (e.g. `configuration:ivr.conf`
+/// covers per-menu `configuration:ivr.conf:{uuid}` keys).
+pub fn invalidate_prefix(prefix: &str) {
+    if let Ok(mut guard) = cache().try_write() {
+        guard.remove_prefix(prefix);
+    }
+}
+
+/// Best-effort FreeSWITCH propagation with LOUD failures: every command runs
+/// over real ESL (`try_api`, never the mock fallback); an unreachable switch
+/// is logged to stderr so failures are never silently masked. DB writes
+/// already succeeded — callers do not fail the HTTP request on ESL errors.
+pub fn propagate_esl(commands: &[&str]) {
+    let esl = pbx_fs::esl::RealEs::from_env();
+    for cmd in commands {
+        if esl.try_api(cmd).is_none() {
+            eprintln!("[pbx-api] ESL propagate failed (FS down?) cmd={cmd}");
+        }
+    }
+}
+
+/// Switch hostname for hostname-scoped rows (`v_vars.var_hostname`,
+/// `v_sip_profiles.hostname`, `v_gateways.hostname`; Lua `hostname` parity).
+/// Containers set `HOSTNAME`; empty means "no hostname rows match".
+fn local_hostname() -> String {
+    std::env::var("HOSTNAME").unwrap_or_default()
+}
+
 /// Full-domain directory document: every enabled extension with its
 /// stored password. mod_sofia resolves REGISTER users from this.
 /// Enriched per lua `directory.lua` + PHP `extension.php`: joins
@@ -590,22 +626,482 @@ fn render_extension(
 fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
-fn cached_or_render(key: &str, render: impl FnOnce() -> String) -> String {
-    // Sync render path (dialplan/configuration): use a blocking read, then
-    // a single write holding one `Arc` clone for the store — no double
-    // `String` duplication per miss.
-    if let Ok(guard) = cache().try_read() {
-        if let Some(hit) = guard.get(key) {
-            return hit.to_string();
-        }
+
+/// Task 5: DB-backed `configuration:{section}` documents (PHP
+/// `switch.php` + Lua `xml_handler` parity). Unknown sections keep the
+/// IP-fallback shell from `build_configuration_xml`.
+async fn render_configuration(key_value: &str, menu: &str) -> String {
+    if key_value.contains("sofia.conf") {
+        return serve_sofia_conf().await;
     }
-    let doc: Arc<str> = Arc::from(render());
-    if let Ok(mut guard) = cache().try_write() {
-        guard.insert(key.to_owned(), Arc::clone(&doc));
+    if key_value == "vars.xml" || key_value.ends_with("/vars.xml") {
+        return serve_vars_xml().await;
     }
-    doc.to_string()
+    if key_value.contains("callcenter.conf") {
+        return serve_callcenter_conf().await;
+    }
+    if key_value.contains("ivr.conf") {
+        return serve_ivr_conf(menu).await;
+    }
+    if key_value.contains("conference.conf") {
+        return serve_conference_conf().await;
+    }
+    if key_value.contains("local_stream.conf") {
+        return serve_local_stream_conf().await;
+    }
+    pbx_fs::xml::build_configuration_xml(key_value, key_value)
 }
 
+/// All domains as `{domain_id: domain_name}` (queue/agent `@domain`
+/// suffixes; orphan rows fall back to `tenant-{uuid}`).
+async fn domain_name_map(
+    db: &sea_orm::DatabaseConnection,
+) -> std::collections::HashMap<uuid::Uuid, String> {
+    use sea_orm::EntityTrait;
+    pbx_db::entities::domains::Entity::find()
+        .all(db)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|d| (d.domain_id, d.domain_name))
+        .collect()
+}
+
+fn domain_label(map: &std::collections::HashMap<uuid::Uuid, String>, id: &uuid::Uuid) -> String {
+    map.get(id).cloned().unwrap_or_else(|| format!("tenant-{id}"))
+}
+
+/// Hostname scoping (Lua `... or hostname is null or hostname = ''`
+/// parity): rows with no hostname always match.
+fn hostname_cond<C: sea_orm::ColumnTrait>(col: C, host: &str) -> sea_orm::Condition {
+    sea_orm::Condition::any()
+        .add(col.is_null())
+        .add(col.eq(""))
+        .add(col.eq(host.to_owned()))
+}
+
+fn gateway_to_input(r: &pbx_db::entities::gateways::Model) -> pbx_fs::config::GatewayInput {
+    pbx_fs::config::GatewayInput {
+        gateway_uuid: r.gateway_uuid.to_string(),
+        username: r.username.clone(),
+        password: r.password.clone(),
+        proxy: r.proxy.clone(),
+        register: r.gateway_register,
+        profile: r.profile.clone().unwrap_or_default(),
+        context: r.context.clone(),
+        enabled: r.enabled,
+        distinct_to: r.distinct_to,
+        auth_username: r.auth_username.clone(),
+        realm: r.realm.clone(),
+        from_user: r.from_user.clone(),
+        from_domain: r.from_domain.clone(),
+        register_proxy: r.register_proxy.clone(),
+        outbound_proxy: r.outbound_proxy.clone(),
+        expire_seconds: r.expire_seconds,
+        register_transport: r.register_transport.clone(),
+        contact_params: r.contact_params.clone(),
+        retry_seconds: r.retry_seconds,
+        extension: r.extension.clone(),
+        ping: r.ping.clone(),
+        ping_min: r.ping_min,
+        ping_max: r.ping_max,
+        contact_in_ping: r.contact_in_ping,
+        caller_id_in_from: r.caller_id_in_from,
+        supress_cng: r.supress_cng,
+        sip_cid_type: r.sip_cid_type.clone(),
+        extension_in_contact: r.extension_in_contact.clone(),
+    }
+}
+
+/// `sofia.conf` from rows (never the fallback when rows exist): enabled,
+/// hostname-scoped profiles + their enabled settings, domains and enabled,
+/// profile/hostname-scoped gateways + enabled global settings.
+async fn serve_sofia_conf() -> String {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+    let db = crate::routing_db::conn().await;
+    let host = local_hostname();
+    let profiles = pbx_db::entities::sip_profiles::Entity::find()
+        .filter(pbx_db::entities::sip_profiles::Column::Enabled.eq(true))
+        .filter(hostname_cond(
+            pbx_db::entities::sip_profiles::Column::Hostname,
+            &host,
+        ))
+        .order_by_asc(pbx_db::entities::sip_profiles::Column::Name)
+        .all(db)
+        .await
+        .unwrap_or_default();
+    if profiles.is_empty() {
+        return pbx_fs::sofia::build_sofia_xml(&[]);
+    }
+    let mut inputs = Vec::with_capacity(profiles.len());
+    for p in &profiles {
+        let settings = pbx_db::entities::sip_profile_settings::Entity::find()
+            .filter(
+                pbx_db::entities::sip_profile_settings::Column::SipProfileUuid.eq(p.sip_profile_uuid),
+            )
+            .filter(pbx_db::entities::sip_profile_settings::Column::Enabled.eq(true))
+            .all(db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|s| (s.setting_name, s.setting_value.unwrap_or_default()))
+            .collect();
+        let domains = pbx_db::entities::sip_profile_domains::Entity::find()
+            .filter(
+                pbx_db::entities::sip_profile_domains::Column::SipProfileUuid
+                    .eq(p.sip_profile_uuid),
+            )
+            .all(db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|d| {
+                (
+                    d.domain_name,
+                    d.domain_alias.filter(|s| !s.is_empty()).unwrap_or_else(|| "false".to_owned()),
+                    d.domain_parse.filter(|s| !s.is_empty()).unwrap_or_else(|| "false".to_owned()),
+                )
+            })
+            .collect();
+        let gateways = pbx_db::entities::gateways::Entity::find()
+            .filter(pbx_db::entities::gateways::Column::Profile.eq(p.name.clone()))
+            .filter(pbx_db::entities::gateways::Column::Enabled.eq(true))
+            .filter(hostname_cond(
+                pbx_db::entities::gateways::Column::Hostname,
+                &host,
+            ))
+            .all(db)
+            .await
+            .unwrap_or_default()
+            .iter()
+            .map(gateway_to_input)
+            .collect();
+        inputs.push(pbx_fs::sofia::SofiaProfileInput {
+            name: p.name.clone(),
+            sip_port: p.sip_port,
+            sip_ip: p.sip_ip.clone(),
+            ext_sip_ip: p.ext_sip_ip.clone(),
+            ext_rtp_ip: p.ext_rtp_ip.clone(),
+            rtp_ip: p.rtp_ip.clone(),
+            realm: p.realm.clone(),
+            context: p.context.clone(),
+            challenge_realm: p.challenge_realm.clone(),
+            apply_inbound_acl: p.apply_inbound_acl.clone(),
+            local_network_acl: p.local_network_acl.clone(),
+            hold_music: p.hold_music.clone(),
+            record_path: p.record_path.clone(),
+            settings,
+            domains,
+            gateways,
+        });
+    }
+    let globals = pbx_db::entities::sofia_global_settings::Entity::find()
+        .filter(pbx_db::entities::sofia_global_settings::Column::GlobalSettingEnabled.eq(true))
+        .order_by_asc(
+            pbx_db::entities::sofia_global_settings::Column::GlobalSettingName,
+        )
+        .all(db)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|g| (g.global_setting_name, g.global_setting_value))
+        .collect::<Vec<_>>();
+    pbx_fs::sofia::build_sofia_xml_with_globals(&inputs, &globals)
+}
+
+/// `vars.xml` body from enabled rows (hostname scoping + `Provision`
+/// exclusion + `Exec-Set` mapping live in the builder).
+async fn serve_vars_xml() -> String {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    let db = crate::routing_db::conn().await;
+    let rows = pbx_db::entities::vars::Entity::find()
+        .filter(pbx_db::entities::vars::Column::VarEnabled.eq(true))
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let inputs: Vec<pbx_fs::config::VarInput> = rows
+        .iter()
+        .map(|v| pbx_fs::config::VarInput {
+            category: v.var_category.clone(),
+            name: v.var_name.clone(),
+            value: v.var_value.clone(),
+            command: v.var_command.clone(),
+            hostname: v.var_hostname.clone(),
+            enabled: v.var_enabled,
+            order: v.var_order,
+        })
+        .collect();
+    pbx_fs::config::build_vars_xml(&inputs, &local_hostname())
+}
+
+/// `callcenter.conf` from queues/agents/tiers + domain names (PHP
+/// `save_call_center_xml` semantics: no enabled filter, matching the file
+/// writer and the Lua join which serve every row).
+async fn serve_callcenter_conf() -> String {
+    use sea_orm::EntityTrait;
+    let db = crate::routing_db::conn().await;
+    let names = domain_name_map(db).await;
+    let queues = pbx_db::entities::call_centers::Entity::find()
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let agents = pbx_db::entities::call_center_agents::Entity::find()
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let tiers = pbx_db::entities::call_center_tiers::Entity::find()
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let by_queue: std::collections::HashMap<String, &pbx_db::entities::call_centers::Model> =
+        queues.iter().map(|q| (q.call_center_queue_uuid.clone(), q)).collect();
+    let qinputs: Vec<(pbx_fs::config::CallcenterQueueInput, String)> = queues
+        .iter()
+        .map(|q| {
+            (
+                pbx_fs::config::CallcenterQueueInput {
+                    name: q.queue_name.clone(),
+                    extension: q.queue_extension.clone(),
+                    strategy: q.queue_strategy.clone(),
+                    moh_sound: q.moh_sound.clone(),
+                    record_template: q.record_template.clone(),
+                    time_base_score: q.time_base_score.clone(),
+                    max_wait_time: q.max_wait_time,
+                    max_wait_time_with_no_agent: q.max_wait_time_with_no_agent,
+                    max_wait_time_with_no_agent_time_reached: q
+                        .max_wait_time_with_no_agent_time_reached,
+                    tier_rules_apply: q.tier_rules_apply,
+                    tier_rule_wait_second: q.tier_rule_wait_second,
+                    tier_rule_wait_multiply_level: q.tier_rule_wait_multiply_level,
+                    tier_rule_no_agent_no_wait: q.tier_rule_no_agent_no_wait,
+                    discard_abandoned_after: q.discard_abandoned_after,
+                    abandoned_resume_allowed: q.abandoned_resume_allowed,
+                    announce_sound: q.announce_sound.clone(),
+                    announce_frequency: q.announce_frequency,
+                },
+                domain_label(&names, &q.domain_id),
+            )
+        })
+        .collect();
+    let ainputs: Vec<(pbx_fs::config::CallcenterAgentInput, String)> = agents
+        .iter()
+        .map(|a| {
+            (
+                pbx_fs::config::CallcenterAgentInput {
+                    uuid: a.call_center_agent_uuid.clone(),
+                    name: a.agent_name.clone(),
+                    agent_type: a.agent_type.clone(),
+                    contact: a.agent_contact.clone(),
+                    status: a.agent_status.clone(),
+                    call_timeout: a.agent_call_timeout.unwrap_or(30),
+                    no_answer_delay_time: a.agent_no_answer_delay_time,
+                    max_no_answer: a.agent_max_no_answer,
+                    wrap_up_time: a.agent_wrap_up_time,
+                    reject_delay_time: a.agent_reject_delay_time,
+                    busy_delay_time: a.agent_busy_delay_time,
+                    ..Default::default()
+                },
+                domain_label(&names, &a.domain_id),
+            )
+        })
+        .collect();
+    let tinputs: Vec<(pbx_fs::config::CallcenterTierInput, String)> = tiers
+        .iter()
+        .map(|t| {
+            // Queue side: resolve via the linked queue row first (Lua join
+            // parity), fall back to the tier's own queue_name column.
+            let qname = t
+                .call_center_queue_uuid
+                .as_deref()
+                .and_then(|id| by_queue.get(id))
+                .map(|q| q.queue_name.clone())
+                .or_else(|| t.queue_name.clone())
+                .unwrap_or_default();
+            (
+                pbx_fs::config::CallcenterTierInput {
+                    agent_name: t.agent_name.clone(),
+                    queue_name: qname,
+                    tier_level: t.tier_level,
+                    tier_position: t.tier_position,
+                },
+                domain_label(&names, &t.domain_id),
+            )
+        })
+        .collect();
+    pbx_fs::config::build_callcenter_xml(&qinputs, &ainputs, &tinputs)
+}
+
+/// `ivr.conf`: one menu by `Menu-Name` uuid when given, else every enabled
+/// menu, each with its enabled options in order.
+async fn serve_ivr_conf(menu_uuid: &str) -> String {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+    let db = crate::routing_db::conn().await;
+    let mut mq = pbx_db::entities::ivr_menus::Entity::find()
+        .filter(pbx_db::entities::ivr_menus::Column::Enabled.eq(true));
+    if !menu_uuid.is_empty() {
+        mq = mq.filter(pbx_db::entities::ivr_menus::Column::IvrMenuUuid.eq(menu_uuid.to_owned()));
+    }
+    let menus = mq.all(db).await.unwrap_or_default();
+    let names = domain_name_map(db).await;
+    let mut out: Vec<(pbx_fs::config::IvrMenuInput, Vec<pbx_fs::config::IvrOptionInput>)> =
+        Vec::with_capacity(menus.len());
+    for m in &menus {
+        let opts = pbx_db::entities::ivr_menu_options::Entity::find()
+            .filter(
+                pbx_db::entities::ivr_menu_options::Column::IvrMenuUuid.eq(m.ivr_menu_uuid.clone()),
+            )
+            .filter(pbx_db::entities::ivr_menu_options::Column::IvrMenuOptionEnabled.eq(true))
+            .order_by_asc(pbx_db::entities::ivr_menu_options::Column::OptionOrder)
+            .all(db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|o| pbx_fs::config::IvrOptionInput {
+                action: o.action,
+                digits: o.digits,
+                param: o.param,
+                description: None,
+            })
+            .collect::<Vec<_>>();
+        out.push((
+            pbx_fs::config::IvrMenuInput {
+                uuid: m.ivr_menu_uuid.clone(),
+                name: m.name.clone(),
+                description: m.description.clone(),
+                greet_long: m.greet_long.clone(),
+                greet_short: m.greet_short.clone(),
+                invalid_sound: m.invalid_sound.clone(),
+                exit_sound: m.exit_sound.clone(),
+                pin_number: m.pin_number.clone(),
+                confirm_macro: m.confirm_macro.clone(),
+                confirm_key: m.confirm_key.clone(),
+                tts_engine: m.tts_engine.clone(),
+                tts_voice: m.tts_voice.clone(),
+                confirm_attempts: m.confirm_attempts,
+                timeout: m.timeout,
+                inter_digit_timeout: m.inter_digit_timeout,
+                max_failures: m.max_failures,
+                max_timeouts: m.max_timeouts,
+                digit_len: m.digit_len,
+                exit_app: m.exit_app.clone(),
+                exit_data: m.exit_data.clone(),
+                direct_dial: m.direct_dial.unwrap_or(false),
+                context: m.context.clone(),
+                domain: domain_label(&names, &m.domain_id),
+            },
+            opts,
+        ));
+    }
+    let refs: Vec<(&pbx_fs::config::IvrMenuInput, &[pbx_fs::config::IvrOptionInput])> = out
+        .iter()
+        .map(|(m, o)| (m, o.as_slice()))
+        .collect();
+    pbx_fs::config::build_ivr_xml(&refs)
+}
+
+/// `conference.conf` from enabled profiles/params + controls/details.
+async fn serve_conference_conf() -> String {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    let db = crate::routing_db::conn().await;
+    let profiles = pbx_db::entities::conference_profiles::Entity::find()
+        .filter(pbx_db::entities::conference_profiles::Column::ProfileEnabled.eq(true))
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let mut pinputs = Vec::with_capacity(profiles.len());
+    for p in &profiles {
+        let params = pbx_db::entities::conference_profile_params::Entity::find()
+            .filter(
+                pbx_db::entities::conference_profile_params::Column::ConferenceProfileUuid
+                    .eq(p.conference_profile_uuid.clone()),
+            )
+            .filter(
+                pbx_db::entities::conference_profile_params::Column::ProfileParamEnabled.eq(true),
+            )
+            .all(db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|r| {
+                (
+                    r.profile_param_name.unwrap_or_default(),
+                    r.profile_param_value.unwrap_or_default(),
+                )
+            })
+            .collect();
+        pinputs.push(pbx_fs::config::ConferenceProfileInput {
+            name: p.profile_name.clone(),
+            params,
+        });
+    }
+    let controls = pbx_db::entities::conference_controls::Entity::find()
+        .filter(pbx_db::entities::conference_controls::Column::ControlEnabled.eq(true))
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let mut cinputs = Vec::with_capacity(controls.len());
+    for c in &controls {
+        let details = pbx_db::entities::conference_control_details::Entity::find()
+            .filter(
+                pbx_db::entities::conference_control_details::Column::ConferenceControlUuid
+                    .eq(c.conference_control_uuid.clone()),
+            )
+            .filter(
+                pbx_db::entities::conference_control_details::Column::ControlEnabled.eq(true),
+            )
+            .all(db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|r| {
+                (
+                    r.control_digits.unwrap_or_default(),
+                    r.control_action.unwrap_or_default(),
+                    r.control_data.unwrap_or_default(),
+                )
+            })
+            .collect();
+        cinputs.push(pbx_fs::config::ConferenceControlInput {
+            name: c.control_name.clone(),
+            details,
+        });
+    }
+    pbx_fs::config::build_conference_xml(&pinputs, &cinputs)
+}
+
+/// `local_stream.conf` from every music-on-hold row (Lua serves all rows)
+/// with `domain/name[/rate]` directory names.
+async fn serve_local_stream_conf() -> String {
+    use sea_orm::{EntityTrait, QueryOrder};
+    let db = crate::routing_db::conn().await;
+    let names = domain_name_map(db).await;
+    let rows = pbx_db::entities::music_on_hold::Entity::find()
+        .order_by_asc(pbx_db::entities::music_on_hold::Column::MusicName)
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let inputs: Vec<pbx_fs::config::LocalStreamInput> = rows
+        .iter()
+        .map(|r| {
+            let mut name = format!("{}/{}", domain_label(&names, &r.domain_id), r.music_name);
+            if let Some(rate) = r.music_rate {
+                name.push_str(&format!("/{rate}"));
+            }
+            pbx_fs::config::LocalStreamInput {
+                name,
+                uuid: r.music_on_hold_uuid.clone(),
+                path: r.music_path.clone(),
+                rate: r.music_rate.map(|n| n.to_string()),
+                shuffle: r.music_shuffle.clone(),
+                timer_name: r.music_timer_name.clone(),
+                chime_list: r.music_chime_list.clone(),
+                chime_freq: r.music_chime_freq.clone(),
+                chime_max: r.music_chime_max.map(|n| n.to_string()),
+            }
+        })
+        .collect();
+    pbx_fs::config::build_local_stream_xml(&inputs)
+}
 async fn cached_or_render_async<F, Fut>(key: &str, render: F) -> String
 where
     F: FnOnce() -> Fut,
@@ -734,10 +1230,24 @@ async fn fs_xml_handler(
                 .into_response()
         }
         "configuration" => {
-            let key = format!("configuration:{key_value}");
-            let doc = cached_or_render(&key, || {
-                pbx_fs::xml::build_configuration_xml(&key_value, &key_value)
-            });
+            // Menu-Name rides in the body for `ivr.conf` (Lua parity);
+            // per-menu cache key so one menu never serves another.
+            let menu = ["Menu-Name", "menu-name"]
+                .iter()
+                .filter_map(|k| body_params.get(*k).or_else(|| params.get(*k)))
+                .map(|s| s.trim().to_owned())
+                .find(|s| !s.is_empty())
+                .unwrap_or_default();
+            let key = if key_value.contains("ivr.conf") && !menu.is_empty() {
+                format!("configuration:{key_value}:{menu}")
+            } else {
+                format!("configuration:{key_value}")
+            };
+            let kv = key_value.clone();
+            let doc = cached_or_render_async(&key, || async move {
+                render_configuration(&kv, &menu).await
+            })
+            .await;
             (
                 StatusCode::OK,
                 [(axum::http::header::CONTENT_TYPE, "application/xml")],

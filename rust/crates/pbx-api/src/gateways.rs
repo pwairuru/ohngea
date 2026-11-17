@@ -16,19 +16,74 @@ pub struct Gateway {
     pub username: Option<String>,
     #[serde(default)]
     pub password: Option<String>,
+    pub proxy: Option<String>,
+    #[serde(default, alias = "gateway_register")]
+    pub register: Option<bool>,
     pub profile: String,
     pub context: String,
     pub enabled: bool,
+    pub distinct_to: Option<bool>,
+    pub auth_username: Option<String>,
+    pub realm: Option<String>,
+    pub from_user: Option<String>,
+    pub from_domain: Option<String>,
+    pub register_proxy: Option<String>,
+    pub outbound_proxy: Option<String>,
+    pub expire_seconds: Option<i32>,
+    pub register_transport: Option<String>,
+    pub contact_params: Option<String>,
+    pub retry_seconds: Option<i32>,
+    pub extension: Option<String>,
+    pub ping: Option<String>,
+    pub ping_min: Option<i32>,
+    pub ping_max: Option<i32>,
+    pub contact_in_ping: Option<bool>,
+    pub caller_id_in_from: Option<bool>,
+    pub supress_cng: Option<bool>,
+    pub sip_cid_type: Option<String>,
+    pub codec_prefs: Option<String>,
+    pub channels: Option<i32>,
+    pub extension_in_contact: Option<String>,
+    pub hostname: Option<String>,
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct GatewayCreate {
     gateway: Option<String>,
     name: Option<String>,
-    username: Option<String>,
-    password: Option<String>,
-    profile: Option<String>,
-    context: Option<String>,
+    #[serde(default)] username: Option<String>,
+    #[serde(default)] password: Option<String>,
+    #[serde(default)] proxy: Option<String>,
+    #[serde(default)] register: Option<bool>,
+    #[serde(default)] gateway_register: Option<bool>,
+    #[serde(default)] profile: Option<String>,
+    #[serde(default)] context: Option<String>,
+    #[serde(default)] enabled: Option<bool>,
+    #[serde(default)] distinct_to: Option<bool>,
+    #[serde(default)] auth_username: Option<String>,
+    #[serde(default)] realm: Option<String>,
+    #[serde(default)] from_user: Option<String>,
+    #[serde(default)] from_domain: Option<String>,
+    #[serde(default)] register_proxy: Option<String>,
+    #[serde(default)] outbound_proxy: Option<String>,
+    #[serde(default)] expire_seconds: Option<i32>,
+    #[serde(default)] register_transport: Option<String>,
+    #[serde(default)] contact_params: Option<String>,
+    #[serde(default)] retry_seconds: Option<i32>,
+    #[serde(default)] extension: Option<String>,
+    #[serde(default)] ping: Option<String>,
+    #[serde(default)] ping_min: Option<i32>,
+    #[serde(default)] ping_max: Option<i32>,
+    #[serde(default)] contact_in_ping: Option<bool>,
+    #[serde(default)] caller_id_in_from: Option<bool>,
+    #[serde(default)] supress_cng: Option<bool>,
+    #[serde(default)] sip_cid_type: Option<String>,
+    #[serde(default)] codec_prefs: Option<String>,
+    #[serde(default)] channels: Option<i32>,
+    #[serde(default)] extension_in_contact: Option<String>,
+    #[serde(default)] hostname: Option<String>,
+    #[serde(default)] description: Option<String>,
 }
 
 fn masked(mut g: Gateway) -> Gateway {
@@ -44,6 +99,8 @@ fn row_to_gateway(r: &pbx_db::entities::gateways::Model) -> Gateway {
         gateway: r.gateway.clone(),
         username: r.username.clone(),
         password: r.password.clone(),
+        proxy: r.proxy.clone(),
+        register: Some(r.gateway_register),
         profile: r
             .profile
             .clone()
@@ -53,7 +110,49 @@ fn row_to_gateway(r: &pbx_db::entities::gateways::Model) -> Gateway {
             .clone()
             .unwrap_or_else(|| pbx_db::gateways::default_context().to_owned()),
         enabled: r.enabled,
+        distinct_to: r.distinct_to,
+        auth_username: r.auth_username.clone(),
+        realm: r.realm.clone(),
+        from_user: r.from_user.clone(),
+        from_domain: r.from_domain.clone(),
+        register_proxy: r.register_proxy.clone(),
+        outbound_proxy: r.outbound_proxy.clone(),
+        expire_seconds: r.expire_seconds,
+        register_transport: r.register_transport.clone(),
+        contact_params: r.contact_params.clone(),
+        retry_seconds: r.retry_seconds,
+        extension: r.extension.clone(),
+        ping: r.ping.clone(),
+        ping_min: r.ping_min,
+        ping_max: r.ping_max,
+        contact_in_ping: r.contact_in_ping,
+        caller_id_in_from: r.caller_id_in_from,
+        supress_cng: r.supress_cng,
+        sip_cid_type: r.sip_cid_type.clone(),
+        codec_prefs: r.codec_prefs.clone(),
+        channels: r.channels,
+        extension_in_contact: r.extension_in_contact.clone(),
+        hostname: r.hostname.clone(),
+        description: r.description.clone(),
     }
+}
+
+/// FreeSWITCH propagation after gateway writes: per-key cache invalidate
+/// + `reloadxml` + `sofia profile {profile} rescan` over real ESL.
+/// Deletes additionally `killgw` the removed gateway (lowercase uuid, the
+/// FS-side gateway name). ESL failures are LOUD (stderr), never a silent
+/// mock fallback; the DB write already succeeded so HTTP still succeeds.
+fn propagate_gateway(profile: &str, kill: Option<&str>) {
+    crate::fs_xml::invalidate_key("configuration:sofia.conf");
+    let mut cmds = vec![
+        "reloadxml".to_owned(),
+        format!("sofia profile {profile} rescan"),
+    ];
+    if let Some(gw) = kill {
+        cmds.push(format!("sofia profile {profile} killgw {gw}"));
+    }
+    let refs: Vec<&str> = cmds.iter().map(String::as_str).collect();
+    crate::fs_xml::propagate_esl(&refs);
 }
 
 async fn create_gateway(
@@ -92,36 +191,40 @@ async fn create_gateway(
         gateway: Set(name.clone()),
         username: Set(payload.username.clone()),
         password: Set(payload.password.clone()),
-        proxy: Set(None),
-        gateway_register: Set(true),
-        enabled: Set(true),
+        proxy: Set(payload.proxy.clone()),
+        gateway_register: Set(payload.register.or(payload.gateway_register).unwrap_or(true)),
+        enabled: Set(payload.enabled.unwrap_or(true)),
         domain_id: Set(domain_id),
-        distinct_to: Set(None),
-        auth_username: Set(None),
-        realm: Set(None),
-        from_user: Set(None),
-        from_domain: Set(None),
-        register_proxy: Set(None),
-        outbound_proxy: Set(None),
-        expire_seconds: Set(Some(pbx_db::gateways::default_expire_seconds())),
-        register_transport: Set(None),
-        contact_params: Set(None),
-        retry_seconds: Set(Some(pbx_db::gateways::default_retry_seconds())),
-        extension: Set(None),
-        ping: Set(None),
-        ping_min: Set(None),
-        ping_max: Set(None),
-        contact_in_ping: Set(None),
-        caller_id_in_from: Set(None),
-        supress_cng: Set(None),
-        sip_cid_type: Set(None),
-        codec_prefs: Set(None),
-        channels: Set(None),
-        extension_in_contact: Set(None),
+        distinct_to: Set(payload.distinct_to),
+        auth_username: Set(payload.auth_username.clone()),
+        realm: Set(payload.realm.clone()),
+        from_user: Set(payload.from_user.clone()),
+        from_domain: Set(payload.from_domain.clone()),
+        register_proxy: Set(payload.register_proxy.clone()),
+        outbound_proxy: Set(payload.outbound_proxy.clone()),
+        expire_seconds: Set(payload
+            .expire_seconds
+            .or(Some(pbx_db::gateways::default_expire_seconds()))),
+        register_transport: Set(payload.register_transport.clone()),
+        contact_params: Set(payload.contact_params.clone()),
+        retry_seconds: Set(payload
+            .retry_seconds
+            .or(Some(pbx_db::gateways::default_retry_seconds()))),
+        extension: Set(payload.extension.clone()),
+        ping: Set(payload.ping.clone()),
+        ping_min: Set(payload.ping_min),
+        ping_max: Set(payload.ping_max),
+        contact_in_ping: Set(payload.contact_in_ping),
+        caller_id_in_from: Set(payload.caller_id_in_from),
+        supress_cng: Set(payload.supress_cng),
+        sip_cid_type: Set(payload.sip_cid_type.clone()),
+        codec_prefs: Set(payload.codec_prefs.clone()),
+        channels: Set(payload.channels),
+        extension_in_contact: Set(payload.extension_in_contact.clone()),
         context: Set(Some(context.clone())),
         profile: Set(Some(profile.clone())),
-        hostname: Set(None),
-        description: Set(None),
+        hostname: Set(payload.hostname.clone()),
+        description: Set(payload.description.clone()),
         created_at: Set(now),
         updated_at: Set(now),
     };
@@ -138,11 +241,41 @@ async fn create_gateway(
         gateway: name,
         username: payload.username,
         password: payload.password,
+        proxy: payload.proxy,
+        register: payload.register.or(payload.gateway_register).or(Some(true)),
         profile: profile.clone(),
         context,
-        enabled: true,
+        enabled: payload.enabled.unwrap_or(true),
+        distinct_to: payload.distinct_to,
+        auth_username: payload.auth_username,
+        realm: payload.realm,
+        from_user: payload.from_user,
+        from_domain: payload.from_domain,
+        register_proxy: payload.register_proxy,
+        outbound_proxy: payload.outbound_proxy,
+        expire_seconds: payload
+            .expire_seconds
+            .or(Some(pbx_db::gateways::default_expire_seconds())),
+        register_transport: payload.register_transport,
+        contact_params: payload.contact_params,
+        retry_seconds: payload
+            .retry_seconds
+            .or(Some(pbx_db::gateways::default_retry_seconds())),
+        extension: payload.extension,
+        ping: payload.ping,
+        ping_min: payload.ping_min,
+        ping_max: payload.ping_max,
+        contact_in_ping: payload.contact_in_ping,
+        caller_id_in_from: payload.caller_id_in_from,
+        supress_cng: payload.supress_cng,
+        sip_cid_type: payload.sip_cid_type,
+        codec_prefs: payload.codec_prefs,
+        channels: payload.channels,
+        extension_in_contact: payload.extension_in_contact,
+        hostname: payload.hostname,
+        description: payload.description,
     };
-    let _rescan_reply = pbx_fs::esl::EsClient::sofia_rescan(&pbx_fs::esl::MockEsClient, &profile);
+    propagate_gateway(&profile, None);
     (StatusCode::CREATED, Json(serde_json::json!(masked(rec)))).into_response()
 }
 
@@ -381,10 +514,7 @@ async fn patch_gateway(
         }
     };
     let _ = txn.commit().await;
-    let _rescan_reply = pbx_fs::esl::EsClient::sofia_rescan(
-        &pbx_fs::esl::MockEsClient,
-        updated.profile.as_deref().unwrap_or("external"),
-    );
+    propagate_gateway(updated.profile.as_deref().unwrap_or("external"), None);
     (
         StatusCode::OK,
         Json(serde_json::json!(masked(row_to_gateway(&updated)))),
@@ -420,6 +550,7 @@ async fn delete_gateway(
             .into_response();
     };
     let profile = row.profile.clone().unwrap_or_else(|| "external".to_owned());
+    let gw_name = row.gateway_uuid.to_string().to_lowercase();
     let am: pbx_db::entities::gateways::ActiveModel = row.into();
     use sea_orm::ActiveModelTrait;
     if let Err(e) = am.delete(&txn).await {
@@ -430,7 +561,7 @@ async fn delete_gateway(
             .into_response();
     }
     let _ = txn.commit().await;
-    let _rescan_reply = pbx_fs::esl::EsClient::sofia_rescan(&pbx_fs::esl::MockEsClient, &profile);
+    propagate_gateway(&profile, Some(&gw_name));
     StatusCode::NO_CONTENT.into_response()
 }
 

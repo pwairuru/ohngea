@@ -348,8 +348,11 @@ impl RealEs {
         use std::net::TcpStream;
         use std::time::Duration;
         let addr = format!("{}:{}", self.host, self.port);
-        let mut stream =
-            TcpStream::connect_timeout(&addr.parse().ok()?, Duration::from_millis(300)).ok()?;
+        // NOTE: `SocketAddr::parse` rejects DNS names (docker service names
+        // like `freeswitch-mock`); resolve via `ToSocketAddrs` instead.
+        use std::net::ToSocketAddrs;
+        let sock = addr.to_socket_addrs().ok()?.next()?;
+        let mut stream = TcpStream::connect_timeout(&sock, Duration::from_millis(300)).ok()?;
         stream
             .set_read_timeout(Some(Duration::from_millis(500)))
             .ok()?;

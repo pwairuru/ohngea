@@ -51,6 +51,27 @@ impl XmlCache {
         }
         self.entries.insert(key, (doc, Instant::now()));
     }
+
+    /// Drop one key (CRUD triggers: per-key invalidate, not full wipe).
+    pub fn remove(&mut self, key: &str) -> bool {
+        self.entries.remove(key).is_some()
+    }
+
+    /// Drop every key with `prefix` (e.g. `configuration:ivr.conf` covers
+    /// per-menu `configuration:ivr.conf:{uuid}` keys). Returns drop count.
+    pub fn remove_prefix(&mut self, prefix: &str) -> usize {
+        let keys: Vec<String> = self
+            .entries
+            .keys()
+            .filter(|k| k.starts_with(prefix))
+            .cloned()
+            .collect();
+        let n = keys.len();
+        for k in keys {
+            self.entries.remove(&k);
+        }
+        n
+    }
 }
 
 impl Default for XmlCache {
