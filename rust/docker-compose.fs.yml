@@ -44,7 +44,7 @@ services:
     # community Debian image with the full module set (mod_xml_curl,
     # mod_xml_cdr, mod_sofia, fs_cli). Pinned 2026-09-25, same digest as
     # docker-compose.e2e.yml.
-    image: safarov/freeswitch:latest@sha256:b31c743f4c911a19687c61e3214968f2a24f93f9d3d667cc26284192e158ffc
+    image: safarov/freeswitch:latest@sha256:b31c743f4c911a19687c61e3214968f2a24f93f9d3d667cc26284192e158ffc6
     command: ["freeswitch", "-nonat", "-nf"]
     environment:
       LAN_IP: ${LAN_IP:-192.168.100.82}
