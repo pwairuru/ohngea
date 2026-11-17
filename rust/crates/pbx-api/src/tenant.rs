@@ -217,6 +217,21 @@ pub async fn require_tenant(
     // No-op on sqlite unit tests; never fails the request.
     let db = crate::routing_db::conn().await;
     crate::routing_db::set_tenant(db, &claims).await;
+    // Write-path parent ensure (Task 2 companion): every tenant FK target
+    // references `domains`, so POST/PUT/PATCH/DELETE materialize the caller's
+    // own row (insert-or-ignore) to satisfy FK integrity. Reads (GET/HEAD)
+    // NEVER insert — unknown tenants resolve to empty/404, never conjured
+    // rows. Scoped to the caller's own tenant; no cross-tenant effect.
+    // `has_permission`/`deny_if_missing` logic untouched (Task 1 preserved).
+    if matches!(
+        req.method(),
+        &axum::http::Method::POST
+            | &axum::http::Method::PUT
+            | &axum::http::Method::PATCH
+            | &axum::http::Method::DELETE
+    ) {
+        crate::routing_db::ensure_tenant_domain(db, &claims).await;
+    }
     // Stash verified claims for downstream handlers / db layer (SET LOCAL app.domain_uuid).
     req.extensions_mut().insert(claims);
     Ok(next.run(req).await)

@@ -93,16 +93,57 @@ pub fn domain(claims: &pbx_core::auth::Claims) -> uuid::Uuid {
 /// `domains` row exists (FK targets in batch1/2a/3a reference it).
 /// Name: real UUID claims get `tenant-{uuid}`; opaque test strings ("default")
 /// are kept as the domain_name for readability.
+///
+/// NOTE (Task 2): pure derivation — this NEVER inserts. Read paths must not
+/// conjure tenant rows (orphan domains, cross-test leakage). Use
+/// [`tenant_domain_required`] when the caller needs the row to exist.
 pub async fn tenant_domain(
-    db: &sea_orm::DatabaseConnection,
+    _db: &sea_orm::DatabaseConnection,
     claims: &pbx_core::auth::Claims,
 ) -> uuid::Uuid {
+    domain(claims)
+}
+
+/// Tenant domain that must already exist. Returns `RecordNotFound` when the
+/// claims' tenant has no `domains` row — callers answer 404/empty instead of
+/// auto-inserting (Task 2 read-path rule).
+pub async fn tenant_domain_required(
+    db: &sea_orm::DatabaseConnection,
+    claims: &pbx_core::auth::Claims,
+) -> Result<uuid::Uuid, sea_orm::DbErr> {
+    use sea_orm::EntityTrait;
     let d = domain(claims);
-    let name = if claims.domain_id.parse::<uuid::Uuid>().is_ok() {
+    pbx_db::entities::domains::Entity::find_by_id(d)
+        .one(db)
+        .await?
+        .map(|r| r.domain_id)
+        .ok_or_else(|| sea_orm::DbErr::RecordNotFound("domain not found".to_owned()))
+}
+
+/// Display name for a tenant UUID when its row must be materialized:
+/// real UUID claims get `tenant-{uuid}`; opaque test strings ("default")
+/// are kept verbatim for readability.
+pub fn tenant_display_name(claims: &pbx_core::auth::Claims) -> String {
+    let d = domain(claims);
+    if claims.domain_id.parse::<uuid::Uuid>().is_ok() {
         format!("tenant-{d}")
     } else {
         claims.domain_id.clone()
-    };
+    }
+}
+
+/// Insert the claims' `domains` row when absent (insert-or-ignore), returning
+/// the tenant UUID. WRITE-PATH ONLY: FK targets reference `domains`, so a
+/// create/update/delete handler needs its parent row to exist. Never call
+/// from read paths — unknown tenants must resolve to empty/404, not conjured
+/// rows (Task 2). Idempotent; raced inserts collapse to the existing row.
+pub async fn ensure_tenant_domain(
+    db: &sea_orm::DatabaseConnection,
+    claims: &pbx_core::auth::Claims,
+) -> uuid::Uuid {
+    use sea_orm::EntityTrait;
+    let d = domain(claims);
+    let name = tenant_display_name(claims);
     let now = now();
     let am = pbx_db::entities::domains::ActiveModel {
         domain_id: sea_orm::Set(d),
@@ -112,8 +153,7 @@ pub async fn tenant_domain(
         created_at: sea_orm::Set(now),
         updated_at: sea_orm::Set(now),
     };
-    use sea_orm::EntityTrait;
-    // Already-bootstrapped / raced insert → ignore conflict.
+    // Pre-existing / raced insert → ignore conflict.
     let _ = pbx_db::entities::domains::Entity::insert(am).exec(db).await;
     d
 }
