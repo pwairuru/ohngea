@@ -240,7 +240,7 @@ fn other_tenant_token() -> String {
         "00000000-0000-0000-0000-000000000099",
         "other-tenant",
         "admin",
-        &["admin".to_string()],
+        &["superadmin".to_string()],
     )
 }
 

@@ -52,8 +52,8 @@ async fn perm_guard_allows_admin_extension_list() {
 #[tokio::test]
 async fn cross_domain_extension_isolated() {
     let app = pbx_api::test_app();
-    let tok_a = token_with(&["admin"], "tenant-a-x");
-    let tok_b = token_with(&["admin"], "tenant-b-x");
+    let tok_a = token_with(&["superadmin"], "tenant-a-x");
+    let tok_b = token_with(&["superadmin"], "tenant-b-x");
     // create in A
     let res = app
         .oneshot(
@@ -303,8 +303,8 @@ async fn user_settings_roundtrip_self_and_admin() {
 
 #[tokio::test]
 async fn user_settings_cross_domain_is_404() {
-    let tok_a = token_with(&["admin"], "tenant-us-a");
-    let tok_b = token_with(&["admin"], "tenant-us-b");
+    let tok_a = token_with(&["superadmin"], "tenant-us-a");
+    let tok_b = token_with(&["superadmin"], "tenant-us-b");
     let app = pbx_api::test_app();
     let res = app
         .oneshot(
@@ -359,8 +359,8 @@ async fn cdr_cross_domain_isolated_and_denied_without_perm() {
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
 
     // create in A, invisible from B
-    let tok_a = token_with(&["admin"], "tenant-cdr-a");
-    let tok_b = token_with(&["admin"], "tenant-cdr-b");
+    let tok_a = token_with(&["superadmin"], "tenant-cdr-a");
+    let tok_b = token_with(&["superadmin"], "tenant-cdr-b");
     let app = pbx_api::test_app();
     let res = app
         .oneshot(
@@ -400,8 +400,8 @@ async fn cdr_cross_domain_isolated_and_denied_without_perm() {
 
 #[tokio::test]
 async fn groups_bulk_toggle_is_tenant_scoped() {
-    let tok_a = token_with(&["admin"], "tenant-gt-a");
-    let tok_b = token_with(&["admin"], "tenant-gt-b");
+    let tok_a = token_with(&["superadmin"], "tenant-gt-a");
+    let tok_b = token_with(&["superadmin"], "tenant-gt-b");
     let app = pbx_api::test_app();
     let res = app
         .oneshot(

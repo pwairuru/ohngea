@@ -59,13 +59,25 @@ fn now_secs() -> usize {
 }
 
 pub fn encode_claims(sub: &str, domain_id: &str, username: &str, permissions: &[String]) -> String {
+    encode_claims_with_exp(sub, domain_id, username, permissions, 3600)
+}
+
+/// Same as [`encode_claims`] with an explicit TTL (seconds). Used for the
+/// short-lived MFA challenge token (300s).
+pub fn encode_claims_with_exp(
+    sub: &str,
+    domain_id: &str,
+    username: &str,
+    permissions: &[String],
+    ttl_secs: u64,
+) -> String {
     let now = now_secs();
     let claims = Claims {
         sub: sub.to_owned(),
         domain_id: domain_id.to_owned(),
         username: username.to_owned(),
         permissions: permissions.to_vec(),
-        exp: now + 3600,
+        exp: now + ttl_secs as usize,
         iat: now,
     };
     jsonwebtoken::encode(
@@ -76,12 +88,25 @@ pub fn encode_claims(sub: &str, domain_id: &str, username: &str, permissions: &[
     .unwrap()
 }
 
+/// Pre-auth challenge token for the TOTP second step: carries only the
+/// `mfa:pending` permission so tenant guards (which require real perms)
+/// reject it, and `/auth/me` + `/auth/refresh` refuse it explicitly.
+pub fn encode_mfa_token(sub: &str, domain_id: &str, username: &str) -> String {
+    encode_claims_with_exp(sub, domain_id, username, &["mfa:pending".to_string()], 300)
+}
+
+/// True when `claims` is a pre-auth MFA challenge, not a full session.
+#[must_use]
+pub fn is_mfa_pending(claims: &Claims) -> bool {
+    claims.permissions == ["mfa:pending".to_string()]
+}
+
 pub fn encode_test_token() -> String {
     encode_claims(
         "00000000-0000-0000-0000-000000000001",
         "default",
         "admin",
-        &["admin".to_string()],
+        &["superadmin".to_string()],
     )
 }
 
