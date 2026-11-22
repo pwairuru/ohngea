@@ -1475,7 +1475,7 @@ const DDL_TABLES: &[&str] = &[
       iso_a2 VARCHAR(2),
       iso_a3 VARCHAR(3),
       num INTEGER,
-      country_code VARCHAR(16),
+      country_code VARCHAR(64),
       created_at TIMESTAMPTZ NOT NULL
     )",
     "CREATE TABLE IF NOT EXISTS languages (
@@ -2094,6 +2094,10 @@ const FORWARD_ALTERS: &[&str] = &[
     "ALTER TABLE email_queue ADD COLUMN IF NOT EXISTS email_retry_count INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE email_queue ADD COLUMN IF NOT EXISTS email_attempts INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE email_queue ADD COLUMN IF NOT EXISTS email_error VARCHAR(512)",
+    // NOTE (2026-11-22): countries.country_code was VARCHAR(16) but the
+    // reference seed holds multi-code values (e.g. Dominican Republic
+    // '1-809,1-829,1-849', 17 chars), aborting boot seed on fresh DBs.
+    "ALTER TABLE countries ALTER COLUMN country_code TYPE VARCHAR(64)",
 ];
 
 /// Strict tenant tables (non-nullable domain_id) — from 043_tenant_rls_all.py.
