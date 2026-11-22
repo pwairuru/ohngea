@@ -33,7 +33,9 @@
 #   `gateway-credentials` (and the CDR URL userinfo), so REGISTER-time
 #   Basic directory fetches authenticate.
 # - NOTE: `JWT_SECRET=test-secret` is local-parity only — release binaries
-#   refuse to boot with it (see rust/README.md Production runbook).
+#   refuse to boot with it (see rust/README.md Production runbook). The
+#   live overlay defaults `JWT_SECRET` to `${JWT_SECRET:-<dev-hex>}`; override
+#   with your own strong value for any shared environment.
 #
 # 16k header tolerance: axum 0.8 serve has no max_buf_size hook — enforce at
 # the edge proxy with `large_client_header_buffers 4 16k;`
@@ -86,8 +88,17 @@ services:
       # RULING: sqlx scheme — postgresql:// (NOT postgresql+asyncpg://, which
       # is a Python/SQLAlchemy scheme). pbx-api still normalizes legacy
       # postgresql+asyncpg:// / postgresql:// → postgres:// for SeaORM.
-      DATABASE_URL: postgresql://ohngea:ohngea@db:5432/ohngea
-      JWT_SECRET: test-secret
+      # Live DB is `pbx_rust` (empty DB; Rust Migrator builds its full
+      # 124-table schema at boot). Do NOT use `ohngea` (legacy dev schema —
+      # boot migrate panics) or `ohngea_rust` (stale single-migration
+      # schema) or `pbx_live` (full alembic schema, whose column names
+      # diverge, e.g. `call_center_queue_uuid` vs Rust `queue_id`).
+      DATABASE_URL: postgresql://ohngea:ohngea@db:5432/pbx_rust
+      # Local live-stack secret (NOT production): release binary refuses
+      # `test-secret`/empty/`dev-secret-change` (see rust/README.md Production
+      # runbook). Uses FS_JWT_SECRET (not JWT_SECRET) so the root .env
+      # placeholder cannot leak in via interpolation.
+      JWT_SECRET: ${FS_JWT_SECRET:-21573444aff16ec4875f00afebd145cc8121cb3cf339301092707a69fdc06efc}
       # Live switch (in-container DNS): the real FreeSWITCH above.
       FS_ESL_HOST: freeswitch
       FS_ESL_PORT: 8021

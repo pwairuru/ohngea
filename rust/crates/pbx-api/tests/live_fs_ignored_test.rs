@@ -255,6 +255,44 @@ async fn live_full_fs_parity_flow() {
         res.status()
     );
 
+    // (7b) Genuine-live ESL loop (no phones needed): the `null` endpoint
+    // originates a media-less channel, proving real originate →
+    // `show channels` → `uuid_kill` against live FS. (`user/` legs need
+    // registered phones; without them FS answers SUBSCRIBER_ABSENT and
+    // the API honestly falls back to mock — covered by steps 5-7.)
+    let live_raw = esl
+        .try_api("originate null &park()")
+        .expect("live FS must answer originate");
+    let live_uuid = pbx_fs::esl::parse_originate_uuid(&live_raw)
+        .expect("live originate must yield a real uuid");
+    assert!(
+        live_uuid.contains('-'),
+        "real FS uuid expected, got {live_uuid:?} raw={live_raw:.200}"
+    );
+    let live = {
+        // `+OK` can precede channel visibility; poll briefly.
+        let mut found = vec![];
+        for _ in 0..25 {
+            found = pbx_fs::esl::live_channels(&esl).expect("live FS must answer show channels");
+            if found.iter().any(|c| c.uuid == live_uuid) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+        found
+    };
+    assert!(
+        live.iter().any(|c| c.uuid == live_uuid),
+        "live channels must show {live_uuid}"
+    );
+    let killed = esl
+        .try_api(&format!("uuid_kill {live_uuid}"))
+        .unwrap_or_default();
+    assert!(
+        killed.contains("+OK"),
+        "uuid_kill must succeed, got {killed:?}"
+    );
+
     // (8) CDR NORMAL_CLEARING poll (REST proof of the mod_xml_cdr loop).
     let res = pbx_api::test_app()
         .oneshot(bearer(

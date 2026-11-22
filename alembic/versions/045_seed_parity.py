@@ -26,7 +26,13 @@ def _lit(v):
 
 
 def upgrade() -> None:
-    try:
+    # NOTE (2026-11-22): `sofia_global_settings` already exists (created in
+    # 016); the old try/except around create_table swallowed DuplicateTable
+    # in Python but Postgres aborts the whole migration transaction, failing
+    # every later statement on fresh DBs. Existence-check instead.
+    from sqlalchemy import inspect as sa_inspect
+
+    if "sofia_global_settings" not in sa_inspect(op.get_bind()).get_table_names():
         op.create_table(
             "sofia_global_settings",
             sa.Column("sofia_global_setting_uuid", sa.Uuid(), nullable=False),
@@ -38,8 +44,6 @@ def upgrade() -> None:
             sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
             sa.PrimaryKeyConstraint("sofia_global_setting_uuid"),
         )
-    except Exception:
-        pass
     try:
         from app.seeds.default_settings import DEFAULT_SETTINGS
 
@@ -68,9 +72,11 @@ def upgrade() -> None:
                     sa.text(f"""
                         INSERT INTO sofia_global_settings
                         (sofia_global_setting_uuid, global_setting_name, global_setting_value,
-                         global_setting_enabled, global_setting_description)
+                         global_setting_enabled, global_setting_description,
+                         created_at, updated_at)
                         VALUES ({_lit(row["uuid"])}, {_lit(row["name"])}, {_lit(row["value"])},
-                                {_lit(row["enabled"])}, {_lit(row["description"])})
+                                {_lit(row["enabled"])}, {_lit(row["description"])},
+                                now(), now())
                         ON CONFLICT (sofia_global_setting_uuid) DO NOTHING
                     """)
                 )

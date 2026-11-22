@@ -200,26 +200,22 @@ fn find_json_string(haystack: &str, keys: &[&str]) -> Option<String> {
 /// `uuid|call_uuid`, `cid_num|caller_id_number|from`, and
 /// `dest|destination_number|to` keys.
 pub fn parse_show_channels_json(text: &str) -> Vec<MockChannel> {
-    let mut out = Vec::new();
-    // Split into candidate `{...}` objects; rows without `uuid` are skipped.
-    let mut depth = 0usize;
-    let mut obj_start: Option<usize> = None;
+    let mut out: Vec<MockChannel> = Vec::new();
+    // Stack-based scan: capture EVERY balanced `{...}` object (array rows
+    // close before the outer document does), keep those with a uuid, dedupe
+    // by uuid preserving first-seen order. The old code only captured the
+    // outer document (inner `{` never reset the start marker), so multi-row
+    // replies collapsed to a single channel.
+    let mut stack: Vec<usize> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     for (i, c) in text.char_indices() {
         match c {
-            '{' => {
-                if depth == 0 {
-                    obj_start = Some(i);
-                }
-                depth += 1;
-            }
+            '{' => stack.push(i),
             '}' => {
-                if depth > 0 {
-                    depth -= 1;
-                }
-                if depth == 0 {
-                    if let Some(s) = obj_start {
-                        let obj = &text[s..=i];
-                        if let Some(uuid) = find_json_string(obj, &["uuid", "call_uuid"]) {
+                if let Some(s) = stack.pop() {
+                    let obj = &text[s..=i];
+                    if let Some(uuid) = find_json_string(obj, &["uuid", "call_uuid"]) {
+                        if seen.insert(uuid.clone()) {
                             let from = find_json_string(
                                 obj,
                                 &["cid_num", "caller_id_number", "caller_caller_id_number", "from"],
@@ -242,7 +238,6 @@ pub fn parse_show_channels_json(text: &str) -> Vec<MockChannel> {
                                 state,
                             });
                         }
-                        obj_start = None;
                     }
                 }
             }

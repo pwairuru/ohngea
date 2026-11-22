@@ -3,9 +3,10 @@
 //! Types → validation → handlers → esl. Uses `RealEs::from_env`:
 //! originate threads the tenant domain
 //! (`originate user/from@domain &bridge(user/to@domain)` when available,
-//! e2e parity); channels queries live FS via `show channels as json` when
-//! `try_api` succeeds, else the mock; kill uses `uuid_kill <fs-uuid>` for
-//! real ids and the mock transport for `call-…` ids.
+//! e2e parity); channels returns the union of live FS
+//! (`show channels as json`) and mock legs (dedupe by uuid) so
+//! mock-fallback legs stay visible while FS is up; kill uses
+//! `uuid_kill <fs-uuid>` for real ids and the mock transport for `call-…` ids.
 
 use axum::{
     http::StatusCode,
@@ -70,20 +71,23 @@ async fn originate(
 }
 
 async fn channels() -> impl IntoResponse {
-    // Live FS first (`show channels as json`); mock transport when down.
+    // Union of live FS channels and the mock transport (dedupe by uuid):
+    // a live FS answers `show channels` even when the originated leg fell
+    // back to mock (e.g. SUBSCRIBER_ABSENT with no registered phones), and
+    // returning live-only would hide the mock leg. FS-down → mock only.
+    let mut seen = std::collections::HashSet::new();
+    let mut data: Vec<serde_json::Value> = Vec::new();
     if let Some(live) = pbx_fs::esl::live_channels(&client()) {
-        let data: Vec<serde_json::Value> = live
-            .iter()
-            .map(|c| serde_json::json!({"call_id": c.uuid, "from": c.from, "to": c.to, "state": c.state}))
-            .collect();
-        let total = data.len();
-        return Json(serde_json::json!({"data": data, "total": total}));
+        for c in &live {
+            seen.insert(c.uuid.clone());
+            data.push(serde_json::json!({"call_id": c.uuid, "from": c.from, "to": c.to, "state": c.state}));
+        }
     }
-    let chans = pbx_fs::esl::mock_channels();
-    let data: Vec<serde_json::Value> = chans
-        .iter()
-        .map(|c| serde_json::json!({"call_id": c.uuid, "from": c.from, "to": c.to, "state": c.state}))
-        .collect();
+    for c in pbx_fs::esl::mock_channels() {
+        if seen.insert(c.uuid.clone()) {
+            data.push(serde_json::json!({"call_id": c.uuid, "from": c.from, "to": c.to, "state": c.state}));
+        }
+    }
     let total = data.len();
     Json(serde_json::json!({"data": data, "total": total}))
 }
