@@ -44,9 +44,19 @@ struct Bootstrap {
 // ---- handlers ----
 async fn bootstrap_status() -> impl IntoResponse {
     let db = crate::routing_db::conn().await;
-    let one = domains::Entity::find().one(db).await.unwrap_or(None);
-    let has = one.is_some();
-    Json(serde_json::json!({"needs_setup": !has, "has_domains": has}))
+    // Setup is needed until an admin user exists: boot seeds the `default`
+    // domain row with no users, so domain presence alone must NOT count.
+    let has = pbx_db::entities::users::Entity::find()
+        .one(db)
+        .await
+        .unwrap_or(None)
+        .is_some();
+    let has_domains = domains::Entity::find()
+        .one(db)
+        .await
+        .unwrap_or(None)
+        .is_some();
+    Json(serde_json::json!({"needs_setup": !has, "has_domains": has_domains}))
 }
 
 async fn bootstrap(Json(payload): Json<Bootstrap>) -> impl IntoResponse {
@@ -58,7 +68,9 @@ async fn bootstrap(Json(payload): Json<Bootstrap>) -> impl IntoResponse {
         );
     }
     let db = crate::routing_db::conn().await;
-    if domains::Entity::find()
+    // Already set up once a user exists (boot seeds the `default` domain
+    // with no users, so a domain row alone must NOT block first bootstrap).
+    if pbx_db::entities::users::Entity::find()
         .one(db)
         .await
         .unwrap_or(None)
