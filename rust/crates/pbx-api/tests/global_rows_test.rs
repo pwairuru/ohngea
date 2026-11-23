@@ -199,12 +199,12 @@ async fn global_rows_visible_unconditionally() {
     let (s, v) = req("GET", "/api/v1/devices", Some(&b), serde_json::json!({})).await;
     assert_eq!(s, StatusCode::OK, "devices list: {v}");
 
-    let b = token("global-reader", &["voicemail_view"]);
+    let b = token("global-reader", &["voicemail_view", "voicemail_domain"]);
     let (s, v) = req("GET", "/api/v1/voicemails", Some(&b), serde_json::json!({})).await;
     assert_eq!(s, StatusCode::OK);
     assert!(
         names_of(&v, "voicemail_id").contains(&g_vm),
-        "global voicemail visible: {v}"
+        "global voicemail visible with domain perm: {v}"
     );
 
     let b = token("global-reader", &["conference_view"]);

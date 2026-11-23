@@ -567,7 +567,7 @@ async fn get_call_flow(
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match call_flows::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
-        Some(r) if r.domain_id == Some(domain) || r.domain_id.is_none() => (StatusCode::OK, Json(ser_call_flow(&r))).into_response(),
+        Some(r) if r.domain_id == Some(domain) => (StatusCode::OK, Json(ser_call_flow(&r))).into_response(),
         _ => (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response(),
     }
 }
@@ -586,7 +586,7 @@ async fn patch_call_flow(
     let Some(r) = call_flows::Entity::find_by_id(id).one(db).await.unwrap_or(None) else {
         return (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response();
     };
-    if r.domain_id != Some(domain) && r.domain_id.is_some() {
+    if r.domain_id != Some(domain) {
         return (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response();
     }
     let mut am: call_flows::ActiveModel = r.into();
@@ -613,7 +613,7 @@ async fn delete_call_flow(
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     match call_flows::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
-        Some(r) if r.domain_id == Some(domain) || r.domain_id.is_none() => {
+        Some(r) if r.domain_id == Some(domain) => {
             let am: call_flows::ActiveModel = r.into();
             let _ = am.delete(db).await;
             StatusCode::NO_CONTENT.into_response()

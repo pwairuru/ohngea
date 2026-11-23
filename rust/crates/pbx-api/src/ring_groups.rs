@@ -10,7 +10,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
 
 // ---- models ----
-use pbx_db::entities::{ring_group_members, ring_groups};
+use pbx_db::entities::{ring_group_members, ring_group_users, ring_groups};
 
 // ---- dialplan fan-out (Task 6) ----
 //
@@ -496,7 +496,26 @@ async fn list_rg(Extension(claims): Extension<pbx_core::auth::Claims>,
     let domain = crate::routing_db::domain(&claims);
     let mut sel = ring_groups::Entity::find();
     if !show_all {
-        sel = sel.filter(ring_groups::Column::DomainId.eq(domain));
+        // PHP three-tier visibility (app/ring_groups/ring_groups.php):
+        // domain/all perm sees the whole tenant; plain ring_group_view
+        // sees only member-of rows. No global rows exist (strict domain).
+        if crate::tenant::sees_domain_nulls(&claims, "ring_group_domain")
+            || crate::tenant::has_permission(&claims, "ring_group_all")
+        {
+            sel = sel.filter(ring_groups::Column::DomainId.eq(domain));
+        } else {
+            let mine: Vec<String> = ring_group_users::Entity::find()
+                .filter(ring_group_users::Column::UserUuid.eq(claims.sub.clone()))
+                .all(&txn)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|r| r.ring_group_uuid)
+                .collect();
+            sel = sel
+                .filter(ring_groups::Column::DomainId.eq(domain))
+                .filter(ring_groups::Column::RingGroupUuid.is_in(mine));
+        }
     }
     let rows = sel.all(&txn).await.unwrap_or_default();
     let total = rows.len();

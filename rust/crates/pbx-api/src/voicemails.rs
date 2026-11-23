@@ -7,7 +7,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTr
 use serde::Deserialize;
 
 // ---- models ----
-use pbx_db::entities::{voicemail_greetings, voicemail_messages, voicemail_options, voicemails};
+use pbx_db::entities::{extension_users, extensions, voicemail_greetings, voicemail_messages, voicemail_options, voicemails};
 
 // ---- schemas ----
 #[derive(Debug, Deserialize)]
@@ -91,12 +91,9 @@ async fn vm_or_404(
     domain: uuid::Uuid,
     id: &str,
 ) -> Option<voicemails::Model> {
+    // PHP parity (voicemail_edit.php): detail loads are tenant-scoped.
     voicemails::Entity::find_by_id(id.to_owned())
-        .filter(
-            Condition::any()
-                .add(voicemails::Column::DomainId.eq(domain))
-                .add(voicemails::Column::DomainId.is_null())
-        )
+        .filter(voicemails::Column::DomainId.eq(domain))
         .one(db)
         .await
         .unwrap_or(None)
@@ -203,11 +200,49 @@ async fn list_vm(
     }
     let mut sel = voicemails::Entity::find();
     if !show_all {
-        sel = sel.filter(
-            Condition::any()
-                .add(voicemails::Column::DomainId.eq(domain))
-                .add(voicemails::Column::DomainId.is_null()),
-        );
+        // PHP scoping (app/voicemails/voicemails.php): voicemail_all (with
+        // show=all) sees everything; voicemail_domain sees domain + global;
+        // plain voicemail_view sees only the user's own mailboxes
+        // (extension numbers via extension_users).
+        if crate::tenant::sees_domain_nulls(&claims, "voicemail_domain")
+            || crate::tenant::has_permission(&claims, "voicemail_all")
+        {
+            sel = sel.filter(
+                Condition::any()
+                    .add(voicemails::Column::DomainId.eq(domain))
+                    .add(voicemails::Column::DomainId.is_null()),
+            );
+        } else {
+            let my_ext_uuids: Vec<uuid::Uuid> = extension_users::Entity::find()
+                .filter(extension_users::Column::UserUuid.eq(claims.sub.clone()))
+                .all(&txn)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|r| r.extension_uuid.parse::<uuid::Uuid>().ok())
+                .collect();
+            let my_numbers: Vec<String> = extensions::Entity::find()
+                .filter(extensions::Column::ExtensionUuid.is_in(my_ext_uuids))
+                .all(&txn)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .flat_map(|r| {
+                    let mut v = vec![r.extension];
+                    if let Some(a) = r.number_alias {
+                        v.push(a);
+                    }
+                    v
+                })
+                .collect();
+            sel = sel
+                .filter(
+                    Condition::any()
+                        .add(voicemails::Column::DomainId.eq(domain))
+                        .add(voicemails::Column::DomainId.is_null()),
+                )
+                .filter(voicemails::Column::VoicemailId.is_in(my_numbers));
+        }
     }
     let paginator = sel.paginate(&txn, per_page);
     let total = paginator.num_items().await.unwrap_or(0);

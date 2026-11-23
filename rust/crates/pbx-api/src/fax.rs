@@ -101,12 +101,10 @@ async fn fax_or_404(
     domain: uuid::Uuid,
     id: &str,
 ) -> Option<faxes::Model> {
+    // PHP parity (fax_edit.php): detail loads are tenant-scoped; global
+    // rows surface in lists only.
     faxes::Entity::find_by_id(id.to_owned())
-        .filter(
-            Condition::any()
-                .add(faxes::Column::DomainId.eq(domain))
-                .add(faxes::Column::DomainId.is_null())
-        )
+        .filter(faxes::Column::DomainId.eq(domain))
         .one(db)
         .await
         .unwrap_or(None)
@@ -232,11 +230,29 @@ async fn list_fax(
     }
     let mut sel = faxes::Entity::find();
     if !show_all {
-        sel = sel.filter(
-            Condition::any()
-                .add(faxes::Column::DomainId.eq(domain))
-                .add(faxes::Column::DomainId.is_null()),
-        );
+        // PHP three-tier visibility (app/fax/fax.php): domain perm sees
+        // own domain + global rows; plain fax_view sees only assigned rows.
+        if crate::tenant::sees_domain_nulls(&claims, "fax_extension_view_domain")
+            || crate::tenant::has_permission(&claims, "fax_extension_view_all")
+        {
+            sel = sel.filter(
+                Condition::any()
+                    .add(faxes::Column::DomainId.eq(domain))
+                    .add(faxes::Column::DomainId.is_null()),
+            );
+        } else {
+            let mine: Vec<String> = fax_users::Entity::find()
+                .filter(fax_users::Column::UserUuid.eq(claims.sub.clone()))
+                .all(&txn)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|r| r.fax_uuid)
+                .collect();
+            sel = sel
+                .filter(faxes::Column::DomainId.eq(domain))
+                .filter(faxes::Column::FaxUuid.is_in(mine));
+        }
     }
     let paginator = sel.paginate(&txn, per_page);
     let total = paginator.num_items().await.unwrap_or(0);

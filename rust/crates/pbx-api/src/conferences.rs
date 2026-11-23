@@ -68,12 +68,9 @@ async fn conf_or_404(
     domain: uuid::Uuid,
     id: &str,
 ) -> Option<conferences::Model> {
+    // PHP parity (conference_edit.php): detail loads are tenant-scoped.
     conferences::Entity::find_by_id(id.to_owned())
-        .filter(
-            Condition::any()
-                .add(conferences::Column::DomainId.eq(domain))
-                .add(conferences::Column::DomainId.is_null())
-        )
+        .filter(conferences::Column::DomainId.eq(domain))
         .one(db)
         .await
         .unwrap_or(None)
