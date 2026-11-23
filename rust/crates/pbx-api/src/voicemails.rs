@@ -114,10 +114,10 @@ fn ser_vm(r: &voicemails::Model) -> serde_json::Value {
 async fn vm_or_404(
     db: &sea_orm::DatabaseConnection,
     domain: uuid::Uuid,
-    id: &str,
+    id: uuid::Uuid,
 ) -> Option<voicemails::Model> {
     // PHP parity (voicemail_edit.php): detail loads are tenant-scoped.
-    voicemails::Entity::find_by_id(id.to_owned())
+    voicemails::Entity::find_by_id(id)
         .filter(voicemails::Column::DomainId.eq(domain))
         .one(db)
         .await
@@ -147,7 +147,7 @@ async fn create_vm(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let id = crate::routing_db::new_uuid();
+    let id = uuid::Uuid::now_v7();
     let now = crate::routing_db::now();
     let am = voicemails::ActiveModel {
         voicemail_uuid: Set(id.clone()),
@@ -183,7 +183,7 @@ async fn create_vm(
         )
             .into_response();
     }
-    match vm_or_404(db, domain, &id).await {
+    match vm_or_404(db, domain, id).await {
         Some(r) => {
             // Directory joins voicemails (Task 3) — invalidate so the new
             // mailbox shows up in served directory XML.
@@ -294,14 +294,14 @@ async fn health_vm() -> impl IntoResponse {
 
 async fn get_vm(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_view") {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    match vm_or_404(db, domain, &id).await {
+    match vm_or_404(db, domain, id).await {
         Some(r) => (StatusCode::OK, Json(ser_vm(&r))).into_response(),
         None => (
             StatusCode::NOT_FOUND,
@@ -313,7 +313,7 @@ async fn get_vm(
 
 async fn patch_vm(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     let payload = crate::alias::normalize(payload);
@@ -322,7 +322,7 @@ async fn patch_vm(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let Some(r) = vm_or_404(db, domain, &id).await else {
+    let Some(r) = vm_or_404(db, domain, id).await else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Voicemail not found"})),
@@ -417,7 +417,7 @@ async fn patch_vm(
 
 async fn delete_vm(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
         return (s, j).into_response();
@@ -454,7 +454,7 @@ async fn delete_vm(
         let gam: voicemail_greetings::ActiveModel = g.into();
         let _ = gam.delete(db).await;
     }
-    let Some(r) = vm_or_404(db, domain, &id).await else {
+    let Some(r) = vm_or_404(db, domain, id).await else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Voicemail not found"})),
@@ -496,7 +496,7 @@ fn ser_msg(r: &voicemail_messages::Model) -> serde_json::Value {
 
 async fn list_messages(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_view") {
@@ -504,7 +504,7 @@ async fn list_messages(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    if vm_or_404(db, domain, &id).await.is_none() {
+    if vm_or_404(db, domain, id).await.is_none() {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Voicemail not found"})),
@@ -537,7 +537,7 @@ async fn list_messages(
 
 async fn create_message(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
@@ -545,14 +545,14 @@ async fn create_message(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    if vm_or_404(db, domain, &id).await.is_none() {
+    if vm_or_404(db, domain, id).await.is_none() {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Voicemail not found"})),
         )
             .into_response();
     }
-    let mid = crate::routing_db::new_uuid();
+    let mid = uuid::Uuid::now_v7();
     let am = voicemail_messages::ActiveModel {
         voicemail_message_uuid: Set(mid.clone()),
         domain_id: Set(domain),
@@ -614,11 +614,11 @@ async fn create_message(
 async fn msg_or_404(
     db: &sea_orm::DatabaseConnection,
     domain: uuid::Uuid,
-    vm: &str,
-    mid: &str,
+    vm: uuid::Uuid,
+    mid: uuid::Uuid,
 ) -> Option<voicemail_messages::Model> {
-    voicemail_messages::Entity::find_by_id(mid.to_owned())
-        .filter(voicemail_messages::Column::VoicemailUuid.eq(vm.to_owned()))
+    voicemail_messages::Entity::find_by_id(mid)
+        .filter(voicemail_messages::Column::VoicemailUuid.eq(vm))
         .filter(voicemail_messages::Column::DomainId.eq(domain))
         .one(db)
         .await
@@ -627,7 +627,7 @@ async fn msg_or_404(
 
 async fn patch_message(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    axum::extract::Path((id, mid)): axum::extract::Path<(String, String)>,
+    axum::extract::Path((id, mid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     let payload = crate::alias::normalize(payload);
@@ -636,7 +636,7 @@ async fn patch_message(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let Some(r) = msg_or_404(db, domain, &id, &mid).await else {
+    let Some(r) = msg_or_404(db, domain, id, mid).await else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Message not found"})),
@@ -662,14 +662,14 @@ async fn patch_message(
 
 async fn delete_message(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    axum::extract::Path((id, mid)): axum::extract::Path<(String, String)>,
+    axum::extract::Path((id, mid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let Some(r) = msg_or_404(db, domain, &id, &mid).await else {
+    let Some(r) = msg_or_404(db, domain, id, mid).await else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Message not found"})),
@@ -689,14 +689,14 @@ async fn delete_message(
 
 async fn playback_message(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    axum::extract::Path((id, mid)): axum::extract::Path<(String, String)>,
+    axum::extract::Path((id, mid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_view") {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let Some(r) = msg_or_404(db, domain, &id, &mid).await else {
+    let Some(r) = msg_or_404(db, domain, id, mid).await else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Message not found"})),
@@ -735,11 +735,11 @@ fn ser_opt(r: &voicemail_options::Model) -> serde_json::Value {
 async fn opt_or_404(
     db: &sea_orm::DatabaseConnection,
     domain: uuid::Uuid,
-    vm: &str,
-    oid: &str,
+    vm: uuid::Uuid,
+    oid: uuid::Uuid,
 ) -> Option<voicemail_options::Model> {
-    voicemail_options::Entity::find_by_id(oid.to_owned())
-        .filter(voicemail_options::Column::VoicemailUuid.eq(vm.to_owned()))
+    voicemail_options::Entity::find_by_id(oid)
+        .filter(voicemail_options::Column::VoicemailUuid.eq(vm))
         .filter(voicemail_options::Column::DomainId.eq(domain))
         .one(db)
         .await
@@ -748,7 +748,7 @@ async fn opt_or_404(
 
 async fn list_options(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_view") {
@@ -756,7 +756,7 @@ async fn list_options(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    if vm_or_404(db, domain, &id).await.is_none() {
+    if vm_or_404(db, domain, id).await.is_none() {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Voicemail not found"})),
@@ -789,7 +789,7 @@ async fn list_options(
 
 async fn create_option(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
@@ -797,7 +797,7 @@ async fn create_option(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    if vm_or_404(db, domain, &id).await.is_none() {
+    if vm_or_404(db, domain, id).await.is_none() {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Voicemail not found"})),
@@ -805,7 +805,7 @@ async fn create_option(
             .into_response();
     }
     let now = crate::routing_db::now();
-    let oid = crate::routing_db::new_uuid();
+    let oid = uuid::Uuid::now_v7();
     let am = voicemail_options::ActiveModel {
         voicemail_option_uuid: Set(oid.clone()),
         domain_id: Set(domain),
@@ -850,7 +850,7 @@ async fn create_option(
 
 async fn patch_option(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    axum::extract::Path((id, oid)): axum::extract::Path<(String, String)>,
+    axum::extract::Path((id, oid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     let payload = crate::alias::normalize(payload);
@@ -859,7 +859,7 @@ async fn patch_option(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let Some(r) = opt_or_404(db, domain, &id, &oid).await else {
+    let Some(r) = opt_or_404(db, domain, id, oid).await else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Option not found"})),
@@ -889,14 +889,14 @@ async fn patch_option(
 
 async fn delete_option(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    axum::extract::Path((id, oid)): axum::extract::Path<(String, String)>,
+    axum::extract::Path((id, oid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let Some(r) = opt_or_404(db, domain, &id, &oid).await else {
+    let Some(r) = opt_or_404(db, domain, id, oid).await else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Option not found"})),
@@ -917,7 +917,7 @@ async fn delete_option(
 // ---- greetings (nested create + standalone CRUD) ----
 async fn create_greeting(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<GreetingCreate>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
@@ -932,14 +932,14 @@ async fn create_greeting(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    if vm_or_404(db, domain, &id).await.is_none() {
+    if vm_or_404(db, domain, id).await.is_none() {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Voicemail not found"})),
         )
             .into_response();
     }
-    let gid = crate::routing_db::new_uuid();
+    let gid = uuid::Uuid::now_v7();
     let gam = voicemail_greetings::ActiveModel {
         voicemail_greeting_uuid: Set(gid.clone()),
         domain_id: Set(domain),
@@ -1039,12 +1039,12 @@ async fn create_greeting_standalone(
     // Parent link: voicemail_uuid direct, else voicemail_id mailbox lookup.
     // Python stores a free-form mailbox string; Rust enforces the FK link,
     // so an unresolvable mailbox is 404 (mirrors nested-route behavior).
-    let mut vm_id = payload
+    let mut vm_id: Option<uuid::Uuid> = payload
         .get("voicemail_uuid")
         .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_owned();
-    if vm_id.is_empty() {
+        .filter(|s| !s.is_empty())
+        .and_then(|s| s.parse::<uuid::Uuid>().ok());
+    if vm_id.is_none() {
         if let Some(mbox) = payload
             .get("voicemail_id")
             .or_else(|| payload.get("mailbox"))
@@ -1057,7 +1057,7 @@ async fn create_greeting_standalone(
                 .await
                 .unwrap_or(None);
             match row {
-                Some(v) => vm_id = v.voicemail_uuid,
+                Some(v) => vm_id = Some(v.voicemail_uuid),
                 None => {
                     return (
                         StatusCode::NOT_FOUND,
@@ -1068,14 +1068,21 @@ async fn create_greeting_standalone(
             }
         }
     }
-    if !vm_id.is_empty() && vm_or_404(db, domain, &vm_id).await.is_none() {
+    let Some(vm_id) = vm_id else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "Voicemail not found"})),
+        )
+            .into_response();
+    };
+    if vm_or_404(db, domain, vm_id).await.is_none() {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Voicemail not found"})),
         )
             .into_response();
     }
-    let gid = crate::routing_db::new_uuid();
+    let gid = uuid::Uuid::now_v7();
     let gam = voicemail_greetings::ActiveModel {
         voicemail_greeting_uuid: Set(gid.clone()),
         domain_id: Set(domain),
@@ -1131,9 +1138,9 @@ async fn create_greeting_standalone(
 async fn greeting_or_404(
     db: &sea_orm::DatabaseConnection,
     domain: uuid::Uuid,
-    gid: &str,
+    gid: uuid::Uuid,
 ) -> Option<voicemail_greetings::Model> {
-    voicemail_greetings::Entity::find_by_id(gid.to_owned())
+    voicemail_greetings::Entity::find_by_id(gid)
         .filter(voicemail_greetings::Column::DomainId.eq(domain))
         .one(db)
         .await
@@ -1142,14 +1149,14 @@ async fn greeting_or_404(
 
 async fn get_greeting(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_view") {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    match greeting_or_404(db, domain, &id).await {
+    match greeting_or_404(db, domain, id).await {
         Some(r) => (StatusCode::OK, Json(ser_greeting(&r))).into_response(),
         None => (
             StatusCode::NOT_FOUND,
@@ -1161,7 +1168,7 @@ async fn get_greeting(
 
 async fn patch_greeting(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     let payload = crate::alias::normalize(payload);
@@ -1170,7 +1177,7 @@ async fn patch_greeting(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let Some(r) = greeting_or_404(db, domain, &id).await else {
+    let Some(r) = greeting_or_404(db, domain, id).await else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Greeting not found"})),
@@ -1218,14 +1225,14 @@ async fn patch_greeting(
 
 async fn delete_greeting(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "voicemail_add") {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let Some(r) = greeting_or_404(db, domain, &id).await else {
+    let Some(r) = greeting_or_404(db, domain, id).await else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Greeting not found"})),

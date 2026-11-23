@@ -441,17 +441,47 @@ async fn over_limit(
     None
 }
 
+/// Voicemail fields for the linked-mailbox upsert. Create/batch/import
+/// build it from `ExtensionCreate`; copy builds it from the source mailbox
+/// row (PHP `extension_copy.php` clones mailbox settings under the new
+/// number with a fresh password).
+struct MailboxSpec {
+    password: Option<String>,
+    enabled: Option<bool>,
+    mail_to: Option<String>,
+    file: Option<String>,
+    local_after_email: Option<bool>,
+    transcription_enabled: Option<bool>,
+    transcription_prompt: Option<String>,
+    transcription_prompt_enabled: Option<bool>,
+}
+
+impl From<&ExtensionCreate> for MailboxSpec {
+    fn from(s: &ExtensionCreate) -> Self {
+        Self {
+            password: s.voicemail_password.clone(),
+            enabled: s.voicemail_enabled,
+            mail_to: s.voicemail_mail_to.clone(),
+            file: s.voicemail_file.clone(),
+            local_after_email: s.voicemail_local_after_email,
+            transcription_enabled: s.voicemail_transcription_enabled,
+            transcription_prompt: s.voicemail_transcription_prompt.clone(),
+            transcription_prompt_enabled: s.voicemail_transcription_prompt_enabled,
+        }
+    }
+}
+
 /// PHP `extension_edit.php` parity ("add or update voicemail"): every
 /// extension add upserts the linked mailbox (id = extension), defaulting
 /// to enabled with a generated password when the caller passes nothing.
-/// Generic over the connection so single create (`db`), batch and import
+/// Generic over the connection so single create, batch, import and copy
 /// (open `txn`) share it.
 async fn upsert_linked_mailbox<C>(
     db: &C,
     domain_id: uuid::Uuid,
     ext: &str,
     description: Option<String>,
-    src: &ExtensionCreate,
+    src: &MailboxSpec,
 ) where
     C: sea_orm::ConnectionTrait,
 {
@@ -465,30 +495,30 @@ async fn upsert_linked_mailbox<C>(
     match existing {
         Some(row) => {
             let mut vam: pbx_db::entities::voicemails::ActiveModel = row.into();
-            if let Some(pw) = src.voicemail_password.clone() {
+            if let Some(pw) = src.password.clone() {
                 if !pw.trim().is_empty() {
                     vam.voicemail_password = Set(pw);
                 }
             }
-            if let Some(e) = src.voicemail_enabled {
+            if let Some(e) = src.enabled {
                 vam.enabled = Set(e);
             }
-            if let Some(m) = src.voicemail_mail_to.clone() {
+            if let Some(m) = src.mail_to.clone() {
                 vam.voicemail_mail_to = Set(Some(m));
             }
-            if let Some(f) = src.voicemail_file.clone() {
+            if let Some(f) = src.file.clone() {
                 vam.voicemail_file = Set(Some(f));
             }
-            if let Some(l) = src.voicemail_local_after_email {
+            if let Some(l) = src.local_after_email {
                 vam.voicemail_local_after_email = Set(Some(l));
             }
-            if let Some(t) = src.voicemail_transcription_enabled {
+            if let Some(t) = src.transcription_enabled {
                 vam.voicemail_transcription_enabled = Set(Some(t));
             }
-            if let Some(tp) = src.voicemail_transcription_prompt.clone() {
+            if let Some(tp) = src.transcription_prompt.clone() {
                 vam.voicemail_transcription_prompt = Set(Some(tp));
             }
-            if let Some(tpe) = src.voicemail_transcription_prompt_enabled {
+            if let Some(tpe) = src.transcription_prompt_enabled {
                 vam.voicemail_transcription_prompt_enabled = Set(Some(tpe));
             }
             vam.updated_at = Set(crate::routing_db::now());
@@ -496,33 +526,29 @@ async fn upsert_linked_mailbox<C>(
         }
         None => {
             let vpw = src
-                .voicemail_password
+                .password
                 .clone()
                 .filter(|s| !s.trim().is_empty())
                 .unwrap_or_else(|| pbx_db::extensions::ensure_password(None));
             let vam = pbx_db::entities::voicemails::ActiveModel {
-                voicemail_uuid: Set(crate::routing_db::new_uuid()),
+                voicemail_uuid: Set(uuid::Uuid::now_v7()),
                 domain_id: Set(Some(domain_id)),
                 voicemail_id: Set(ext.to_owned()),
                 voicemail_password: Set(vpw),
-                enabled: Set(src.voicemail_enabled.unwrap_or(true)),
+                enabled: Set(src.enabled.unwrap_or(true)),
                 description: Set(description),
                 voicemail_tutorial: Set(Some(true)),
                 greeting_id: Set(None),
                 voicemail_alternate_greet_id: Set(None),
                 voicemail_recording_instructions: Set(None),
                 voicemail_recording_options: Set(None),
-                voicemail_mail_to: Set(src.voicemail_mail_to.clone()),
-                voicemail_file: Set(src.voicemail_file.clone()),
-                voicemail_local_after_email: Set(src.voicemail_local_after_email),
-                voicemail_transcription_enabled: Set(src
-                    .voicemail_transcription_enabled
-                    .or(Some(false))),
+                voicemail_mail_to: Set(src.mail_to.clone()),
+                voicemail_file: Set(src.file.clone()),
+                voicemail_local_after_email: Set(src.local_after_email),
+                voicemail_transcription_enabled: Set(src.transcription_enabled.or(Some(false))),
                 voicemail_sms_to: Set(None),
-                voicemail_transcription_prompt_enabled: Set(
-                    src.voicemail_transcription_prompt_enabled
-                ),
-                voicemail_transcription_prompt: Set(src.voicemail_transcription_prompt.clone()),
+                voicemail_transcription_prompt_enabled: Set(src.transcription_prompt_enabled),
+                voicemail_transcription_prompt: Set(src.transcription_prompt.clone()),
                 voicemail_attach_file: Set(None),
                 voicemail_local_after_forward: Set(None),
                 alternate_voicemail_destination: Set(None),
@@ -694,9 +720,19 @@ async fn create_extension(
         )
             .into_response();
     }
+    // Linked mailbox must ride the tenant txn: pool connections carry no
+    // RLS GUC outside a txn, so a post-commit insert on `db` dies on the
+    // Postgres `WITH CHECK` (and the `let _` inside the helper swallows it).
+    upsert_linked_mailbox(
+        &txn,
+        domain_id,
+        &ext,
+        payload.description.clone(),
+        &MailboxSpec::from(&payload),
+    )
+    .await;
     let _ = txn.commit().await;
     propagate_to_freeswitch();
-    upsert_linked_mailbox(db, domain_id, &ext, payload.description.clone(), &payload).await;
     let db = crate::routing_db::conn().await;
     let rec = pbx_db::entities::extensions::Entity::find_by_id(id)
         .one(db)
@@ -1430,7 +1466,14 @@ async fn batch_create_extensions(
             )
                 .into_response();
         }
-        upsert_linked_mailbox(&txn, domain_id, &ext, item.description.clone(), item).await;
+        upsert_linked_mailbox(
+            &txn,
+            domain_id,
+            &ext,
+            item.description.clone(),
+            &MailboxSpec::from(item),
+        )
+        .await;
         created += 1;
     }
     let _ = txn.commit().await;
@@ -1503,6 +1546,12 @@ async fn copy_extension(
     }
     let now = crate::routing_db::now();
     let src_desc = src.description.clone().unwrap_or_default();
+    // PHP copy reads the source mailbox by number_alias (numeric) else extension.
+    let src_vmid = src
+        .number_alias
+        .clone()
+        .filter(|a| !a.trim().is_empty() && a.trim().chars().all(|c| c.is_ascii_digit()))
+        .unwrap_or_else(|| src.extension.clone());
     let mut am: pbx_db::entities::extensions::ActiveModel = src.into();
     am.extension_uuid = Set(uuid::Uuid::now_v7());
     am.extension = Set(new_ext.clone());
@@ -1533,6 +1582,37 @@ async fn copy_extension(
             Json(serde_json::json!({"detail": format!("copy failed: {e}")})),
         )
             .into_response();
+    }
+    // PHP `extension_copy.php`: clone the source mailbox settings under the
+    // new number with a fresh password. Same txn so Postgres RLS sees it.
+    {
+        use sea_orm::{ColumnTrait, EntityTrait};
+        let src_vm = pbx_db::entities::voicemails::Entity::find()
+            .filter(pbx_db::entities::voicemails::Column::DomainId.eq(domain_id))
+            .filter(pbx_db::entities::voicemails::Column::VoicemailId.eq(src_vmid))
+            .one(&txn)
+            .await
+            .unwrap_or(None);
+        if let Some(vm) = src_vm {
+            let spec = MailboxSpec {
+                password: None,
+                enabled: Some(vm.enabled),
+                mail_to: vm.voicemail_mail_to.clone(),
+                file: vm.voicemail_file.clone(),
+                local_after_email: vm.voicemail_local_after_email,
+                transcription_enabled: vm.voicemail_transcription_enabled,
+                transcription_prompt: vm.voicemail_transcription_prompt.clone(),
+                transcription_prompt_enabled: vm.voicemail_transcription_prompt_enabled,
+            };
+            upsert_linked_mailbox(
+                &txn,
+                domain_id,
+                &new_ext,
+                Some(format!("{src_desc} (copy)").trim_start().to_owned()),
+                &spec,
+            )
+            .await;
+        }
     }
     let _ = txn.commit().await;
     propagate_to_freeswitch();
@@ -1689,7 +1769,14 @@ async fn import_extensions(
             errors.push(serde_json::json!({"row": i + 1, "error": format!("insert failed: {e}")}));
             continue;
         }
-        upsert_linked_mailbox(&txn, domain_id, &ext, item.description.clone(), &item).await;
+        upsert_linked_mailbox(
+            &txn,
+            domain_id,
+            &ext,
+            item.description.clone(),
+            &MailboxSpec::from(&item),
+        )
+        .await;
         imported += 1;
     }
     let _ = txn.commit().await;

@@ -8,7 +8,7 @@ use uuid::Uuid;
 #[sea_orm(table_name = "voicemails")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    pub voicemail_uuid: String,
+    pub voicemail_uuid: Uuid,
     pub domain_id: Option<Uuid>,
     pub voicemail_id: String,
     pub voicemail_password: String,

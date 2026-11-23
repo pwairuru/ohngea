@@ -69,7 +69,7 @@ async fn ring_group_full_php_fields_roundtrip() {
 async fn voicemail_full_php_fields_roundtrip() {
     let db = mem_db().await;
     let domain = uuid::Uuid::now_v7();
-    let id = uuid::Uuid::now_v7().to_string();
+    let id = uuid::Uuid::now_v7();
     let now = chrono::Utc::now();
     voicemails::Entity::insert(voicemails::ActiveModel {
         voicemail_uuid: Set(id.clone()),
@@ -101,7 +101,11 @@ async fn voicemail_full_php_fields_roundtrip() {
     .exec(&db)
     .await
     .unwrap();
-    let r = voicemails::Entity::find_by_id(id).one(&db).await.unwrap().unwrap();
+    let r = voicemails::Entity::find_by_id(id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(r.voicemail_mail_to.as_deref(), Some("a@example.com"));
     assert_eq!(r.voicemail_tutorial, Some(true));
 }
