@@ -33,7 +33,7 @@ use axum::{
     response::{IntoResponse, Response},
     Extension, Json, Router,
 };
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -382,18 +382,45 @@ async fn example_handler(
             .into_response();
     }
     let sandbox = {
+        // Live tenant snapshot for the `db_get` host fn (sync closure over
+        // owned counts — extism host fns cannot await SeaORM).
+        let domain = crate::routing_db::domain(&claims);
+        let ext_n = pbx_db::entities::extensions::Entity::find()
+            .filter(pbx_db::entities::extensions::Column::DomainId.eq(domain))
+            .count(db)
+            .await
+            .unwrap_or(0);
+        let gw_n = pbx_db::entities::gateways::Entity::find()
+            .filter(pbx_db::entities::gateways::Column::DomainId.eq(domain))
+            .count(db)
+            .await
+            .unwrap_or(0);
+        let dial_n = pbx_db::entities::dialplans::Entity::find()
+            .filter(pbx_db::entities::dialplans::Column::DomainId.eq(domain))
+            .count(db)
+            .await
+            .unwrap_or(0);
         let mut sb = crate::plugin_sandbox::PluginSandbox::new();
         match sb.register(
             &parse_example_manifest(),
             crate::plugin_sandbox::EXAMPLE_GUEST_WASM.to_vec(),
         ) {
-            Ok(()) => match sb.call_plugin("example", "handle", b"example") {
-                Ok(out) => serde_json::json!({
-                    "ok": true,
-                    "output": String::from_utf8_lossy(&out),
-                }),
-                Err(e) => serde_json::json!({"ok": false, "error": e.to_string()}),
-            },
+            Ok(()) => {
+                match sb.call_plugin_with_lookup("example", "handle", b"example", move |key| {
+                    i64::from(match key {
+                        1 => ext_n > 0,
+                        2 => gw_n > 0,
+                        3 => dial_n > 0,
+                        _ => false,
+                    })
+                }) {
+                    Ok(out) => serde_json::json!({
+                        "ok": true,
+                        "output": String::from_utf8_lossy(&out),
+                    }),
+                    Err(e) => serde_json::json!({"ok": false, "error": e.to_string()}),
+                }
+            }
             Err(e) => serde_json::json!({"ok": false, "error": e.to_string()}),
         }
     };

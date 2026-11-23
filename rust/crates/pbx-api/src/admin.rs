@@ -8,9 +8,7 @@ use serde_json::Value;
 
 type Claims = pbx_core::auth::Claims;
 use crate::remaining_a::{b, envelope, s, tenant_domain, unprocessable};
-use pbx_db::entities::{
-    call_flows, call_recordings, extension_settings, sofia_global_settings,
-};
+use pbx_db::entities::{call_flows, call_recordings, extension_settings, sofia_global_settings};
 
 // ---- domain_limits: counts view (parity app/domain_limits/router.py) ----
 async fn get_domain_limits(Extension(claims): Extension<Claims>) -> impl IntoResponse {
@@ -55,13 +53,20 @@ async fn get_domain_limits(Extension(claims): Extension<Claims>) -> impl IntoRes
         if r.category == "limit" || sub.contains("limit") {
             if let Ok(v) = r.value.parse::<i64>() {
                 // key field holds limit name; fallback to subcategory
-                let k = if r.key.is_empty() { r.subcategory.clone() } else { r.key.clone() };
+                let k = if r.key.is_empty() {
+                    r.subcategory.clone()
+                } else {
+                    r.key.clone()
+                };
                 limits.insert(k, v);
             }
         }
     }
     let lim = |k: &str, d: u64| -> u64 {
-        limits.get(k).and_then(|v| u64::try_from(*v).ok()).unwrap_or(d)
+        limits
+            .get(k)
+            .and_then(|v| u64::try_from(*v).ok())
+            .unwrap_or(d)
     };
     let mk = |used: u64, allowed: u64| {
         serde_json::json!({
@@ -115,8 +120,8 @@ async fn create_ext_setting(
     ) else {
         return unprocessable("extension_setting_name and value required").into_response();
     };
-    let ext_uuid = s(&payload, &["extension_uuid", "extension"])
-        .and_then(|v| v.parse::<uuid::Uuid>().ok());
+    let ext_uuid =
+        s(&payload, &["extension_uuid", "extension"]).and_then(|v| v.parse::<uuid::Uuid>().ok());
     let Some(ext_uuid) = ext_uuid else {
         return unprocessable("extension_uuid required").into_response();
     };
@@ -130,8 +135,15 @@ async fn create_ext_setting(
         extension_setting_type: Set(s(&payload, &["extension_setting_type", "type"])),
         extension_setting_name: Set(name),
         extension_setting_value: Set(value),
-        extension_setting_enabled: Set(b(&payload, &["extension_setting_enabled", "enabled"], true)),
-        extension_setting_description: Set(s(&payload, &["extension_setting_description", "description"])),
+        extension_setting_enabled: Set(b(
+            &payload,
+            &["extension_setting_enabled", "enabled"],
+            true,
+        )),
+        extension_setting_description: Set(s(
+            &payload,
+            &["extension_setting_description", "description"],
+        )),
         created_at: Set(now),
         updated_at: Set(now),
     };
@@ -145,14 +157,18 @@ async fn create_ext_setting(
     }
 }
 
-async fn list_ext_settings(Extension(claims): Extension<Claims>,
+async fn list_ext_settings(
+    Extension(claims): Extension<Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["extension_setting_view", "extension_view"]) {
+    if let Some((s, j)) =
+        crate::tenant::deny_if_missing_any(&claims, &["extension_setting_view", "extension_view"])
+    {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
-    let show_all = crate::tenant::wants_all(&claims, show_q.show.as_deref(), "extension_setting_all");
+    let show_all =
+        crate::tenant::wants_all(&claims, show_q.show.as_deref(), "extension_setting_all");
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
         Err(_) => return envelope(vec![]).into_response(),
@@ -178,9 +194,19 @@ async fn get_ext_setting(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    match extension_settings::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
-        Some(r) if r.domain_id == domain => (StatusCode::OK, Json(ser_ext_setting(&r))).into_response(),
-        _ => (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response(),
+    match extension_settings::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    {
+        Some(r) if r.domain_id == domain => {
+            (StatusCode::OK, Json(ser_ext_setting(&r))).into_response()
+        }
+        _ => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response(),
     }
 }
 
@@ -195,11 +221,23 @@ async fn patch_ext_setting(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let Some(r) = extension_settings::Entity::find_by_id(id).one(db).await.unwrap_or(None) else {
-        return (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response();
+    let Some(r) = extension_settings::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
     };
     if r.domain_id != domain {
-        return (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
     }
     let mut am: extension_settings::ActiveModel = r.into();
     if let Some(v) = s(&payload, &["extension_setting_name", "name"]) {
@@ -208,13 +246,22 @@ async fn patch_ext_setting(
     if let Some(v) = s(&payload, &["extension_setting_value", "value"]) {
         am.extension_setting_value = Set(v);
     }
-    if payload.get("extension_setting_enabled").or_else(|| payload.get("enabled")).is_some() {
-        am.extension_setting_enabled = Set(b(&payload, &["extension_setting_enabled", "enabled"], true));
+    if payload
+        .get("extension_setting_enabled")
+        .or_else(|| payload.get("enabled"))
+        .is_some()
+    {
+        am.extension_setting_enabled =
+            Set(b(&payload, &["extension_setting_enabled", "enabled"], true));
     }
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
         Ok(r) => (StatusCode::OK, Json(ser_ext_setting(&r))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("update failed: {e}")}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+        )
+            .into_response(),
     }
 }
 
@@ -227,13 +274,21 @@ async fn delete_ext_setting(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    match extension_settings::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
+    match extension_settings::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    {
         Some(r) if r.domain_id == domain => {
             let am: extension_settings::ActiveModel = r.into();
             let _ = am.delete(db).await;
             StatusCode::NO_CONTENT.into_response()
         }
-        _ => (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response(),
+        _ => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response(),
     }
 }
 
@@ -271,7 +326,10 @@ async fn create_sofia(
         global_setting_name: Set(name),
         global_setting_value: Set(value),
         global_setting_enabled: Set(b(&payload, &["global_setting_enabled", "enabled"], true)),
-        global_setting_description: Set(s(&payload, &["global_setting_description", "description"])),
+        global_setting_description: Set(s(
+            &payload,
+            &["global_setting_description", "description"],
+        )),
         created_at: Set(now),
         updated_at: Set(now),
     };
@@ -280,9 +338,17 @@ async fn create_sofia(
         Err(e) => {
             let msg = e.to_string();
             if msg.contains("UNIQUE") || msg.contains("unique") || msg.contains("duplicate") {
-                return (StatusCode::CONFLICT, Json(serde_json::json!({"detail": "duplicate"}))).into_response();
+                return (
+                    StatusCode::CONFLICT,
+                    Json(serde_json::json!({"detail": "duplicate"})),
+                )
+                    .into_response();
             }
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("insert failed: {e}")}))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
+            )
+                .into_response()
         }
     }
 }
@@ -292,7 +358,10 @@ async fn list_sofia(Extension(claims): Extension<Claims>) -> impl IntoResponse {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
-    let rows = sofia_global_settings::Entity::find().all(db).await.unwrap_or_default();
+    let rows = sofia_global_settings::Entity::find()
+        .all(db)
+        .await
+        .unwrap_or_default();
     envelope(rows.iter().map(ser_sofia).collect()).into_response()
 }
 
@@ -304,9 +373,17 @@ async fn get_sofia(
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
-    match sofia_global_settings::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
+    match sofia_global_settings::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    {
         Some(r) => (StatusCode::OK, Json(ser_sofia(&r))).into_response(),
-        None => (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response(),
     }
 }
 
@@ -320,8 +397,16 @@ async fn patch_sofia(
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
-    let Some(r) = sofia_global_settings::Entity::find_by_id(id).one(db).await.unwrap_or(None) else {
-        return (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response();
+    let Some(r) = sofia_global_settings::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
     };
     let mut am: sofia_global_settings::ActiveModel = r.into();
     if let Some(v) = s(&payload, &["global_setting_name", "name"]) {
@@ -330,13 +415,21 @@ async fn patch_sofia(
     if let Some(v) = s(&payload, &["global_setting_value", "value"]) {
         am.global_setting_value = Set(v);
     }
-    if payload.get("global_setting_enabled").or_else(|| payload.get("enabled")).is_some() {
+    if payload
+        .get("global_setting_enabled")
+        .or_else(|| payload.get("enabled"))
+        .is_some()
+    {
         am.global_setting_enabled = Set(b(&payload, &["global_setting_enabled", "enabled"], true));
     }
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
         Ok(r) => (StatusCode::OK, Json(ser_sofia(&r))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("update failed: {e}")}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+        )
+            .into_response(),
     }
 }
 
@@ -348,13 +441,21 @@ async fn delete_sofia(
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
-    match sofia_global_settings::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
+    match sofia_global_settings::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    {
         Some(r) => {
             let am: sofia_global_settings::ActiveModel = r.into();
             let _ = am.delete(db).await;
             StatusCode::NO_CONTENT.into_response()
         }
-        None => (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response(),
     }
 }
 
@@ -373,7 +474,9 @@ async fn create_call_rec(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["recording_add", "call_recording_add"]) {
+    if let Some((s, j)) =
+        crate::tenant::deny_if_missing_any(&claims, &["recording_add", "call_recording_add"])
+    {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -387,14 +490,21 @@ async fn create_call_rec(
     };
     match am.insert(db).await {
         Ok(r) => (StatusCode::CREATED, Json(ser_call_rec(&r))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("insert failed: {e}")}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
+        )
+            .into_response(),
     }
 }
 
-async fn list_call_rec(Extension(claims): Extension<Claims>,
+async fn list_call_rec(
+    Extension(claims): Extension<Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["recording_view", "call_recording_view"]) {
+    if let Some((s, j)) =
+        crate::tenant::deny_if_missing_any(&claims, &["recording_view", "call_recording_view"])
+    {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -419,14 +529,26 @@ async fn get_call_rec(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["recording_view", "call_recording_view"]) {
+    if let Some((s, j)) =
+        crate::tenant::deny_if_missing_any(&claims, &["recording_view", "call_recording_view"])
+    {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    match call_recordings::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
-        Some(r) if r.domain_id == domain => (StatusCode::OK, Json(ser_call_rec(&r))).into_response(),
-        _ => (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response(),
+    match call_recordings::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    {
+        Some(r) if r.domain_id == domain => {
+            (StatusCode::OK, Json(ser_call_rec(&r))).into_response()
+        }
+        _ => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response(),
     }
 }
 
@@ -434,18 +556,28 @@ async fn delete_call_rec(
     Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["recording_add", "call_recording_add"]) {
+    if let Some((s, j)) =
+        crate::tenant::deny_if_missing_any(&claims, &["recording_add", "call_recording_add"])
+    {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    match call_recordings::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
+    match call_recordings::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    {
         Some(r) if r.domain_id == domain => {
             let am: call_recordings::ActiveModel = r.into();
             let _ = am.delete(db).await;
             StatusCode::NO_CONTENT.into_response()
         }
-        _ => (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response(),
+        _ => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response(),
     }
 }
 
@@ -487,14 +619,10 @@ async fn create_call_flow(
     ) else {
         return unprocessable("name and extension required").into_response();
     };
-    // parity validator: 2-7 digits optionally prefixed *#+ (app/call_flows/models.py)
-    let ok = {
-        let t = ext.trim();
-        let digits = t.trim_start_matches(|c| c == '*' || c == '#' || c == '+');
-        (2..=7).contains(&digits.len()) && digits.chars().all(|c| c.is_ascii_digit())
-    };
-    if !ok {
-        return unprocessable("call_flow_extension must be 2-7 digits").into_response();
+    // PHP ground truth (`call_flow_edit.php`): `empty($call_flow_extension)`
+    // is the only server-side rule — no digit/length regex.
+    if ext.trim().is_empty() {
+        return unprocessable("call_flow_extension required").into_response();
     }
     let db = crate::routing_db::conn().await;
     let domain = tenant_domain(db, &claims).await;
@@ -506,7 +634,9 @@ async fn create_call_flow(
         call_flow_name: Set(name),
         call_flow_extension: Set(ext),
         call_flow_feature_code: Set(s(&payload, &["call_flow_feature_code"])),
-        call_flow_context: Set(s(&payload, &["call_flow_context"]).unwrap_or_else(|| "public".to_owned())),
+        call_flow_context: Set(
+            s(&payload, &["call_flow_context"]).unwrap_or_else(|| "public".to_owned())
+        ),
         call_flow_status: Set(s(&payload, &["call_flow_status"])),
         call_flow_pin_number: Set(s(&payload, &["call_flow_pin_number"])),
         call_flow_label: Set(s(&payload, &["call_flow_label"])),
@@ -525,11 +655,16 @@ async fn create_call_flow(
     };
     match am.insert(db).await {
         Ok(r) => (StatusCode::CREATED, Json(ser_call_flow(&r))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("insert failed: {e}")}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
+        )
+            .into_response(),
     }
 }
 
-async fn list_call_flows(Extension(claims): Extension<Claims>,
+async fn list_call_flows(
+    Extension(claims): Extension<Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_flow_view") {
@@ -566,9 +701,19 @@ async fn get_call_flow(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    match call_flows::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
-        Some(r) if r.domain_id == Some(domain) => (StatusCode::OK, Json(ser_call_flow(&r))).into_response(),
-        _ => (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response(),
+    match call_flows::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    {
+        Some(r) if r.domain_id == Some(domain) => {
+            (StatusCode::OK, Json(ser_call_flow(&r))).into_response()
+        }
+        _ => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response(),
     }
 }
 
@@ -583,23 +728,43 @@ async fn patch_call_flow(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let Some(r) = call_flows::Entity::find_by_id(id).one(db).await.unwrap_or(None) else {
-        return (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response();
+    let Some(r) = call_flows::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
     };
     if r.domain_id != Some(domain) {
-        return (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
     }
     let mut am: call_flows::ActiveModel = r.into();
     if let Some(v) = s(&payload, &["call_flow_name", "name"]) {
         am.call_flow_name = Set(v);
     }
-    if payload.get("call_flow_enabled").or_else(|| payload.get("enabled")).is_some() {
+    if payload
+        .get("call_flow_enabled")
+        .or_else(|| payload.get("enabled"))
+        .is_some()
+    {
         am.call_flow_enabled = Set(b(&payload, &["call_flow_enabled", "enabled"], true));
     }
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
         Ok(r) => (StatusCode::OK, Json(ser_call_flow(&r))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("update failed: {e}")}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+        )
+            .into_response(),
     }
 }
 
@@ -612,13 +777,21 @@ async fn delete_call_flow(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    match call_flows::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
+    match call_flows::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    {
         Some(r) if r.domain_id == Some(domain) => {
             let am: call_flows::ActiveModel = r.into();
             let _ = am.delete(db).await;
             StatusCode::NO_CONTENT.into_response()
         }
-        _ => (StatusCode::NOT_FOUND, Json(serde_json::json!({"detail": "not found"}))).into_response(),
+        _ => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response(),
     }
 }
 
@@ -654,21 +827,75 @@ async fn list_webrtc_hyphen(Extension(claims): Extension<Claims>) -> impl IntoRe
 
 pub fn admin_router() -> Router {
     Router::new()
-        .route("/api/v1/domain_limits", axum::routing::get(get_domain_limits))
-        .route("/api/v1/domain_limits/", axum::routing::get(get_domain_limits))
-        .route("/api/v1/extension_settings", axum::routing::post(create_ext_setting).get(list_ext_settings))
-        .route("/api/v1/extension_settings/", axum::routing::post(create_ext_setting).get(list_ext_settings))
-        .route("/api/v1/extension_settings/{id}", axum::routing::get(get_ext_setting).patch(patch_ext_setting).delete(delete_ext_setting))
-        .route("/api/v1/sofia_global_settings", axum::routing::post(create_sofia).get(list_sofia))
-        .route("/api/v1/sofia_global_settings/", axum::routing::post(create_sofia).get(list_sofia))
-        .route("/api/v1/sofia_global_settings/{id}", axum::routing::get(get_sofia).patch(patch_sofia).delete(delete_sofia))
-        .route("/api/v1/call_recordings", axum::routing::post(create_call_rec).get(list_call_rec))
-        .route("/api/v1/call_recordings/", axum::routing::post(create_call_rec).get(list_call_rec))
-        .route("/api/v1/call_recordings/{id}", axum::routing::get(get_call_rec).delete(delete_call_rec))
-        .route("/api/v1/call_flows", axum::routing::post(create_call_flow).get(list_call_flows))
-        .route("/api/v1/call_flows/", axum::routing::post(create_call_flow).get(list_call_flows))
-        .route("/api/v1/call_flows/{id}", axum::routing::get(get_call_flow).patch(patch_call_flow).delete(delete_call_flow))
-        .route("/api/v1/webrtc-settings", axum::routing::get(list_webrtc_hyphen))
-        .route("/api/v1/webrtc-settings/", axum::routing::get(list_webrtc_hyphen))
+        .route(
+            "/api/v1/domain_limits",
+            axum::routing::get(get_domain_limits),
+        )
+        .route(
+            "/api/v1/domain_limits/",
+            axum::routing::get(get_domain_limits),
+        )
+        .route(
+            "/api/v1/extension_settings",
+            axum::routing::post(create_ext_setting).get(list_ext_settings),
+        )
+        .route(
+            "/api/v1/extension_settings/",
+            axum::routing::post(create_ext_setting).get(list_ext_settings),
+        )
+        .route(
+            "/api/v1/extension_settings/{id}",
+            axum::routing::get(get_ext_setting)
+                .patch(patch_ext_setting)
+                .delete(delete_ext_setting),
+        )
+        .route(
+            "/api/v1/sofia_global_settings",
+            axum::routing::post(create_sofia).get(list_sofia),
+        )
+        .route(
+            "/api/v1/sofia_global_settings/",
+            axum::routing::post(create_sofia).get(list_sofia),
+        )
+        .route(
+            "/api/v1/sofia_global_settings/{id}",
+            axum::routing::get(get_sofia)
+                .patch(patch_sofia)
+                .delete(delete_sofia),
+        )
+        .route(
+            "/api/v1/call_recordings",
+            axum::routing::post(create_call_rec).get(list_call_rec),
+        )
+        .route(
+            "/api/v1/call_recordings/",
+            axum::routing::post(create_call_rec).get(list_call_rec),
+        )
+        .route(
+            "/api/v1/call_recordings/{id}",
+            axum::routing::get(get_call_rec).delete(delete_call_rec),
+        )
+        .route(
+            "/api/v1/call_flows",
+            axum::routing::post(create_call_flow).get(list_call_flows),
+        )
+        .route(
+            "/api/v1/call_flows/",
+            axum::routing::post(create_call_flow).get(list_call_flows),
+        )
+        .route(
+            "/api/v1/call_flows/{id}",
+            axum::routing::get(get_call_flow)
+                .patch(patch_call_flow)
+                .delete(delete_call_flow),
+        )
+        .route(
+            "/api/v1/webrtc-settings",
+            axum::routing::get(list_webrtc_hyphen),
+        )
+        .route(
+            "/api/v1/webrtc-settings/",
+            axum::routing::get(list_webrtc_hyphen),
+        )
         .layer(axum::middleware::from_fn(crate::require_tenant))
 }

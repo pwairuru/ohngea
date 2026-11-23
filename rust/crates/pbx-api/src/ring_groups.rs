@@ -303,30 +303,54 @@ struct RingGroupCreate {
     description: Option<String>,
     #[serde(default)]
     members: Vec<MemberIn>,
-    #[serde(default)] greeting: Option<String>,
-    #[serde(default)] exit_key: Option<String>,
-    #[serde(default, alias = "timeout")] call_timeout: Option<i32>,
-    #[serde(default, alias = "ring_group_forward_destination")] forward_destination: Option<String>,
-    #[serde(default, alias = "ring_group_forward_enabled")] forward_enabled: Option<bool>,
-    #[serde(default)] caller_id_name: Option<String>,
-    #[serde(default)] caller_id_number: Option<String>,
-    #[serde(default)] cid_name_prefix: Option<String>,
-    #[serde(default)] cid_number_prefix: Option<String>,
-    #[serde(default)] timeout_app: Option<String>,
-    #[serde(default)] timeout_data: Option<String>,
-    #[serde(default)] distinctive_ring: Option<String>,
-    #[serde(default)] ringback: Option<String>,
-    #[serde(default)] call_screen_enabled: Option<bool>,
-    #[serde(default)] call_forward_enabled: Option<bool>,
-    #[serde(default)] follow_me_enabled: Option<bool>,
-    #[serde(default)] missed_call_app: Option<String>,
-    #[serde(default)] missed_call_data: Option<String>,
-    #[serde(default)] context: Option<String>,
-    #[serde(default)] dialplan_uuid: Option<String>,
-    #[serde(default)] forward_toll_allow: Option<String>,
-    #[serde(default)] wait_announcement: Option<String>,
-    #[serde(default)] wait_interval: Option<i32>,
-    #[serde(default)] enabled: Option<bool>,
+    #[serde(default)]
+    greeting: Option<String>,
+    #[serde(default)]
+    exit_key: Option<String>,
+    #[serde(default, alias = "timeout")]
+    call_timeout: Option<i32>,
+    #[serde(default, alias = "ring_group_forward_destination")]
+    forward_destination: Option<String>,
+    #[serde(default, alias = "ring_group_forward_enabled")]
+    forward_enabled: Option<bool>,
+    #[serde(default)]
+    caller_id_name: Option<String>,
+    #[serde(default)]
+    caller_id_number: Option<String>,
+    #[serde(default)]
+    cid_name_prefix: Option<String>,
+    #[serde(default)]
+    cid_number_prefix: Option<String>,
+    #[serde(default)]
+    timeout_app: Option<String>,
+    #[serde(default)]
+    timeout_data: Option<String>,
+    #[serde(default)]
+    distinctive_ring: Option<String>,
+    #[serde(default)]
+    ringback: Option<String>,
+    #[serde(default)]
+    call_screen_enabled: Option<bool>,
+    #[serde(default)]
+    call_forward_enabled: Option<bool>,
+    #[serde(default)]
+    follow_me_enabled: Option<bool>,
+    #[serde(default)]
+    missed_call_app: Option<String>,
+    #[serde(default)]
+    missed_call_data: Option<String>,
+    #[serde(default)]
+    context: Option<String>,
+    #[serde(default)]
+    dialplan_uuid: Option<String>,
+    #[serde(default)]
+    forward_toll_allow: Option<String>,
+    #[serde(default)]
+    wait_announcement: Option<String>,
+    #[serde(default)]
+    wait_interval: Option<i32>,
+    #[serde(default)]
+    enabled: Option<bool>,
 }
 
 fn default_strategy() -> String {
@@ -351,9 +375,10 @@ struct RingGroupOut {
 }
 
 // ---- handlers ----
-fn valid_extension(ext: &str) -> bool {
-    let s = ext.trim();
-    (2..=7).contains(&s.len()) && s.chars().all(|c| c.is_ascii_digit())
+/// PHP ground truth (`ring_group_edit.php`): the extension check is
+/// commented out — the field is optional with no format rule.
+fn valid_extension(_ext: &str) -> bool {
+    true
 }
 
 async fn create_rg(
@@ -383,8 +408,7 @@ async fn create_rg(
     let now = crate::routing_db::now();
     // PHP mints the dialplan row alongside the group (`dialplan_uuid`
     // passthrough when the client supplies one).
-    let dp_id =
-        parse_dialplan_id(payload.dialplan_uuid.as_deref()).unwrap_or_else(new_dialplan_id);
+    let dp_id = parse_dialplan_id(payload.dialplan_uuid.as_deref()).unwrap_or_else(new_dialplan_id);
     let am = ring_groups::ActiveModel {
         ring_group_uuid: Set(id.clone()),
         domain_id: Set(domain),
@@ -478,7 +502,8 @@ async fn create_rg(
         .into_response()
 }
 
-async fn list_rg(Extension(claims): Extension<pbx_core::auth::Claims>,
+async fn list_rg(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ring_group_view") {
@@ -660,9 +685,30 @@ async fn patch_rg(
             .into_response();
     };
     let mut am: ring_groups::ActiveModel = r.into();
-    macro_rules! set_str { ($f:ident) => { if let Some(v) = payload.get(stringify!($f)).and_then(|v| v.as_str()) { am.$f = Set(Some(v.to_owned())); } }; }
-    macro_rules! set_int { ($f:ident) => { if payload.get(stringify!($f)).is_some() { am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_i64()).map(|v| v as i32)); } }; }
-    macro_rules! set_bool { ($f:ident) => { if payload.get(stringify!($f)).is_some() { am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_bool())); } }; }
+    macro_rules! set_str {
+        ($f:ident) => {
+            if let Some(v) = payload.get(stringify!($f)).and_then(|v| v.as_str()) {
+                am.$f = Set(Some(v.to_owned()));
+            }
+        };
+    }
+    macro_rules! set_int {
+        ($f:ident) => {
+            if payload.get(stringify!($f)).is_some() {
+                am.$f = Set(payload
+                    .get(stringify!($f))
+                    .and_then(|v| v.as_i64())
+                    .map(|v| v as i32));
+            }
+        };
+    }
+    macro_rules! set_bool {
+        ($f:ident) => {
+            if payload.get(stringify!($f)).is_some() {
+                am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_bool()));
+            }
+        };
+    }
     if let Some(v) = payload.get("name").and_then(|v| v.as_str()) {
         am.name = Set(v.to_owned());
     }
@@ -675,22 +721,35 @@ async fn patch_rg(
     if let Some(v) = payload.get("strategy").and_then(|v| v.as_str()) {
         am.strategy = Set(v.to_owned());
     }
-    set_str!(greeting); set_str!(exit_key); set_int!(call_timeout);
-    set_str!(forward_destination); set_bool!(forward_enabled);
-    set_str!(caller_id_name); set_str!(caller_id_number);
-    set_str!(cid_name_prefix); set_str!(cid_number_prefix);
-    set_str!(timeout_app); set_str!(timeout_data);
-    set_str!(distinctive_ring); set_str!(ringback);
-    set_bool!(call_screen_enabled); set_bool!(call_forward_enabled); set_bool!(follow_me_enabled);
-    set_str!(missed_call_app); set_str!(missed_call_data);
-    set_str!(context); set_str!(dialplan_uuid); set_str!(forward_toll_allow);
-    set_str!(wait_announcement); set_int!(wait_interval);
+    set_str!(greeting);
+    set_str!(exit_key);
+    set_int!(call_timeout);
+    set_str!(forward_destination);
+    set_bool!(forward_enabled);
+    set_str!(caller_id_name);
+    set_str!(caller_id_number);
+    set_str!(cid_name_prefix);
+    set_str!(cid_number_prefix);
+    set_str!(timeout_app);
+    set_str!(timeout_data);
+    set_str!(distinctive_ring);
+    set_str!(ringback);
+    set_bool!(call_screen_enabled);
+    set_bool!(call_forward_enabled);
+    set_bool!(follow_me_enabled);
+    set_str!(missed_call_app);
+    set_str!(missed_call_data);
+    set_str!(context);
+    set_str!(dialplan_uuid);
+    set_str!(forward_toll_allow);
+    set_str!(wait_announcement);
+    set_int!(wait_interval);
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
         Ok(r) => {
             // Refresh the linked dialplan (mint one for legacy rows).
-            let dp_id = parse_dialplan_id(r.dialplan_uuid.as_deref())
-                .unwrap_or_else(new_dialplan_id);
+            let dp_id =
+                parse_dialplan_id(r.dialplan_uuid.as_deref()).unwrap_or_else(new_dialplan_id);
             let spec = ring_group_spec(
                 &r.name,
                 &r.extension,
@@ -710,10 +769,9 @@ async fn patch_rg(
             // Persist the minted link for legacy rows that had none.
             if r.dialplan_uuid.is_none() {
                 use sea_orm::{ActiveModelTrait, EntityTrait};
-                if let Ok(Some(row)) =
-                    ring_groups::Entity::find_by_id(r.ring_group_uuid.clone())
-                        .one(db)
-                        .await
+                if let Ok(Some(row)) = ring_groups::Entity::find_by_id(r.ring_group_uuid.clone())
+                    .one(db)
+                    .await
                 {
                     let mut fix: ring_groups::ActiveModel = row.into();
                     fix.dialplan_uuid = Set(Some(dp_id.to_string()));

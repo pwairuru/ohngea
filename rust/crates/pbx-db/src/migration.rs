@@ -1614,6 +1614,16 @@ const DDL_TABLES: &[&str] = &[
       updated_at TIMESTAMPTZ NOT NULL
     )",
     "CREATE INDEX IF NOT EXISTS ix_dashboard_widgets_dashboard ON dashboard_widgets (dashboard_uuid)",
+    // v_dashboard_widget_groups parity (no domain_id column in PHP):
+    // widget ↔ group assignments, tenant-scoped via the parent widget.
+    "CREATE TABLE IF NOT EXISTS dashboard_widget_groups (
+      dashboard_widget_group_uuid UUID PRIMARY KEY,
+      dashboard_uuid UUID REFERENCES dashboards (dashboard_uuid) ON DELETE CASCADE,
+      dashboard_widget_uuid UUID REFERENCES dashboard_widgets (dashboard_widget_uuid) ON DELETE CASCADE,
+      group_uuid UUID,
+      created_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_dashboard_widget_groups_widget ON dashboard_widget_groups (dashboard_widget_uuid)",
     "CREATE TABLE IF NOT EXISTS email_queue (
       email_queue_uuid UUID PRIMARY KEY,
       domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
@@ -2211,15 +2221,38 @@ const STRICT_TABLES: &[&str] = &[
 ];
 
 /// Nullable tenant tables (shared/global rows allowed).
-const NULLABLE_TABLES: &[&str] = &["groups", "users", "domain_settings", "gateways", "destinations", "ivr_menus", "devices", "voicemails", "conferences", "fax", "time_conditions", "phrases", "streams", "call_block", "dialplans", "dialplan_details", "music_on_hold", "call_flows"];
+const NULLABLE_TABLES: &[&str] = &[
+    "groups",
+    "users",
+    "domain_settings",
+    "gateways",
+    "destinations",
+    "ivr_menus",
+    "devices",
+    "voicemails",
+    "conferences",
+    "fax",
+    "time_conditions",
+    "phrases",
+    "streams",
+    "call_block",
+    "dialplans",
+    "dialplan_details",
+    "music_on_hold",
+    "call_flows",
+];
 
 /// Key FS views (alembic 003/005/006/011/013 parity, trimmed to ported tables).
+/// `v_call_center_queues` / `v_xml_cdr` are PHP-name compat views over the
+/// renamed `call_centers` / `cdr` tables so legacy `v_*` SQL keeps working.
 const VIEWS: &[&str] = &[
     "CREATE OR REPLACE VIEW v_vars AS SELECT domain_id, var_uuid, var_name, var_category, var_value FROM vars",
     "CREATE OR REPLACE VIEW ring_group_destinations AS SELECT domain_id, ring_group_uuid, destination, delay, timeout FROM ring_group_members",
     "CREATE OR REPLACE VIEW v_voicemails AS SELECT domain_id, voicemail_uuid, voicemail_id FROM voicemails",
     "CREATE OR REPLACE VIEW v_conferences AS SELECT domain_id, conference_uuid, conference_name, conference_extension FROM conferences",
     "CREATE OR REPLACE VIEW v_call_centers AS SELECT domain_id, call_center_queue_uuid, queue_name, queue_extension FROM call_centers",
+    "CREATE OR REPLACE VIEW v_call_center_queues AS SELECT call_center_queue_uuid, domain_id AS domain_uuid, dialplan_uuid, NULL::text AS v_id, queue_name, queue_extension, greeting AS queue_greeting, queue_strategy, moh_sound AS queue_moh_sound, record_template AS queue_record_template, language AS queue_language, dialect AS queue_dialect, voice AS queue_voice, queue_limit, time_base_score AS queue_time_base_score, time_base_score_sec AS queue_time_base_score_sec, max_wait_time AS queue_max_wait_time, max_wait_time_with_no_agent AS queue_max_wait_time_with_no_agent, max_wait_time_with_no_agent_time_reached AS queue_max_wait_time_with_no_agent_time_reached, tier_rules_apply AS queue_tier_rules_apply, tier_rule_wait_second AS queue_tier_rule_wait_second, tier_rule_no_agent_no_wait AS queue_tier_rule_no_agent_no_wait, timeout_action AS queue_timeout_action, discard_abandoned_after AS queue_discard_abandoned_after, abandoned_resume_allowed AS queue_abandoned_resume_allowed, tier_rule_wait_multiply_level AS queue_tier_rule_wait_multiply_level, cid_prefix AS queue_cid_prefix, outbound_caller_id_name AS queue_outbound_caller_id_name, outbound_caller_id_number AS queue_outbound_caller_id_number, announce_position AS queue_announce_position, announce_sound AS queue_announce_sound, announce_frequency AS queue_announce_frequency, cc_exit_keys AS queue_cc_exit_keys, email_address AS queue_email_address, context AS queue_context, queue_description, created_at AS insert_date, NULL::uuid AS insert_user, updated_at AS update_date, NULL::uuid AS update_user FROM call_centers",
+    "CREATE OR REPLACE VIEW v_xml_cdr AS SELECT cdr_uuid AS xml_cdr_uuid, domain_id AS domain_uuid, provider_uuid, extension_uuid, NULL::text AS v_id, sip_call_id, domain_name, accountcode, direction, default_language, context, caller_id_name, caller_id_number, caller_destination, source_number, destination_number, start_epoch, start_stamp, answer_stamp, answer_epoch, end_epoch, end_stamp, duration, mduration, billsec, billmsec, hold_accum_seconds, bridge_uuid, read_codec, read_rate, write_codec, write_rate, remote_media_ip, network_addr, record_path, record_name, record_length, record_transcription, leg, originating_leg_uuid, pdd_ms, rtp_audio_in_mos, last_app, last_arg, voicemail_message, missed_call, call_center_queue_uuid, cc_side, cc_member_uuid, cc_queue_joined_epoch, cc_queue, cc_member_session_uuid, cc_agent_uuid, cc_agent, cc_agent_type, cc_agent_bridged, cc_queue_answered_epoch, cc_queue_terminated_epoch, cc_queue_canceled_epoch, cc_cancel_reason, cc_cause, waitsec, conference_name, conference_uuid, conference_member_id, digits_dialed, pin_number, status, call_disposition, hangup_cause, hangup_cause_q850, sip_hangup_disposition, ring_group_uuid, ivr_menu_uuid, processed, call_flow, json, created_at AS insert_date, NULL::uuid AS insert_user, updated_at AS update_date, NULL::uuid AS update_user FROM cdr",
 ];
 
 fn rls_statements() -> Vec<String> {
@@ -2263,6 +2296,9 @@ fn rls_statements() -> Vec<String> {
         "device_vendors",
         "device_vendor_functions",
         "device_vendor_function_groups",
+        // No domain_id column (PHP has none either); tenant scope resolves
+        // through the parent widget.
+        "dashboard_widget_groups",
     ] {
         out.push(format!("ALTER TABLE {tbl} DISABLE ROW LEVEL SECURITY"));
     }
@@ -2313,6 +2349,8 @@ impl MigrationTrait for M20260101_000001PgParity {
                 "v_voicemails",
                 "v_conferences",
                 "v_call_centers",
+                "v_call_center_queues",
+                "v_xml_cdr",
             ] {
                 let _ = conn
                     .execute_unprepared(&format!("DROP VIEW IF EXISTS {view}"))

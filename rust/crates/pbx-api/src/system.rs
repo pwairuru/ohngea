@@ -6,6 +6,7 @@
 //! Live data only: hostname/load from std + /proc, process uptime from a
 //! boot `Instant`, table counts from SeaORM. No static stubs.
 
+use axum::response::IntoResponse;
 use axum::{Extension as AxExtension, Json, Router};
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 use std::sync::OnceLock;
@@ -165,5 +166,53 @@ pub fn system_router() -> Router {
         .route("/api/v1/system/status", axum::routing::get(system_status))
         .route("/api/v1/system/info", axum::routing::get(system_info))
         .route("/api/v1/system/metrics", axum::routing::get(system_metrics))
+        .route("/api/v1/system/upgrade", axum::routing::get(system_upgrade))
+        .route("/api/v1/system/events", axum::routing::get(system_events))
         .layer(axum::middleware::from_fn(crate::require_tenant))
+}
+
+/// Upgrade status (core:upgrade parity): the Rust port migrates on boot
+/// (`migrate_on_boot`), so there are no pending `upgrade/*.php` steps.
+/// Reports the running crate version as the schema baseline.
+async fn system_upgrade(
+    AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
+) -> impl IntoResponse {
+    if let Some((s, j)) =
+        crate::tenant::deny_if_missing_any(&claims, &["upgrade_schema", "system_view_info"])
+    {
+        return (s, j).into_response();
+    }
+    Json(serde_json::json!({
+        "boot_migrate": true,
+        "pending": false,
+        "version": env!("CARGO_PKG_VERSION"),
+        "note": "schema migrates on boot; legacy upgrade/*.php scripts have no REST equivalent",
+        "_links": {"self": {"href": "/api/v1/system/upgrade"}},
+    }))
+    .into_response()
+}
+
+/// Events status (core:events parity): live FreeSWITCH event-socket
+/// reachability plus the recent `event_guard_logs` volume. No stubbed "ok".
+async fn system_events(
+    AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
+) -> impl IntoResponse {
+    if let Some((s, j)) =
+        crate::tenant::deny_if_missing_any(&claims, &["event_guard_view", "system_view_info"])
+    {
+        return (s, j).into_response();
+    }
+    let fs = crate::fs_status_probe();
+    let db = crate::routing_db::conn().await;
+    let guard_n = pbx_db::entities::event_guard_logs::Entity::find()
+        .count(db)
+        .await
+        .unwrap_or(0);
+    Json(serde_json::json!({
+        "transport": "esl",
+        "freeswitch": fs,
+        "event_guard_logs": guard_n,
+        "_links": {"self": {"href": "/api/v1/system/events"}},
+    }))
+    .into_response()
 }

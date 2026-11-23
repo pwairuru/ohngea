@@ -144,7 +144,11 @@ async fn create_user(
         pbx_core::auth::hash_password(&pw)
     };
     let email_val = sstr(&payload, &["user_email", "email"]);
-    let enabled_val = payload.get("user_enabled").or_else(|| payload.get("enabled")).and_then(|v| v.as_bool()).unwrap_or(true);
+    let enabled_val = payload
+        .get("user_enabled")
+        .or_else(|| payload.get("enabled"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
     let am = users::ActiveModel {
         user_uuid: Set(id),
         domain_id: Set(domain),
@@ -176,11 +180,21 @@ async fn create_user(
     if contact_given.is_some() || contact_family.is_some() || contact_org.is_some() {
         use pbx_db::entities::contacts;
         let cid = uuid::Uuid::now_v7();
-        let cname = format!("{} {}", contact_given.clone().unwrap_or_default(), contact_family.clone().unwrap_or_default()).trim().to_owned();
+        let cname = format!(
+            "{} {}",
+            contact_given.clone().unwrap_or_default(),
+            contact_family.clone().unwrap_or_default()
+        )
+        .trim()
+        .to_owned();
         let _ = contacts::ActiveModel {
             contact_uuid: Set(cid),
             domain_id: Set(domain),
-            name: Set(if cname.is_empty() { username.clone() } else { cname }),
+            name: Set(if cname.is_empty() {
+                username.clone()
+            } else {
+                cname
+            }),
             number: Set(String::new()),
             email: Set(contact_email.clone()),
             organization: Set(contact_org.clone()),
@@ -231,7 +245,12 @@ async fn list_users(
         Err(_) => {
             return (
                 crate::paged_headers("/api/v1/users", page, per_page, 0),
-                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+                Json(crate::paged_body(
+                    Vec::<serde_json::Value>::new(),
+                    0,
+                    page,
+                    per_page,
+                )),
             )
                 .into_response();
         }
@@ -318,7 +337,11 @@ async fn patch_user(
         am.email = Set(Some(e.clone()));
         am.user_email = Set(Some(e));
     }
-    if let Some(en) = payload.get("user_enabled").or_else(|| payload.get("enabled")).and_then(|v| v.as_bool()) {
+    if let Some(en) = payload
+        .get("user_enabled")
+        .or_else(|| payload.get("enabled"))
+        .and_then(|v| v.as_bool())
+    {
         am.enabled = Set(en);
         am.user_enabled = Set(Some(en));
     }
@@ -456,7 +479,42 @@ pub fn users_router() -> Router {
             "/api/v1/users/{id}/settings",
             axum::routing::get(get_user_settings).put(put_user_settings),
         )
+        .route(
+            "/api/v1/user_settings",
+            axum::routing::get(list_all_user_settings),
+        )
         .layer(axum::middleware::from_fn(crate::require_tenant))
+}
+
+// ---- standalone user_settings list (core:user_settings table parity) ----
+async fn list_all_user_settings(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "user_setting_view") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let (per_page, _) = pq.normalized();
+    let page = pq.page.max(1);
+    let mut q = pbx_db::entities::user_settings::Entity::find()
+        .filter(pbx_db::entities::user_settings::Column::DomainId.eq(domain));
+    if crate::tenant::wants_all(&claims, pq.show.as_deref(), "user_all") {
+        q = pbx_db::entities::user_settings::Entity::find();
+    }
+    let total = q.clone().count(db).await.unwrap_or(0);
+    let rows = q
+        .paginate(db, per_page)
+        .fetch_page(page.saturating_sub(1))
+        .await
+        .unwrap_or_default();
+    let data: Vec<serde_json::Value> = rows.iter().map(user_setting_json).collect();
+    (
+        crate::paged_headers("/api/v1/user_settings", page, per_page, total),
+        Json(crate::paged_body(data, total, page, per_page)),
+    )
+        .into_response()
 }
 
 // ---- bulk (parity with app/users/router.py::bulk_users: copy/toggle/delete) ----

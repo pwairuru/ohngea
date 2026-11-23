@@ -1,8 +1,10 @@
-//! Extension helpers — mirrors `app/extensions/models.py` validation and
-//! `app/extensions/service.py::create_extension` defaults:
-//! - `extension` must match `^\d{2,7}$`
-//! - blank `password` auto-generates a 20-char password
-//! - blank `user_context` defaults to the domain's `domain_name`
+//! Extension helpers — PHP ground truth (`fusionpbx/app/extensions/`):
+//! - `extension_edit.php` requires the extension to be non-empty only (no
+//!   digit/length regex server-side); the old `^\d{2,7}$` rule came from the
+//!   Python intermediate and wrongly rejected PHP-legal values.
+//! - blank `password` auto-generates (PHP `generate_password`, default
+//!   length 20 via `extension.password_length` setting).
+//! - blank `user_context` defaults to the domain name.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -24,13 +26,25 @@ fn rng_next(state: &mut u64) -> u64 {
 }
 
 fn rng_seed() -> u64 {
+    // PHP ground truth uses `random_int` (CSPRNG). Seed from the OS entropy
+    // pool when available; fall back to the old time/pid mix otherwise.
+    // Counter + pid folded in so concurrent calls never share a stream.
+    let c = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let mut entropy = 0u64;
+    if let Ok(mut f) = std::fs::File::open("/dev/urandom") {
+        use std::io::Read;
+        let mut buf = [0u8; 8];
+        if f.read_exact(&mut buf).is_ok() {
+            entropy = u64::from_ne_bytes(buf);
+        }
+    }
     let t = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos() as u64)
         .unwrap_or(0x9E3779B97F4A7C15);
-    let c = COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id() as u64;
-    t.wrapping_mul(0xBF58476D1CE4E5B9)
+    entropy
+        .wrapping_add(t.wrapping_mul(0xBF58476D1CE4E5B9))
         .wrapping_add(c.wrapping_mul(0x94D049BB133111EB))
         .wrapping_add(pid)
         | 1
@@ -40,15 +54,19 @@ fn pick(state: &mut u64, set: &[u8]) -> char {
     set[(rng_next(state) % set.len() as u64) as usize] as char
 }
 
-/// Validate an extension number. Mirrors the Pydantic
-/// `validate_extension` (`^\d{2,7}$`) in `app/extensions/models.py`.
+/// Validate an extension number. PHP ground truth
+/// (`extension_edit.php`): `if (empty($extension))` is the only
+/// server-side rule — alphanumeric values are legal. The width cap (32)
+/// mirrors the `extensions.extension VARCHAR(32)` column, not PHP.
 pub fn validate_extension(v: &str) -> Result<(), String> {
-    let ok = (2..=7).contains(&v.len()) && v.bytes().all(|b| b.is_ascii_digit());
-    if ok {
-        Ok(())
-    } else {
-        Err("extension must be 2-7 digits".to_owned())
+    let t = v.trim();
+    if t.is_empty() {
+        return Err("extension required".to_owned());
     }
+    if t.len() > 32 {
+        return Err("extension must be at most 32 characters".to_owned());
+    }
+    Ok(())
 }
 
 /// Generate a password of `length` chars. Mirrors

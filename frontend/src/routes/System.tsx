@@ -26,6 +26,8 @@ function Progress({ value, color = "bg-primary" }: { value: number; color?: stri
 export function System() {
   const [info, setInfo] = React.useState<any>(null);
   const [metrics, setMetrics] = React.useState<any>(null);
+  const [upgrade, setUpgrade] = React.useState<any>(null);
+  const [events, setEvents] = React.useState<any>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [live, setLive] = React.useState(true);
   const [showRaw, setShowRaw] = React.useState(false);
@@ -33,6 +35,8 @@ export function System() {
 
   const loadInfo = React.useCallback(() => {
     apiFetch("/system/info").then(setInfo).catch((e: any) => setError(String(e.message || e)));
+    apiFetch("/system/upgrade").then(setUpgrade).catch(() => {});
+    apiFetch("/system/events").then(setEvents).catch(() => {});
   }, []);
   const loadMetrics = React.useCallback(() => {
     apiFetch("/system/metrics").then((d: any) => {
@@ -165,6 +169,33 @@ export function System() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Upgrade + Events (Rust: /system/upgrade, /system/events) */}
+      {(upgrade || events) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {upgrade && (
+            <Card>
+              <CardHeader><CardTitle className="text-sm">Upgrade</CardTitle></CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                <div><span className="text-muted-foreground">Boot migrate:</span> {String(upgrade.boot_migrate ?? "—")}</div>
+                <div><span className="text-muted-foreground">Pending:</span> {String(upgrade.pending ?? "—")}</div>
+                <div><span className="text-muted-foreground">Version:</span> {upgrade.version || "—"}</div>
+                {upgrade.note && <div className="text-xs text-muted-foreground">{upgrade.note}</div>}
+              </CardContent>
+            </Card>
+          )}
+          {events && (
+            <Card>
+              <CardHeader><CardTitle className="text-sm">Events (event socket)</CardTitle></CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                <div><span className="text-muted-foreground">Transport:</span> {events.transport || "—"}</div>
+                <div><span className="text-muted-foreground">FreeSWITCH connected:</span> {String(events.freeswitch?.connected ?? events.freeswitch ?? "—")}</div>
+                <div><span className="text-muted-foreground">Event guard logs:</span> {events.event_guard_logs ?? "—"}</div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* CPU per core + Memory pie */}
       <div className="grid gap-4 md:grid-cols-2">

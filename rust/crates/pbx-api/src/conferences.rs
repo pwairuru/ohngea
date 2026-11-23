@@ -3,7 +3,9 @@
 //! Order: models → schemas → handlers → xml.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, Set,
+};
 use serde::Deserialize;
 
 // ---- models ----
@@ -16,21 +18,36 @@ struct ConferenceCreate {
     conference_extension: String,
     #[serde(default = "default_profile")]
     conference_profile: String,
-    #[serde(default)] conference_enabled: Option<bool>,
-    #[serde(default)] dialplan_uuid: Option<String>,
-    #[serde(default)] pin_number: Option<String>,
-    #[serde(default)] conference_pin_number: Option<String>,
-    #[serde(default)] email_address: Option<String>,
-    #[serde(default)] conference_email_address: Option<String>,
-    #[serde(default)] account_code: Option<String>,
-    #[serde(default)] conference_account_code: Option<String>,
-    #[serde(default)] flags: Option<String>,
-    #[serde(default)] conference_flags: Option<String>,
-    #[serde(default)] conference_order: Option<i32>,
-    #[serde(default)] conference_description: Option<String>,
-    #[serde(default)] description: Option<String>,
-    #[serde(default)] context: Option<String>,
-    #[serde(default)] conference_context: Option<String>,
+    #[serde(default)]
+    conference_enabled: Option<bool>,
+    #[serde(default)]
+    dialplan_uuid: Option<String>,
+    #[serde(default)]
+    pin_number: Option<String>,
+    #[serde(default)]
+    conference_pin_number: Option<String>,
+    #[serde(default)]
+    email_address: Option<String>,
+    #[serde(default)]
+    conference_email_address: Option<String>,
+    #[serde(default)]
+    account_code: Option<String>,
+    #[serde(default)]
+    conference_account_code: Option<String>,
+    #[serde(default)]
+    flags: Option<String>,
+    #[serde(default)]
+    conference_flags: Option<String>,
+    #[serde(default)]
+    conference_order: Option<i32>,
+    #[serde(default)]
+    conference_description: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    context: Option<String>,
+    #[serde(default)]
+    conference_context: Option<String>,
 }
 
 fn default_profile() -> String {
@@ -38,9 +55,10 @@ fn default_profile() -> String {
 }
 
 // ---- handlers ----
+/// PHP ground truth (`conference_edit.php`): `empty($conference_extension)`
+/// is the only server-side rule — no digit/length regex.
 fn valid_extension(ext: &str) -> bool {
-    let s = ext.trim();
-    (2..=7).contains(&s.len()) && s.chars().all(|c| c.is_ascii_digit())
+    !ext.trim().is_empty()
 }
 
 fn ser_conf(r: &conferences::Model) -> serde_json::Value {
@@ -93,7 +111,7 @@ async fn create_conf(
     if !valid_extension(&payload.conference_extension) {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(serde_json::json!({"detail": "conference_extension must be 2-7 digits"})),
+            Json(serde_json::json!({"detail": "conference_extension required"})),
         )
             .into_response();
     }
@@ -188,7 +206,12 @@ async fn list_conf(
         Err(_) => {
             return (
                 crate::paged_headers("/api/v1/conferences", page, per_page, 0),
-                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+                Json(crate::paged_body(
+                    Vec::<serde_json::Value>::new(),
+                    0,
+                    page,
+                    per_page,
+                )),
             )
                 .into_response();
         }
@@ -267,7 +290,7 @@ async fn patch_conf(
         if !valid_extension(v) {
             return (
                 StatusCode::UNPROCESSABLE_ENTITY,
-                Json(serde_json::json!({"detail": "conference_extension must be 2-7 digits"})),
+                Json(serde_json::json!({"detail": "conference_extension required"})),
             )
                 .into_response();
         }
@@ -283,11 +306,34 @@ async fn patch_conf(
     {
         am.conference_enabled = Set(v);
     }
-    macro_rules! set_str { ($f:ident) => { if payload.get(stringify!($f)).is_some() { am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_str()).map(str::to_owned)); } }; }
-    macro_rules! set_int { ($f:ident) => { if payload.get(stringify!($f)).is_some() { am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_i64()).map(|v| v as i32)); } }; }
-    set_str!(dialplan_uuid); set_str!(pin_number); set_str!(email_address);
-    set_str!(account_code); set_str!(flags); set_int!(conference_order);
-    set_str!(conference_description); set_str!(context);
+    macro_rules! set_str {
+        ($f:ident) => {
+            if payload.get(stringify!($f)).is_some() {
+                am.$f = Set(payload
+                    .get(stringify!($f))
+                    .and_then(|v| v.as_str())
+                    .map(str::to_owned));
+            }
+        };
+    }
+    macro_rules! set_int {
+        ($f:ident) => {
+            if payload.get(stringify!($f)).is_some() {
+                am.$f = Set(payload
+                    .get(stringify!($f))
+                    .and_then(|v| v.as_i64())
+                    .map(|v| v as i32));
+            }
+        };
+    }
+    set_str!(dialplan_uuid);
+    set_str!(pin_number);
+    set_str!(email_address);
+    set_str!(account_code);
+    set_str!(flags);
+    set_int!(conference_order);
+    set_str!(conference_description);
+    set_str!(context);
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
         Ok(r) => {
@@ -328,10 +374,9 @@ async fn patch_conf(
             }
             if r.dialplan_uuid.as_deref() != Some(dp_id.to_string().as_str()) {
                 use sea_orm::{ActiveModelTrait, EntityTrait};
-                if let Ok(Some(row)) =
-                    conferences::Entity::find_by_id(r.conference_uuid.clone())
-                        .one(db)
-                        .await
+                if let Ok(Some(row)) = conferences::Entity::find_by_id(r.conference_uuid.clone())
+                    .one(db)
+                    .await
                 {
                     let mut fix: conferences::ActiveModel = row.into();
                     fix.dialplan_uuid = Set(Some(dp_id.to_string()));

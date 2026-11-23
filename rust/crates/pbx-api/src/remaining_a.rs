@@ -18,7 +18,8 @@ use pbx_db::entities::{
 };
 
 // ---- schemas (payload helpers; flexible legacy aliases) ----
-pub(crate) fn s(v: &Value, keys: &[&str]) -> Option<String> {    for k in keys {
+pub(crate) fn s(v: &Value, keys: &[&str]) -> Option<String> {
+    for k in keys {
         if let Some(x) = v.get(k) {
             if let Some(b) = x.as_str() {
                 let t = b.trim();
@@ -147,10 +148,14 @@ async fn create_call_block(
         Some(v) if !v.is_empty() && crate::tenant::has_permission(&claims, "call_block_domain") => {
             match v.parse::<uuid::Uuid>() {
                 Ok(id) => Some(id),
-                Err(_) => return unprocessable("domain_uuid must be a UUID or empty").into_response(),
+                Err(_) => {
+                    return unprocessable("domain_uuid must be a UUID or empty").into_response()
+                }
             }
         }
-        Some(v) if v.is_empty() && crate::tenant::has_permission(&claims, "call_block_domain") => None,
+        Some(v) if v.is_empty() && crate::tenant::has_permission(&claims, "call_block_domain") => {
+            None
+        }
         _ => Some(tenant),
     };
     let id = crate::routing_db::new_uuid();
@@ -182,7 +187,8 @@ async fn create_call_block(
     }
 }
 
-async fn list_call_block(Extension(claims): Extension<Claims>,
+async fn list_call_block(
+    Extension(claims): Extension<Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_block_view") {
@@ -230,9 +236,10 @@ async fn get_call_block(
         .unwrap_or(None)
     {
         Some(r)
-        if r.domain_id == Some(domain)
-            || (r.domain_id.is_none()
-                && crate::tenant::sees_domain_nulls(&claims, "call_block_domain")) => {
+            if r.domain_id == Some(domain)
+                || (r.domain_id.is_none()
+                    && crate::tenant::sees_domain_nulls(&claims, "call_block_domain")) =>
+        {
             (StatusCode::OK, Json(ser_call_block(&r))).into_response()
         }
         _ => (
@@ -278,7 +285,10 @@ async fn patch_call_block(
     let mut am: call_block::ActiveModel = r.into();
     // PHP `call_block_domain` parity: perm holders may re-home the row (UUID string)
     // or globalize it (empty string); otherwise the domain is untouched.
-    if payload.get("domain_uuid").or_else(|| payload.get("domain_id")).is_some()
+    if payload
+        .get("domain_uuid")
+        .or_else(|| payload.get("domain_id"))
+        .is_some()
         && crate::tenant::sees_domain_nulls(&claims, "call_block_domain")
     {
         let raw = payload
@@ -347,9 +357,10 @@ async fn delete_call_block(
         .unwrap_or(None)
     {
         Some(r)
-        if r.domain_id == Some(domain)
-            || (r.domain_id.is_none()
-                && crate::tenant::sees_domain_nulls(&claims, "call_block_domain")) => {
+            if r.domain_id == Some(domain)
+                || (r.domain_id.is_none()
+                    && crate::tenant::sees_domain_nulls(&claims, "call_block_domain")) =>
+        {
             let am: call_block::ActiveModel = r.into();
             let _ = am.delete(db).await;
             StatusCode::NO_CONTENT.into_response()
@@ -436,7 +447,10 @@ async fn create_broadcast(
         broadcast_accountcode: Set(s(&payload, &["broadcast_accountcode", "accountcode"])),
         broadcast_toll_allow: Set(s(&payload, &["broadcast_toll_allow", "toll_allow"])),
         recording_uuid: Set(s(&payload, &["recording_uuid"])),
-        broadcast_start_time: Set(payload.get("broadcast_start_time").or_else(|| payload.get("start_time")).and_then(|v| v.as_i64())),
+        broadcast_start_time: Set(payload
+            .get("broadcast_start_time")
+            .or_else(|| payload.get("start_time"))
+            .and_then(|v| v.as_i64())),
         broadcast_enabled: Set(b(&payload, &["broadcast_enabled", "enabled"], true)),
         created_at: Set(now),
         updated_at: Set(now),
@@ -452,7 +466,8 @@ async fn create_broadcast(
     }
 }
 
-async fn list_broadcast(Extension(claims): Extension<Claims>,
+async fn list_broadcast(
+    Extension(claims): Extension<Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_broadcast_view") {
@@ -565,13 +580,20 @@ async fn patch_broadcast(
     if let Some(v) = s(&payload, &["recording_uuid"]) {
         am.recording_uuid = Set(Some(v));
     }
-    if let Some(v) = payload.get("broadcast_start_time").or_else(|| payload.get("start_time")).and_then(|v| v.as_i64()) {
+    if let Some(v) = payload
+        .get("broadcast_start_time")
+        .or_else(|| payload.get("start_time"))
+        .and_then(|v| v.as_i64())
+    {
         am.broadcast_start_time = Set(Some(v));
     }
     if let Some(v) = payload.get("broadcast_timeout").and_then(|v| v.as_i64()) {
         am.broadcast_timeout = Set(Some(v as i32));
     }
-    if let Some(v) = payload.get("broadcast_concurrent_limit").and_then(|v| v.as_i64()) {
+    if let Some(v) = payload
+        .get("broadcast_concurrent_limit")
+        .and_then(|v| v.as_i64())
+    {
         am.broadcast_concurrent_limit = Set(Some(v as i32));
     }
     if let Some(v) = s(&payload, &["broadcast_caller_id_name"]) {
@@ -869,7 +891,8 @@ async fn create_bridge(
     }
 }
 
-async fn list_bridges(Extension(claims): Extension<Claims>,
+async fn list_bridges(
+    Extension(claims): Extension<Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "bridge_view") {
@@ -1025,11 +1048,25 @@ fn ser_destination(r: &destinations::Model) -> Value {
         o.insert(k.to_owned(), v);
     };
     let s = |x: &Option<String>| x.clone().map(Value::String).unwrap_or(Value::Null);
-    put("destination_uuid", Value::String(r.destination_uuid.clone()));
-    put("domain_id", r.domain_id.map(|d| Value::String(d.to_string())).unwrap_or(Value::Null));
-    put("destination_type", Value::String(r.destination_type.clone()));
+    put(
+        "destination_uuid",
+        Value::String(r.destination_uuid.clone()),
+    );
+    put(
+        "domain_id",
+        r.domain_id
+            .map(|d| Value::String(d.to_string()))
+            .unwrap_or(Value::Null),
+    );
+    put(
+        "destination_type",
+        Value::String(r.destination_type.clone()),
+    );
     put("type", Value::String(r.destination_type.clone()));
-    put("destination_number", Value::String(r.destination_number.clone()));
+    put(
+        "destination_number",
+        Value::String(r.destination_number.clone()),
+    );
     put("destination", Value::String(r.destination_number.clone()));
     put("number", Value::String(r.destination_number.clone()));
     put("destination_prefix", s(&r.destination_prefix));
@@ -1041,13 +1078,28 @@ fn ser_destination(r: &destinations::Model) -> Value {
     put("action", s(&r.destination_app));
     put("destination_data", s(&r.destination_data));
     put("data", s(&r.destination_data));
-    put("destination_caller_id_name", s(&r.destination_caller_id_name));
-    put("destination_caller_id_number", s(&r.destination_caller_id_number));
+    put(
+        "destination_caller_id_name",
+        s(&r.destination_caller_id_name),
+    );
+    put(
+        "destination_caller_id_number",
+        s(&r.destination_caller_id_number),
+    );
     put("destination_caller_id", s(&r.destination_caller_id));
     put("destination_hold_music", s(&r.destination_hold_music));
-    put("destination_record", r.destination_record.map(Value::Bool).unwrap_or(Value::Null));
-    put("destination_cid_name_prefix", s(&r.destination_cid_name_prefix));
-    put("destination_order", r.destination_order.map(Value::from).unwrap_or(Value::Null));
+    put(
+        "destination_record",
+        r.destination_record.map(Value::Bool).unwrap_or(Value::Null),
+    );
+    put(
+        "destination_cid_name_prefix",
+        s(&r.destination_cid_name_prefix),
+    );
+    put(
+        "destination_order",
+        r.destination_order.map(Value::from).unwrap_or(Value::Null),
+    );
     put("destination_email", s(&r.destination_email));
     put("dialplan_uuid", s(&r.dialplan_uuid));
     put("fax_uuid", s(&r.fax_uuid));
@@ -1056,19 +1108,48 @@ fn ser_destination(r: &destinations::Model) -> Value {
     put("provider_uuid", s(&r.provider_uuid));
     put("destination_trunk_prefix", s(&r.destination_trunk_prefix));
     put("destination_area_code", s(&r.destination_area_code));
-    put("destination_condition_field", s(&r.destination_condition_field));
+    put(
+        "destination_condition_field",
+        s(&r.destination_condition_field),
+    );
     put("destination_number_regex", s(&r.destination_number_regex));
-    put("destination_distinctive_ring", s(&r.destination_distinctive_ring));
+    put(
+        "destination_distinctive_ring",
+        s(&r.destination_distinctive_ring),
+    );
     put("destination_ringback", s(&r.destination_ringback));
     put("destination_accountcode", s(&r.destination_accountcode));
-    put("destination_type_voice", r.destination_type_voice.map(Value::Bool).unwrap_or(Value::Null));
-    put("destination_type_fax", r.destination_type_fax.map(Value::Bool).unwrap_or(Value::Null));
-    put("destination_type_emergency", r.destination_type_emergency.map(Value::Bool).unwrap_or(Value::Null));
-    put("destination_type_text", r.destination_type_text.map(Value::Bool).unwrap_or(Value::Null));
+    put(
+        "destination_type_voice",
+        r.destination_type_voice
+            .map(Value::Bool)
+            .unwrap_or(Value::Null),
+    );
+    put(
+        "destination_type_fax",
+        r.destination_type_fax
+            .map(Value::Bool)
+            .unwrap_or(Value::Null),
+    );
+    put(
+        "destination_type_emergency",
+        r.destination_type_emergency
+            .map(Value::Bool)
+            .unwrap_or(Value::Null),
+    );
+    put(
+        "destination_type_text",
+        r.destination_type_text
+            .map(Value::Bool)
+            .unwrap_or(Value::Null),
+    );
     put("destination_conditions", s(&r.destination_conditions));
     put("destination_actions", s(&r.destination_actions));
     put("destination_alternate_app", s(&r.destination_alternate_app));
-    put("destination_alternate_data", s(&r.destination_alternate_data));
+    put(
+        "destination_alternate_data",
+        s(&r.destination_alternate_data),
+    );
     Value::Object(o)
 }
 
@@ -1089,7 +1170,9 @@ async fn create_destination(
     let domain: Option<uuid::Uuid> = match s(&payload, &["domain_uuid", "domain_id"])
         .map(|v| v.trim().to_owned())
     {
-        Some(v) if !v.is_empty() && crate::tenant::has_permission(&claims, "destination_domain") => {
+        Some(v)
+            if !v.is_empty() && crate::tenant::has_permission(&claims, "destination_domain") =>
+        {
             match v.parse::<uuid::Uuid>() {
                 Ok(id) => Some(id),
                 Err(_) => return unprocessable("domain_uuid must be a UUID").into_response(),
@@ -1119,7 +1202,10 @@ async fn create_destination(
         destination_hold_music: Set(s(&payload, &["destination_hold_music"])),
         destination_record: Set(b_opt(&payload, &["destination_record", "record"])),
         destination_cid_name_prefix: Set(s(&payload, &["destination_cid_name_prefix"])),
-        destination_order: Set(payload.get("destination_order").and_then(|v| v.as_i64()).map(|v| v as i32)),
+        destination_order: Set(payload
+            .get("destination_order")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32)),
         destination_email: Set(s(&payload, &["destination_email"])),
         dialplan_uuid: Set(s(&payload, &["dialplan_uuid"])),
         fax_uuid: Set(s(&payload, &["fax_uuid"])),
@@ -1128,19 +1214,34 @@ async fn create_destination(
         provider_uuid: Set(s(&payload, &["provider_uuid"])),
         destination_trunk_prefix: Set(s(&payload, &["destination_trunk_prefix", "trunk_prefix"])),
         destination_area_code: Set(s(&payload, &["destination_area_code", "area_code"])),
-        destination_condition_field: Set(s(&payload, &["destination_condition_field", "condition_field"])),
+        destination_condition_field: Set(s(
+            &payload,
+            &["destination_condition_field", "condition_field"],
+        )),
         destination_number_regex: Set(s(&payload, &["destination_number_regex", "number_regex"])),
-        destination_distinctive_ring: Set(s(&payload, &["destination_distinctive_ring", "distinctive_ring"])),
+        destination_distinctive_ring: Set(s(
+            &payload,
+            &["destination_distinctive_ring", "distinctive_ring"],
+        )),
         destination_ringback: Set(s(&payload, &["destination_ringback", "ringback"])),
         destination_accountcode: Set(s(&payload, &["destination_accountcode", "accountcode"])),
         destination_type_voice: Set(b_opt(&payload, &["destination_type_voice", "type_voice"])),
         destination_type_fax: Set(b_opt(&payload, &["destination_type_fax", "type_fax"])),
-        destination_type_emergency: Set(b_opt(&payload, &["destination_type_emergency", "type_emergency"])),
+        destination_type_emergency: Set(b_opt(
+            &payload,
+            &["destination_type_emergency", "type_emergency"],
+        )),
         destination_type_text: Set(b_opt(&payload, &["destination_type_text", "type_text"])),
         destination_conditions: Set(s(&payload, &["destination_conditions", "conditions"])),
         destination_actions: Set(s(&payload, &["destination_actions", "actions"])),
-        destination_alternate_app: Set(s(&payload, &["destination_alternate_app", "alternate_app"])),
-        destination_alternate_data: Set(s(&payload, &["destination_alternate_data", "alternate_data"])),
+        destination_alternate_app: Set(s(
+            &payload,
+            &["destination_alternate_app", "alternate_app"],
+        )),
+        destination_alternate_data: Set(s(
+            &payload,
+            &["destination_alternate_data", "alternate_data"],
+        )),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -1155,7 +1256,8 @@ async fn create_destination(
     }
 }
 
-async fn list_destinations(Extension(claims): Extension<Claims>,
+async fn list_destinations(
+    Extension(claims): Extension<Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "destination_view") {
@@ -1287,17 +1389,32 @@ async fn patch_destination(
         am.destination_cid_name_prefix = Set(Some(v));
     }
     if payload.get("destination_order").is_some() {
-        am.destination_order = Set(payload.get("destination_order").and_then(|v| v.as_i64()).map(|v| v as i32));
+        am.destination_order = Set(payload
+            .get("destination_order")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32));
     }
     if let Some(v) = s(&payload, &["destination_email"]) {
         am.destination_email = Set(Some(v));
     }
     for key in [
-        "dialplan_uuid", "fax_uuid", "user_uuid", "group_uuid", "provider_uuid",
-        "destination_trunk_prefix", "destination_area_code", "destination_condition_field",
-        "destination_number_regex", "destination_distinctive_ring", "destination_ringback",
-        "destination_accountcode", "destination_caller_id", "destination_conditions",
-        "destination_actions", "destination_alternate_app", "destination_alternate_data",
+        "dialplan_uuid",
+        "fax_uuid",
+        "user_uuid",
+        "group_uuid",
+        "provider_uuid",
+        "destination_trunk_prefix",
+        "destination_area_code",
+        "destination_condition_field",
+        "destination_number_regex",
+        "destination_distinctive_ring",
+        "destination_ringback",
+        "destination_accountcode",
+        "destination_caller_id",
+        "destination_conditions",
+        "destination_actions",
+        "destination_alternate_app",
+        "destination_alternate_data",
     ] {
         if let Some(v) = s(&payload, &[key]) {
             match key {
@@ -1328,7 +1445,10 @@ async fn patch_destination(
         ("destination_record", &mut am.destination_record),
         ("destination_type_voice", &mut am.destination_type_voice),
         ("destination_type_fax", &mut am.destination_type_fax),
-        ("destination_type_emergency", &mut am.destination_type_emergency),
+        (
+            "destination_type_emergency",
+            &mut am.destination_type_emergency,
+        ),
         ("destination_type_text", &mut am.destination_type_text),
     ] {
         if let Some(v) = b_opt(&payload, &[key]) {
@@ -1768,7 +1888,8 @@ async fn create_call_forward(
     }
 }
 
-async fn list_call_forward(Extension(claims): Extension<Claims>,
+async fn list_call_forward(
+    Extension(claims): Extension<Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "call_forward_view") {
@@ -1909,9 +2030,11 @@ fn call_forward_router() -> Router {
 }
 
 // ---- handlers: time_conditions ----
+/// PHP ground truth: time conditions live in `v_dialplans` (`dialplan_number`,
+/// free-form) — the only rule is non-empty. The old 2-7-digit rule came
+/// from the Python intermediate.
 fn valid_tc_extension(ext: &str) -> bool {
-    let t = ext.trim();
-    (2..=7).contains(&t.len()) && t.chars().all(|c| c.is_ascii_digit())
+    !ext.trim().is_empty()
 }
 
 fn ser_time_condition(r: &time_conditions::Model) -> Value {
@@ -1954,14 +2077,37 @@ async fn create_time_condition(
         Some(n) if !n.trim().is_empty() => n,
         _ => return unprocessable("name required").into_response(),
     };
-    let ext = match s(&payload, &["extension", "time_condition_extension", "dialplan_number", "destination_number"]) {
+    let ext = match s(
+        &payload,
+        &[
+            "extension",
+            "time_condition_extension",
+            "dialplan_number",
+            "destination_number",
+        ],
+    ) {
         Some(e) if valid_tc_extension(&e) => e,
-        _ => return unprocessable("extension must be 2-7 digits").into_response(),
+        _ => return unprocessable("extension required").into_response(),
     };
-    let order = payload.get("dialplan_order").or_else(|| payload.get("order")).and_then(|v| v.as_i64()).map(|v| v as i32);
+    let order = payload
+        .get("dialplan_order")
+        .or_else(|| payload.get("order"))
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32);
     let context = s(&payload, &["context", "dialplan_context"]);
-    let enabled = b(&payload, &["enabled", "time_condition_enabled", "dialplan_enabled"], true);
-    let description = s(&payload, &["description", "time_condition_description", "dialplan_description"]);
+    let enabled = b(
+        &payload,
+        &["enabled", "time_condition_enabled", "dialplan_enabled"],
+        true,
+    );
+    let description = s(
+        &payload,
+        &[
+            "description",
+            "time_condition_description",
+            "dialplan_description",
+        ],
+    );
     let db = crate::routing_db::conn().await;
     let tenant = tenant_domain(db, &claims).await;
     let posted_domain = payload
@@ -1974,13 +2120,21 @@ async fn create_time_condition(
     // (empty = global); everyone else resolves to their own tenant.
     // NOTE: raw access, not s() — s() drops empty strings.
     let domain: Option<uuid::Uuid> = match posted_domain.as_deref() {
-        Some(v) if !v.is_empty() && crate::tenant::has_permission(&claims, "time_condition_domain") => {
+        Some(v)
+            if !v.is_empty() && crate::tenant::has_permission(&claims, "time_condition_domain") =>
+        {
             match v.parse::<uuid::Uuid>() {
                 Ok(id) => Some(id),
-                Err(_) => return unprocessable("domain_uuid must be a UUID or empty").into_response(),
+                Err(_) => {
+                    return unprocessable("domain_uuid must be a UUID or empty").into_response()
+                }
             }
         }
-        Some(v) if v.is_empty() && crate::tenant::has_permission(&claims, "time_condition_domain") => None,
+        Some(v)
+            if v.is_empty() && crate::tenant::has_permission(&claims, "time_condition_domain") =>
+        {
+            None
+        }
         _ => Some(tenant),
     };
     let now = crate::routing_db::now();
@@ -1996,14 +2150,20 @@ async fn create_time_condition(
         condition: Set(s(&payload, &["condition"])),
         true_destination: Set(s(&payload, &["true_destination", "true_dest"])),
         false_destination: Set(s(&payload, &["false_destination", "false_dest"])),
-        timezone: Set(s(&payload, &["timezone", "dialplan_time_zone", "time_zone"])),
+        timezone: Set(s(
+            &payload,
+            &["timezone", "dialplan_time_zone", "time_zone"],
+        )),
         details: Set(payload.get("details").cloned()),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
     };
     let row = match am.insert(db).await {
-        Ok(_) => time_conditions::Entity::find_by_id(id.clone()).one(db).await.unwrap_or(None),
+        Ok(_) => time_conditions::Entity::find_by_id(id.clone())
+            .one(db)
+            .await
+            .unwrap_or(None),
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -2021,9 +2181,19 @@ async fn create_time_condition(
     };
     // PHP parity: maintain the backing v_dialplans row + details.
     let dp_id = crate::dialplans::sync_tc_dialplan(
-        db, domain, &r.name, &ext, order, context, enabled, description,
-        r.timezone.clone(), r.true_destination.clone(), r.false_destination.clone(),
-        r.details.as_ref(), None,
+        db,
+        domain,
+        &r.name,
+        &ext,
+        order,
+        context,
+        enabled,
+        description,
+        r.timezone.clone(),
+        r.true_destination.clone(),
+        r.false_destination.clone(),
+        r.details.as_ref(),
+        None,
     )
     .await;
     {
@@ -2032,7 +2202,11 @@ async fn create_time_condition(
         let _ = uam.update(db).await;
     }
     crate::fs_xml::invalidate_cache();
-    match time_conditions::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
+    match time_conditions::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    {
         Some(r) => {
             let mut v = ser_time_condition(&r);
             v["dialplan_order"] = serde_json::json!(order);
@@ -2046,7 +2220,8 @@ async fn create_time_condition(
     }
 }
 
-async fn list_time_conditions(Extension(claims): Extension<Claims>,
+async fn list_time_conditions(
+    Extension(claims): Extension<Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "time_condition_view") {
@@ -2075,8 +2250,15 @@ async fn list_time_conditions(Extension(claims): Extension<Claims>,
     // Backing-dialplan orders (PHP order lives on v_dialplans).
     let mut orders = std::collections::HashMap::new();
     for r in &rows {
-        if let Some(dp) = r.dialplan_uuid.as_deref().and_then(|s| s.parse::<uuid::Uuid>().ok()) {
-            if let Ok(Some(d)) = pbx_db::entities::dialplans::Entity::find_by_id(dp).one(db).await {
+        if let Some(dp) = r
+            .dialplan_uuid
+            .as_deref()
+            .and_then(|s| s.parse::<uuid::Uuid>().ok())
+        {
+            if let Ok(Some(d)) = pbx_db::entities::dialplans::Entity::find_by_id(dp)
+                .one(db)
+                .await
+            {
                 orders.insert(r.time_condition_uuid.clone(), d.dialplan_order);
             }
         }
@@ -2085,7 +2267,10 @@ async fn list_time_conditions(Extension(claims): Extension<Claims>,
         .iter()
         .map(|r| {
             let mut v = ser_time_condition(r);
-            v["dialplan_order"] = orders.get(&r.time_condition_uuid).map(|o| serde_json::json!(o)).unwrap_or(serde_json::Value::Null);
+            v["dialplan_order"] = orders
+                .get(&r.time_condition_uuid)
+                .map(|o| serde_json::json!(o))
+                .unwrap_or(serde_json::Value::Null);
             v
         })
         .collect();
@@ -2108,8 +2293,15 @@ async fn get_time_condition(
     {
         Some(r) if r.domain_id == Some(domain) || r.domain_id.is_none() => {
             let mut v = ser_time_condition(&r);
-            if let Some(dp) = r.dialplan_uuid.as_deref().and_then(|s| s.parse::<uuid::Uuid>().ok()) {
-                if let Ok(Some(d)) = pbx_db::entities::dialplans::Entity::find_by_id(dp).one(db).await {
+            if let Some(dp) = r
+                .dialplan_uuid
+                .as_deref()
+                .and_then(|s| s.parse::<uuid::Uuid>().ok())
+            {
+                if let Ok(Some(d)) = pbx_db::entities::dialplans::Entity::find_by_id(dp)
+                    .one(db)
+                    .await
+                {
                     v["dialplan_order"] = serde_json::json!(d.dialplan_order);
                 }
             }
@@ -2154,13 +2346,16 @@ async fn patch_time_condition(
     }
     if let Some(e) = s(&payload, &["extension", "time_condition_extension"]) {
         if !valid_tc_extension(&e) {
-            return unprocessable("extension must be 2-7 digits").into_response();
+            return unprocessable("extension required").into_response();
         }
     }
     let mut am: time_conditions::ActiveModel = r.into();
     // PHP `time_condition_domain` parity: perm holders may re-home the row (UUID string)
     // or globalize it (empty string); otherwise the domain is untouched.
-    if payload.get("domain_uuid").or_else(|| payload.get("domain_id")).is_some()
+    if payload
+        .get("domain_uuid")
+        .or_else(|| payload.get("domain_id"))
+        .is_some()
         && crate::tenant::sees_domain_nulls(&claims, "time_condition_domain")
     {
         let raw = payload
@@ -2187,7 +2382,15 @@ async fn patch_time_condition(
     if let Some(v) = s(&payload, &["name", "time_condition_name", "dialplan_name"]) {
         am.name = Set(v);
     }
-    if let Some(v) = s(&payload, &["extension", "time_condition_extension", "dialplan_number", "destination_number"]) {
+    if let Some(v) = s(
+        &payload,
+        &[
+            "extension",
+            "time_condition_extension",
+            "dialplan_number",
+            "destination_number",
+        ],
+    ) {
         am.extension = Set(v);
     }
     if payload
@@ -2196,9 +2399,20 @@ async fn patch_time_condition(
         .or_else(|| payload.get("dialplan_enabled"))
         .is_some()
     {
-        am.enabled = Set(b(&payload, &["enabled", "time_condition_enabled", "dialplan_enabled"], true));
+        am.enabled = Set(b(
+            &payload,
+            &["enabled", "time_condition_enabled", "dialplan_enabled"],
+            true,
+        ));
     }
-    if let Some(v) = s(&payload, &["description", "time_condition_description", "dialplan_description"]) {
+    if let Some(v) = s(
+        &payload,
+        &[
+            "description",
+            "time_condition_description",
+            "dialplan_description",
+        ],
+    ) {
         am.description = Set(Some(v));
     }
     if let Some(v) = s(&payload, &["context", "dialplan_context"]) {
@@ -2222,12 +2436,29 @@ async fn patch_time_condition(
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
         Ok(r) => {
-            let order = payload.get("dialplan_order").or_else(|| payload.get("order")).and_then(|v| v.as_i64()).map(|v| v as i32);
-            let existing = r.dialplan_uuid.as_deref().and_then(|s| s.parse::<uuid::Uuid>().ok());
+            let order = payload
+                .get("dialplan_order")
+                .or_else(|| payload.get("order"))
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32);
+            let existing = r
+                .dialplan_uuid
+                .as_deref()
+                .and_then(|s| s.parse::<uuid::Uuid>().ok());
             let dp_id = crate::dialplans::sync_tc_dialplan(
-                db, r.domain_id, &r.name, &r.extension, order, r.context.clone(), r.enabled,
-                r.description.clone(), r.timezone.clone(), r.true_destination.clone(),
-                r.false_destination.clone(), r.details.as_ref(), existing,
+                db,
+                r.domain_id,
+                &r.name,
+                &r.extension,
+                order,
+                r.context.clone(),
+                r.enabled,
+                r.description.clone(),
+                r.timezone.clone(),
+                r.true_destination.clone(),
+                r.false_destination.clone(),
+                r.details.as_ref(),
+                existing,
             )
             .await;
             if r.dialplan_uuid.as_deref() != Some(&dp_id.to_string()) {
@@ -2236,7 +2467,11 @@ async fn patch_time_condition(
                 let _ = uam.update(db).await;
             }
             crate::fs_xml::invalidate_cache();
-            match time_conditions::Entity::find_by_id(r.time_condition_uuid.clone()).one(db).await.unwrap_or(None) {
+            match time_conditions::Entity::find_by_id(r.time_condition_uuid.clone())
+                .one(db)
+                .await
+                .unwrap_or(None)
+            {
                 Some(row) => {
                     let mut v = ser_time_condition(&row);
                     v["dialplan_order"] = serde_json::json!(order);
@@ -2268,7 +2503,11 @@ async fn delete_time_condition(
         .unwrap_or(None)
     {
         Some(r) if r.domain_id == Some(domain) || r.domain_id.is_none() => {
-            if let Some(dp) = r.dialplan_uuid.as_deref().and_then(|s| s.parse::<uuid::Uuid>().ok()) {
+            if let Some(dp) = r
+                .dialplan_uuid
+                .as_deref()
+                .and_then(|s| s.parse::<uuid::Uuid>().ok())
+            {
                 crate::dialplans::delete_tc_dialplan(db, dp).await;
             }
             let am: time_conditions::ActiveModel = r.into();

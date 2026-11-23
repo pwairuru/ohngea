@@ -1,4 +1,7 @@
-//! Extensions router — mirrors `app/extensions/router.py`.
+//! Extensions router — PHP ground truth (`fusionpbx/app/extensions/`:
+//! `extensions.php` list, `extension_edit.php` add/update + `range` batch +
+//! voicemail upsert + `limit.extensions` cap, `extension_copy.php` copy,
+//! `extension_imports.php` CSV import).
 //!
 //! SeaORM/postgres backed (`pbx_db::entities::extensions`) with per-request
 //! `set_tenant` RLS scoping. Legacy `domain` string from the contract harness
@@ -84,72 +87,137 @@ struct ExtensionCreate {
     /// assign), otherwise the tenant domain from JWT wins.
     #[serde(default)]
     domain_id: Option<String>,
-    #[serde(default)] password: Option<String>,
-    #[serde(default)] domain: Option<String>,
-    #[serde(default)] number_alias: Option<String>,
-    #[serde(default)] accountcode: Option<String>,
-    #[serde(default)] effective_caller_id_name: Option<String>,
-    #[serde(default)] effective_caller_id_number: Option<String>,
-    #[serde(default)] outbound_caller_id_name: Option<String>,
-    #[serde(default)] outbound_caller_id_number: Option<String>,
-    #[serde(default)] emergency_caller_id_name: Option<String>,
-    #[serde(default)] emergency_caller_id_number: Option<String>,
-    #[serde(default)] directory_first_name: Option<String>,
-    #[serde(default)] directory_last_name: Option<String>,
-    #[serde(default)] directory_visible: Option<bool>,
-    #[serde(default)] directory_exten_visible: Option<bool>,
-    #[serde(default)] max_registrations: Option<String>,
-    #[serde(default)] limit_max: Option<String>,
-    #[serde(default)] limit_destination: Option<String>,
-    #[serde(default)] missed_call_app: Option<String>,
-    #[serde(default)] missed_call_data: Option<String>,
-    #[serde(default)] user_context: Option<String>,
-    #[serde(default)] toll_allow: Option<String>,
-    #[serde(default)] call_timeout: Option<i32>,
-    #[serde(default)] call_group: Option<String>,
-    #[serde(default)] call_screen_enabled: Option<bool>,
-    #[serde(default)] user_record: Option<String>,
-    #[serde(default)] hold_music: Option<String>,
-    #[serde(default)] auth_acl: Option<String>,
-    #[serde(default)] cidr: Option<String>,
-    #[serde(default)] sip_force_contact: Option<String>,
-    #[serde(default)] sip_force_expires: Option<i32>,
-    #[serde(default)] nibble_account: Option<String>,
-    #[serde(default)] mwi_account: Option<String>,
-    #[serde(default)] sip_bypass_media: Option<String>,
-    #[serde(default)] absolute_codec_string: Option<String>,
-    #[serde(default)] force_ping: Option<bool>,
-    #[serde(default)] dial_string: Option<String>,
-    #[serde(default)] do_not_disturb: Option<bool>,
-    #[serde(default)] forward_all_destination: Option<String>,
-    #[serde(default)] forward_all_enabled: Option<bool>,
-    #[serde(default)] forward_busy_destination: Option<String>,
-    #[serde(default)] forward_busy_enabled: Option<bool>,
-    #[serde(default)] forward_no_answer_destination: Option<String>,
-    #[serde(default)] forward_no_answer_enabled: Option<bool>,
-    #[serde(default)] forward_user_not_registered_destination: Option<String>,
-    #[serde(default)] forward_user_not_registered_enabled: Option<bool>,
-    #[serde(default)] follow_me_uuid: Option<String>,
-    #[serde(default)] follow_me_enabled: Option<bool>,
-    #[serde(default)] extension_language: Option<String>,
-    #[serde(default)] extension_dialect: Option<String>,
-    #[serde(default)] extension_voice: Option<String>,
-    #[serde(default)] extension_type: Option<String>,
-    #[serde(default)] enabled: Option<bool>,
-    #[serde(default)] description: Option<String>,
-    #[serde(default)] unique_id: Option<String>,
-    #[serde(default)] dial_user: Option<String>,
-    #[serde(default)] dial_domain: Option<String>,
-    #[serde(default)] follow_me_destinations: Option<String>,
+    #[serde(default)]
+    password: Option<String>,
+    #[serde(default)]
+    domain: Option<String>,
+    #[serde(default)]
+    number_alias: Option<String>,
+    #[serde(default)]
+    accountcode: Option<String>,
+    #[serde(default)]
+    effective_caller_id_name: Option<String>,
+    #[serde(default)]
+    effective_caller_id_number: Option<String>,
+    #[serde(default)]
+    outbound_caller_id_name: Option<String>,
+    #[serde(default)]
+    outbound_caller_id_number: Option<String>,
+    #[serde(default)]
+    emergency_caller_id_name: Option<String>,
+    #[serde(default)]
+    emergency_caller_id_number: Option<String>,
+    #[serde(default)]
+    directory_first_name: Option<String>,
+    #[serde(default)]
+    directory_last_name: Option<String>,
+    #[serde(default)]
+    directory_visible: Option<bool>,
+    #[serde(default)]
+    directory_exten_visible: Option<bool>,
+    #[serde(default)]
+    max_registrations: Option<String>,
+    #[serde(default)]
+    limit_max: Option<String>,
+    #[serde(default)]
+    limit_destination: Option<String>,
+    #[serde(default)]
+    missed_call_app: Option<String>,
+    #[serde(default)]
+    missed_call_data: Option<String>,
+    #[serde(default)]
+    user_context: Option<String>,
+    #[serde(default)]
+    toll_allow: Option<String>,
+    #[serde(default)]
+    call_timeout: Option<i32>,
+    #[serde(default)]
+    call_group: Option<String>,
+    #[serde(default)]
+    call_screen_enabled: Option<bool>,
+    #[serde(default)]
+    user_record: Option<String>,
+    #[serde(default)]
+    hold_music: Option<String>,
+    #[serde(default)]
+    auth_acl: Option<String>,
+    #[serde(default)]
+    cidr: Option<String>,
+    #[serde(default)]
+    sip_force_contact: Option<String>,
+    #[serde(default)]
+    sip_force_expires: Option<i32>,
+    #[serde(default)]
+    nibble_account: Option<String>,
+    #[serde(default)]
+    mwi_account: Option<String>,
+    #[serde(default)]
+    sip_bypass_media: Option<String>,
+    #[serde(default)]
+    absolute_codec_string: Option<String>,
+    #[serde(default)]
+    force_ping: Option<bool>,
+    #[serde(default)]
+    dial_string: Option<String>,
+    #[serde(default)]
+    do_not_disturb: Option<bool>,
+    #[serde(default)]
+    forward_all_destination: Option<String>,
+    #[serde(default)]
+    forward_all_enabled: Option<bool>,
+    #[serde(default)]
+    forward_busy_destination: Option<String>,
+    #[serde(default)]
+    forward_busy_enabled: Option<bool>,
+    #[serde(default)]
+    forward_no_answer_destination: Option<String>,
+    #[serde(default)]
+    forward_no_answer_enabled: Option<bool>,
+    #[serde(default)]
+    forward_user_not_registered_destination: Option<String>,
+    #[serde(default)]
+    forward_user_not_registered_enabled: Option<bool>,
+    #[serde(default)]
+    follow_me_uuid: Option<String>,
+    #[serde(default)]
+    follow_me_enabled: Option<bool>,
+    #[serde(default)]
+    extension_language: Option<String>,
+    #[serde(default)]
+    extension_dialect: Option<String>,
+    #[serde(default)]
+    extension_voice: Option<String>,
+    #[serde(default)]
+    extension_type: Option<String>,
+    #[serde(default)]
+    enabled: Option<bool>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    unique_id: Option<String>,
+    #[serde(default)]
+    dial_user: Option<String>,
+    #[serde(default)]
+    dial_domain: Option<String>,
+    #[serde(default)]
+    follow_me_destinations: Option<String>,
     // Linked voicemail (PHP extension_edit upserts v_voicemails id=extension).
-    #[serde(default)] voicemail_password: Option<String>,
-    #[serde(default)] voicemail_enabled: Option<bool>,
-    #[serde(default)] voicemail_mail_to: Option<String>,
-    #[serde(default)] voicemail_file: Option<String>,
-    #[serde(default)] voicemail_local_after_email: Option<bool>,
-    #[serde(default)] voicemail_transcription_enabled: Option<bool>,
-    #[serde(default)] voicemail_transcription_prompt: Option<String>,
-    #[serde(default)] voicemail_transcription_prompt_enabled: Option<bool>,
+    #[serde(default)]
+    voicemail_password: Option<String>,
+    #[serde(default)]
+    voicemail_enabled: Option<bool>,
+    #[serde(default)]
+    voicemail_mail_to: Option<String>,
+    #[serde(default)]
+    voicemail_file: Option<String>,
+    #[serde(default)]
+    voicemail_local_after_email: Option<bool>,
+    #[serde(default)]
+    voicemail_transcription_enabled: Option<bool>,
+    #[serde(default)]
+    voicemail_transcription_prompt: Option<String>,
+    #[serde(default)]
+    voicemail_transcription_prompt_enabled: Option<bool>,
 }
 
 /// List query parity with `app/extensions/router.py::list_ext`:
@@ -241,9 +309,7 @@ fn row_to_extension(r: &ExtModel, fallback_domain: &str) -> Extension {
         forward_busy_enabled: r.forward_busy_enabled,
         forward_no_answer_destination: r.forward_no_answer_destination.clone(),
         forward_no_answer_enabled: r.forward_no_answer_enabled,
-        forward_user_not_registered_destination: r
-            .forward_user_not_registered_destination
-            .clone(),
+        forward_user_not_registered_destination: r.forward_user_not_registered_destination.clone(),
         forward_user_not_registered_enabled: r.forward_user_not_registered_enabled,
         follow_me_uuid: r.follow_me_uuid.map(|u| u.to_string()),
         follow_me_enabled: r.follow_me_enabled,
@@ -274,6 +340,202 @@ fn validate(ext: &str) -> Result<(), String> {
     pbx_db::extensions::validate_extension(ext)
 }
 
+/// PHP `extension_edit.php` parity: `str_replace(',', ':', $toll_allow)`.
+fn norm_toll_allow(v: Option<String>) -> Option<String> {
+    v.map(|s| s.replace(',', ":"))
+}
+
+/// PHP parity: split CIDR list on whitespace/commas, keep entries with a
+/// parseable IP (default /32 mask, validated range), drop the rest.
+fn norm_cidr(v: Option<String>) -> Option<String> {
+    let s = v?;
+    let mut out = Vec::new();
+    for part in s.split(|c| c == ',' || char::is_whitespace(c)) {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let (ip, mask) = match part.split_once('/') {
+            Some((ip, m)) => (ip, m.parse::<u8>().ok()),
+            None => (part, None),
+        };
+        if let Ok(addr) = ip.parse::<std::net::IpAddr>() {
+            let max = if addr.is_ipv4() { 32 } else { 128 };
+            let m = mask.unwrap_or(32).min(max);
+            out.push(format!("{addr}/{m}"));
+        }
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out.join(","))
+    }
+}
+
+/// PHP parity: `if (!empty($mwi_account) && strpos($mwi_account,'@')===false)`
+/// append `@domain_name`.
+fn norm_mwi_account(v: Option<String>, domain: &str) -> Option<String> {
+    match v {
+        Some(s) if !s.trim().is_empty() && !s.contains('@') => {
+            Some(format!("{}@{domain}", s.trim()))
+        }
+        other => other,
+    }
+}
+
+/// PHP `extension_edit.php` parity: `$limit = $settings->get('limit',
+/// 'extensions')` — block adds at the cap, clamp `range` to the remainder.
+/// Settings cascade: domain row first, then the global default row.
+async fn extension_limit(db: &sea_orm::DatabaseConnection, domain: uuid::Uuid) -> Option<i64> {
+    use pbx_db::entities::{default_settings, domain_settings};
+    if let Ok(Some(row)) = domain_settings::Entity::find()
+        .filter(domain_settings::Column::DomainId.eq(domain))
+        .filter(domain_settings::Column::Category.eq("limit"))
+        .filter(domain_settings::Column::Subcategory.eq("extensions"))
+        .filter(domain_settings::Column::Enabled.eq(true))
+        .one(db)
+        .await
+    {
+        if let Ok(n) = row.value.trim().parse::<i64>() {
+            return Some(n);
+        }
+    }
+    if let Ok(Some(row)) = default_settings::Entity::find()
+        .filter(default_settings::Column::DefaultSettingCategory.eq("limit"))
+        .filter(default_settings::Column::DefaultSettingSubcategory.eq("extensions"))
+        .filter(default_settings::Column::DefaultSettingEnabled.eq(true))
+        .one(db)
+        .await
+    {
+        if let Some(v) = row.default_setting_value {
+            if let Ok(n) = v.trim().parse::<i64>() {
+                return Some(n);
+            }
+        }
+    }
+    None
+}
+
+async fn count_extensions(db: &sea_orm::DatabaseConnection, domain: uuid::Uuid) -> u64 {
+    use sea_orm::PaginatorTrait;
+    pbx_db::entities::extensions::Entity::find()
+        .filter(pbx_db::entities::extensions::Column::DomainId.eq(domain))
+        .count(db)
+        .await
+        .unwrap_or(0)
+}
+
+/// 403 when the domain already holds `limit` extensions (PHP
+/// `message-maximum_extensions` guard).
+async fn over_limit(
+    db: &sea_orm::DatabaseConnection,
+    domain: uuid::Uuid,
+) -> Option<axum::Json<serde_json::Value>> {
+    if let Some(limit) = extension_limit(db, domain).await {
+        if count_extensions(db, domain).await >= limit.max(0) as u64 {
+            return Some(axum::Json(serde_json::json!({
+                "detail": format!("maximum extensions {limit} reached")
+            })));
+        }
+    }
+    None
+}
+
+/// PHP `extension_edit.php` parity ("add or update voicemail"): every
+/// extension add upserts the linked mailbox (id = extension), defaulting
+/// to enabled with a generated password when the caller passes nothing.
+/// Generic over the connection so single create (`db`), batch and import
+/// (open `txn`) share it.
+async fn upsert_linked_mailbox<C>(
+    db: &C,
+    domain_id: uuid::Uuid,
+    ext: &str,
+    description: Option<String>,
+    src: &ExtensionCreate,
+) where
+    C: sea_orm::ConnectionTrait,
+{
+    use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait};
+    let existing = pbx_db::entities::voicemails::Entity::find()
+        .filter(pbx_db::entities::voicemails::Column::DomainId.eq(domain_id))
+        .filter(pbx_db::entities::voicemails::Column::VoicemailId.eq(ext.to_owned()))
+        .one(db)
+        .await
+        .unwrap_or(None);
+    match existing {
+        Some(row) => {
+            let mut vam: pbx_db::entities::voicemails::ActiveModel = row.into();
+            if let Some(pw) = src.voicemail_password.clone() {
+                if !pw.trim().is_empty() {
+                    vam.voicemail_password = Set(pw);
+                }
+            }
+            if let Some(e) = src.voicemail_enabled {
+                vam.enabled = Set(e);
+            }
+            if let Some(m) = src.voicemail_mail_to.clone() {
+                vam.voicemail_mail_to = Set(Some(m));
+            }
+            if let Some(f) = src.voicemail_file.clone() {
+                vam.voicemail_file = Set(Some(f));
+            }
+            if let Some(l) = src.voicemail_local_after_email {
+                vam.voicemail_local_after_email = Set(Some(l));
+            }
+            if let Some(t) = src.voicemail_transcription_enabled {
+                vam.voicemail_transcription_enabled = Set(Some(t));
+            }
+            if let Some(tp) = src.voicemail_transcription_prompt.clone() {
+                vam.voicemail_transcription_prompt = Set(Some(tp));
+            }
+            if let Some(tpe) = src.voicemail_transcription_prompt_enabled {
+                vam.voicemail_transcription_prompt_enabled = Set(Some(tpe));
+            }
+            vam.updated_at = Set(crate::routing_db::now());
+            let _ = vam.update(db).await;
+        }
+        None => {
+            let vpw = src
+                .voicemail_password
+                .clone()
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or_else(|| pbx_db::extensions::ensure_password(None));
+            let vam = pbx_db::entities::voicemails::ActiveModel {
+                voicemail_uuid: Set(crate::routing_db::new_uuid()),
+                domain_id: Set(Some(domain_id)),
+                voicemail_id: Set(ext.to_owned()),
+                voicemail_password: Set(vpw),
+                enabled: Set(src.voicemail_enabled.unwrap_or(true)),
+                description: Set(description),
+                voicemail_tutorial: Set(Some(true)),
+                greeting_id: Set(None),
+                voicemail_alternate_greet_id: Set(None),
+                voicemail_recording_instructions: Set(None),
+                voicemail_recording_options: Set(None),
+                voicemail_mail_to: Set(src.voicemail_mail_to.clone()),
+                voicemail_file: Set(src.voicemail_file.clone()),
+                voicemail_local_after_email: Set(src.voicemail_local_after_email),
+                voicemail_transcription_enabled: Set(src
+                    .voicemail_transcription_enabled
+                    .or(Some(false))),
+                voicemail_sms_to: Set(None),
+                voicemail_transcription_prompt_enabled: Set(
+                    src.voicemail_transcription_prompt_enabled
+                ),
+                voicemail_transcription_prompt: Set(src.voicemail_transcription_prompt.clone()),
+                voicemail_attach_file: Set(None),
+                voicemail_local_after_forward: Set(None),
+                alternate_voicemail_destination: Set(None),
+                alternate_voicemail_enabled: Set(None),
+                voicemail_name_base64: Set(None),
+                created_at: Set(crate::routing_db::now()),
+                updated_at: Set(crate::routing_db::now()),
+            };
+            let _ = vam.insert(db).await;
+        }
+    }
+}
+
 async fn create_extension(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     Json(payload): Json<ExtensionCreate>,
@@ -289,10 +551,14 @@ async fn create_extension(
         )
             .into_response();
     }
-    let domain_str = payload.domain.unwrap_or_else(|| "example.com".to_owned());
+    let domain_str = payload
+        .domain
+        .clone()
+        .unwrap_or_else(|| "example.com".to_owned());
     let password = pbx_db::extensions::ensure_password(payload.password.as_deref());
     let caller_name = payload
         .effective_caller_id_name
+        .clone()
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| ext.clone());
     let db = crate::routing_db::conn().await;
@@ -325,10 +591,30 @@ async fn create_extension(
                 .into_response();
         }
     };
+    // PHP `extension_edit.php` parity: refuse the add when the domain is at
+    // its `limit.extensions` cap (`message-maximum_extensions`).
+    if let Some(limit) = extension_limit(db, domain_id).await {
+        use sea_orm::PaginatorTrait;
+        let total = pbx_db::entities::extensions::Entity::find()
+            .filter(pbx_db::entities::extensions::Column::DomainId.eq(domain_id))
+            .count(db)
+            .await
+            .unwrap_or(0);
+        if total >= limit.max(0) as u64 {
+            return (
+                StatusCode::FORBIDDEN,
+                Json(serde_json::json!({
+                    "detail": format!("maximum extensions {limit} reached")
+                })),
+            )
+                .into_response();
+        }
+    }
     let now = crate::routing_db::now();
-    let user_context = payload.user_context.clone().unwrap_or_else(|| {
-        pbx_db::extensions::default_user_context(None, &domain_str)
-    });
+    let user_context = payload
+        .user_context
+        .clone()
+        .unwrap_or_else(|| pbx_db::extensions::default_user_context(None, &domain_str));
     let id = uuid::Uuid::now_v7();
     let follow_me_uuid = payload
         .follow_me_uuid
@@ -357,22 +643,22 @@ async fn create_extension(
         missed_call_app: Set(payload.missed_call_app.clone()),
         missed_call_data: Set(payload.missed_call_data.clone()),
         user_context: Set(Some(user_context)),
-        toll_allow: Set(payload.toll_allow.clone()),
+        toll_allow: Set(norm_toll_allow(payload.toll_allow.clone())),
         call_timeout: Set(payload.call_timeout),
         call_group: Set(payload.call_group.clone()),
         call_screen_enabled: Set(payload.call_screen_enabled.unwrap_or(false)),
         user_record: Set(payload.user_record.clone()),
         hold_music: Set(payload.hold_music.clone()),
         auth_acl: Set(payload.auth_acl.clone()),
-        cidr: Set(payload.cidr.clone()),
+        cidr: Set(norm_cidr(payload.cidr.clone())),
         sip_force_contact: Set(payload.sip_force_contact.clone()),
         sip_force_expires: Set(payload.sip_force_expires),
         nibble_account: Set(payload.nibble_account.clone()),
-        mwi_account: Set(payload.mwi_account.clone()),
+        mwi_account: Set(norm_mwi_account(payload.mwi_account.clone(), &domain_str)),
         sip_bypass_media: Set(payload.sip_bypass_media.clone()),
         absolute_codec_string: Set(payload.absolute_codec_string.clone()),
         force_ping: Set(payload.force_ping.unwrap_or(false)),
-        dial_string: Set(payload.dial_string.clone().or(Some(domain_str.clone()))),
+        dial_string: Set(payload.dial_string.clone()),
         do_not_disturb: Set(payload.do_not_disturb.unwrap_or(false)),
         forward_all_destination: Set(payload.forward_all_destination.clone()),
         forward_all_enabled: Set(payload.forward_all_enabled.unwrap_or(false)),
@@ -410,92 +696,7 @@ async fn create_extension(
     }
     let _ = txn.commit().await;
     propagate_to_freeswitch();
-    // PHP parity: upsert the linked voicemail mailbox (id = extension) when
-    // the caller passes voicemail fields.
-    if payload.voicemail_enabled.unwrap_or(false)
-        || payload.voicemail_password.as_deref().is_some_and(|s| !s.trim().is_empty())
-        || payload.voicemail_mail_to.as_deref().is_some_and(|s| !s.trim().is_empty())
-        || payload.voicemail_file.is_some()
-        || payload.voicemail_local_after_email.is_some()
-        || payload.voicemail_transcription_enabled.is_some()
-        || payload.voicemail_transcription_prompt.is_some()
-    {
-        use sea_orm::ActiveModelTrait;
-        let existing = pbx_db::entities::voicemails::Entity::find()
-            .filter(pbx_db::entities::voicemails::Column::DomainId.eq(domain_id))
-            .filter(pbx_db::entities::voicemails::Column::VoicemailId.eq(ext.clone()))
-            .one(db)
-            .await
-            .unwrap_or(None);
-        match existing {
-            Some(row) => {
-                let mut vam: pbx_db::entities::voicemails::ActiveModel = row.into();
-                if let Some(pw) = payload.voicemail_password.clone() {
-                    if !pw.trim().is_empty() {
-                        vam.voicemail_password = Set(pw);
-                    }
-                }
-                if let Some(e) = payload.voicemail_enabled {
-                    vam.enabled = Set(e);
-                }
-                if let Some(m) = payload.voicemail_mail_to.clone() {
-                    vam.voicemail_mail_to = Set(Some(m));
-                }
-                if let Some(f) = payload.voicemail_file.clone() {
-                    vam.voicemail_file = Set(Some(f));
-                }
-                if let Some(l) = payload.voicemail_local_after_email {
-                    vam.voicemail_local_after_email = Set(Some(l));
-                }
-                if let Some(t) = payload.voicemail_transcription_enabled {
-                    vam.voicemail_transcription_enabled = Set(Some(t));
-                }
-                if let Some(tp) = payload.voicemail_transcription_prompt.clone() {
-                    vam.voicemail_transcription_prompt = Set(Some(tp));
-                }
-                if let Some(tpe) = payload.voicemail_transcription_prompt_enabled {
-                    vam.voicemail_transcription_prompt_enabled = Set(Some(tpe));
-                }
-                vam.updated_at = Set(crate::routing_db::now());
-                let _ = vam.update(db).await;
-            }
-            None => {
-                let vpw = payload
-                    .voicemail_password
-                    .clone()
-                    .filter(|s| !s.trim().is_empty())
-                    .unwrap_or_else(|| pbx_db::extensions::ensure_password(None));
-                let vam = pbx_db::entities::voicemails::ActiveModel {
-                    voicemail_uuid: Set(crate::routing_db::new_uuid()),
-                    domain_id: Set(Some(domain_id)),
-                    voicemail_id: Set(ext.clone()),
-                    voicemail_password: Set(vpw),
-                    enabled: Set(payload.voicemail_enabled.unwrap_or(true)),
-                    description: Set(payload.description.clone()),
-                    voicemail_tutorial: Set(Some(true)),
-                    greeting_id: Set(None),
-                    voicemail_alternate_greet_id: Set(None),
-                    voicemail_recording_instructions: Set(None),
-                    voicemail_recording_options: Set(None),
-                    voicemail_mail_to: Set(payload.voicemail_mail_to.clone()),
-                    voicemail_file: Set(payload.voicemail_file.clone()),
-                    voicemail_local_after_email: Set(payload.voicemail_local_after_email),
-                    voicemail_transcription_enabled: Set(payload.voicemail_transcription_enabled.or(Some(false))),
-                    voicemail_sms_to: Set(None),
-                    voicemail_transcription_prompt_enabled: Set(payload.voicemail_transcription_prompt_enabled),
-                    voicemail_transcription_prompt: Set(payload.voicemail_transcription_prompt.clone()),
-                    voicemail_attach_file: Set(None),
-                    voicemail_local_after_forward: Set(None),
-                    alternate_voicemail_destination: Set(None),
-                    alternate_voicemail_enabled: Set(None),
-                    voicemail_name_base64: Set(None),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                };
-                let _ = vam.insert(db).await;
-            }
-        }
-    }
+    upsert_linked_mailbox(db, domain_id, &ext, payload.description.clone(), &payload).await;
     let db = crate::routing_db::conn().await;
     let rec = pbx_db::entities::extensions::Entity::find_by_id(id)
         .one(db)
@@ -540,7 +741,7 @@ async fn create_extension(
             sip_bypass_media: payload.sip_bypass_media.clone(),
             absolute_codec_string: payload.absolute_codec_string.clone(),
             force_ping: payload.force_ping.unwrap_or(false),
-            dial_string: payload.dial_string.clone().or(Some(domain_str.clone())),
+            dial_string: payload.dial_string.clone(),
             do_not_disturb: payload.do_not_disturb.unwrap_or(false),
             forward_all_destination: payload.forward_all_destination.clone(),
             forward_all_enabled: payload.forward_all_enabled.unwrap_or(false),
@@ -577,7 +778,8 @@ async fn list_extensions(
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "extension_view") {
         return (s, j).into_response();
     }
-    let (per_page, _) = crate::PageQuery { show: None,
+    let (per_page, _) = crate::PageQuery {
+        show: None,
         page: pq.page,
         per_page: pq.per_page,
     }
@@ -706,8 +908,8 @@ fn apply_i32(slot: &mut sea_orm::ActiveValue<Option<i32>>, v: &serde_json::Value
     }
 }
 
-/// Apply a PATCH payload to an extension row. Returns Err(detail) for invalid
-/// `extension` (2-7 digits, parity with Python schema validation → 422).
+/// Apply a PATCH payload to an extension row. Returns Err(detail) for blank
+/// or overlong `extension` (PHP `empty($extension)` rule → 422).
 fn apply_patch(
     am: &mut pbx_db::entities::extensions::ActiveModel,
     payload: &serde_json::Value,
@@ -991,15 +1193,83 @@ async fn delete_extension(
 }
 
 /// POST /api/v1/extensions:batch — bulk create (parity with
-/// `app/extensions/router.py::batch_create`). Duplicate extension per domain
-/// → 409. Returns 201 `{"created": n}`.
+/// Bulk create. Accepts either a JSON array of extension objects (Python
+/// `:batch` shape; duplicate → 409) or a PHP `range` object
+/// (`{"start": "1001", "range": 5, ...template}` — sequential numbers from
+/// `extension_edit.php`'s `$extension++` loop; existing numbers are skipped,
+/// the run is clamped to the remaining `limit.extensions` cap).
+/// Returns 201 `{"created": n}`.
 async fn batch_create_extensions(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
-    Json(payload): Json<Vec<ExtensionCreate>>,
+    Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "extension_add") {
         return (s, j).into_response();
     }
+    // Range form (`{start, range}`) skips existing numbers PHP-style;
+    // array form 409s on the first duplicate (Python `:batch` contract).
+    let is_range = payload.as_array().is_none();
+    let items: Vec<ExtensionCreate> = if let Some(arr) = payload.as_array() {
+        match serde_json::from_value::<Vec<ExtensionCreate>>(serde_json::Value::Array(arr.clone()))
+        {
+            Ok(v) => v,
+            Err(e) => {
+                return (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    Json(serde_json::json!({"detail": format!("invalid batch: {e}")})),
+                )
+                    .into_response();
+            }
+        }
+    } else if payload.get("start").and_then(|s| s.as_str()).is_some() {
+        // PHP range form: numeric start, sequential `$extension++`.
+        let start = payload
+            .get("start")
+            .and_then(|s| s.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_owned();
+        let base: i64 = match start.parse() {
+            Ok(n) => n,
+            Err(_) => {
+                return (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    Json(serde_json::json!({"detail": "range start must be numeric"})),
+                )
+                    .into_response();
+            }
+        };
+        let n = payload
+            .get("range")
+            .and_then(|r| r.as_u64())
+            .unwrap_or(1)
+            .min(1000);
+        let mut template = payload.as_object().cloned().unwrap_or_default();
+        template.remove("start");
+        template.remove("range");
+        let mut out = Vec::new();
+        for i in 0..n {
+            let mut row = serde_json::Value::Object(template.clone());
+            row["extension"] = serde_json::json!(format!("{}", base + i as i64));
+            match serde_json::from_value::<ExtensionCreate>(row) {
+                Ok(item) => out.push(item),
+                Err(e) => {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(serde_json::json!({"detail": format!("invalid range template: {e}")})),
+                    )
+                        .into_response();
+                }
+            }
+        }
+        out
+    } else {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({"detail": "expected array or {start, range} object"})),
+        )
+            .into_response();
+    };
     let db = crate::routing_db::conn().await;
     let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
@@ -1012,9 +1282,36 @@ async fn batch_create_extensions(
                 .into_response();
         }
     };
+    // PHP parity: clamp the run to the remaining domain cap.
+    let mut remaining: Option<u64> = None;
+    if let Some(limit) = extension_limit(db, domain_id).await {
+        use sea_orm::PaginatorTrait;
+        let total = pbx_db::entities::extensions::Entity::find()
+            .filter(pbx_db::entities::extensions::Column::DomainId.eq(domain_id))
+            .count(db)
+            .await
+            .unwrap_or(0);
+        let left = (limit.max(0) as u64).saturating_sub(total);
+        if left == 0 {
+            return (
+                StatusCode::FORBIDDEN,
+                Json(serde_json::json!({
+                    "detail": format!("maximum extensions {limit} reached")
+                })),
+            )
+                .into_response();
+        }
+        remaining = Some(left);
+    }
     let now = crate::routing_db::now();
     let mut created = 0u64;
-    for item in &payload {
+    let mut skipped = 0u64;
+    for item in &items {
+        if let Some(left) = remaining {
+            if created >= left {
+                break;
+            }
+        }
         let ext = item.extension.trim().to_owned();
         if let Err(msg) = validate(&ext) {
             return (
@@ -1031,6 +1328,12 @@ async fn batch_create_extensions(
             .await
             .unwrap_or(None);
         if dup.is_some() {
+            if is_range {
+                // PHP `extension_exists` skip: range runs keep numbering,
+                // existing numbers are silently skipped.
+                skipped += 1;
+                continue;
+            }
             return (
                 StatusCode::CONFLICT,
                 Json(serde_json::json!({"detail": format!("Extension {ext} already exists")})),
@@ -1050,7 +1353,7 @@ async fn batch_create_extensions(
         let am = pbx_db::entities::extensions::ActiveModel {
             extension_uuid: Set(uuid::Uuid::now_v7()),
             domain_id: Set(domain_id),
-            extension: Set(ext),
+            extension: Set(ext.clone()),
             number_alias: Set(item.number_alias.clone()),
             password: Set(Some(password)),
             accountcode: Set(item.accountcode.clone()),
@@ -1072,24 +1375,25 @@ async fn batch_create_extensions(
             user_context: Set(Some(item.user_context.clone().unwrap_or_else(|| {
                 pbx_db::extensions::default_user_context(None, &claims.domain_id)
             }))),
-            toll_allow: Set(item.toll_allow.clone()),
+            toll_allow: Set(norm_toll_allow(item.toll_allow.clone())),
             call_timeout: Set(item.call_timeout),
             call_group: Set(item.call_group.clone()),
             call_screen_enabled: Set(item.call_screen_enabled.unwrap_or(false)),
             user_record: Set(item.user_record.clone()),
             hold_music: Set(item.hold_music.clone()),
             auth_acl: Set(item.auth_acl.clone()),
-            cidr: Set(item.cidr.clone()),
+            cidr: Set(norm_cidr(item.cidr.clone())),
             sip_force_contact: Set(item.sip_force_contact.clone()),
             sip_force_expires: Set(item.sip_force_expires),
             nibble_account: Set(item.nibble_account.clone()),
-            mwi_account: Set(item.mwi_account.clone()),
+            mwi_account: Set(norm_mwi_account(
+                item.mwi_account.clone(),
+                &claims.domain_id,
+            )),
             sip_bypass_media: Set(item.sip_bypass_media.clone()),
             absolute_codec_string: Set(item.absolute_codec_string.clone()),
             force_ping: Set(item.force_ping.unwrap_or(false)),
-            dial_string: Set(Some(
-                item.dial_string.clone().unwrap_or_else(|| claims.domain_id.clone()),
-            )),
+            dial_string: Set(item.dial_string.clone()),
             do_not_disturb: Set(item.do_not_disturb.unwrap_or(false)),
             forward_all_destination: Set(item.forward_all_destination.clone()),
             forward_all_enabled: Set(item.forward_all_enabled.unwrap_or(false)),
@@ -1105,10 +1409,10 @@ async fn batch_create_extensions(
                 .unwrap_or(false)),
             follow_me_uuid: Set(follow_me_uuid),
             follow_me_enabled: Set(item.follow_me_enabled.unwrap_or(false)),
-        unique_id: Set(item.unique_id.clone()),
-        dial_user: Set(item.dial_user.clone()),
-        dial_domain: Set(item.dial_domain.clone()),
-        follow_me_destinations: Set(item.follow_me_destinations.clone()),
+            unique_id: Set(item.unique_id.clone()),
+            dial_user: Set(item.dial_user.clone()),
+            dial_domain: Set(item.dial_domain.clone()),
+            follow_me_destinations: Set(item.follow_me_destinations.clone()),
             extension_language: Set(item.extension_language.clone()),
             extension_dialect: Set(item.extension_dialect.clone()),
             extension_voice: Set(item.extension_voice.clone()),
@@ -1126,13 +1430,275 @@ async fn batch_create_extensions(
             )
                 .into_response();
         }
+        upsert_linked_mailbox(&txn, domain_id, &ext, item.description.clone(), item).await;
         created += 1;
     }
     let _ = txn.commit().await;
     propagate_to_freeswitch();
     (
         StatusCode::CREATED,
-        Json(serde_json::json!({"created": created})),
+        Json(serde_json::json!({"created": created, "skipped": skipped})),
+    )
+        .into_response()
+}
+
+/// Copy an extension (`extension_copy.php` parity): duplicate every column
+/// of the source row under a new UUID + new extension number (409 when the
+/// target exists), fresh generated password, description suffixed ` (copy)`.
+/// Requires the `extension_copy` permission.
+async fn copy_extension(
+    AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "extension_copy") {
+        return (s, j).into_response();
+    }
+    let new_ext = payload
+        .get("extension")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .unwrap_or("")
+        .to_owned();
+    if let Err(msg) = validate(&new_ext) {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({"detail": msg})),
+        )
+            .into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
+    if over_limit(db, domain_id).await.is_some() {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({"detail": "maximum extensions reached"})),
+        )
+            .into_response();
+    }
+    let src = pbx_db::entities::extensions::Entity::find_by_id(id)
+        .filter(pbx_db::entities::extensions::Column::DomainId.eq(domain_id))
+        .one(db)
+        .await
+        .unwrap_or(None);
+    let Some(src) = src else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "Extension not found"})),
+        )
+            .into_response();
+    };
+    let dup = pbx_db::entities::extensions::Entity::find()
+        .filter(pbx_db::entities::extensions::Column::DomainId.eq(domain_id))
+        .filter(pbx_db::entities::extensions::Column::Extension.eq(new_ext.clone()))
+        .one(db)
+        .await
+        .unwrap_or(None);
+    if dup.is_some() {
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({"detail": format!("Extension {new_ext} already exists")})),
+        )
+            .into_response();
+    }
+    let now = crate::routing_db::now();
+    let src_desc = src.description.clone().unwrap_or_default();
+    let mut am: pbx_db::entities::extensions::ActiveModel = src.into();
+    am.extension_uuid = Set(uuid::Uuid::now_v7());
+    am.extension = Set(new_ext.clone());
+    if let Some(a) = payload.get("number_alias").and_then(|v| v.as_str()) {
+        am.number_alias = Set(Some(a.to_owned()));
+    }
+    // PHP `extension_copy.php`: fresh password on every copy. The source
+    // accountcode is preserved as-is; PHP's copy script assigns an unset
+    // `$password` variable there (upstream bug), which we do not replicate.
+    am.password = Set(Some(pbx_db::extensions::ensure_password(None)));
+    am.description = Set(Some(format!("{src_desc} (copy)").trim_start().to_owned()));
+    am.created_at = Set(now);
+    am.updated_at = Set(now);
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
+            )
+                .into_response();
+        }
+    };
+    use sea_orm::ActiveModelTrait;
+    if let Err(e) = am.insert(&txn).await {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("copy failed: {e}")})),
+        )
+            .into_response();
+    }
+    let _ = txn.commit().await;
+    propagate_to_freeswitch();
+    (
+        StatusCode::CREATED,
+        Json(serde_json::json!({"extension": new_ext})),
+    )
+        .into_response()
+}
+
+/// CSV-style import (`extension_imports.php` parity): accepts
+/// `{"extensions": [...]}` rows, inserts valid new rows, collects per-row
+/// errors (blank/invalid extension, duplicates, domain cap) without
+/// aborting the batch. Returns 201 `{"imported": n, "errors": [...]}`.
+async fn import_extensions(
+    AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "extension_add") {
+        return (s, j).into_response();
+    }
+    let rows = payload
+        .get("extensions")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let db = crate::routing_db::conn().await;
+    let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
+            )
+                .into_response();
+        }
+    };
+    let now = crate::routing_db::now();
+    let mut imported = 0u64;
+    let mut errors = Vec::new();
+    for (i, row) in rows.iter().enumerate() {
+        let item: ExtensionCreate = match serde_json::from_value(row.clone()) {
+            Ok(v) => v,
+            Err(e) => {
+                errors
+                    .push(serde_json::json!({"row": i + 1, "error": format!("invalid row: {e}")}));
+                continue;
+            }
+        };
+        let ext = item.extension.trim().to_owned();
+        if let Err(msg) = validate(&ext) {
+            errors.push(serde_json::json!({"row": i + 1, "error": msg}));
+            continue;
+        }
+        if over_limit(db, domain_id).await.is_some() {
+            errors.push(serde_json::json!({"row": i + 1, "error": "maximum extensions reached"}));
+            continue;
+        }
+        let dup = pbx_db::entities::extensions::Entity::find()
+            .filter(pbx_db::entities::extensions::Column::DomainId.eq(domain_id))
+            .filter(pbx_db::entities::extensions::Column::Extension.eq(ext.clone()))
+            .one(&txn)
+            .await
+            .unwrap_or(None);
+        if dup.is_some() {
+            errors.push(
+                serde_json::json!({"row": i + 1, "error": format!("Extension {ext} already exists")}),
+            );
+            continue;
+        }
+        let password = pbx_db::extensions::ensure_password(item.password.as_deref());
+        let caller_name = item
+            .effective_caller_id_name
+            .clone()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| ext.clone());
+        let am = pbx_db::entities::extensions::ActiveModel {
+            extension_uuid: Set(uuid::Uuid::now_v7()),
+            domain_id: Set(domain_id),
+            extension: Set(ext.clone()),
+            number_alias: Set(item.number_alias.clone()),
+            password: Set(Some(password)),
+            accountcode: Set(item.accountcode.clone()),
+            effective_caller_id_name: Set(caller_name),
+            effective_caller_id_number: Set(item.effective_caller_id_number.clone()),
+            outbound_caller_id_name: Set(item.outbound_caller_id_name.clone()),
+            outbound_caller_id_number: Set(item.outbound_caller_id_number.clone()),
+            emergency_caller_id_name: Set(item.emergency_caller_id_name.clone()),
+            emergency_caller_id_number: Set(item.emergency_caller_id_number.clone()),
+            directory_first_name: Set(item.directory_first_name.clone()),
+            directory_last_name: Set(item.directory_last_name.clone()),
+            directory_visible: Set(item.directory_visible.unwrap_or(false)),
+            directory_exten_visible: Set(item.directory_exten_visible.unwrap_or(false)),
+            max_registrations: Set(item.max_registrations.clone()),
+            limit_max: Set(item.limit_max.clone()),
+            limit_destination: Set(item.limit_destination.clone()),
+            missed_call_app: Set(item.missed_call_app.clone()),
+            missed_call_data: Set(item.missed_call_data.clone()),
+            user_context: Set(Some(item.user_context.clone().unwrap_or_else(|| {
+                pbx_db::extensions::default_user_context(None, &claims.domain_id)
+            }))),
+            toll_allow: Set(norm_toll_allow(item.toll_allow.clone())),
+            call_timeout: Set(item.call_timeout),
+            call_group: Set(item.call_group.clone()),
+            call_screen_enabled: Set(item.call_screen_enabled.unwrap_or(false)),
+            user_record: Set(item.user_record.clone()),
+            hold_music: Set(item.hold_music.clone()),
+            auth_acl: Set(item.auth_acl.clone()),
+            cidr: Set(norm_cidr(item.cidr.clone())),
+            sip_force_contact: Set(item.sip_force_contact.clone()),
+            sip_force_expires: Set(item.sip_force_expires),
+            nibble_account: Set(item.nibble_account.clone()),
+            mwi_account: Set(norm_mwi_account(
+                item.mwi_account.clone(),
+                &claims.domain_id,
+            )),
+            sip_bypass_media: Set(item.sip_bypass_media.clone()),
+            absolute_codec_string: Set(item.absolute_codec_string.clone()),
+            force_ping: Set(item.force_ping.unwrap_or(false)),
+            dial_string: Set(item.dial_string.clone()),
+            do_not_disturb: Set(item.do_not_disturb.unwrap_or(false)),
+            forward_all_destination: Set(item.forward_all_destination.clone()),
+            forward_all_enabled: Set(item.forward_all_enabled.unwrap_or(false)),
+            forward_busy_destination: Set(item.forward_busy_destination.clone()),
+            forward_busy_enabled: Set(item.forward_busy_enabled.unwrap_or(false)),
+            forward_no_answer_destination: Set(item.forward_no_answer_destination.clone()),
+            forward_no_answer_enabled: Set(item.forward_no_answer_enabled.unwrap_or(false)),
+            forward_user_not_registered_destination: Set(item
+                .forward_user_not_registered_destination
+                .clone()),
+            forward_user_not_registered_enabled: Set(item
+                .forward_user_not_registered_enabled
+                .unwrap_or(false)),
+            follow_me_uuid: Set(item
+                .follow_me_uuid
+                .as_deref()
+                .and_then(|s| s.parse::<uuid::Uuid>().ok())),
+            follow_me_enabled: Set(item.follow_me_enabled.unwrap_or(false)),
+            unique_id: Set(item.unique_id.clone()),
+            dial_user: Set(item.dial_user.clone()),
+            dial_domain: Set(item.dial_domain.clone()),
+            follow_me_destinations: Set(item.follow_me_destinations.clone()),
+            extension_language: Set(item.extension_language.clone()),
+            extension_dialect: Set(item.extension_dialect.clone()),
+            extension_voice: Set(item.extension_voice.clone()),
+            extension_type: Set(item.extension_type.clone()),
+            enabled: Set(item.enabled.unwrap_or(true)),
+            description: Set(item.description.clone()),
+            created_at: Set(now),
+            updated_at: Set(now),
+        };
+        if let Err(e) = am.insert(&txn).await {
+            errors.push(serde_json::json!({"row": i + 1, "error": format!("insert failed: {e}")}));
+            continue;
+        }
+        upsert_linked_mailbox(&txn, domain_id, &ext, item.description.clone(), &item).await;
+        imported += 1;
+    }
+    let _ = txn.commit().await;
+    if imported > 0 {
+        propagate_to_freeswitch();
+    }
+    (
+        StatusCode::CREATED,
+        Json(serde_json::json!({"imported": imported, "errors": errors})),
     )
         .into_response()
 }
@@ -1148,8 +1714,11 @@ pub fn extensions_router() -> Router {
             "/api/v1/extensions/",
             post(create_extension).get(list_extensions),
         )
-        // Bulk create (parity with Python POST `:batch`).
+        // Bulk create (PHP range form + Python `:batch` array form).
         .route("/api/v1/extensions:batch", post(batch_create_extensions))
+        // CSV-style import (extension_imports.php parity).
+        .route("/api/v1/extensions/import", post(import_extensions))
+        .route("/api/v1/extensions/{id}/copy", post(copy_extension))
         .route(
             "/api/v1/extensions/{id}",
             axum::routing::get(get_extension)

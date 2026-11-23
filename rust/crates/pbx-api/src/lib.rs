@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
-mod analytics;
 mod admin;
 pub mod alias;
+mod analytics;
 mod auth;
 mod backup;
 mod call_centers;
@@ -27,12 +27,12 @@ mod health;
 mod ivr_menus;
 mod logs;
 mod menus;
+mod missing_tables;
 mod permissions;
 pub mod plugin_sandbox;
 pub mod plugins;
 pub mod provision;
 mod recordings;
-mod missing_tables;
 mod remaining;
 mod remaining_a;
 mod remaining_b;
@@ -192,6 +192,7 @@ async fn api_root() -> axum::Json<serde_json::Value> {
             "groups": {"href": "/api/v1/groups"},
             "permissions": {"href": "/api/v1/permissions"},
             "users": {"href": "/api/v1/users"},
+            "user_settings": {"href": "/api/v1/user_settings"},
             "contacts": {"href": "/api/v1/contacts"},
             "email_queue": {"href": "/api/v1/email_queue"},
             "vars": {"href": "/api/v1/vars"},
@@ -199,6 +200,8 @@ async fn api_root() -> axum::Json<serde_json::Value> {
             "sip_profiles_status": {"href": "/api/v1/sip_profiles/status"},
             "freeswitch_status": {"href": "/api/v1/freeswitch/status"},
             "system_status": {"href": "/api/v1/system/status"},
+            "system_upgrade": {"href": "/api/v1/system/upgrade"},
+            "system_events": {"href": "/api/v1/system/events"},
             "system_info": {"href": "/api/v1/system/info"},
             "services": {"href": "/api/v1/services"},
             "default_settings": {"href": "/api/v1/default_settings"},
@@ -227,7 +230,12 @@ async fn openapi_json() -> axum::Json<serde_json::Value> {
             "/api/v1/auth/refresh": {"post": {"summary": "Refresh token"}},
             "/api/v1/auth/logout": {"post": {"summary": "Logout"}},
             "/api/v1/extensions": {"get": {"summary": "List extensions"}},
+            "/api/v1/extensions:batch": {"post": {"summary": "Bulk create extensions"}},
+            "/api/v1/extensions/import": {"post": {"summary": "Import extensions"}},
             "/api/v1/users": {"get": {"summary": "List users"}},
+            "/api/v1/user_settings": {"get": {"summary": "List user settings (tenant scope)"}},
+            "/api/v1/system/upgrade": {"get": {"summary": "Upgrade status (boot-migrated)"}},
+            "/api/v1/system/events": {"get": {"summary": "Event socket status"}},
             "/api/v1/groups": {"get": {"summary": "List groups"}},
             "/api/v1/devices": {"get": {"summary": "List devices"}},
             "/api/v1/voicemails": {"get": {"summary": "List voicemails"}},

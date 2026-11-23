@@ -3,35 +3,58 @@
 //! Order: models → schemas → handlers → xml.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, Set,
+};
 use serde::Deserialize;
 
 // ---- models ----
-use pbx_db::entities::{extension_users, extensions, voicemail_greetings, voicemail_messages, voicemail_options, voicemails};
+use pbx_db::entities::{
+    extension_users, extensions, voicemail_greetings, voicemail_messages, voicemail_options,
+    voicemails,
+};
 
 // ---- schemas ----
 #[derive(Debug, Deserialize)]
 struct VoicemailCreate {
     voicemail_id: String,
     voicemail_password: String,
-    #[serde(default)] description: Option<String>,
-    #[serde(default)] enabled: Option<bool>,
-    #[serde(default)] voicemail_tutorial: Option<bool>,
-    #[serde(default)] greeting_id: Option<String>,
-    #[serde(default, alias = "alternate_greet_id")] voicemail_alternate_greet_id: Option<String>,
-    #[serde(default)] voicemail_recording_instructions: Option<bool>,
-    #[serde(default)] voicemail_recording_options: Option<String>,
-    #[serde(default)] voicemail_mail_to: Option<String>,
-    #[serde(default)] voicemail_sms_to: Option<String>,
-    #[serde(default)] voicemail_transcription_enabled: Option<bool>,
-    #[serde(default)] voicemail_attach_file: Option<bool>,
-    #[serde(default)] voicemail_file: Option<String>,
-    #[serde(default)] voicemail_local_after_email: Option<bool>,
-    #[serde(default)] voicemail_local_after_forward: Option<bool>,
-    #[serde(default)] voicemail_transcription_prompt_enabled: Option<bool>,
-    #[serde(default)] voicemail_transcription_prompt: Option<String>,
-    #[serde(default)] alternate_voicemail_destination: Option<String>,
-    #[serde(default)] alternate_voicemail_enabled: Option<bool>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    enabled: Option<bool>,
+    #[serde(default)]
+    voicemail_tutorial: Option<bool>,
+    #[serde(default)]
+    greeting_id: Option<String>,
+    #[serde(default, alias = "alternate_greet_id")]
+    voicemail_alternate_greet_id: Option<String>,
+    #[serde(default)]
+    voicemail_recording_instructions: Option<bool>,
+    #[serde(default)]
+    voicemail_recording_options: Option<String>,
+    #[serde(default)]
+    voicemail_mail_to: Option<String>,
+    #[serde(default)]
+    voicemail_sms_to: Option<String>,
+    #[serde(default)]
+    voicemail_transcription_enabled: Option<bool>,
+    #[serde(default)]
+    voicemail_attach_file: Option<bool>,
+    #[serde(default)]
+    voicemail_file: Option<String>,
+    #[serde(default)]
+    voicemail_local_after_email: Option<bool>,
+    #[serde(default)]
+    voicemail_local_after_forward: Option<bool>,
+    #[serde(default)]
+    voicemail_transcription_prompt_enabled: Option<bool>,
+    #[serde(default)]
+    voicemail_transcription_prompt: Option<String>,
+    #[serde(default)]
+    alternate_voicemail_destination: Option<String>,
+    #[serde(default)]
+    alternate_voicemail_enabled: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -54,9 +77,11 @@ struct GreetingCreate {
 }
 
 // ---- handlers ----
+/// PHP ground truth (`voicemail_edit.php`): `is_numeric($voicemail_id)` —
+/// numeric, any length. The old 2-7-digit rule came from Python.
 fn valid_mailbox(s: &str) -> bool {
     let t = s.trim();
-    (2..=7).contains(&t.len()) && t.chars().all(|c| c.is_ascii_digit())
+    !t.is_empty() && t.chars().all(|c| c.is_ascii_digit())
 }
 
 fn ser_vm(r: &voicemails::Model) -> serde_json::Value {
@@ -109,7 +134,7 @@ async fn create_vm(
     if !valid_mailbox(&payload.voicemail_id) {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(serde_json::json!({"detail": "voicemail_id must be 2-7 digits"})),
+            Json(serde_json::json!({"detail": "voicemail_id must be numeric"})),
         )
             .into_response();
     }
@@ -190,7 +215,12 @@ async fn list_vm(
         Err(_) => {
             return (
                 crate::paged_headers("/api/v1/voicemails", page, per_page, 0),
-                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+                Json(crate::paged_body(
+                    Vec::<serde_json::Value>::new(),
+                    0,
+                    page,
+                    per_page,
+                )),
             )
                 .into_response();
         }
@@ -306,7 +336,17 @@ async fn patch_vm(
     if let Some(v) = payload.get("enabled").and_then(|v| v.as_bool()) {
         am.enabled = Set(v);
     }
-    for key in ["voicemail_mail_to", "voicemail_sms_to", "voicemail_file", "voicemail_transcription_prompt", "greeting_id", "voicemail_alternate_greet_id", "alternate_voicemail_destination", "voicemail_recording_options", "description"] {
+    for key in [
+        "voicemail_mail_to",
+        "voicemail_sms_to",
+        "voicemail_file",
+        "voicemail_transcription_prompt",
+        "greeting_id",
+        "voicemail_alternate_greet_id",
+        "alternate_voicemail_destination",
+        "voicemail_recording_options",
+        "description",
+    ] {
         if key == "description" {
             continue;
         }
@@ -315,23 +355,47 @@ async fn patch_vm(
                 "voicemail_mail_to" => am.voicemail_mail_to = Set(Some(v.to_owned())),
                 "voicemail_sms_to" => am.voicemail_sms_to = Set(Some(v.to_owned())),
                 "voicemail_file" => am.voicemail_file = Set(Some(v.to_owned())),
-                "voicemail_transcription_prompt" => am.voicemail_transcription_prompt = Set(Some(v.to_owned())),
+                "voicemail_transcription_prompt" => {
+                    am.voicemail_transcription_prompt = Set(Some(v.to_owned()))
+                }
                 "greeting_id" => am.greeting_id = Set(Some(v.to_owned())),
-                "voicemail_alternate_greet_id" => am.voicemail_alternate_greet_id = Set(Some(v.to_owned())),
-                "voicemail_recording_options" => am.voicemail_recording_options = Set(Some(v.to_owned())),
+                "voicemail_alternate_greet_id" => {
+                    am.voicemail_alternate_greet_id = Set(Some(v.to_owned()))
+                }
+                "voicemail_recording_options" => {
+                    am.voicemail_recording_options = Set(Some(v.to_owned()))
+                }
                 _ => am.alternate_voicemail_destination = Set(Some(v.to_owned())),
             }
         }
     }
     for (key, slot) in [
         ("voicemail_tutorial", &mut am.voicemail_tutorial),
-        ("voicemail_recording_instructions", &mut am.voicemail_recording_instructions),
-        ("voicemail_transcription_enabled", &mut am.voicemail_transcription_enabled),
-        ("voicemail_transcription_prompt_enabled", &mut am.voicemail_transcription_prompt_enabled),
+        (
+            "voicemail_recording_instructions",
+            &mut am.voicemail_recording_instructions,
+        ),
+        (
+            "voicemail_transcription_enabled",
+            &mut am.voicemail_transcription_enabled,
+        ),
+        (
+            "voicemail_transcription_prompt_enabled",
+            &mut am.voicemail_transcription_prompt_enabled,
+        ),
         ("voicemail_attach_file", &mut am.voicemail_attach_file),
-        ("voicemail_local_after_email", &mut am.voicemail_local_after_email),
-        ("voicemail_local_after_forward", &mut am.voicemail_local_after_forward),
-        ("alternate_voicemail_enabled", &mut am.alternate_voicemail_enabled),
+        (
+            "voicemail_local_after_email",
+            &mut am.voicemail_local_after_email,
+        ),
+        (
+            "voicemail_local_after_forward",
+            &mut am.voicemail_local_after_forward,
+        ),
+        (
+            "alternate_voicemail_enabled",
+            &mut am.alternate_voicemail_enabled,
+        ),
     ] {
         if let Some(v) = payload.get(key).and_then(|v| v.as_bool()) {
             *slot = Set(Some(v));
@@ -503,13 +567,31 @@ async fn create_message(
             .map(|v| v as i32)),
         created_epoch: Set(payload.get("created_epoch").and_then(|v| v.as_i64())),
         read_epoch: Set(payload.get("read_epoch").and_then(|v| v.as_i64())),
-        caller_id_name: Set(payload.get("caller_id_name").and_then(|v| v.as_str()).map(str::to_owned)),
-        caller_id_number: Set(payload.get("caller_id_number").and_then(|v| v.as_str()).map(str::to_owned)),
-        message_status: Set(payload.get("message_status").and_then(|v| v.as_str()).map(str::to_owned)),
-        message_priority: Set(payload.get("message_priority").and_then(|v| v.as_str()).map(str::to_owned)),
+        caller_id_name: Set(payload
+            .get("caller_id_name")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        caller_id_number: Set(payload
+            .get("caller_id_number")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        message_status: Set(payload
+            .get("message_status")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        message_priority: Set(payload
+            .get("message_priority")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
         message_intro_base64: Set(None),
-        message_base64: Set(payload.get("message_base64").and_then(|v| v.as_str()).map(str::to_owned)),
-        message_transcription: Set(payload.get("message_transcription").and_then(|v| v.as_str()).map(str::to_owned)),
+        message_base64: Set(payload
+            .get("message_base64")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        message_transcription: Set(payload
+            .get("message_transcription")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
     };
     match am.insert(db).await {
         Ok(_) => (
@@ -1003,12 +1085,30 @@ async fn create_greeting_standalone(
             .get("greeting_text")
             .and_then(|v| v.as_str())
             .map(str::to_owned)),
-        greeting_id: Set(payload.get("greeting_id").and_then(|v| v.as_str()).map(str::to_owned)),
-        greeting_voice: Set(payload.get("greeting_voice").and_then(|v| v.as_str()).map(str::to_owned)),
-        greeting_message: Set(payload.get("greeting_message").and_then(|v| v.as_str()).map(str::to_owned)),
-        greeting_filename: Set(payload.get("greeting_filename").and_then(|v| v.as_str()).map(str::to_owned)),
-        greeting_description: Set(payload.get("greeting_description").and_then(|v| v.as_str()).map(str::to_owned)),
-        greeting_base64: Set(payload.get("greeting_base64").and_then(|v| v.as_str()).map(str::to_owned)),
+        greeting_id: Set(payload
+            .get("greeting_id")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        greeting_voice: Set(payload
+            .get("greeting_voice")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        greeting_message: Set(payload
+            .get("greeting_message")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        greeting_filename: Set(payload
+            .get("greeting_filename")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        greeting_description: Set(payload
+            .get("greeting_description")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        greeting_base64: Set(payload
+            .get("greeting_base64")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
     };
     match gam.insert(db).await {
         Ok(_) => (
@@ -1087,7 +1187,14 @@ async fn patch_greeting(
             .and_then(|v| v.as_str())
             .map(str::to_owned));
     }
-    for key in ["greeting_id", "greeting_voice", "greeting_message", "greeting_filename", "greeting_description", "greeting_base64"] {
+    for key in [
+        "greeting_id",
+        "greeting_voice",
+        "greeting_message",
+        "greeting_filename",
+        "greeting_description",
+        "greeting_base64",
+    ] {
         if let Some(v) = payload.get(key).and_then(|v| v.as_str()) {
             match key {
                 "greeting_id" => am.greeting_id = Set(Some(v.to_owned())),

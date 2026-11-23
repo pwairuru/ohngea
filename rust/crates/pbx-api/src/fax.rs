@@ -4,7 +4,9 @@
 //! Order: models → schemas → handlers → xml (no FS XML for fax; S3/file stub note).
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, Set,
+};
 use serde::{Deserialize, Serialize};
 
 // ---- models ----
@@ -26,9 +28,10 @@ struct FaxQueueOut {
 }
 
 // ---- handlers ----
+/// PHP ground truth (`fax_edit.php`): `empty($fax_extension)` is the only
+/// server-side rule — no digit/length regex.
 fn valid_ext(s: &str) -> bool {
-    let t = s.trim();
-    (2..=7).contains(&t.len()) && t.chars().all(|c| c.is_ascii_digit())
+    !s.trim().is_empty()
 }
 
 fn ser_fax(r: &faxes::Model) -> serde_json::Value {
@@ -134,7 +137,7 @@ async fn create_fax(
     if !valid_ext(ext) {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(serde_json::json!({"detail": "fax_extension must be 2-7 digits"})),
+            Json(serde_json::json!({"detail": "fax_extension required"})),
         )
             .into_response();
     }
@@ -159,29 +162,97 @@ async fn create_fax(
             .and_then(|v| v.as_str())
             .map(str::to_owned)),
         enabled: Set(true),
-        dialplan_uuid: Set(payload.get("dialplan_uuid").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_destination_number: Set(payload.get("fax_destination_number").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_prefix: Set(payload.get("fax_prefix").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_email_connection_type: Set(payload.get("fax_email_connection_type").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_email_connection_host: Set(payload.get("fax_email_connection_host").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_email_connection_port: Set(payload.get("fax_email_connection_port").and_then(|v| v.as_i64()).map(|v| v as i32)),
-        fax_email_connection_security: Set(payload.get("fax_email_connection_security").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_email_connection_validate: Set(payload.get("fax_email_connection_validate").and_then(|v| v.as_bool())),
-        fax_email_connection_username: Set(payload.get("fax_email_connection_username").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_email_connection_password: Set(payload.get("fax_email_connection_password").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_email_connection_mailbox: Set(payload.get("fax_email_connection_mailbox").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_email_inbound_subject_tag: Set(payload.get("fax_email_inbound_subject_tag").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_email_outbound_subject_tag: Set(payload.get("fax_email_outbound_subject_tag").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_email_outbound_authorized_senders: Set(payload.get("fax_email_outbound_authorized_senders").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_pin_number: Set(payload.get("fax_pin_number").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_caller_id_name: Set(payload.get("fax_caller_id_name").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_caller_id_number: Set(payload.get("fax_caller_id_number").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_toll_allow: Set(payload.get("fax_toll_allow").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_file: Set(payload.get("fax_file").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_user_list: Set(payload.get("fax_user_list").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_forward_number: Set(payload.get("fax_forward_number").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_send_channels: Set(payload.get("fax_send_channels").and_then(|v| v.as_i64()).map(|v| v as i32)),
-        accountcode: Set(payload.get("accountcode").and_then(|v| v.as_str()).map(str::to_owned)),
+        dialplan_uuid: Set(payload
+            .get("dialplan_uuid")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_destination_number: Set(payload
+            .get("fax_destination_number")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_prefix: Set(payload
+            .get("fax_prefix")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_email_connection_type: Set(payload
+            .get("fax_email_connection_type")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_email_connection_host: Set(payload
+            .get("fax_email_connection_host")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_email_connection_port: Set(payload
+            .get("fax_email_connection_port")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32)),
+        fax_email_connection_security: Set(payload
+            .get("fax_email_connection_security")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_email_connection_validate: Set(payload
+            .get("fax_email_connection_validate")
+            .and_then(|v| v.as_bool())),
+        fax_email_connection_username: Set(payload
+            .get("fax_email_connection_username")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_email_connection_password: Set(payload
+            .get("fax_email_connection_password")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_email_connection_mailbox: Set(payload
+            .get("fax_email_connection_mailbox")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_email_inbound_subject_tag: Set(payload
+            .get("fax_email_inbound_subject_tag")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_email_outbound_subject_tag: Set(payload
+            .get("fax_email_outbound_subject_tag")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_email_outbound_authorized_senders: Set(payload
+            .get("fax_email_outbound_authorized_senders")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_pin_number: Set(payload
+            .get("fax_pin_number")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_caller_id_name: Set(payload
+            .get("fax_caller_id_name")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_caller_id_number: Set(payload
+            .get("fax_caller_id_number")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_toll_allow: Set(payload
+            .get("fax_toll_allow")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_file: Set(payload
+            .get("fax_file")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_user_list: Set(payload
+            .get("fax_user_list")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_forward_number: Set(payload
+            .get("fax_forward_number")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_send_channels: Set(payload
+            .get("fax_send_channels")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32)),
+        accountcode: Set(payload
+            .get("accountcode")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
         created_at: Set(now),
         updated_at: Set(now),
     };
@@ -220,7 +291,12 @@ async fn list_fax(
         Err(_) => {
             return (
                 crate::paged_headers("/api/v1/fax", page, per_page, 0),
-                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+                Json(crate::paged_body(
+                    Vec::<serde_json::Value>::new(),
+                    0,
+                    page,
+                    per_page,
+                )),
             )
                 .into_response();
         }
@@ -315,22 +391,62 @@ async fn patch_fax(
     if let Some(v) = payload.get("enabled").and_then(|v| v.as_bool()) {
         am.enabled = Set(v);
     }
-    for key in ["fax_extension", "dialplan_uuid", "fax_destination_number", "fax_prefix", "fax_email_connection_type", "fax_email_connection_host", "fax_email_connection_security", "fax_email_connection_username", "fax_email_connection_password", "fax_email_connection_mailbox", "fax_email_inbound_subject_tag", "fax_email_outbound_subject_tag", "fax_email_outbound_authorized_senders", "fax_pin_number", "fax_caller_id_name", "fax_caller_id_number", "fax_toll_allow", "fax_file", "fax_user_list", "fax_forward_number", "accountcode"] {
+    for key in [
+        "fax_extension",
+        "dialplan_uuid",
+        "fax_destination_number",
+        "fax_prefix",
+        "fax_email_connection_type",
+        "fax_email_connection_host",
+        "fax_email_connection_security",
+        "fax_email_connection_username",
+        "fax_email_connection_password",
+        "fax_email_connection_mailbox",
+        "fax_email_inbound_subject_tag",
+        "fax_email_outbound_subject_tag",
+        "fax_email_outbound_authorized_senders",
+        "fax_pin_number",
+        "fax_caller_id_name",
+        "fax_caller_id_number",
+        "fax_toll_allow",
+        "fax_file",
+        "fax_user_list",
+        "fax_forward_number",
+        "accountcode",
+    ] {
         if let Some(v) = payload.get(key).and_then(|v| v.as_str()) {
             match key {
                 "fax_extension" => am.fax_extension = Set(v.to_owned()),
                 "dialplan_uuid" => am.dialplan_uuid = Set(Some(v.to_owned())),
                 "fax_destination_number" => am.fax_destination_number = Set(Some(v.to_owned())),
                 "fax_prefix" => am.fax_prefix = Set(Some(v.to_owned())),
-                "fax_email_connection_type" => am.fax_email_connection_type = Set(Some(v.to_owned())),
-                "fax_email_connection_host" => am.fax_email_connection_host = Set(Some(v.to_owned())),
-                "fax_email_connection_security" => am.fax_email_connection_security = Set(Some(v.to_owned())),
-                "fax_email_connection_username" => am.fax_email_connection_username = Set(Some(v.to_owned())),
-                "fax_email_connection_password" => am.fax_email_connection_password = Set(Some(v.to_owned())),
-                "fax_email_connection_mailbox" => am.fax_email_connection_mailbox = Set(Some(v.to_owned())),
-                "fax_email_inbound_subject_tag" => am.fax_email_inbound_subject_tag = Set(Some(v.to_owned())),
-                "fax_email_outbound_subject_tag" => am.fax_email_outbound_subject_tag = Set(Some(v.to_owned())),
-                "fax_email_outbound_authorized_senders" => am.fax_email_outbound_authorized_senders = Set(Some(v.to_owned())),
+                "fax_email_connection_type" => {
+                    am.fax_email_connection_type = Set(Some(v.to_owned()))
+                }
+                "fax_email_connection_host" => {
+                    am.fax_email_connection_host = Set(Some(v.to_owned()))
+                }
+                "fax_email_connection_security" => {
+                    am.fax_email_connection_security = Set(Some(v.to_owned()))
+                }
+                "fax_email_connection_username" => {
+                    am.fax_email_connection_username = Set(Some(v.to_owned()))
+                }
+                "fax_email_connection_password" => {
+                    am.fax_email_connection_password = Set(Some(v.to_owned()))
+                }
+                "fax_email_connection_mailbox" => {
+                    am.fax_email_connection_mailbox = Set(Some(v.to_owned()))
+                }
+                "fax_email_inbound_subject_tag" => {
+                    am.fax_email_inbound_subject_tag = Set(Some(v.to_owned()))
+                }
+                "fax_email_outbound_subject_tag" => {
+                    am.fax_email_outbound_subject_tag = Set(Some(v.to_owned()))
+                }
+                "fax_email_outbound_authorized_senders" => {
+                    am.fax_email_outbound_authorized_senders = Set(Some(v.to_owned()))
+                }
                 "fax_pin_number" => am.fax_pin_number = Set(Some(v.to_owned())),
                 "fax_caller_id_name" => am.fax_caller_id_name = Set(Some(v.to_owned())),
                 "fax_caller_id_number" => am.fax_caller_id_number = Set(Some(v.to_owned())),
@@ -342,10 +458,16 @@ async fn patch_fax(
             }
         }
     }
-    if let Some(v) = payload.get("fax_email_connection_port").and_then(|v| v.as_i64()) {
+    if let Some(v) = payload
+        .get("fax_email_connection_port")
+        .and_then(|v| v.as_i64())
+    {
         am.fax_email_connection_port = Set(Some(v as i32));
     }
-    if let Some(v) = payload.get("fax_email_connection_validate").and_then(|v| v.as_bool()) {
+    if let Some(v) = payload
+        .get("fax_email_connection_validate")
+        .and_then(|v| v.as_bool())
+    {
         am.fax_email_connection_validate = Set(Some(v));
     }
     if let Some(v) = payload.get("fax_send_channels").and_then(|v| v.as_i64()) {
@@ -478,16 +600,35 @@ async fn upload_file(
         fax_file_uuid: Set(fid.clone()),
         domain_id: Set(domain),
         fax_uuid: Set(id.clone()),
-        fax_mode: Set(payload.get("fax_mode").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_recipient: Set(payload.get("fax_recipient").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_destination: Set(payload.get("fax_destination").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_file_type: Set(payload.get("fax_file_type").and_then(|v| v.as_str()).map(str::to_owned)),
-        fax_file_path: Set(payload.get("fax_file_path").or_else(|| payload.get("file_name")).and_then(|v| v.as_str()).map(str::to_owned)),
+        fax_mode: Set(payload
+            .get("fax_mode")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_recipient: Set(payload
+            .get("fax_recipient")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_destination: Set(payload
+            .get("fax_destination")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_file_type: Set(payload
+            .get("fax_file_type")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        fax_file_path: Set(payload
+            .get("fax_file_path")
+            .or_else(|| payload.get("file_name"))
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
         fax_caller_id_name: Set(None),
         fax_caller_id_number: Set(None),
         fax_date: Set(None),
         fax_epoch: Set(None),
-        fax_base64: Set(payload.get("fax_base64").and_then(|v| v.as_str()).map(str::to_owned)),
+        fax_base64: Set(payload
+            .get("fax_base64")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
         read_date: Set(None),
     };
     match am.insert(db).await {
@@ -750,7 +891,11 @@ async fn insert_queue_job(
         fax_retry_date: Set(str_opt("fax_retry_date")),
         fax_notify_sent: Set(payload.get("fax_notify_sent").and_then(|v| v.as_bool())),
         fax_notify_date: Set(str_opt("fax_notify_date")),
-        fax_retry_count: Set(payload.get("fax_retry_count").and_then(|v| v.as_i64()).map(|n| n as i32).or(Some(0))),
+        fax_retry_count: Set(payload
+            .get("fax_retry_count")
+            .and_then(|v| v.as_i64())
+            .map(|n| n as i32)
+            .or(Some(0))),
         fax_accountcode: Set(str_opt("fax_accountcode")),
         fax_command: Set(str_opt("fax_command")),
         fax_response: Set(str_opt("fax_response")),
@@ -791,7 +936,12 @@ async fn list_queue(
         Err(_) => {
             return (
                 crate::paged_headers("/api/v1/fax/queue", page, per_page, 0),
-                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+                Json(crate::paged_body(
+                    Vec::<serde_json::Value>::new(),
+                    0,
+                    page,
+                    per_page,
+                )),
             )
                 .into_response();
         }

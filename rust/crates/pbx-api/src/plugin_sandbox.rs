@@ -18,18 +18,22 @@
 //! Host functions (allowlist, the *only* imports a guest can see):
 //! - `pbx_log(offset)` — records the call in a per-sandbox counter.
 //!   Payload logging is a later step (see below).
-//! - `db_get(key_id) -> 1/0` — **stub**: answers from the static
-//!   [`DB_GET_ALLOWLIST`]. Real table/key lookup via SeaORM is the explicit
-//!   next step (PDK + `db_get(table, key)` with per-tenant RLS).
+//! - `db_get(key_id) -> 1/0` — answered by the active lookup: the default
+//!   [`DB_GET_ALLOWLIST`] stub, or a caller-supplied resolver via
+//!   [`call_plugin_with_lookup`](Self::call_plugin_with_lookup) (e.g. the
+//!   `example` route passes a SeaORM-backed tenant count). Full
+//!   `db_get(table, key)` with per-tenant RLS is the explicit next step
+//!   (PDK + table-key signature).
 //!
 //! Tenant gating is NOT duplicated here: routes are already 403-gated by
 //! `plugin_gate` / per-handler checks, so the sandbox is only reached for
 //! enabled plugins. [`PluginSandbox::register`] enforces the license gate
 //! (mirrors [`crate::plugins::is_license_allowed`]) before any exec.
 //!
-//! NEXT (not in scope): PDK crate for guest authors, real `db_get` wiring,
-//! `CompiledPlugin`/pool caching (currently one compile per `call_plugin`;
-//! per-call bytes are a single `Arc` slice copy at the `Manifest` boundary).
+//! NEXT (not in scope): PDK crate for guest authors, `db_get(table, key)`
+//! signature with per-tenant RLS, `CompiledPlugin`/pool caching (currently
+//! one compile per `call_plugin`; per-call bytes are a single `Arc` slice
+//! copy at the `Manifest` boundary).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -199,12 +203,32 @@ impl PluginSandbox {
     ///
     /// Manifest: timeout + memory cap + no hosts. Builder: WASI flag, fuel
     /// limit, `pbx_log` + `db_get` host fns (the full import allowlist).
+    /// `db_get` answers from the static [`DB_GET_ALLOWLIST`] stub.
     pub fn call_plugin(
         &self,
         name: &str,
         func: &str,
         input: &[u8],
     ) -> Result<Vec<u8>, SandboxError> {
+        self.call_plugin_with_lookup(name, func, input, |key| {
+            i64::from(DB_GET_ALLOWLIST.contains(&key))
+        })
+    }
+
+    /// [`call_plugin`](Self::call_plugin) with a caller-supplied `db_get`
+    /// resolver (sync `key_id -> 0/1`). Callers pre-fetch whatever async
+    /// SeaORM state they need and close over the owned snapshot, keeping
+    /// the host closure sync (extism host fns cannot await).
+    pub fn call_plugin_with_lookup<F>(
+        &self,
+        name: &str,
+        func: &str,
+        input: &[u8],
+        lookup: F,
+    ) -> Result<Vec<u8>, SandboxError>
+    where
+        F: Fn(i64) -> i64 + Send + Sync + 'static,
+    {
         let bytes = self
             .registry
             .get(name)
@@ -236,13 +260,9 @@ impl PluginSandbox {
                 [ValType::I64],
                 [ValType::I64],
                 UserData::new(()),
-                |_, inputs, outputs, _| {
+                move |_, inputs, outputs, _| {
                     let key = inputs.first().and_then(|v| v.i64()).unwrap_or(-1);
-                    let allowed = if DB_GET_ALLOWLIST.contains(&key) {
-                        1
-                    } else {
-                        0
-                    };
+                    let allowed = lookup(key);
                     if let Some(slot) = outputs.first_mut() {
                         *slot = Val::I64(allowed);
                     }

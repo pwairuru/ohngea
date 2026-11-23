@@ -93,11 +93,12 @@ Generator scripts: `crates/pbx-db/gen_seeds.py`, `gen_telephony_seeds.py`.
   (epoch interruption, `with_timeout_ms` override); fresh `extism::Plugin`
   per call (no guest state leaks); host fns allowlist only
   (`pbx_log`, stub `db_get`).
-- Remaining debt: PDK crate for guest authors; real `db_get(table, key)` SeaORM
-  + RLS wiring (stub answers `DB_GET_ALLOWLIST` 1/2/3); refresh-token
-  rotation/reuse-detection absent (`/auth/refresh` + `/auth/logout` exist);
-  16k header cap enforced at edge proxy (`MAX_HEADER_BYTES`, nginx), not in
-  axum; `argon2` dep in `pbx-core` unused (bcrypt is the real path).
+- Remaining debt: PDK crate for guest authors; full `db_get(table, key)` SeaORM
+  + RLS wiring (`db_get(key_id)` takes a caller resolver —
+  `call_plugin_with_lookup` — live counts in the `example` route, allowlist
+  default); refresh-token rotation/reuse-detection absent
+  (`/auth/refresh` + `/auth/logout` exist); 16k header cap enforced at edge
+  proxy (`MAX_HEADER_BYTES`, nginx), not in axum.
 
 ## Test commands
 
@@ -241,17 +242,35 @@ Security posture (prodgate 2026-10-28, verified on release binary):
 - Mock ESL: `MockEs`/`MockEsClient` back originate/kill/channels/
   registrations/conference_list; `RealEs` dials TCP 8021 with graceful
   mock fallback — live FS assertions only in `tests/e2e/verify.py`.
-  `RealEs::originate` single-read 500 ms window is a known client-side
-  limitation (~660 ms real originate); retries/window bump deferred.
+  `RealEs::try_api` read window is 2.5s (covers the ~660 ms real
+  originate); connect timeout 1s. Retries intentionally absent
+  (double-originate risk).
 - `password_hash` bcrypt: `users.rs` create/import store real bcrypt hashes
-  (bulk `copy` preserves the source hash); `argon2` dep in `pbx-core`
-  remains unused — removal or migration is a follow-up.
+  (bulk `copy` preserves the source hash); `argon2` was removed —
+  `pbx-core` depends on `bcrypt` only.
 - Refresh/rotation: `auth.rs` issues HS256 `access_token` (cookie + Bearer,
   3600s) with `/auth/refresh` + `/auth/logout`; rotation/reuse-detection
   absent.
 - Header cap: `MAX_HEADER_BYTES=16384` enforced at edge (nginx/proxy), not in
   axum — keep the proxy in front in every deployment.
 - PDK + `db_get`: guest authors have no PDK crate yet (reference guest
-  returns canned `ok:example`); `db_get` is a stub allowlist (`1,2,3` → 1)
-  until real SeaORM + per-tenant RLS wiring lands; `CompiledPlugin` caching
-  absent (one compile per `call_plugin`).
+  returns canned `ok:example`); `db_get(key_id)` answers via a
+  caller-supplied resolver (`call_plugin_with_lookup`) — the `example`
+  route passes live tenant counts (extensions/gateways/dialplans), default
+  is the `DB_GET_ALLOWLIST` stub. Full `db_get(table, key)` with
+  per-tenant RLS + `CompiledPlugin` caching remain follow-ups.
+- PHP table-name compat: renamed tables keep PHP-name views on Postgres
+  (`v_call_center_queues`, `v_xml_cdr`, `ring_group_destinations`,
+  `v_call_centers`, `v_vars`, `v_voicemails`, `v_conferences`) so legacy
+  `v_*` SQL keeps working; audit columns (`insert_user` etc.) are
+  intentionally `created_at`/`updated_at` in Rust, exposed as
+  `insert_date`/`update_date` through the views.
+- Extension tables (no PHP counterpart, kept as API surface):
+  `call_forwards`, `time_conditions`, `feature_codes`, `call_recordings`,
+  `cdr_archive`, `domain_apps`, `domain_plugins`, `webrtc_settings`,
+  `user_groups`, `remaining_records` (legacy spillover drain).
+- Core apps with no REST equivalent (intentionally out of scope):
+  `install` (first-boot seed covers it), `upgrade` (see
+  `GET /api/v1/system/upgrade` — boot-migrate status), `websockets`
+  (no WS server; browser polls HTTP), `events` socket config (see
+  `GET /api/v1/system/events` — live ESL probe + guard volume).
