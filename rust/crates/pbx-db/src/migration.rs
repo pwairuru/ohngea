@@ -2252,7 +2252,7 @@ const VIEWS: &[&str] = &[
     "CREATE OR REPLACE VIEW v_conferences AS SELECT domain_id, conference_uuid, conference_name, conference_extension FROM conferences",
     "CREATE OR REPLACE VIEW v_call_centers AS SELECT domain_id, call_center_queue_uuid, queue_name, queue_extension FROM call_centers",
     "CREATE OR REPLACE VIEW v_call_center_queues AS SELECT call_center_queue_uuid, domain_id AS domain_uuid, dialplan_uuid, NULL::text AS v_id, queue_name, queue_extension, greeting AS queue_greeting, queue_strategy, moh_sound AS queue_moh_sound, record_template AS queue_record_template, language AS queue_language, dialect AS queue_dialect, voice AS queue_voice, queue_limit, time_base_score AS queue_time_base_score, time_base_score_sec AS queue_time_base_score_sec, max_wait_time AS queue_max_wait_time, max_wait_time_with_no_agent AS queue_max_wait_time_with_no_agent, max_wait_time_with_no_agent_time_reached AS queue_max_wait_time_with_no_agent_time_reached, tier_rules_apply AS queue_tier_rules_apply, tier_rule_wait_second AS queue_tier_rule_wait_second, tier_rule_no_agent_no_wait AS queue_tier_rule_no_agent_no_wait, timeout_action AS queue_timeout_action, discard_abandoned_after AS queue_discard_abandoned_after, abandoned_resume_allowed AS queue_abandoned_resume_allowed, tier_rule_wait_multiply_level AS queue_tier_rule_wait_multiply_level, cid_prefix AS queue_cid_prefix, outbound_caller_id_name AS queue_outbound_caller_id_name, outbound_caller_id_number AS queue_outbound_caller_id_number, announce_position AS queue_announce_position, announce_sound AS queue_announce_sound, announce_frequency AS queue_announce_frequency, cc_exit_keys AS queue_cc_exit_keys, email_address AS queue_email_address, context AS queue_context, queue_description, created_at AS insert_date, NULL::uuid AS insert_user, updated_at AS update_date, NULL::uuid AS update_user FROM call_centers",
-    "CREATE OR REPLACE VIEW v_xml_cdr AS SELECT cdr_uuid AS xml_cdr_uuid, domain_id AS domain_uuid, provider_uuid, extension_uuid, NULL::text AS v_id, sip_call_id, domain_name, accountcode, direction, default_language, context, caller_id_name, caller_id_number, caller_destination, source_number, destination_number, start_epoch, start_stamp, answer_stamp, answer_epoch, end_epoch, end_stamp, duration, mduration, billsec, billmsec, hold_accum_seconds, bridge_uuid, read_codec, read_rate, write_codec, write_rate, remote_media_ip, network_addr, record_path, record_name, record_length, record_transcription, leg, originating_leg_uuid, pdd_ms, rtp_audio_in_mos, last_app, last_arg, voicemail_message, missed_call, call_center_queue_uuid, cc_side, cc_member_uuid, cc_queue_joined_epoch, cc_queue, cc_member_session_uuid, cc_agent_uuid, cc_agent, cc_agent_type, cc_agent_bridged, cc_queue_answered_epoch, cc_queue_terminated_epoch, cc_queue_canceled_epoch, cc_cancel_reason, cc_cause, waitsec, conference_name, conference_uuid, conference_member_id, digits_dialed, pin_number, status, call_disposition, hangup_cause, hangup_cause_q850, sip_hangup_disposition, ring_group_uuid, ivr_menu_uuid, processed, call_flow, json, created_at AS insert_date, NULL::uuid AS insert_user, updated_at AS update_date, NULL::uuid AS update_user FROM cdr",
+    "CREATE OR REPLACE VIEW v_xml_cdr AS SELECT cdr_uuid AS xml_cdr_uuid, domain_id AS domain_uuid, provider_uuid, extension_uuid, NULL::text AS v_id, sip_call_id, domain_name, accountcode, direction, default_language, context, caller_id_name, caller_id_number, caller_destination, source_number, destination_number, start_epoch, start_stamp, answer_stamp, answer_epoch, end_epoch, end_stamp, duration, mduration, billsec, billmsec, hold_accum_seconds, bridge_uuid, read_codec, read_rate, write_codec, write_rate, remote_media_ip, network_addr, record_path, record_name, record_length, record_transcription, leg, originating_leg_uuid, pdd_ms, rtp_audio_in_mos, last_app, last_arg, voicemail_message, missed_call, call_center_queue_uuid, cc_side, cc_member_uuid, cc_queue_joined_epoch, cc_queue, cc_member_session_uuid, cc_agent_uuid, cc_agent, cc_agent_type, cc_agent_bridged, cc_queue_answered_epoch, cc_queue_terminated_epoch, cc_queue_canceled_epoch, cc_cancel_reason, cc_cause, waitsec, conference_name, conference_uuid, conference_member_id, digits_dialed, pin_number, status, call_disposition, hangup_cause, hangup_cause_q850, sip_hangup_disposition, ring_group_uuid, ivr_menu_uuid, processed, call_flow, json, NULL::timestamptz AS insert_date, NULL::uuid AS insert_user, NULL::timestamptz AS update_date, NULL::uuid AS update_user FROM cdr",
 ];
 
 fn rls_statements() -> Vec<String> {
@@ -2305,6 +2305,34 @@ fn rls_statements() -> Vec<String> {
     out
 }
 
+/// Best-effort statement inside the migration transaction. A bare `let _`
+/// is NOT enough on Postgres: a failed statement aborts the whole
+/// transaction, so every later statement (and the migration-record insert)
+/// dies with misleading `25P02` "current transaction is aborted". Each
+/// statement gets its own savepoint; on failure we roll back to it and the
+/// transaction survives.
+async fn best_effort(conn: &SchemaManagerConnection<'_>, stmt: &str) {
+    use sea_orm::ConnectionTrait;
+    let _ = conn.execute_unprepared("SAVEPOINT boot_best_effort").await;
+    if conn.execute_unprepared(stmt).await.is_err() {
+        let _ = conn
+            .execute_unprepared("ROLLBACK TO SAVEPOINT boot_best_effort")
+            .await;
+    } else {
+        let _ = conn
+            .execute_unprepared("RELEASE SAVEPOINT boot_best_effort")
+            .await;
+    }
+}
+
+/// Columns that must exist BEFORE the DDL loop: `CREATE TABLE IF NOT EXISTS`
+/// skips old tables, but later DDL statements (indexes) reference the new
+/// columns. Runs best-effort with savepoints.
+const PRE_DDL_ALTERS: &[&str] = &[
+    "ALTER TABLE call_center_agents ADD COLUMN IF NOT EXISTS queue_id UUID",
+    "ALTER TABLE call_center_tiers ADD COLUMN IF NOT EXISTS queue_id UUID",
+];
+
 #[async_trait::async_trait]
 impl MigrationTrait for M20260101_000001PgParity {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
@@ -2312,24 +2340,39 @@ impl MigrationTrait for M20260101_000001PgParity {
         let backend = manager.get_database_backend();
         let is_pg = matches!(backend, DbBackend::Postgres);
         if is_pg {
-            let _ = conn.execute_unprepared(EXT_PGCRYPTO).await;
+            best_effort(conn, EXT_PGCRYPTO).await;
+            for stmt in PRE_DDL_ALTERS {
+                best_effort(conn, stmt).await;
+            }
         }
-        for ddl in DDL_TABLES {
-            conn.execute_unprepared(ddl).await?;
+        for (i, ddl) in DDL_TABLES.iter().enumerate() {
+            conn.execute_unprepared(*ddl).await.map_err(|e| {
+                let head: String = ddl.chars().take(90).collect();
+                sea_orm::DbErr::Migration(format!("DDL #{i} failed [{head}...]: {e}"))
+            })?;
         }
         // Forward alters for pre-existing DBs (CREATE IF NOT EXISTS
-        // never adds columns to old tables). Best-effort: ignore
-        // "already exists" / dialect errors.
+        // never adds columns to old tables). Best-effort with savepoints:
+        // backfills reference legacy columns that may not exist on fresh DBs
+        // and vice versa.
         for stmt in FORWARD_ALTERS {
-            let _ = conn.execute_unprepared(stmt).await;
+            best_effort(conn, stmt).await;
+        }
+        // Stale-DB backfill: old `call_center_agents`/`tiers` rows keyed by
+        // `call_center_queue_uuid`; new code reads `queue_id`.
+        for stmt in [
+            "UPDATE call_center_agents SET queue_id = call_center_queue_uuid WHERE queue_id IS NULL",
+            "UPDATE call_center_tiers SET queue_id = call_center_queue_uuid WHERE queue_id IS NULL",
+        ] {
+            best_effort(conn, stmt).await;
         }
         if is_pg {
             for stmt in rls_statements() {
                 // Best-effort: ignore already-exists races.
-                let _ = conn.execute_unprepared(&stmt).await;
+                best_effort(conn, &stmt).await;
             }
             for view in VIEWS {
-                let _ = conn.execute_unprepared(view).await;
+                best_effort(conn, view).await;
             }
             // One-shot forward migration: drain JSON spillover rows into the
             // per-table entities (batch 3c → per-table replacement).
