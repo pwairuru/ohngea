@@ -50,8 +50,7 @@ async fn req(
     let bytes = axum::body::to_bytes(res.into_body(), 1024 * 256)
         .await
         .unwrap();
-    let json: serde_json::Value =
-        serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
     (status, json)
 }
 
@@ -128,8 +127,18 @@ async fn extension_cross_tenant_assign() {
     )
     .await;
     assert_eq!(s, StatusCode::CREATED, "forced-tenant create: {v}");
-    let id2 = v.get("extension_uuid").and_then(|i| i.as_str()).unwrap().to_owned();
-    let (s, v) = req("GET", "/api/v1/extensions", Some(&a_noperm), serde_json::json!({})).await;
+    let id2 = v
+        .get("extension_uuid")
+        .and_then(|i| i.as_str())
+        .unwrap()
+        .to_owned();
+    let (s, v) = req(
+        "GET",
+        "/api/v1/extensions",
+        Some(&a_noperm),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK);
     let mine: Vec<String> = v
         .get("data")
@@ -143,7 +152,10 @@ async fn extension_cross_tenant_assign() {
     assert!(mine.contains(&id2), "row forced to own tenant: {v}");
 
     // PATCH re-home with the perm moves the row; without it, untouched.
-    let a_dom = token("assign-tenant-a", &["extension_add", "extension_view", "extension_domain"]);
+    let a_dom = token(
+        "assign-tenant-a",
+        &["extension_add", "extension_view", "extension_domain"],
+    );
     let (s, _) = req(
         "PATCH",
         &format!("/api/v1/extensions/{id2}"),
@@ -162,7 +174,6 @@ async fn extension_cross_tenant_assign() {
     assert_eq!(s, StatusCode::OK, "B sees re-homed row");
 }
 
-
 /// Materialize the tenant's `domains` row (write paths auto-insert the
 /// caller's parent domain; cross-tenant targets need an explicit write
 /// first — PHP likewise requires the domain to exist).
@@ -176,10 +187,7 @@ async fn ensure_tenant(domain: &str, perms: &[&str]) {
         serde_json::json!({"extension": ext, "password": "pw123456"}),
     )
     .await;
-    assert!(
-        s == StatusCode::CREATED,
-        "bootstrap tenant {domain}: {v}"
-    );
+    assert!(s == StatusCode::CREATED, "bootstrap tenant {domain}: {v}");
 }
 
 fn rand4() -> u16 {
@@ -195,7 +203,10 @@ fn rand4() -> u16 {
 async fn user_cross_tenant_assign() {
     ensure_tenant("userassign-tenant-b", &["extension_add"]).await;
     let b_id = tenant_uuid("userassign-tenant-b");
-    let a = token("userassign-tenant-a", &["user_add", "user_view", "user_domain"]);
+    let a = token(
+        "userassign-tenant-a",
+        &["user_add", "user_view", "user_domain"],
+    );
     let uname = uniq("crossuser");
 
     let (s, v) = req(
@@ -255,7 +266,12 @@ async fn patch_domain_moves_and_globalizes() {
     // dialplan: move tenant row to another tenant with dialplan_domain.
     let a = token(
         "mv-tenant-a",
-        &["dialplan_add", "dialplan_view", "dialplan_edit", "dialplan_domain"],
+        &[
+            "dialplan_add",
+            "dialplan_view",
+            "dialplan_edit",
+            "dialplan_domain",
+        ],
     );
     let (s, v) = req(
         "POST",
@@ -265,7 +281,11 @@ async fn patch_domain_moves_and_globalizes() {
     )
     .await;
     assert_eq!(s, StatusCode::CREATED, "create dialplan: {v}");
-    let id = v.get("dialplan_uuid").and_then(|i| i.as_str()).unwrap().to_owned();
+    let id = v
+        .get("dialplan_uuid")
+        .and_then(|i| i.as_str())
+        .unwrap()
+        .to_owned();
     ensure_tenant("mv-tenant-b", &["extension_add"]).await;
     let b_id = tenant_uuid("mv-tenant-b");
     let (s, v) = req(
@@ -287,7 +307,10 @@ async fn patch_domain_moves_and_globalizes() {
     assert_eq!(s, StatusCode::OK, "B sees moved dialplan");
 
     // Without the perm the domain is untouched.
-    let a_noperm = token("mv2-tenant-a", &["dialplan_add", "dialplan_view", "dialplan_edit"]);
+    let a_noperm = token(
+        "mv2-tenant-a",
+        &["dialplan_add", "dialplan_view", "dialplan_edit"],
+    );
     let (s, v) = req(
         "POST",
         "/api/v1/dialplans",
@@ -296,7 +319,11 @@ async fn patch_domain_moves_and_globalizes() {
     )
     .await;
     assert_eq!(s, StatusCode::CREATED);
-    let id2 = v.get("dialplan_uuid").and_then(|i| i.as_str()).unwrap().to_owned();
+    let id2 = v
+        .get("dialplan_uuid")
+        .and_then(|i| i.as_str())
+        .unwrap()
+        .to_owned();
     let (s, _) = req(
         "PATCH",
         &format!("/api/v1/dialplans/{id2}"),
@@ -317,7 +344,12 @@ async fn patch_domain_moves_and_globalizes() {
     // call_block: empty string globalizes with the perm.
     let a = token(
         "mvb-tenant-a",
-        &["call_block_add", "call_block_view", "call_block_edit", "call_block_domain"],
+        &[
+            "call_block_add",
+            "call_block_view",
+            "call_block_edit",
+            "call_block_domain",
+        ],
     );
     let blk = uniq("777");
     let (s, v) = req(
@@ -328,7 +360,11 @@ async fn patch_domain_moves_and_globalizes() {
     )
     .await;
     assert_eq!(s, StatusCode::CREATED, "create block: {v}");
-    let bid = v.get("call_block_uuid").and_then(|i| i.as_str()).unwrap().to_owned();
+    let bid = v
+        .get("call_block_uuid")
+        .and_then(|i| i.as_str())
+        .unwrap()
+        .to_owned();
     ensure_tenant("mvb-tenant-b", &["extension_add"]).await;
     let (s, _) = req(
         "PATCH",
@@ -339,7 +375,13 @@ async fn patch_domain_moves_and_globalizes() {
     .await;
     assert_eq!(s, StatusCode::OK, "patch globalize: {v}");
     let b_g = token("mvb-tenant-b", &["call_block_view", "call_block_domain"]);
-    let (s, v) = req("GET", "/api/v1/call_block", Some(&b_g), serde_json::json!({})).await;
+    let (s, v) = req(
+        "GET",
+        "/api/v1/call_block",
+        Some(&b_g),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK);
     let names: Vec<String> = v
         .get("data")
@@ -355,7 +397,10 @@ async fn patch_domain_moves_and_globalizes() {
 
 #[tokio::test]
 async fn user_patch_moves_tenant_with_perm() {
-    let a = token("usermove-a", &["user_add", "user_view", "user_edit", "user_domain"]);
+    let a = token(
+        "usermove-a",
+        &["user_add", "user_view", "user_edit", "user_domain"],
+    );
     let uname = uniq("moveuser");
     let (s, v) = req(
         "POST",
@@ -365,7 +410,11 @@ async fn user_patch_moves_tenant_with_perm() {
     )
     .await;
     assert_eq!(s, StatusCode::CREATED, "create user: {v}");
-    let id = v.get("user_uuid").and_then(|i| i.as_str()).unwrap().to_owned();
+    let id = v
+        .get("user_uuid")
+        .and_then(|i| i.as_str())
+        .unwrap()
+        .to_owned();
 
     ensure_tenant("usermove-b", &["extension_add"]).await;
     let b_id = tenant_uuid("usermove-b");
@@ -379,7 +428,13 @@ async fn user_patch_moves_tenant_with_perm() {
     assert_eq!(s, StatusCode::OK, "patch move: {v}");
 
     let b = token("usermove-b", &["user_view"]);
-    let (s, _) = req("GET", &format!("/api/v1/users/{id}"), Some(&b), serde_json::json!({})).await;
+    let (s, _) = req(
+        "GET",
+        &format!("/api/v1/users/{id}"),
+        Some(&b),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "B sees moved user");
 
     // Without the perm the domain is untouched.
@@ -393,7 +448,11 @@ async fn user_patch_moves_tenant_with_perm() {
     )
     .await;
     assert_eq!(s, StatusCode::CREATED);
-    let id2 = v.get("user_uuid").and_then(|i| i.as_str()).unwrap().to_owned();
+    let id2 = v
+        .get("user_uuid")
+        .and_then(|i| i.as_str())
+        .unwrap()
+        .to_owned();
     let (s, _) = req(
         "PATCH",
         &format!("/api/v1/users/{id2}"),
@@ -402,6 +461,217 @@ async fn user_patch_moves_tenant_with_perm() {
     )
     .await;
     assert_eq!(s, StatusCode::OK);
-    let (s, _) = req("GET", &format!("/api/v1/users/{id2}"), Some(&b), serde_json::json!({})).await;
+    let (s, _) = req(
+        "GET",
+        &format!("/api/v1/users/{id2}"),
+        Some(&b),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::NOT_FOUND, "domain unchanged without perm");
+}
+
+#[tokio::test]
+async fn patch_domain_remaining_gated_tables() {
+    // destinations + devices: non-null cross-assign on create and patch.
+    let a = token(
+        "xassign-a",
+        &[
+            "destination_add",
+            "destination_view",
+            "destination_edit",
+            "destination_domain",
+        ],
+    );
+    ensure_tenant("xassign-a", &["extension_add"]).await;
+    ensure_tenant("xassign-b", &["extension_add"]).await;
+    let b_id = tenant_uuid("xassign-b");
+    let (s, v) = req(
+        "POST",
+        "/api/v1/destinations",
+        Some(&a),
+        serde_json::json!({"destination_number": uniq("81"), "domain_uuid": b_id}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "dest cross-assign: {v}");
+    let did = v
+        .get("destination_uuid")
+        .and_then(|i| i.as_str())
+        .unwrap()
+        .to_owned();
+    let b = token("xassign-b", &["destination_view"]);
+    let (s, _) = req(
+        "GET",
+        &format!("/api/v1/destinations/{did}"),
+        Some(&b),
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "B sees assigned destination");
+
+    let a = token(
+        "xassign-a",
+        &["device_add", "device_view", "device_edit", "device_domain"],
+    );
+    let (s, v) = req(
+        "POST",
+        "/api/v1/devices",
+        Some(&a),
+        serde_json::json!({"mac": "00:11:22:33:44:99", "vendor": "yealink", "device_domain_uuid": b_id}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "device cross-assign: {v}");
+
+    // music_on_hold: globalize via PATCH with the domain perm.
+    let a = token(
+        "moh2-a",
+        &[
+            "music_on_hold_add",
+            "music_on_hold_view",
+            "music_on_hold_edit",
+            "music_on_hold_domain",
+        ],
+    );
+    ensure_tenant("moh2-a", &["extension_add"]).await;
+    let (s, v) = req(
+        "POST",
+        "/api/v1/music_on_hold",
+        Some(&a),
+        serde_json::json!({"name": uniq("mohx"), "music_path": "/tmp"}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "moh create: {v}");
+    let mid = v
+        .get("music_on_hold_uuid")
+        .and_then(|i| i.as_str())
+        .unwrap()
+        .to_owned();
+    let (s, _) = req(
+        "PATCH",
+        &format!("/api/v1/music_on_hold/{mid}"),
+        Some(&a),
+        serde_json::json!({"domain_uuid": ""}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "moh globalize: {v}");
+
+    // ivr: create global + re-home via PATCH.
+    let a = token(
+        "ivr2-a",
+        &[
+            "ivr_menu_add",
+            "ivr_menu_view",
+            "ivr_menu_edit",
+            "ivr_menu_domain",
+        ],
+    );
+    ensure_tenant("ivr2-a", &["extension_add"]).await;
+    ensure_tenant("ivr2-b", &["extension_add"]).await;
+    let b_id = tenant_uuid("ivr2-b");
+    let (s, v) = req(
+        "POST",
+        "/api/v1/ivr_menus",
+        Some(&a),
+        serde_json::json!({"name": uniq("ivrglobal"), "domain_id": ""}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "global ivr: {v}");
+    let iid = v
+        .get("ivr_menu_uuid")
+        .and_then(|i| i.as_str())
+        .unwrap()
+        .to_owned();
+    let (s, _) = req(
+        "PATCH",
+        &format!("/api/v1/ivr_menus/{iid}"),
+        Some(&a),
+        serde_json::json!({"domain_uuid": b_id}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "ivr re-home: {v}");
+    let b = token("ivr2-b", &["ivr_menu_view"]);
+    let (s, _) = req(
+        "GET",
+        &format!("/api/v1/ivr_menus/{iid}"),
+        Some(&b),
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "B sees re-homed ivr");
+
+    // time_conditions: create global + re-home via PATCH.
+    let a = token(
+        "tc2-a",
+        &[
+            "time_condition_add",
+            "time_condition_view",
+            "time_condition_edit",
+            "time_condition_domain",
+        ],
+    );
+    ensure_tenant("tc2-a", &["extension_add"]).await;
+    let (s, v) = req(
+        "POST",
+        "/api/v1/time_conditions",
+        Some(&a),
+        serde_json::json!({"name": uniq("tcglobal"), "extension": "7101", "domain_uuid": ""}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "global tc: {v}");
+
+    // dialplans: globalize via PATCH.
+    let a = token(
+        "dp2-a",
+        &[
+            "dialplan_add",
+            "dialplan_view",
+            "dialplan_edit",
+            "dialplan_domain",
+        ],
+    );
+    ensure_tenant("dp2-a", &["extension_add"]).await;
+    let (s, v) = req(
+        "POST",
+        "/api/v1/dialplans",
+        Some(&a),
+        serde_json::json!({"name": uniq("dpatch")}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "dialplan: {v}");
+    let pid = v
+        .get("dialplan_uuid")
+        .and_then(|i| i.as_str())
+        .unwrap()
+        .to_owned();
+    let (s, _) = req(
+        "PATCH",
+        &format!("/api/v1/dialplans/{pid}"),
+        Some(&a),
+        serde_json::json!({"domain_uuid": ""}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "dialplan globalize");
+    let b_all = token("dp2-b", &["dialplan_view", "dialplan_global"]);
+    ensure_tenant("dp2-b", &["extension_add"]).await;
+    let (s, v) = req(
+        "GET",
+        "/api/v1/dialplans?show=all",
+        Some(&b_all),
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    let names: Vec<String> = v
+        .get("data")
+        .and_then(|d| d.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|r| r.get("name")?.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default();
+    assert!(
+        names.iter().any(|n| n.starts_with("dpatch_")),
+        "globalized visible: {v}"
+    );
 }
