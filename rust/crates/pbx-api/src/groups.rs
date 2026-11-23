@@ -94,16 +94,33 @@ async fn list_groups(
     let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
+    let show_all = crate::tenant::wants_all(&claims, pq.show.as_deref(), "group_all");
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(_) => {
+            return (
+                crate::paged_headers("/api/v1/groups", page, per_page, 0),
+                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+            )
+                .into_response();
+        }
+    };
+    if show_all {
+        crate::routing_db::set_tenant_all(&txn).await;
+    }
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     // DB-side tenant+global filter: domain rows OR global (NULL) rows.
     // Single query so `num_items` total matches the fetched page.
-    let paginator = groups::Entity::find()
-        .filter(
+    // `?show=all` (+group_all) drops the filter entirely (PHP parity).
+    let mut sel = groups::Entity::find();
+    if !show_all {
+        sel = sel.filter(
             Condition::any()
                 .add(groups::Column::DomainId.eq(domain))
                 .add(groups::Column::DomainId.is_null()),
-        )
-        .paginate(db, per_page);
+        );
+    }
+    let paginator = sel.paginate(&txn, per_page);
     let total = paginator.num_items().await.unwrap_or(0);
     let rows = paginator
         .fetch_page(page.saturating_sub(1))

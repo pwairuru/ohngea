@@ -281,6 +281,7 @@ async fn create_gateway(
 
 async fn list_gateways(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
+    axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "gateway_view") {
         return (s, j).into_response();
@@ -290,9 +291,16 @@ async fn list_gateways(
         Ok(t) => t,
         Err(_) => return Json(serde_json::json!({"data": [], "total": 0})).into_response(),
     };
+    let show_all = crate::tenant::wants_all(&claims, show_q.show.as_deref(), "gateway_all");
+    if show_all {
+        crate::routing_db::set_tenant_all(&txn).await;
+    }
     let domain_id = crate::routing_db::domain(&claims);
-    let rows = pbx_db::entities::gateways::Entity::find()
-        .filter(pbx_db::entities::gateways::Column::DomainId.eq(domain_id))
+    let mut sel = pbx_db::entities::gateways::Entity::find();
+    if !show_all {
+        sel = sel.filter(pbx_db::entities::gateways::Column::DomainId.eq(domain_id));
+    }
+    let rows = sel
         .all(&txn)
         .await
         .unwrap_or_default();

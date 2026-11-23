@@ -107,6 +107,7 @@ async fn patch_feature_code(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "feature_code_add") {
         return (s, j).into_response();
     }
@@ -206,6 +207,13 @@ fn ser_moh(r: &music_on_hold::Model) -> Value {
         "music_path": r.music_path,
         "path": r.music_path,
         "music_rate": r.music_rate,
+        "music_shuffle": r.music_shuffle,
+        "music_channels": r.music_channels,
+        "music_interval": r.music_interval,
+        "music_timer_name": r.music_timer_name,
+        "music_chime_list": r.music_chime_list,
+        "music_chime_freq": r.music_chime_freq,
+        "music_chime_max": r.music_chime_max,
         "enabled": r.enabled,
         "description": r.description,
     })
@@ -230,9 +238,13 @@ async fn create_moh(
         music_name: Set(name),
         music_path: Set(s(&payload, &["music_path", "path"]).unwrap_or_default()),
         music_rate: Set(Some(i(&payload, &["music_rate"], 8000))),
-        music_shuffle: Set(s(&payload, &["music_shuffle"])),
-        music_channels: Set(Some(i(&payload, &["music_channels"], 1))),
-        music_interval: Set(Some(i(&payload, &["music_interval"], 20))),
+        music_shuffle: Set(s(&payload, &["music_shuffle", "shuffle"])),
+        music_channels: Set(Some(i(&payload, &["music_channels", "channels"], 1))),
+        music_interval: Set(Some(i(&payload, &["music_interval", "interval"], 20))),
+        music_timer_name: Set(s(&payload, &["music_timer_name", "music_on_hold_timer_name", "timer_name"])),
+        music_chime_list: Set(s(&payload, &["music_chime_list", "music_on_hold_chime_list", "chime_list"])),
+        music_chime_freq: Set(s(&payload, &["music_chime_freq", "music_on_hold_chime_freq", "chime_freq"])),
+        music_chime_max: Set(payload.get("music_chime_max").or_else(|| payload.get("music_on_hold_chime_max")).or_else(|| payload.get("chime_max")).and_then(|v| v.as_i64()).map(|v| v as i32)),
         enabled: Set(b(&payload, &["enabled"], true)),
         description: Set(s(&payload, &["description"])),
         created_at: Set(now),
@@ -249,17 +261,27 @@ async fn create_moh(
     }
 }
 
-async fn list_moh(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+async fn list_moh(Extension(claims): Extension<Claims>,
+    axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
+) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "music_on_hold_view") {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
+    let show_all = crate::tenant::wants_all(&claims, show_q.show.as_deref(), "music_on_hold_all");
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(_) => return envelope(vec![]).into_response(),
+    };
+    if show_all {
+        crate::routing_db::set_tenant_all(&txn).await;
+    }
     let domain = crate::routing_db::domain(&claims);
-    let rows = music_on_hold::Entity::find()
-        .filter(music_on_hold::Column::DomainId.eq(domain))
-        .all(db)
-        .await
-        .unwrap_or_default();
+    let mut sel = music_on_hold::Entity::find();
+    if !show_all {
+        sel = sel.filter(music_on_hold::Column::DomainId.eq(domain));
+    }
+    let rows = sel.all(&txn).await.unwrap_or_default();
     envelope(rows.iter().map(ser_moh).collect()).into_response()
 }
 
@@ -291,6 +313,7 @@ async fn patch_moh(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "music_on_hold_edit") {
         return (s, j).into_response();
     }
@@ -323,6 +346,30 @@ async fn patch_moh(
     }
     if payload.get("enabled").is_some() {
         am.enabled = Set(b(&payload, &["enabled"], true));
+    }
+    if let Some(v) = payload.get("music_rate").or_else(|| payload.get("rate")).and_then(|v| v.as_i64()) {
+        am.music_rate = Set(Some(v as i32));
+    }
+    if let Some(v) = payload.get("music_channels").or_else(|| payload.get("channels")).and_then(|v| v.as_i64()) {
+        am.music_channels = Set(Some(v as i32));
+    }
+    if let Some(v) = payload.get("music_interval").or_else(|| payload.get("interval")).and_then(|v| v.as_i64()) {
+        am.music_interval = Set(Some(v as i32));
+    }
+    for key in ["music_timer_name", "music_chime_list", "music_chime_freq", "music_on_hold_timer_name", "music_on_hold_chime_list", "music_on_hold_chime_freq", "timer_name", "chime_list", "chime_freq"] {
+        if let Some(v) = s(&payload, &[key]) {
+            match key {
+                "music_timer_name" | "music_on_hold_timer_name" | "timer_name" => am.music_timer_name = Set(Some(v)),
+                "music_chime_list" | "music_on_hold_chime_list" | "chime_list" => am.music_chime_list = Set(Some(v)),
+                _ => am.music_chime_freq = Set(Some(v)),
+            }
+        }
+    }
+    if let Some(v) = payload.get("music_chime_max").or_else(|| payload.get("music_on_hold_chime_max")).or_else(|| payload.get("chime_max")).and_then(|v| v.as_i64()) {
+        am.music_chime_max = Set(Some(v as i32));
+    }
+    if let Some(v) = s(&payload, &["music_shuffle", "shuffle"]) {
+        am.music_shuffle = Set(Some(v));
     }
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
@@ -433,17 +480,27 @@ async fn create_phrase(
     }
 }
 
-async fn list_phrases(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+async fn list_phrases(Extension(claims): Extension<Claims>,
+    axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
+) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "phrase_view") {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
+    let show_all = crate::tenant::wants_all(&claims, show_q.show.as_deref(), "phrase_all");
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(_) => return envelope(vec![]).into_response(),
+    };
+    if show_all {
+        crate::routing_db::set_tenant_all(&txn).await;
+    }
     let domain = crate::routing_db::domain(&claims);
-    let rows = phrases::Entity::find()
-        .filter(phrases::Column::DomainId.eq(domain))
-        .all(db)
-        .await
-        .unwrap_or_default();
+    let mut sel = phrases::Entity::find();
+    if !show_all {
+        sel = sel.filter(phrases::Column::DomainId.eq(domain));
+    }
+    let rows = sel.all(&txn).await.unwrap_or_default();
     envelope(rows.iter().map(ser_phrase).collect()).into_response()
 }
 
@@ -486,6 +543,7 @@ async fn patch_phrase(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "phrase_edit") {
         return (s, j).into_response();
     }
@@ -711,6 +769,7 @@ async fn patch_pin(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "pin_number_edit") {
         return (s, j).into_response();
     }
@@ -912,6 +971,7 @@ async fn patch_nt(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "number_translation_edit") {
         return (s, j).into_response();
     }
@@ -1103,17 +1163,27 @@ async fn create_stream(
     }
 }
 
-async fn list_streams(Extension(claims): Extension<Claims>) -> impl IntoResponse {
+async fn list_streams(Extension(claims): Extension<Claims>,
+    axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
+) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "stream_view") {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
+    let show_all = crate::tenant::wants_all(&claims, show_q.show.as_deref(), "stream_all");
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(_) => return envelope(vec![]).into_response(),
+    };
+    if show_all {
+        crate::routing_db::set_tenant_all(&txn).await;
+    }
     let domain = crate::routing_db::domain(&claims);
-    let rows = streams::Entity::find()
-        .filter(streams::Column::DomainId.eq(domain))
-        .all(db)
-        .await
-        .unwrap_or_default();
+    let mut sel = streams::Entity::find();
+    if !show_all {
+        sel = sel.filter(streams::Column::DomainId.eq(domain));
+    }
+    let rows = sel.all(&txn).await.unwrap_or_default();
     envelope(rows.iter().map(ser_stream).collect()).into_response()
 }
 
@@ -1145,6 +1215,7 @@ async fn patch_stream(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "stream_add") {
         return (s, j).into_response();
     }

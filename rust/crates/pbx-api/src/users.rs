@@ -32,14 +32,52 @@ struct UserPatch {
 }
 
 // ---- handlers ----
+fn sstr(p: &serde_json::Value, keys: &[&str]) -> Option<String> {
+    for k in keys {
+        if let Some(v) = p.get(*k) {
+            if let Some(s) = v.as_str() {
+                let t = s.trim();
+                if !t.is_empty() {
+                    return Some(t.to_owned());
+                }
+            }
+        }
+    }
+    None
+}
+
+fn ser_user(r: &users::Model) -> serde_json::Value {
+    serde_json::json!({
+        "user_uuid": r.user_uuid,
+        "username": r.username,
+        "email": r.email,
+        "user_email": r.user_email.clone().or_else(|| r.email.clone()),
+        "domain_id": r.domain_id,
+        "enabled": r.enabled,
+        "user_enabled": r.user_enabled.unwrap_or(r.enabled),
+        "user_status": r.user_status,
+        "user_time_zone": r.user_time_zone,
+        "user_language": r.user_language,
+        "user_type": r.user_type,
+        "api_key": r.api_key,
+        "contact_uuid": r.contact_uuid,
+        "contact_name_given": r.contact_name_given,
+        "contact_name_family": r.contact_name_family,
+        "contact_organization": r.contact_organization,
+        "user_totp_secret": r.user_totp_secret,
+        "password_confirm": null,
+        "username_old": r.username,
+    })
+}
+
 async fn create_user(
     Extension(claims): Extension<pbx_core::auth::Claims>,
-    Json(payload): Json<UserCreate>,
+    Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "user_add") {
         return (s, j).into_response();
     }
-    let username = payload.username.trim().to_owned();
+    let username = sstr(&payload, &["username"]).unwrap_or_default();
     if username.is_empty() {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -67,40 +105,91 @@ async fn create_user(
     let now = crate::routing_db::now();
     // Real bcrypt hash (parity with app/auth/service.py hash_password).
     // Blank password hashes a random id so verify never passes on empty.
-    let pw = payload.password.unwrap_or_default();
+    // password_confirm validated to match when both present (PHP parity).
+    let pw = sstr(&payload, &["password"]).unwrap_or_default();
+    if let Some(pc) = sstr(&payload, &["password_confirm"]) {
+        if !pw.is_empty() && pw != pc {
+            return (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({"detail": "passwords do not match"})),
+            )
+                .into_response();
+        }
+    }
     let pw_hash = if pw.is_empty() {
         pbx_core::auth::hash_password(&id.to_string())
     } else {
         pbx_core::auth::hash_password(&pw)
     };
+    let email_val = sstr(&payload, &["user_email", "email"]);
+    let enabled_val = payload.get("user_enabled").or_else(|| payload.get("enabled")).and_then(|v| v.as_bool()).unwrap_or(true);
     let am = users::ActiveModel {
         user_uuid: Set(id),
         domain_id: Set(domain),
         username: Set(username.clone()),
-        email: Set(payload.email.clone()),
+        email: Set(email_val.clone()),
+        user_email: Set(email_val.clone()),
         password_hash: Set(pw_hash),
-        enabled: Set(true),
+        enabled: Set(enabled_val),
+        user_enabled: Set(Some(enabled_val)),
+        user_status: Set(sstr(&payload, &["user_status"])),
+        user_time_zone: Set(sstr(&payload, &["user_time_zone"])),
+        user_language: Set(sstr(&payload, &["user_language"])),
+        user_type: Set(sstr(&payload, &["user_type"])),
+        api_key: Set(sstr(&payload, &["api_key"])),
+        contact_uuid: Set(None),
+        contact_name_given: Set(sstr(&payload, &["contact_name_given"])),
+        contact_name_family: Set(sstr(&payload, &["contact_name_family"])),
+        contact_organization: Set(sstr(&payload, &["contact_organization"])),
+        user_totp_secret: Set(sstr(&payload, &["user_totp_secret"])),
         created_at: Set(now),
         updated_at: Set(now),
     };
-    if let Err(e) = am.insert(db).await {
-        return (
+    // Linked contact parity (PHP creates v_contacts + v_contact_emails on user_add).
+    // Best-effort: create contact row so contact_* fields are durable cross-table.
+    let contact_given = sstr(&payload, &["contact_name_given"]);
+    let contact_family = sstr(&payload, &["contact_name_family"]);
+    let contact_org = sstr(&payload, &["contact_organization"]);
+    let contact_email = email_val.clone();
+    if contact_given.is_some() || contact_family.is_some() || contact_org.is_some() {
+        use pbx_db::entities::contacts;
+        let cid = uuid::Uuid::now_v7();
+        let cname = format!("{} {}", contact_given.clone().unwrap_or_default(), contact_family.clone().unwrap_or_default()).trim().to_owned();
+        let _ = contacts::ActiveModel {
+            contact_uuid: Set(cid),
+            domain_id: Set(domain),
+            name: Set(if cname.is_empty() { username.clone() } else { cname }),
+            number: Set(String::new()),
+            email: Set(contact_email.clone()),
+            organization: Set(contact_org.clone()),
+            contact_organization: Set(contact_org.clone()),
+            contact_type: Set(Some("user".to_owned())),
+            contact_parent_uuid: Set(None),
+            contact_name_prefix: Set(None),
+            contact_name_given: Set(contact_given.clone()),
+            contact_name_middle: Set(None),
+            contact_name_family: Set(contact_family.clone()),
+            contact_name_suffix: Set(None),
+            contact_nickname: Set(Some(username.clone())),
+            contact_title: Set(None),
+            contact_role: Set(None),
+            contact_category: Set(None),
+            contact_url: Set(None),
+            contact_time_zone: Set(None),
+            contact_note: Set(None),
+            created_at: Set(now),
+        }
+        .insert(db)
+        .await;
+    }
+    match am.insert(db).await {
+        Ok(r) => (StatusCode::CREATED, Json(ser_user(&r))).into_response(),
+        Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
         )
-            .into_response();
+            .into_response(),
     }
-    (
-        StatusCode::CREATED,
-        Json(serde_json::json!({
-            "user_uuid": id,
-            "username": username,
-            "email": payload.email,
-            "domain_id": domain,
-            "enabled": true,
-        })),
-    )
-        .into_response()
 }
 
 async fn list_users(
@@ -114,26 +203,31 @@ async fn list_users(
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
-    let paginator = users::Entity::find()
-        .filter(users::Column::DomainId.eq(domain))
-        .paginate(db, per_page);
+    let show_all = crate::tenant::wants_all(&claims, pq.show.as_deref(), "user_all");
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(_) => {
+            return (
+                crate::paged_headers("/api/v1/users", page, per_page, 0),
+                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+            )
+                .into_response();
+        }
+    };
+    if show_all {
+        crate::routing_db::set_tenant_all(&txn).await;
+    }
+    let mut sel = users::Entity::find();
+    if !show_all {
+        sel = sel.filter(users::Column::DomainId.eq(domain));
+    }
+    let paginator = sel.paginate(&txn, per_page);
     let total = paginator.num_items().await.unwrap_or(0);
     let rows = paginator
         .fetch_page(page.saturating_sub(1))
         .await
         .unwrap_or_default();
-    let data: Vec<serde_json::Value> = rows
-        .iter()
-        .map(|r| {
-            serde_json::json!({
-                "user_uuid": r.user_uuid,
-                "username": r.username,
-                "email": r.email,
-                "domain_id": r.domain_id,
-                "enabled": r.enabled,
-            })
-        })
-        .collect();
+    let data: Vec<serde_json::Value> = rows.iter().map(ser_user).collect();
     (
         crate::paged_headers("/api/v1/users", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),
@@ -156,17 +250,7 @@ async fn get_user(
         .await
         .unwrap_or(None);
     match row {
-        Some(r) => (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "user_uuid": r.user_uuid,
-                "username": r.username,
-                "email": r.email,
-                "domain_id": r.domain_id,
-                "enabled": r.enabled,
-            })),
-        )
-            .into_response(),
+        Some(r) => (StatusCode::OK, Json(ser_user(&r))).into_response(),
         None => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -178,7 +262,7 @@ async fn get_user(
 async fn patch_user(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
-    Json(payload): Json<UserPatch>,
+    Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "user_edit") {
         return (s, j).into_response();
@@ -198,9 +282,8 @@ async fn patch_user(
             .into_response();
     };
     let mut am: users::ActiveModel = r.into();
-    if let Some(u) = payload.username {
-        let u = u.trim().to_owned();
-        if u.is_empty() {
+    if let Some(u) = sstr(&payload, &["username"]) {
+        if u.trim().is_empty() {
             return (
                 StatusCode::UNPROCESSABLE_ENTITY,
                 Json(serde_json::json!({"detail": "username required"})),
@@ -209,24 +292,47 @@ async fn patch_user(
         }
         am.username = Set(u);
     }
-    if let Some(e) = payload.email {
-        am.email = Set(Some(e));
+    if let Some(e) = sstr(&payload, &["user_email", "email"]) {
+        am.email = Set(Some(e.clone()));
+        am.user_email = Set(Some(e));
     }
-    if let Some(en) = payload.enabled {
+    if let Some(en) = payload.get("user_enabled").or_else(|| payload.get("enabled")).and_then(|v| v.as_bool()) {
         am.enabled = Set(en);
+        am.user_enabled = Set(Some(en));
+    }
+    for (keys, slot) in [
+        (&["user_status"][..], &mut am.user_status),
+        (&["user_time_zone"][..], &mut am.user_time_zone),
+        (&["user_language"][..], &mut am.user_language),
+        (&["user_type"][..], &mut am.user_type),
+        (&["api_key"][..], &mut am.api_key),
+        (&["contact_name_given"][..], &mut am.contact_name_given),
+        (&["contact_name_family"][..], &mut am.contact_name_family),
+        (&["contact_organization"][..], &mut am.contact_organization),
+        (&["user_totp_secret"][..], &mut am.user_totp_secret),
+    ] {
+        if let Some(v) = sstr(&payload, keys) {
+            *slot = Set(Some(v));
+        }
+    }
+    // password change with confirm check
+    if let Some(pw) = sstr(&payload, &["password"]) {
+        if let Some(pc) = sstr(&payload, &["password_confirm"]) {
+            if pw != pc {
+                return (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    Json(serde_json::json!({"detail": "passwords do not match"})),
+                )
+                    .into_response();
+            }
+        }
+        if !pw.is_empty() {
+            am.password_hash = Set(pbx_core::auth::hash_password(&pw));
+        }
     }
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
-        Ok(r) => (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "user_uuid": r.user_uuid,
-                "username": r.username,
-                "email": r.email,
-                "enabled": r.enabled,
-            })),
-        )
-            .into_response(),
+        Ok(r) => (StatusCode::OK, Json(ser_user(&r))).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("update failed: {e}")})),
@@ -355,8 +461,20 @@ async fn bulk_users(
                     domain_id: Set(c.domain_id),
                     username: Set(format!("{} (copy)", c.username)),
                     email: Set(c.email.clone()),
+                    user_email: Set(c.user_email.clone()),
                     password_hash: Set(c.password_hash.clone()),
                     enabled: Set(c.enabled),
+                    user_enabled: Set(c.user_enabled),
+                    user_status: Set(c.user_status.clone()),
+                    user_time_zone: Set(c.user_time_zone.clone()),
+                    user_language: Set(c.user_language.clone()),
+                    user_type: Set(c.user_type.clone()),
+                    api_key: Set(None),
+                    contact_uuid: Set(c.contact_uuid),
+                    contact_name_given: Set(c.contact_name_given.clone()),
+                    contact_name_family: Set(c.contact_name_family.clone()),
+                    contact_organization: Set(c.contact_organization.clone()),
+                    user_totp_secret: Set(None),
                     created_at: Set(now),
                     updated_at: Set(now),
                 };
@@ -426,9 +544,21 @@ async fn import_users(
                 user_uuid: Set(id),
                 domain_id: Set(domain),
                 username: Set(username.clone()),
-                email: Set(email),
+                email: Set(email.clone()),
+                user_email: Set(email.clone()),
                 password_hash: Set(pbx_core::auth::hash_password(pw)),
                 enabled: Set(true),
+                user_enabled: Set(Some(true)),
+                user_status: Set(None),
+                user_time_zone: Set(None),
+                user_language: Set(None),
+                user_type: Set(Some("default".to_owned())),
+                api_key: Set(None),
+                contact_uuid: Set(None),
+                contact_name_given: Set(None),
+                contact_name_family: Set(None),
+                contact_organization: Set(None),
+                user_totp_secret: Set(None),
                 created_at: Set(now),
                 updated_at: Set(now),
             };
@@ -465,9 +595,21 @@ async fn import_users(
                 user_uuid: Set(id),
                 domain_id: Set(domain),
                 username: Set(username.clone()),
-                email: Set(email),
+                email: Set(email.clone()),
+                user_email: Set(email.clone()),
                 password_hash: Set(pbx_core::auth::hash_password(&pw)),
                 enabled: Set(true),
+                user_enabled: Set(Some(true)),
+                user_status: Set(None),
+                user_time_zone: Set(None),
+                user_language: Set(None),
+                user_type: Set(Some("default".to_owned())),
+                api_key: Set(None),
+                contact_uuid: Set(None),
+                contact_name_given: Set(None),
+                contact_name_family: Set(None),
+                contact_organization: Set(None),
+                user_totp_secret: Set(None),
                 created_at: Set(now),
                 updated_at: Set(now),
             };
@@ -503,8 +645,12 @@ fn user_setting_json(r: &pbx_db::entities::user_settings::Model) -> serde_json::
         "user_setting_name": r.user_setting_name,
         "value": r.user_setting_value,
         "user_setting_value": r.user_setting_value,
+        "order": r.user_setting_order,
+        "user_setting_order": r.user_setting_order,
         "enabled": r.user_setting_enabled,
         "user_setting_enabled": r.user_setting_enabled,
+        "description": r.user_setting_description,
+        "user_setting_description": r.user_setting_description,
     })
 }
 
@@ -623,6 +769,11 @@ async fn put_user_settings(
                 .or_else(|| s.get("user_setting_value"))
                 .and_then(|v| v.as_str())
                 .map(|v| v.to_owned())),
+            user_setting_order: Set(s
+                .get("order")
+                .or_else(|| s.get("user_setting_order"))
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32)),
             user_setting_enabled: Set(s
                 .get("enabled")
                 .or_else(|| s.get("user_setting_enabled"))

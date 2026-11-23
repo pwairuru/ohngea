@@ -14,40 +14,77 @@ use pbx_db::entities::{
 
 // ---- handlers ----
 fn ser_center(r: &conference_centers::Model) -> serde_json::Value {
-    serde_json::json!({
+    let mut v = serde_json::json!({
         "conference_center_uuid": r.conference_center_uuid,
         "conference_center_name": r.conference_center_name,
         "conference_center_extension": r.conference_center_extension,
         "conference_center_description": r.conference_center_description,
         "conference_center_enabled": r.conference_center_enabled,
-    })
+        "dialplan_uuid": r.dialplan_uuid,
+        "conference_center_pin_length": r.conference_center_pin_length,
+        "conference_center_greeting": r.conference_center_greeting,
+    });
+    crate::alias::emit_aliases(&mut v);
+    v
 }
 
 fn ser_room(r: &conference_rooms::Model) -> serde_json::Value {
-    serde_json::json!({
+    let mut v = serde_json::json!({
         "conference_room_uuid": r.conference_room_uuid,
         "conference_center_uuid": r.conference_center_uuid,
         "conference_room_name": r.conference_room_name,
         "max_members": r.max_members,
         "enabled": r.enabled,
-    })
+        "profile": r.profile,
+        "moderator_pin": r.moderator_pin,
+        "participant_pin": r.participant_pin,
+        "start_datetime": r.start_datetime,
+        "stop_datetime": r.stop_datetime,
+        "wait_mod": r.wait_mod,
+        "moderator_endconf": r.moderator_endconf,
+        "announce_name": r.announce_name,
+        "announce_count": r.announce_count,
+        "announce_recording": r.announce_recording,
+        "sounds": r.sounds,
+        "mute": r.mute,
+        "email_address": r.email_address,
+        "account_code": r.account_code,
+        "description": r.description,
+    });
+    crate::alias::emit_aliases(&mut v);
+    v
 }
 
 fn ser_session(r: &conference_sessions::Model) -> serde_json::Value {
-    serde_json::json!({
+    let mut v = serde_json::json!({
         "conference_session_uuid": r.conference_session_uuid,
         "conference_center_uuid": r.conference_center_uuid,
         "conference_room_uuid": r.conference_room_uuid,
         "profile": r.profile,
-    })
+        "meeting_uuid": r.meeting_uuid,
+        "recording": r.recording,
+        "start_epoch": r.start_epoch,
+        "end_epoch": r.end_epoch,
+    });
+    crate::alias::emit_aliases(&mut v);
+    v
 }
 
 fn ser_detail(r: &conference_session_details::Model) -> serde_json::Value {
-    serde_json::json!({
+    let mut v = serde_json::json!({
         "conference_session_detail_uuid": r.conference_session_detail_uuid,
         "conference_session_uuid": r.conference_session_uuid,
         "username": r.username,
-    })
+        "meeting_uuid": r.meeting_uuid,
+        "caller_id_name": r.caller_id_name,
+        "caller_id_number": r.caller_id_number,
+        "moderator": r.moderator,
+        "network_addr": r.network_addr,
+        "start_epoch": r.start_epoch,
+        "end_epoch": r.end_epoch,
+    });
+    crate::alias::emit_aliases(&mut v);
+    v
 }
 
 async fn center_or_404(
@@ -98,6 +135,9 @@ async fn create_center(
             .and_then(|v| v.as_str())
             .map(str::to_owned)),
         conference_center_enabled: Set(true),
+        dialplan_uuid: Set(payload.get("dialplan_uuid").and_then(|v| v.as_str()).map(str::to_owned)),
+        conference_center_pin_length: Set(payload.get("conference_center_pin_length").and_then(|v| v.as_i64()).map(|v| v as i32)),
+        conference_center_greeting: Set(payload.get("conference_center_greeting").and_then(|v| v.as_str()).map(str::to_owned)),
         created_at: Set(now),
         updated_at: Set(now),
     };
@@ -130,9 +170,25 @@ async fn list_centers(
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let paginator = conference_centers::Entity::find()
-        .filter(conference_centers::Column::DomainId.eq(domain))
-        .paginate(db, per_page);
+    let show_all = crate::tenant::wants_all(&claims, pq.show.as_deref(), "conference_center_all");
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(_) => {
+            return (
+                crate::paged_headers("/api/v1/conference_centers", page, per_page, 0),
+                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+            )
+                .into_response();
+        }
+    };
+    if show_all {
+        crate::routing_db::set_tenant_all(&txn).await;
+    }
+    let mut sel = conference_centers::Entity::find();
+    if !show_all {
+        sel = sel.filter(conference_centers::Column::DomainId.eq(domain));
+    }
+    let paginator = sel.paginate(&txn, per_page);
     let total = paginator.num_items().await.unwrap_or(0);
     let rows = paginator
         .fetch_page(page.saturating_sub(1))
@@ -170,6 +226,7 @@ async fn patch_center(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "conference_center_edit") {
         return (s, j).into_response();
     }
@@ -206,6 +263,15 @@ async fn patch_center(
         .and_then(|v| v.as_bool())
     {
         am.conference_center_enabled = Set(v);
+    }
+    if payload.get("dialplan_uuid").is_some() {
+        am.dialplan_uuid = Set(payload.get("dialplan_uuid").and_then(|v| v.as_str()).map(str::to_owned));
+    }
+    if payload.get("conference_center_pin_length").is_some() {
+        am.conference_center_pin_length = Set(payload.get("conference_center_pin_length").and_then(|v| v.as_i64()).map(|v| v as i32));
+    }
+    if payload.get("conference_center_greeting").is_some() {
+        am.conference_center_greeting = Set(payload.get("conference_center_greeting").and_then(|v| v.as_str()).map(str::to_owned));
     }
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
@@ -374,19 +440,35 @@ async fn create_room(
             .get("enabled")
             .and_then(|v| v.as_bool())
             .unwrap_or(true)),
+        profile: Set(payload.get("profile").and_then(|v| v.as_str()).map(str::to_owned)),
+        moderator_pin: Set(payload.get("moderator_pin").and_then(|v| v.as_str()).map(str::to_owned)),
+        participant_pin: Set(payload.get("participant_pin").and_then(|v| v.as_str()).map(str::to_owned)),
+        start_datetime: Set(payload.get("start_datetime").and_then(|v| v.as_str()).and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok())),
+        stop_datetime: Set(payload.get("stop_datetime").and_then(|v| v.as_str()).and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok())),
+        wait_mod: Set(payload.get("wait_mod").and_then(|v| v.as_bool())),
+        moderator_endconf: Set(payload.get("moderator_endconf").and_then(|v| v.as_bool())),
+        announce_name: Set(payload.get("announce_name").and_then(|v| v.as_bool())),
+        announce_count: Set(payload.get("announce_count").and_then(|v| v.as_bool())),
+        announce_recording: Set(payload.get("announce_recording").and_then(|v| v.as_bool())),
+        sounds: Set(payload.get("sounds").and_then(|v| v.as_str()).map(str::to_owned)),
+        mute: Set(payload.get("mute").and_then(|v| v.as_bool())),
+        created: Set(payload.get("created").and_then(|v| v.as_str()).map(str::to_owned)),
+        created_by: Set(payload.get("created_by").and_then(|v| v.as_str()).map(str::to_owned)),
+        email_address: Set(payload.get("email_address").and_then(|v| v.as_str()).map(str::to_owned)),
+        account_code: Set(payload.get("account_code").and_then(|v| v.as_str()).map(str::to_owned)),
+        description: Set(payload.get("description").and_then(|v| v.as_str()).map(str::to_owned)),
         created_at: Set(now),
         updated_at: Set(now),
     };
     match am.insert(db).await {
-        Ok(_) => (
-            StatusCode::CREATED,
-            Json(serde_json::json!({
-                "conference_room_uuid": id,
-                "conference_center_uuid": cid,
-                "conference_room_name": name,
-            })),
-        )
-            .into_response(),
+        Ok(_) => match room_or_404(db, domain, &cid, &id).await {
+            Some(r) => (StatusCode::CREATED, Json(ser_room(&r))).into_response(),
+            None => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": "insert failed"})),
+            )
+                .into_response(),
+        },
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
@@ -419,6 +501,7 @@ async fn patch_room(
     axum::extract::Path((cid, rid)): axum::extract::Path<(String, String)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "conference_room_edit") {
         return (s, j).into_response();
     }
@@ -445,6 +528,13 @@ async fn patch_room(
     if let Some(v) = payload.get("enabled").and_then(|v| v.as_bool()) {
         am.enabled = Set(v);
     }
+    macro_rules! rstr { ($f:ident) => { if payload.get(stringify!($f)).is_some() { am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_str()).map(str::to_owned)); } }; }
+    macro_rules! rbool { ($f:ident) => { if payload.get(stringify!($f)).is_some() { am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_bool())); } }; }
+    rstr!(profile); rstr!(moderator_pin); rstr!(participant_pin);
+    rbool!(wait_mod); rbool!(moderator_endconf);
+    rbool!(announce_name); rbool!(announce_count); rbool!(announce_recording);
+    rstr!(sounds); rbool!(mute);
+    rstr!(email_address); rstr!(account_code); rstr!(description);
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
         Ok(r) => (StatusCode::OK, Json(ser_room(&r))).into_response(),
@@ -570,6 +660,10 @@ async fn create_session(
             .get("profile")
             .and_then(|v| v.as_str())
             .map(str::to_owned)),
+        meeting_uuid: Set(None),
+        recording: Set(None),
+        start_epoch: Set(None),
+        end_epoch: Set(None),
         created_at: Set(now),
         updated_at: Set(now),
     };

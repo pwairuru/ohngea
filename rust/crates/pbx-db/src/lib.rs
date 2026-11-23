@@ -68,6 +68,7 @@ const DDL_DEFAULT_SETTINGS: &str = "CREATE TABLE IF NOT EXISTS default_settings 
   default_setting_subcategory VARCHAR(64) NOT NULL,
   default_setting_name VARCHAR(64) NOT NULL,
   default_setting_value TEXT,
+  default_setting_order INTEGER,
   default_setting_enabled BOOLEAN NOT NULL,
   default_setting_description TEXT,
   created_at TEXT NOT NULL,
@@ -170,6 +171,10 @@ const DDL_EXTENSIONS: &str = "CREATE TABLE IF NOT EXISTS extensions (
   forward_user_not_registered_enabled BOOLEAN NOT NULL DEFAULT 0,
   follow_me_uuid TEXT,
   follow_me_enabled BOOLEAN NOT NULL DEFAULT 0,
+  unique_id VARCHAR(64),
+  dial_user VARCHAR(128),
+  dial_domain VARCHAR(128),
+  follow_me_destinations TEXT,
   extension_language VARCHAR(32),
   extension_dialect VARCHAR(32),
   extension_voice VARCHAR(32),
@@ -344,6 +349,10 @@ const DDL_DEVICES: &str = "CREATE TABLE IF NOT EXISTS devices (
   device_provisioned_date TEXT,
   device_provisioned_ip VARCHAR(64),
   device_provisioned_method VARCHAR(32),
+  device_enabled_date TEXT,
+  device_user_uuid TEXT,
+  device_uuid_alternate TEXT,
+  device_provisioned_agent VARCHAR(128),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 )";
@@ -458,6 +467,29 @@ const DDL_RING_GROUPS: &str = "CREATE TABLE IF NOT EXISTS ring_groups (
   strategy VARCHAR(32) NOT NULL DEFAULT 'simultaneous',
   enabled BOOLEAN NOT NULL DEFAULT 1,
   description VARCHAR(512),
+  greeting VARCHAR(256),
+  exit_key VARCHAR(8),
+  call_timeout INTEGER,
+  forward_destination VARCHAR(128),
+  forward_enabled BOOLEAN,
+  caller_id_name VARCHAR(128),
+  caller_id_number VARCHAR(32),
+  cid_name_prefix VARCHAR(64),
+  cid_number_prefix VARCHAR(32),
+  timeout_app VARCHAR(128),
+  timeout_data VARCHAR(512),
+  distinctive_ring VARCHAR(128),
+  ringback VARCHAR(128),
+  call_screen_enabled BOOLEAN,
+  call_forward_enabled BOOLEAN,
+  follow_me_enabled BOOLEAN,
+  missed_call_app VARCHAR(128),
+  missed_call_data VARCHAR(512),
+  context VARCHAR(128),
+  dialplan_uuid TEXT,
+  forward_toll_allow VARCHAR(64),
+  wait_announcement VARCHAR(256),
+  wait_interval INTEGER,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 )";
@@ -470,7 +502,11 @@ const DDL_RING_GROUP_MEMBERS: &str = "CREATE TABLE IF NOT EXISTS ring_group_memb
   domain_id TEXT NOT NULL,
   destination VARCHAR(128) NOT NULL,
   delay INTEGER NOT NULL DEFAULT 0,
-  timeout INTEGER NOT NULL DEFAULT 30
+  timeout INTEGER NOT NULL DEFAULT 30,
+  destination_number VARCHAR(128),
+  destination_enabled BOOLEAN,
+  destination_prompt VARCHAR(8),
+  destination_description VARCHAR(512)
 )";
 const DDL_RING_GROUP_MEMBERS_IDX: &str =
     "CREATE INDEX IF NOT EXISTS ix_ring_group_members_parent ON ring_group_members (ring_group_uuid)";
@@ -482,6 +518,36 @@ const DDL_CALL_CENTERS: &str = "CREATE TABLE IF NOT EXISTS call_centers (
   queue_extension VARCHAR(32),
   queue_strategy VARCHAR(32) NOT NULL DEFAULT 'longest-idle-agent',
   queue_enabled BOOLEAN NOT NULL DEFAULT 1,
+  dialplan_uuid TEXT,
+  greeting VARCHAR(256),
+  moh_sound VARCHAR(256),
+  record_template VARCHAR(256),
+  language VARCHAR(32),
+  dialect VARCHAR(32),
+  voice VARCHAR(32),
+  queue_limit INTEGER,
+  time_base_score VARCHAR(64),
+  time_base_score_sec INTEGER,
+  max_wait_time INTEGER,
+  max_wait_time_with_no_agent INTEGER,
+  max_wait_time_with_no_agent_time_reached INTEGER,
+  tier_rules_apply BOOLEAN,
+  tier_rule_wait_second INTEGER,
+  tier_rule_no_agent_no_wait BOOLEAN,
+  timeout_action VARCHAR(128),
+  discard_abandoned_after INTEGER,
+  abandoned_resume_allowed BOOLEAN,
+  tier_rule_wait_multiply_level BOOLEAN,
+  cid_prefix VARCHAR(32),
+  outbound_caller_id_name VARCHAR(128),
+  outbound_caller_id_number VARCHAR(32),
+  announce_position BOOLEAN,
+  announce_sound VARCHAR(256),
+  announce_frequency INTEGER,
+  cc_exit_keys VARCHAR(32),
+  email_address VARCHAR(256),
+  context VARCHAR(128),
+  queue_description VARCHAR(512),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 )";
@@ -492,9 +558,21 @@ const DDL_CALL_CENTER_AGENTS: &str = "CREATE TABLE IF NOT EXISTS call_center_age
   call_center_agent_uuid TEXT PRIMARY KEY,
   domain_id TEXT NOT NULL,
   queue_id TEXT NOT NULL REFERENCES call_centers (call_center_queue_uuid),
+  user_uuid TEXT,
   agent_name VARCHAR(128) NOT NULL,
+  agent_type VARCHAR(32),
+  agent_call_timeout INTEGER,
+  agent_id VARCHAR(64),
+  agent_password VARCHAR(128),
   agent_contact VARCHAR(128) NOT NULL,
-  agent_status VARCHAR(32) NOT NULL DEFAULT 'available'
+  agent_status VARCHAR(32) NOT NULL DEFAULT 'available',
+  agent_logout VARCHAR(32),
+  agent_max_no_answer INTEGER,
+  agent_wrap_up_time INTEGER,
+  agent_reject_delay_time INTEGER,
+  agent_busy_delay_time INTEGER,
+  agent_no_answer_delay_time INTEGER,
+  agent_record BOOLEAN
 )";
 const DDL_CALL_CENTER_AGENTS_IDX: &str =
     "CREATE INDEX IF NOT EXISTS ix_call_center_agents_queue ON call_center_agents (queue_id)";
@@ -503,7 +581,10 @@ const DDL_CALL_CENTER_TIERS: &str = "CREATE TABLE IF NOT EXISTS call_center_tier
   call_center_tier_uuid TEXT PRIMARY KEY,
   domain_id TEXT NOT NULL,
   queue_id TEXT NOT NULL REFERENCES call_centers (call_center_queue_uuid),
+  call_center_queue_uuid TEXT,
+  call_center_agent_uuid TEXT,
   agent_name VARCHAR(128) NOT NULL,
+  queue_name VARCHAR(128),
   tier_level INTEGER NOT NULL DEFAULT 1,
   tier_position INTEGER NOT NULL DEFAULT 1
 )";
@@ -515,6 +596,32 @@ const DDL_IVR_MENUS: &str = "CREATE TABLE IF NOT EXISTS ivr_menus (
   extension VARCHAR(32),
   enabled BOOLEAN NOT NULL DEFAULT 1,
   description VARCHAR(512),
+  greet_long VARCHAR(256),
+  greet_short VARCHAR(256),
+  invalid_sound VARCHAR(256),
+  exit_sound VARCHAR(256),
+  confirm_macro VARCHAR(128),
+  confirm_key VARCHAR(8),
+  tts_engine VARCHAR(32),
+  tts_voice VARCHAR(32),
+  confirm_attempts INTEGER,
+  timeout INTEGER,
+  inter_digit_timeout INTEGER,
+  max_failures INTEGER,
+  max_timeouts INTEGER,
+  digit_len INTEGER,
+  dialplan_uuid TEXT,
+  parent_uuid TEXT,
+  language VARCHAR(32),
+  dialect VARCHAR(32),
+  voice VARCHAR(32),
+  pin_number VARCHAR(32),
+  ringback VARCHAR(128),
+  cid_prefix VARCHAR(32),
+  context VARCHAR(128),
+  direct_dial BOOLEAN,
+  exit_app VARCHAR(128),
+  exit_data VARCHAR(512),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 )";
@@ -528,7 +635,9 @@ const DDL_IVR_MENU_OPTIONS: &str = "CREATE TABLE IF NOT EXISTS ivr_menu_options 
   digits VARCHAR(8) NOT NULL,
   action VARCHAR(64) NOT NULL,
   param VARCHAR(512),
-  option_order INTEGER NOT NULL DEFAULT 0
+  option_order INTEGER NOT NULL DEFAULT 0,
+  ivr_menu_id VARCHAR(64),
+  ivr_menu_option_enabled BOOLEAN
 )";
 const DDL_IVR_MENU_OPTIONS_IDX: &str =
     "CREATE INDEX IF NOT EXISTS ix_ivr_menu_options_parent ON ivr_menu_options (ivr_menu_uuid)";
@@ -540,6 +649,23 @@ const DDL_VOICEMAILS: &str = "CREATE TABLE IF NOT EXISTS voicemails (
   voicemail_password VARCHAR(32) NOT NULL,
   enabled BOOLEAN NOT NULL DEFAULT 1,
   description VARCHAR(512),
+  voicemail_tutorial BOOLEAN,
+  greeting_id VARCHAR(32),
+  voicemail_alternate_greet_id VARCHAR(32),
+  voicemail_recording_instructions BOOLEAN,
+  voicemail_recording_options VARCHAR(128),
+  voicemail_mail_to VARCHAR(512),
+  voicemail_sms_to VARCHAR(32),
+  voicemail_transcription_enabled BOOLEAN,
+  voicemail_transcription_prompt_enabled BOOLEAN,
+  voicemail_transcription_prompt VARCHAR(1024),
+  voicemail_attach_file BOOLEAN,
+  voicemail_file VARCHAR(512),
+  voicemail_local_after_email BOOLEAN,
+  voicemail_local_after_forward BOOLEAN,
+  alternate_voicemail_destination VARCHAR(128),
+  alternate_voicemail_enabled BOOLEAN,
+  voicemail_name_base64 TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 )";
@@ -551,7 +677,13 @@ const DDL_VOICEMAIL_GREETINGS: &str = "CREATE TABLE IF NOT EXISTS voicemail_gree
   domain_id TEXT NOT NULL,
   voicemail_uuid TEXT NOT NULL REFERENCES voicemails (voicemail_uuid),
   greeting_name VARCHAR(128) NOT NULL,
-  greeting_text VARCHAR(1024)
+  greeting_text VARCHAR(1024),
+  greeting_id VARCHAR(32),
+  greeting_voice VARCHAR(32),
+  greeting_message TEXT,
+  greeting_filename VARCHAR(512),
+  greeting_description VARCHAR(512),
+  greeting_base64 TEXT
 )";
 
 const DDL_VOICEMAIL_MESSAGES: &str = "CREATE TABLE IF NOT EXISTS voicemail_messages (
@@ -559,7 +691,16 @@ const DDL_VOICEMAIL_MESSAGES: &str = "CREATE TABLE IF NOT EXISTS voicemail_messa
   domain_id TEXT NOT NULL,
   voicemail_uuid TEXT NOT NULL REFERENCES voicemails (voicemail_uuid),
   file_name VARCHAR(512),
-  message_length INTEGER
+  message_length INTEGER,
+  created_epoch BIGINT,
+  read_epoch BIGINT,
+  caller_id_name VARCHAR(128),
+  caller_id_number VARCHAR(32),
+  message_status VARCHAR(32),
+  message_priority VARCHAR(16),
+  message_intro_base64 TEXT,
+  message_base64 TEXT,
+  message_transcription TEXT
 )";
 
 const DDL_VOICEMAIL_OPTIONS: &str = "CREATE TABLE IF NOT EXISTS voicemail_options (
@@ -574,6 +715,146 @@ const DDL_VOICEMAIL_OPTIONS: &str = "CREATE TABLE IF NOT EXISTS voicemail_option
   updated_at TEXT NOT NULL
 )";
 
+const DDL_MISSING_TABLES: &str = "";
+const DDL_CONFERENCE_ROOM_USERS: &str = "CREATE TABLE IF NOT EXISTS conference_room_users (
+  conference_room_user_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  conference_room_uuid TEXT NOT NULL,
+  user_uuid TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_DATABASE_TRANSACTIONS: &str = "CREATE TABLE IF NOT EXISTS database_transactions (
+  database_transaction_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  user_uuid TEXT,
+  app_name VARCHAR(128),
+  app_uuid TEXT,
+  transaction_code VARCHAR(64),
+  transaction_address VARCHAR(256),
+  transaction_type VARCHAR(32),
+  transaction_date TEXT,
+  transaction_old TEXT,
+  transaction_new TEXT,
+  transaction_result VARCHAR(32),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_DEVICE_VENDORS: &str = "CREATE TABLE IF NOT EXISTS device_vendors (
+  device_vendor_uuid TEXT PRIMARY KEY,
+  name VARCHAR(128) NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT 1,
+  description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_DEVICE_VENDOR_FUNCTIONS: &str = "CREATE TABLE IF NOT EXISTS device_vendor_functions (
+  device_vendor_function_uuid TEXT PRIMARY KEY,
+  device_vendor_uuid TEXT NOT NULL,
+  label VARCHAR(128),
+  subtype VARCHAR(64),
+  value VARCHAR(128),
+  enabled BOOLEAN NOT NULL DEFAULT 1,
+  description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_DEVICE_VENDOR_FUNCTION_GROUPS: &str = "CREATE TABLE IF NOT EXISTS device_vendor_function_groups (
+  device_vendor_function_group_uuid TEXT PRIMARY KEY,
+  device_vendor_function_uuid TEXT NOT NULL,
+  device_vendor_uuid TEXT NOT NULL,
+  group_name VARCHAR(128),
+  group_uuid TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_EMAIL_QUEUE_ATTACHMENTS: &str = "CREATE TABLE IF NOT EXISTS email_queue_attachments (
+  email_queue_attachment_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  email_queue_uuid TEXT NOT NULL,
+  email_attachment_mime_type VARCHAR(128),
+  email_attachment_type VARCHAR(32),
+  email_attachment_path VARCHAR(512),
+  email_attachment_name VARCHAR(256),
+  email_attachment_base64 TEXT,
+  email_attachment_cid VARCHAR(256),
+  created_at TEXT NOT NULL
+)";
+const DDL_EXTENSION_USERS: &str = "CREATE TABLE IF NOT EXISTS extension_users (
+  extension_user_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  extension_uuid TEXT NOT NULL,
+  user_uuid TEXT NOT NULL
+)";
+const DDL_MODULES: &str = "CREATE TABLE IF NOT EXISTS modules (
+  module_uuid TEXT PRIMARY KEY,
+  module_label VARCHAR(128),
+  module_name VARCHAR(128),
+  module_category VARCHAR(64),
+  module_order INTEGER,
+  module_enabled BOOLEAN,
+  module_default_enabled BOOLEAN,
+  module_description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_RING_GROUP_USERS: &str = "CREATE TABLE IF NOT EXISTS ring_group_users (
+  ring_group_user_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  ring_group_uuid TEXT NOT NULL,
+  user_uuid TEXT NOT NULL
+)";
+const DDL_VOICEMAIL_DESTINATIONS: &str = "CREATE TABLE IF NOT EXISTS voicemail_destinations (
+  voicemail_destination_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  voicemail_uuid TEXT NOT NULL,
+  voicemail_uuid_copy TEXT
+)";
+const DDL_XML_CDR_EXTENSIONS: &str = "CREATE TABLE IF NOT EXISTS xml_cdr_extensions (
+  xml_cdr_extension_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  xml_cdr_uuid TEXT NOT NULL,
+  extension_uuid TEXT,
+  start_stamp TEXT,
+  end_stamp TEXT,
+  duration INTEGER,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_XML_CDR_JSON: &str = "CREATE TABLE IF NOT EXISTS xml_cdr_json (
+  xml_cdr_json_uuid TEXT PRIMARY KEY,
+  xml_cdr_uuid TEXT NOT NULL,
+  domain_id TEXT NOT NULL,
+  start_stamp TEXT,
+  json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_XML_CDR_FLOW: &str = "CREATE TABLE IF NOT EXISTS xml_cdr_flow (
+  xml_cdr_flow_uuid TEXT PRIMARY KEY,
+  xml_cdr_uuid TEXT NOT NULL,
+  domain_id TEXT NOT NULL,
+  call_flow VARCHAR(64),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_XML_CDR_LOGS: &str = "CREATE TABLE IF NOT EXISTS xml_cdr_logs (
+  xml_cdr_log_uuid TEXT PRIMARY KEY,
+  xml_cdr_uuid TEXT NOT NULL,
+  domain_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_XML_CDR_TRANSCRIPTS: &str = "CREATE TABLE IF NOT EXISTS xml_cdr_transcripts (
+  xml_cdr_transcript_uuid TEXT PRIMARY KEY,
+  xml_cdr_uuid TEXT NOT NULL,
+  domain_id TEXT NOT NULL,
+  transcript_json TEXT,
+  transcript_summary TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+
 const DDL_CONFERENCES: &str = "CREATE TABLE IF NOT EXISTS conferences (
   conference_uuid TEXT PRIMARY KEY,
   domain_id TEXT NOT NULL,
@@ -581,6 +862,14 @@ const DDL_CONFERENCES: &str = "CREATE TABLE IF NOT EXISTS conferences (
   conference_extension VARCHAR(32) NOT NULL,
   conference_profile VARCHAR(64) NOT NULL DEFAULT 'default',
   conference_enabled BOOLEAN NOT NULL DEFAULT 1,
+  dialplan_uuid TEXT,
+  pin_number VARCHAR(32),
+  email_address VARCHAR(256),
+  account_code VARCHAR(64),
+  flags VARCHAR(128),
+  conference_order INTEGER,
+  conference_description VARCHAR(512),
+  context VARCHAR(128),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 )";
@@ -627,6 +916,31 @@ const DDL_CONFERENCE_CENTERS: &str = "CREATE TABLE IF NOT EXISTS conference_cent
   conference_center_extension VARCHAR(32),
   conference_center_description VARCHAR(512),
   conference_center_enabled BOOLEAN NOT NULL DEFAULT 1,
+  dialplan_uuid TEXT,
+  conference_center_pin_length INTEGER,
+  conference_center_greeting VARCHAR(256),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_CONFERENCE_CONTROL_DETAILS: &str = "CREATE TABLE IF NOT EXISTS conference_control_details (
+  conference_control_detail_uuid TEXT PRIMARY KEY,
+  conference_control_uuid TEXT NOT NULL,
+  domain_id TEXT NOT NULL,
+  control_digits VARCHAR(16),
+  control_action VARCHAR(64),
+  control_data VARCHAR(512),
+  control_enabled BOOLEAN,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_CONFERENCE_PROFILE_PARAMS: &str = "CREATE TABLE IF NOT EXISTS conference_profile_params (
+  conference_profile_param_uuid TEXT PRIMARY KEY,
+  conference_profile_uuid TEXT NOT NULL,
+  domain_id TEXT NOT NULL,
+  profile_param_name VARCHAR(128),
+  profile_param_value VARCHAR(512),
+  profile_param_enabled BOOLEAN,
+  profile_param_description VARCHAR(512),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 )";
@@ -640,6 +954,23 @@ const DDL_CONFERENCE_ROOMS: &str = "CREATE TABLE IF NOT EXISTS conference_rooms 
   conference_room_name VARCHAR(128) NOT NULL,
   max_members INTEGER,
   enabled BOOLEAN NOT NULL DEFAULT 1,
+  profile VARCHAR(64),
+  moderator_pin VARCHAR(32),
+  participant_pin VARCHAR(32),
+  start_datetime TEXT,
+  stop_datetime TEXT,
+  wait_mod BOOLEAN,
+  moderator_endconf BOOLEAN,
+  announce_name BOOLEAN,
+  announce_count BOOLEAN,
+  announce_recording BOOLEAN,
+  sounds VARCHAR(512),
+  mute BOOLEAN,
+  created VARCHAR(64),
+  created_by VARCHAR(128),
+  email_address VARCHAR(256),
+  account_code VARCHAR(64),
+  description VARCHAR(512),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 )";
@@ -650,6 +981,10 @@ const DDL_CONFERENCE_SESSIONS: &str = "CREATE TABLE IF NOT EXISTS conference_ses
   conference_center_uuid TEXT REFERENCES conference_centers (conference_center_uuid),
   conference_room_uuid TEXT REFERENCES conference_rooms (conference_room_uuid),
   profile VARCHAR(64),
+  meeting_uuid TEXT,
+  recording VARCHAR(512),
+  start_epoch BIGINT,
+  end_epoch BIGINT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 )";
@@ -660,15 +995,41 @@ const DDL_CONFERENCE_SESSION_DETAILS: &str =
   domain_id TEXT NOT NULL,
   conference_session_uuid TEXT NOT NULL REFERENCES conference_sessions (conference_session_uuid),
   username VARCHAR(32),
+  meeting_uuid TEXT,
+  caller_id_name VARCHAR(128),
+  caller_id_number VARCHAR(32),
+  moderator BOOLEAN,
+  network_addr VARCHAR(64),
+  start_epoch BIGINT,
+  end_epoch BIGINT,
   created_at TEXT NOT NULL
 )";
 
 const DDL_FAX_QUEUE: &str = "CREATE TABLE IF NOT EXISTS fax_queue (
   fax_queue_uuid TEXT PRIMARY KEY,
   domain_id TEXT NOT NULL,
+  fax_uuid TEXT,
   fax_extension VARCHAR(32) NOT NULL,
   destination VARCHAR(32) NOT NULL,
-  status VARCHAR(32) NOT NULL DEFAULT 'waiting'
+  status VARCHAR(32) NOT NULL DEFAULT 'waiting',
+  origination_uuid TEXT,
+  fax_log_uuid TEXT,
+  fax_date VARCHAR(32),
+  hostname VARCHAR(128),
+  fax_caller_id_name VARCHAR(128),
+  fax_caller_id_number VARCHAR(32),
+  fax_recipient VARCHAR(128),
+  fax_number VARCHAR(32),
+  fax_prefix VARCHAR(8),
+  fax_email_address VARCHAR(256),
+  fax_file VARCHAR(512),
+  fax_retry_date VARCHAR(32),
+  fax_notify_sent BOOLEAN,
+  fax_notify_date VARCHAR(32),
+  fax_retry_count INTEGER,
+  fax_accountcode VARCHAR(64),
+  fax_command VARCHAR(512),
+  fax_response TEXT
 )";
 const DDL_FAX_QUEUE_IDX: &str =
     "CREATE INDEX IF NOT EXISTS ix_fax_queue_domain ON fax_queue (domain_id)";
@@ -680,6 +1041,29 @@ const DDL_FAXES: &str = "CREATE TABLE IF NOT EXISTS fax (
   fax_name VARCHAR(128) NOT NULL,
   description VARCHAR(512),
   enabled BOOLEAN NOT NULL DEFAULT 1,
+  dialplan_uuid TEXT,
+  fax_destination_number VARCHAR(32),
+  fax_prefix VARCHAR(8),
+  fax_email_connection_type VARCHAR(16),
+  fax_email_connection_host VARCHAR(256),
+  fax_email_connection_port INTEGER,
+  fax_email_connection_security VARCHAR(16),
+  fax_email_connection_validate BOOLEAN,
+  fax_email_connection_username VARCHAR(256),
+  fax_email_connection_password VARCHAR(256),
+  fax_email_connection_mailbox VARCHAR(256),
+  fax_email_inbound_subject_tag VARCHAR(128),
+  fax_email_outbound_subject_tag VARCHAR(128),
+  fax_email_outbound_authorized_senders TEXT,
+  fax_pin_number VARCHAR(32),
+  fax_caller_id_name VARCHAR(128),
+  fax_caller_id_number VARCHAR(32),
+  fax_toll_allow VARCHAR(64),
+  fax_file VARCHAR(512),
+  fax_user_list TEXT,
+  fax_forward_number VARCHAR(32),
+  fax_send_channels INTEGER,
+  accountcode VARCHAR(64),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 )";
@@ -689,17 +1073,42 @@ const DDL_FAX_FILES: &str = "CREATE TABLE IF NOT EXISTS fax_files (
   fax_file_uuid TEXT PRIMARY KEY,
   domain_id TEXT NOT NULL,
   fax_uuid TEXT NOT NULL REFERENCES fax (fax_uuid),
-  file_name VARCHAR(512),
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  fax_mode VARCHAR(32),
+  fax_recipient VARCHAR(128),
+  fax_destination VARCHAR(32),
+  fax_file_type VARCHAR(32),
+  fax_file_path VARCHAR(512),
+  fax_caller_id_name VARCHAR(128),
+  fax_caller_id_number VARCHAR(32),
+  fax_date VARCHAR(32),
+  fax_epoch BIGINT,
+  fax_base64 TEXT,
+  read_date VARCHAR(32)
 )";
 
 const DDL_FAX_LOGS: &str = "CREATE TABLE IF NOT EXISTS fax_logs (
   fax_log_uuid TEXT PRIMARY KEY,
   domain_id TEXT NOT NULL,
   fax_uuid TEXT NOT NULL REFERENCES fax (fax_uuid),
+  fax_success BOOLEAN,
+  fax_result_code VARCHAR(64),
   fax_result_text VARCHAR(512),
-  created_at TEXT NOT NULL
+  fax_file VARCHAR(512),
+  fax_ecm_used BOOLEAN,
+  fax_local_station_id VARCHAR(128),
+  fax_document_transferred_pages INTEGER,
+  fax_document_total_pages INTEGER,
+  fax_image_resolution VARCHAR(32),
+  fax_image_size BIGINT,
+  fax_bad_rows INTEGER,
+  fax_transfer_rate VARCHAR(32),
+  fax_retry_attempts INTEGER,
+  fax_retry_limit INTEGER,
+  fax_retry_sleep INTEGER,
+  fax_uri VARCHAR(512),
+  fax_duration INTEGER,
+  fax_date VARCHAR(32),
+  fax_epoch BIGINT
 )";
 
 const DDL_FAX_USERS: &str = "CREATE TABLE IF NOT EXISTS fax_users (
@@ -747,7 +1156,52 @@ const DDL_CDR: &str = "CREATE TABLE IF NOT EXISTS cdr (
   hangup_cause_q850 VARCHAR(16),
   sip_hangup_disposition VARCHAR(32),
   raw_xml TEXT,
-  malformed BOOLEAN NOT NULL DEFAULT 0
+  malformed BOOLEAN NOT NULL DEFAULT 0,
+  provider_uuid TEXT,
+  extension_uuid TEXT,
+  domain_name VARCHAR(128),
+  default_language VARCHAR(16),
+  caller_destination VARCHAR(32),
+  source_number VARCHAR(32),
+  start_epoch BIGINT,
+  answer_epoch BIGINT,
+  end_epoch BIGINT,
+  read_rate INTEGER,
+  write_rate INTEGER,
+  remote_media_ip VARCHAR(64),
+  record_transcription TEXT,
+  originating_leg_uuid TEXT,
+  rtp_audio_in_mos REAL,
+  last_app VARCHAR(64),
+  last_arg VARCHAR(512),
+  voicemail_message VARCHAR(8),
+  missed_call BOOLEAN,
+  call_center_queue_uuid TEXT,
+  cc_side VARCHAR(16),
+  cc_member_uuid TEXT,
+  cc_queue_joined_epoch BIGINT,
+  cc_queue VARCHAR(128),
+  cc_member_session_uuid TEXT,
+  cc_agent_uuid TEXT,
+  cc_agent VARCHAR(128),
+  cc_agent_type VARCHAR(32),
+  cc_agent_bridged BOOLEAN,
+  cc_queue_answered_epoch BIGINT,
+  cc_queue_terminated_epoch BIGINT,
+  cc_queue_canceled_epoch BIGINT,
+  cc_cancel_reason VARCHAR(64),
+  cc_cause VARCHAR(64),
+  waitsec INTEGER,
+  conference_name VARCHAR(128),
+  conference_uuid TEXT,
+  conference_member_id VARCHAR(16),
+  digits_dialed VARCHAR(32),
+  pin_number VARCHAR(32),
+  ring_group_uuid TEXT,
+  ivr_menu_uuid TEXT,
+  processed BOOLEAN,
+  call_flow VARCHAR(64),
+  json TEXT
 )";
 const DDL_CDR_IDX: &str = "CREATE INDEX IF NOT EXISTS ix_cdr_domain ON cdr (domain_id)";
 const DDL_CDR_START_IDX: &str =
@@ -801,6 +1255,11 @@ const DDL_RECORDINGS: &str = "CREATE TABLE IF NOT EXISTS recordings (
   name VARCHAR(255) NOT NULL,
   file_path VARCHAR(512) NOT NULL,
   storage_backend VARCHAR(32) NOT NULL DEFAULT 's3',
+  recording_voice VARCHAR(64),
+  recording_description TEXT,
+  recording_speed VARCHAR(16),
+  recording_message TEXT,
+  recording_base64 TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 )";
@@ -818,8 +1277,20 @@ const DDL_USERS: &str = "CREATE TABLE IF NOT EXISTS users (
   domain_id TEXT NOT NULL REFERENCES domains (domain_id),
   username VARCHAR(64) NOT NULL,
   email VARCHAR(255),
+  user_email VARCHAR(255),
   password_hash VARCHAR(255) NOT NULL DEFAULT '',
   enabled BOOLEAN NOT NULL DEFAULT 1,
+  user_enabled BOOLEAN,
+  user_status VARCHAR(64),
+  user_time_zone VARCHAR(64),
+  user_language VARCHAR(16),
+  user_type VARCHAR(32),
+  api_key VARCHAR(64),
+  contact_uuid TEXT,
+  contact_name_given VARCHAR(64),
+  contact_name_family VARCHAR(64),
+  contact_organization VARCHAR(128),
+  user_totp_secret VARCHAR(64),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 )";
@@ -854,11 +1325,28 @@ const DDL_USER_SETTINGS: &str = "CREATE TABLE IF NOT EXISTS user_settings (
   user_setting_subcategory VARCHAR(64),
   user_setting_name VARCHAR(64),
   user_setting_value VARCHAR(512),
+  user_setting_order INTEGER,
   user_setting_enabled BOOLEAN NOT NULL DEFAULT 1,
   user_setting_description TEXT
 )";
 const DDL_USER_SETTINGS_IDX: &str =
     "CREATE INDEX IF NOT EXISTS ix_user_settings_user ON user_settings (user_uuid)";
+
+const DDL_USER_LOGS: &str = "CREATE TABLE IF NOT EXISTS user_logs (
+  user_log_uuid TEXT PRIMARY KEY,
+  domain_id TEXT,
+  user_uuid TEXT,
+  username VARCHAR(128),
+  log_type VARCHAR(64),
+  result VARCHAR(64),
+  detail VARCHAR(1024),
+  remote_address VARCHAR(64),
+  user_agent VARCHAR(512),
+  timestamp TEXT,
+  created_at TEXT NOT NULL
+)";
+const DDL_USER_LOGS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_user_logs_domain ON user_logs (domain_id)";
 
 const DDL_PERMISSIONS: &str = "CREATE TABLE IF NOT EXISTS permissions (
   permission_uuid TEXT PRIMARY KEY,
@@ -880,6 +1368,21 @@ const DDL_CONTACTS: &str = "CREATE TABLE IF NOT EXISTS contacts (
   number VARCHAR(32) NOT NULL,
   email VARCHAR(255),
   organization VARCHAR(128),
+  contact_organization VARCHAR(128),
+  contact_type VARCHAR(32),
+  contact_parent_uuid TEXT,
+  contact_name_prefix VARCHAR(64),
+  contact_name_given VARCHAR(128),
+  contact_name_middle VARCHAR(128),
+  contact_name_family VARCHAR(128),
+  contact_name_suffix VARCHAR(64),
+  contact_nickname VARCHAR(128),
+  contact_title VARCHAR(128),
+  contact_role VARCHAR(128),
+  contact_category VARCHAR(64),
+  contact_url VARCHAR(512),
+  contact_time_zone VARCHAR(64),
+  contact_note VARCHAR(1024),
   created_at TEXT NOT NULL
 )";
 const DDL_CONTACTS_IDX: &str =
@@ -891,7 +1394,17 @@ const DDL_CONTACT_ADDRESSES: &str = "CREATE TABLE IF NOT EXISTS contact_addresse
   contact_uuid TEXT NOT NULL REFERENCES contacts (contact_uuid),
   address_label VARCHAR(64),
   address_street VARCHAR(255),
+  address_extended VARCHAR(255),
+  address_community VARCHAR(128),
   address_locality VARCHAR(128),
+  address_region VARCHAR(128),
+  address_postal_code VARCHAR(32),
+  address_country VARCHAR(128),
+  address_type VARCHAR(32),
+  address_primary BOOLEAN NOT NULL DEFAULT 0,
+  address_latitude VARCHAR(32),
+  address_longitude VARCHAR(32),
+  address_description VARCHAR(255),
   created_at TEXT NOT NULL
 )";
 
@@ -901,7 +1414,15 @@ const DDL_CONTACT_PHONES: &str = "CREATE TABLE IF NOT EXISTS contact_phones (
   contact_uuid TEXT NOT NULL REFERENCES contacts (contact_uuid),
   phone_label VARCHAR(64),
   phone_number VARCHAR(32) NOT NULL,
+  phone_country_code VARCHAR(8),
+  phone_extension VARCHAR(16),
+  phone_speed_dial VARCHAR(8),
+  phone_description VARCHAR(255),
   phone_primary BOOLEAN NOT NULL DEFAULT 0,
+  phone_type_voice BOOLEAN NOT NULL DEFAULT 1,
+  phone_type_fax BOOLEAN NOT NULL DEFAULT 0,
+  phone_type_video BOOLEAN NOT NULL DEFAULT 0,
+  phone_type_text BOOLEAN NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 )";
 
@@ -920,6 +1441,9 @@ const DDL_CONTACT_URLS: &str = "CREATE TABLE IF NOT EXISTS contact_urls (
   contact_uuid TEXT NOT NULL REFERENCES contacts (contact_uuid),
   url_label VARCHAR(64),
   url_address VARCHAR(512) NOT NULL,
+  url_type VARCHAR(32),
+  url_primary BOOLEAN NOT NULL DEFAULT 0,
+  url_description VARCHAR(255),
   created_at TEXT NOT NULL
 )";
 
@@ -930,6 +1454,215 @@ const DDL_CONTACT_NOTES: &str = "CREATE TABLE IF NOT EXISTS contact_notes (
   contact_note VARCHAR(1024) NOT NULL,
   created_at TEXT NOT NULL
 )";
+
+const DDL_CONTACT_ATTACHMENTS: &str = "CREATE TABLE IF NOT EXISTS contact_attachments (
+  contact_attachment_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  contact_uuid TEXT NOT NULL REFERENCES contacts (contact_uuid),
+  attachment_primary BOOLEAN,
+  attachment_filename VARCHAR(255),
+  attachment_content TEXT,
+  attachment_description VARCHAR(512),
+  created_at TEXT NOT NULL
+)";
+
+const DDL_CONTACT_GROUPS: &str = "CREATE TABLE IF NOT EXISTS contact_groups (
+  contact_group_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  contact_uuid TEXT NOT NULL REFERENCES contacts (contact_uuid),
+  group_uuid TEXT,
+  created_at TEXT NOT NULL
+)";
+
+const DDL_CONTACT_RELATIONS: &str = "CREATE TABLE IF NOT EXISTS contact_relations (
+  contact_relation_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  contact_uuid TEXT NOT NULL REFERENCES contacts (contact_uuid),
+  relation_label VARCHAR(128),
+  relation_contact_uuid TEXT,
+  created_at TEXT NOT NULL
+)";
+
+const DDL_CONTACT_SETTINGS: &str = "CREATE TABLE IF NOT EXISTS contact_settings (
+  contact_setting_uuid TEXT PRIMARY KEY,
+  contact_uuid TEXT NOT NULL REFERENCES contacts (contact_uuid),
+  domain_id TEXT NOT NULL,
+  contact_setting_category VARCHAR(64),
+  contact_setting_subcategory VARCHAR(64),
+  contact_setting_name VARCHAR(128),
+  contact_setting_value VARCHAR(1024),
+  contact_setting_order INTEGER,
+  contact_setting_enabled BOOLEAN,
+  contact_setting_description VARCHAR(512),
+  created_at TEXT NOT NULL
+)";
+
+const DDL_CONTACT_TIMES: &str = "CREATE TABLE IF NOT EXISTS contact_times (
+  contact_time_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  contact_uuid TEXT NOT NULL REFERENCES contacts (contact_uuid),
+  user_uuid TEXT,
+  time_start VARCHAR(32),
+  time_stop VARCHAR(32),
+  time_description VARCHAR(512),
+  created_at TEXT NOT NULL
+)";
+
+const DDL_CONTACT_USERS: &str = "CREATE TABLE IF NOT EXISTS contact_users (
+  contact_user_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  contact_uuid TEXT NOT NULL REFERENCES contacts (contact_uuid),
+  user_uuid TEXT,
+  created_at TEXT NOT NULL
+)";
+
+const DDL_COUNTRIES: &str = "CREATE TABLE IF NOT EXISTS countries (
+  country_uuid TEXT PRIMARY KEY,
+  country VARCHAR(128) NOT NULL,
+  iso_a2 VARCHAR(2),
+  iso_a3 VARCHAR(3),
+  num INTEGER,
+  country_code VARCHAR(16),
+  created_at TEXT NOT NULL
+)";
+
+const DDL_LANGUAGES: &str = "CREATE TABLE IF NOT EXISTS languages (
+  language_uuid TEXT PRIMARY KEY,
+  language VARCHAR(128) NOT NULL,
+  code VARCHAR(16),
+  created_at TEXT NOT NULL
+)";
+
+const DDL_MENUS: &str = "CREATE TABLE IF NOT EXISTS menus (
+  menu_uuid TEXT PRIMARY KEY,
+  menu_name VARCHAR(128) NOT NULL,
+  menu_language VARCHAR(16),
+  menu_description VARCHAR(512),
+  created_at TEXT NOT NULL
+)";
+
+const DDL_MENU_ITEMS: &str = "CREATE TABLE IF NOT EXISTS menu_items (
+  menu_item_uuid TEXT PRIMARY KEY,
+  menu_uuid TEXT,
+  menu_item_parent_uuid TEXT,
+  item_uuid VARCHAR(64),
+  menu_item_title VARCHAR(128) NOT NULL,
+  menu_item_link VARCHAR(512),
+  menu_item_icon VARCHAR(64),
+  menu_item_icon_color VARCHAR(32),
+  menu_item_category VARCHAR(64),
+  menu_item_protected BOOLEAN,
+  menu_item_order INTEGER,
+  menu_item_description VARCHAR(512),
+  created_at TEXT NOT NULL
+)";
+
+const DDL_MENU_ITEM_GROUPS: &str = "CREATE TABLE IF NOT EXISTS menu_item_groups (
+  menu_item_group_uuid TEXT PRIMARY KEY,
+  menu_uuid TEXT,
+  menu_item_uuid TEXT,
+  group_name VARCHAR(64),
+  group_uuid TEXT,
+  created_at TEXT NOT NULL
+)";
+
+const DDL_MENU_LANGUAGES: &str = "CREATE TABLE IF NOT EXISTS menu_languages (
+  menu_language_uuid TEXT PRIMARY KEY,
+  menu_uuid TEXT,
+  menu_item_uuid TEXT,
+  menu_language VARCHAR(16),
+  menu_item_title VARCHAR(128),
+  created_at TEXT NOT NULL
+)";
+
+const DDL_SOFTWARE: &str = "CREATE TABLE IF NOT EXISTS software (
+  software_uuid TEXT PRIMARY KEY,
+  software_name VARCHAR(128),
+  software_url VARCHAR(512),
+  software_version VARCHAR(64),
+  created_at TEXT NOT NULL
+)";
+
+const DDL_SERVICES: &str = "CREATE TABLE IF NOT EXISTS services (
+  service_uuid TEXT PRIMARY KEY,
+  service_name VARCHAR(128),
+  service_category VARCHAR(64),
+  service_file VARCHAR(512),
+  service_enabled BOOLEAN NOT NULL DEFAULT 1,
+  service_description TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+
+const DDL_NOTIFICATIONS: &str = "CREATE TABLE IF NOT EXISTS notifications (
+  notification_uuid TEXT PRIMARY KEY,
+  project_notifications TEXT,
+  created_at TEXT NOT NULL
+)";
+
+const DDL_DATABASES: &str = "CREATE TABLE IF NOT EXISTS databases (
+  database_uuid TEXT PRIMARY KEY,
+  database_driver VARCHAR(32),
+  database_type VARCHAR(32),
+  database_host VARCHAR(128),
+  database_port VARCHAR(16),
+  database_name VARCHAR(128),
+  database_username VARCHAR(128),
+  database_password VARCHAR(128),
+  database_path VARCHAR(512),
+  database_description VARCHAR(512),
+  created_at TEXT NOT NULL
+)";
+
+const DDL_DASHBOARDS: &str = "CREATE TABLE IF NOT EXISTS dashboards (
+  dashboard_uuid TEXT PRIMARY KEY,
+  domain_id TEXT,
+  dashboard_name VARCHAR(128) NOT NULL DEFAULT '',
+  dashboard_enabled BOOLEAN NOT NULL DEFAULT 1,
+  dashboard_description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_DASHBOARDS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_dashboards_domain ON dashboards (domain_id)";
+
+const DDL_DASHBOARD_WIDGETS: &str = "CREATE TABLE IF NOT EXISTS dashboard_widgets (
+  dashboard_widget_uuid TEXT PRIMARY KEY,
+  domain_id TEXT,
+  dashboard_uuid TEXT,
+  widget_name VARCHAR(128),
+  widget_path VARCHAR(512),
+  widget_icon VARCHAR(128),
+  widget_icon_color VARCHAR(32),
+  widget_url VARCHAR(512),
+  widget_target VARCHAR(32),
+  widget_width VARCHAR(32),
+  widget_height VARCHAR(32),
+  widget_content TEXT,
+  widget_content_text_align VARCHAR(32),
+  widget_content_details TEXT,
+  widget_chart_type VARCHAR(32),
+  widget_label_enabled BOOLEAN NOT NULL DEFAULT 0,
+  widget_label_text_color VARCHAR(32),
+  widget_label_text_color_hover VARCHAR(32),
+  widget_label_background_color VARCHAR(32),
+  widget_label_background_color_hover VARCHAR(32),
+  widget_number_text_color VARCHAR(32),
+  widget_number_text_color_hover VARCHAR(32),
+  widget_number_background_color VARCHAR(32),
+  widget_background_gradient_style VARCHAR(32),
+  widget_background_gradient_angle VARCHAR(32),
+  widget_column_span INTEGER,
+  widget_row_span INTEGER,
+  widget_details_state VARCHAR(32),
+  widget_order INTEGER,
+  widget_enabled BOOLEAN NOT NULL DEFAULT 1,
+  widget_description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_DASHBOARD_WIDGETS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_dashboard_widgets_dashboard ON dashboard_widgets (dashboard_uuid)";
 
 const DDL_EMAIL_QUEUE: &str = "CREATE TABLE IF NOT EXISTS email_queue (
   email_queue_uuid TEXT PRIMARY KEY,
@@ -943,10 +1676,34 @@ const DDL_EMAIL_QUEUE: &str = "CREATE TABLE IF NOT EXISTS email_queue (
   email_retry_count INTEGER NOT NULL DEFAULT 0,
   email_attempts INTEGER NOT NULL DEFAULT 0,
   email_error VARCHAR(512),
+  hostname VARCHAR(128),
+  email_action_before VARCHAR(128),
+  email_action_after VARCHAR(128),
+  email_uuid TEXT,
+  email_transcription TEXT,
+  email_response TEXT,
   created_at TEXT NOT NULL
 )";
 const DDL_EMAIL_QUEUE_IDX: &str =
     "CREATE INDEX IF NOT EXISTS ix_email_queue_domain ON email_queue (domain_id)";
+
+const DDL_EMAIL_TEMPLATES: &str = "CREATE TABLE IF NOT EXISTS email_templates (
+  email_template_uuid TEXT PRIMARY KEY,
+  domain_id TEXT,
+  template_name VARCHAR(128) NOT NULL DEFAULT '',
+  template_language VARCHAR(16),
+  template_category VARCHAR(64),
+  template_subcategory VARCHAR(64),
+  template_subject VARCHAR(512),
+  template_body TEXT,
+  template_type VARCHAR(32),
+  template_enabled BOOLEAN NOT NULL DEFAULT 1,
+  template_description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_EMAIL_TEMPLATES_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_email_templates_domain ON email_templates (domain_id)";
 
 const DDL_REMAINING_RECORDS: &str = "CREATE TABLE IF NOT EXISTS remaining_records (
   id TEXT PRIMARY KEY,
@@ -1069,6 +1826,9 @@ const DDL_DESTINATIONS: &str = "CREATE TABLE IF NOT EXISTS destinations (
   destination_alternate_data VARCHAR(512),
   alternate_data VARCHAR(512),
   destination_caller_id VARCHAR(64),
+  destination_cid_name_prefix VARCHAR(128),
+  destination_order INTEGER,
+  destination_email VARCHAR(256),
   destination_insert_user TEXT,
   insert_user TEXT,
   destination_insert_date TEXT,
@@ -1383,6 +2143,48 @@ const DDL_EVENT_GUARD_LOGS: &str = "CREATE TABLE IF NOT EXISTS event_guard_logs 
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 )";
+
+const DDL_CALL_FLOWS: &str = "CREATE TABLE IF NOT EXISTS call_flows (
+  call_flow_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  dialplan_uuid TEXT,
+  call_flow_name VARCHAR(128) NOT NULL,
+  call_flow_extension VARCHAR(32) NOT NULL,
+  call_flow_feature_code VARCHAR(32),
+  call_flow_context VARCHAR(128) NOT NULL DEFAULT 'public',
+  call_flow_status VARCHAR(32),
+  call_flow_pin_number VARCHAR(32),
+  call_flow_label VARCHAR(128),
+  call_flow_enabled BOOLEAN NOT NULL DEFAULT 1,
+  call_flow_description VARCHAR(512),
+  call_flow_sound VARCHAR(128),
+  call_flow_app VARCHAR(64),
+  call_flow_data VARCHAR(512),
+  call_flow_alternate_label VARCHAR(128),
+  call_flow_alternate_destination VARCHAR(128),
+  call_flow_alternate_sound VARCHAR(128),
+  call_flow_alternate_app VARCHAR(64),
+  call_flow_alternate_data VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_CALL_FLOWS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_call_flows_domain ON call_flows (domain_id)";
+
+const DDL_EXTENSION_SETTINGS: &str = "CREATE TABLE IF NOT EXISTS extension_settings (
+  extension_setting_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL,
+  extension_uuid TEXT NOT NULL,
+  extension_setting_type VARCHAR(64),
+  extension_setting_name VARCHAR(128) NOT NULL,
+  extension_setting_value VARCHAR(512) NOT NULL,
+  extension_setting_enabled BOOLEAN NOT NULL DEFAULT 1,
+  extension_setting_description VARCHAR(512),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_EXTENSION_SETTINGS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_extension_settings_domain ON extension_settings (domain_id)";
 /// Create all tables (sqlite bootstrap for tests / local dev).
 /// Production schema comes from alembic migrations.
 /// Production Postgres uses `migration::Migrator` (sea-orm-migration).
@@ -1441,6 +2243,21 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_VOICEMAIL_GREETINGS,
         DDL_VOICEMAIL_MESSAGES,
         DDL_VOICEMAIL_OPTIONS,
+        DDL_CONFERENCE_ROOM_USERS,
+        DDL_DATABASE_TRANSACTIONS,
+        DDL_DEVICE_VENDORS,
+        DDL_DEVICE_VENDOR_FUNCTIONS,
+        DDL_DEVICE_VENDOR_FUNCTION_GROUPS,
+        DDL_EMAIL_QUEUE_ATTACHMENTS,
+        DDL_EXTENSION_USERS,
+        DDL_MODULES,
+        DDL_RING_GROUP_USERS,
+        DDL_VOICEMAIL_DESTINATIONS,
+        DDL_XML_CDR_EXTENSIONS,
+        DDL_XML_CDR_JSON,
+        DDL_XML_CDR_FLOW,
+        DDL_XML_CDR_LOGS,
+        DDL_XML_CDR_TRANSCRIPTS,
         DDL_CONFERENCES,
         DDL_CONFERENCES_IDX,
         DDL_CONFERENCE_CENTERS,
@@ -1451,8 +2268,10 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_CONFERENCE_USERS,
         DDL_CONFERENCE_CONTROLS,
         DDL_CONFERENCE_CONTROLS_IDX,
+        DDL_CONFERENCE_CONTROL_DETAILS,
         DDL_CONFERENCE_PROFILES,
         DDL_CONFERENCE_PROFILES_IDX,
+        DDL_CONFERENCE_PROFILE_PARAMS,
         DDL_FAX_QUEUE,
         DDL_FAX_QUEUE_IDX,
         DDL_FAXES,
@@ -1475,6 +2294,8 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_USER_GROUPS_IDX,
         DDL_USER_SETTINGS,
         DDL_USER_SETTINGS_IDX,
+        DDL_USER_LOGS,
+        DDL_USER_LOGS_IDX,
         DDL_PERMISSIONS,
         DDL_GROUP_PERMISSIONS,
         DDL_CONTACTS,
@@ -1484,8 +2305,30 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_CONTACT_EMAILS,
         DDL_CONTACT_URLS,
         DDL_CONTACT_NOTES,
+        DDL_CONTACT_ATTACHMENTS,
+        DDL_CONTACT_GROUPS,
+        DDL_CONTACT_RELATIONS,
+        DDL_CONTACT_SETTINGS,
+        DDL_CONTACT_TIMES,
+        DDL_CONTACT_USERS,
+        DDL_COUNTRIES,
+        DDL_LANGUAGES,
+        DDL_MENUS,
+        DDL_MENU_ITEMS,
+        DDL_MENU_ITEM_GROUPS,
+        DDL_MENU_LANGUAGES,
+        DDL_SOFTWARE,
+        DDL_SERVICES,
+        DDL_NOTIFICATIONS,
+        DDL_DATABASES,
+        DDL_DASHBOARDS,
+        DDL_DASHBOARDS_IDX,
+        DDL_DASHBOARD_WIDGETS,
+        DDL_DASHBOARD_WIDGETS_IDX,
         DDL_EMAIL_QUEUE,
         DDL_EMAIL_QUEUE_IDX,
+        DDL_EMAIL_TEMPLATES,
+        DDL_EMAIL_TEMPLATES_IDX,
         DDL_REMAINING_RECORDS,
         DDL_REMAINING_RECORDS_IDX,
         DDL_CALL_BLOCK,
@@ -1532,6 +2375,10 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_EMERGENCY_LOGS,
         DDL_EMERGENCY_LOGS_IDX,
         DDL_EVENT_GUARD_LOGS,
+        DDL_CALL_FLOWS,
+        DDL_CALL_FLOWS_IDX,
+        DDL_EXTENSION_SETTINGS,
+        DDL_EXTENSION_SETTINGS_IDX,
     ] {
         db.execute_unprepared(ddl).await?;
     }

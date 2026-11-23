@@ -1529,6 +1529,18 @@ const DDL_TABLES: &[&str] = &[
       software_version VARCHAR(64),
       created_at TIMESTAMPTZ NOT NULL
     )",
+    // v_services parity (fusionpbx/core/services): global registry, no
+    // domain_id — stays open (DISABLE RLS below, like modules).
+    "CREATE TABLE IF NOT EXISTS services (
+      service_uuid UUID PRIMARY KEY,
+      service_name VARCHAR(128),
+      service_category VARCHAR(64),
+      service_file VARCHAR(512),
+      service_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      service_description TEXT,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
     "CREATE TABLE IF NOT EXISTS notifications (
       notification_uuid UUID PRIMARY KEY,
       project_notifications TEXT,
@@ -2217,6 +2229,16 @@ fn rls_statements() -> Vec<String> {
         out.push(format!(
             "CREATE POLICY tenant_{tbl} ON {tbl} USING (domain_id = NULLIF(current_setting('app.domain_uuid', true), '')::uuid) WITH CHECK (domain_id = NULLIF(current_setting('app.domain_uuid', true), '')::uuid)"
         ));
+        // `?show=all` unlock (PHP `show == 'all'` + `X_all` parity): permissive
+        // OR-policy — grants reads only when the API sets transaction-local
+        // `app.domain_all = '1'` after verifying the JWT holds the resource's
+        // `_all` perm. Writes stay tenant-locked (no WITH CHECK here, so
+        // INSERT/UPDATE still answer to `tenant_{tbl}`). Raw DB holders can
+        // set the GUC themselves, but they already have full DB access.
+        out.push(format!("DROP POLICY IF EXISTS tenant_all_{tbl} ON {tbl}"));
+        out.push(format!(
+            "CREATE POLICY tenant_all_{tbl} ON {tbl} USING (current_setting('app.domain_all', true) = '1')"
+        ));
     }
     for tbl in NULLABLE_TABLES {
         out.push(format!("ALTER TABLE {tbl} ENABLE ROW LEVEL SECURITY"));
@@ -2225,12 +2247,17 @@ fn rls_statements() -> Vec<String> {
         out.push(format!(
             "CREATE POLICY tenant_{tbl} ON {tbl} USING (domain_id IS NULL OR domain_id = NULLIF(current_setting('app.domain_uuid', true), '')::uuid) WITH CHECK (domain_id IS NULL OR domain_id = NULLIF(current_setting('app.domain_uuid', true), '')::uuid)"
         ));
+        out.push(format!("DROP POLICY IF EXISTS tenant_all_{tbl} ON {tbl}"));
+        out.push(format!(
+            "CREATE POLICY tenant_all_{tbl} ON {tbl} USING (current_setting('app.domain_all', true) = '1')"
+        ));
     }
     for tbl in [
         "permissions",
         "domains",
         "sofia_global_settings",
         "modules",
+        "services",
         "device_vendors",
         "device_vendor_functions",
         "device_vendor_function_groups",

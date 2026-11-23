@@ -6,10 +6,10 @@
 //! Tenant-guarded; submit validates from/to; list envelope {data,total}.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 
 // ---- models ----
-use pbx_db::entities::email_queue;
+use pbx_db::entities::{email_queue, email_templates};
 
 // ---- schemas ----
 #[derive(Debug, serde::Deserialize)]
@@ -20,6 +20,10 @@ struct EmailSubmit {
     email_subject: Option<String>,
     #[serde(default)]
     email_body: Option<String>,
+    #[serde(default)]
+    hostname: Option<String>,
+    #[serde(default)]
+    email_uuid: Option<String>,
 }
 
 /// Template context for voicemail-to-email / missed-call / fax-received
@@ -76,6 +80,26 @@ fn ctx_as_value(ctx: &EmailTemplateCtx) -> serde_json::Value {
         "fax_pages": ctx.fax_pages,
         "hangup_cause": ctx.hangup_cause,
     })
+}
+
+/// Render the password-reset email (PHP
+/// `fusionpbx/core/users/app_defaults.php` `password_reset` template shape:
+/// subject `Password Reset`, body with `${reset_link}` `${reset_button}`
+/// `${domain}` variables, link expiry noted as 60 minutes).
+/// Pure — unit-testable.
+pub fn render_password_reset_email(reset_link: &str, domain: &str) -> (String, String) {
+    let subject = "Password Reset".to_owned();
+    let mut env = minijinja::Environment::new();
+    let tpl = "A password reset was just requested for the account associated with this email address.\n\n\
+        If you submitted this request, click the link below to begin the password reset process. This link expires in 60 minutes.\n\n\
+        {{ reset_link }}\n\n\
+        If you did not initiate this action, please ignore this message and your password will remain unchanged.\n\
+        Domain: {{ domain }}\n";
+    let ctx = serde_json::json!({"reset_link": reset_link, "domain": domain});
+    let body = env
+        .render_str(tpl, ctx)
+        .unwrap_or_else(|_| format!("Password reset link (expires in 60 minutes): {reset_link}\n"));
+    (subject, body)
 }
 
 /// Exponential-backoff retry delay in seconds, capped at 1h.
@@ -188,6 +212,8 @@ async fn submit_email(
         email_subject: Set(payload.email_subject.clone()),
         email_body: Set(payload.email_body.clone()),
         email_status: Set("waiting".to_owned()),
+        hostname: Set(payload.hostname.clone()),
+        email_uuid: Set(payload.email_uuid.clone()),
         created_at: Set(now),
         ..Default::default()
     };
@@ -215,27 +241,45 @@ async fn submit_email(
 
 async fn list_email_queue(
     Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "email_queue_view") {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
+    let show_all = crate::tenant::wants_all(&claims, show_q.show.as_deref(), "email_queue_all");
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(_) => return Json(serde_json::json!({"data": [], "total": 0})).into_response(),
+    };
+    if show_all {
+        crate::routing_db::set_tenant_all(&txn).await;
+    }
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
-    let rows = email_queue::Entity::find()
-        .filter(email_queue::Column::DomainId.eq(domain))
-        .all(db)
-        .await
-        .unwrap_or_default();
+    let mut sel = email_queue::Entity::find();
+    if !show_all {
+        sel = sel.filter(email_queue::Column::DomainId.eq(domain));
+    }
+    let rows = sel.all(&txn).await.unwrap_or_default();
     let total = rows.len();
     let data: Vec<serde_json::Value> = rows
         .iter()
         .map(|r| {
             serde_json::json!({
                 "email_queue_uuid": r.email_queue_uuid,
+                "email_date": r.email_date,
                 "email_from": r.email_from,
                 "email_to": r.email_to,
                 "email_subject": r.email_subject,
+                "email_body": r.email_body,
                 "email_status": r.email_status,
+                "email_retry_count": r.email_retry_count,
+                "email_response": r.email_response,
+                "hostname": r.hostname,
+                "email_action_before": r.email_action_before,
+                "email_action_after": r.email_action_after,
+                "email_uuid": r.email_uuid,
+                "email_transcription": r.email_transcription,
             })
         })
         .collect();
@@ -261,10 +305,19 @@ async fn get_email(
             StatusCode::OK,
             Json(serde_json::json!({
                 "email_queue_uuid": r.email_queue_uuid,
+                "email_date": r.email_date,
                 "email_from": r.email_from,
                 "email_to": r.email_to,
                 "email_subject": r.email_subject,
+                "email_body": r.email_body,
                 "email_status": r.email_status,
+                "email_retry_count": r.email_retry_count,
+                "email_response": r.email_response,
+                "hostname": r.hostname,
+                "email_action_before": r.email_action_before,
+                "email_action_after": r.email_action_after,
+                "email_uuid": r.email_uuid,
+                "email_transcription": r.email_transcription,
             })),
         )
             .into_response(),
@@ -293,6 +346,7 @@ async fn patch_email(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "email_queue_edit") {
         return (s, j).into_response();
     }
@@ -311,6 +365,24 @@ async fn patch_email(
     }
     if let Some(v) = payload.get("email_subject").and_then(|v| v.as_str()) {
         am.email_subject = Set(Some(v.to_owned()));
+    }
+    if payload.get("hostname").is_some() {
+        am.hostname = Set(payload.get("hostname").and_then(|v| v.as_str()).map(str::to_owned));
+    }
+    if payload.get("email_action_before").is_some() {
+        am.email_action_before = Set(payload.get("email_action_before").and_then(|v| v.as_str()).map(str::to_owned));
+    }
+    if payload.get("email_action_after").is_some() {
+        am.email_action_after = Set(payload.get("email_action_after").and_then(|v| v.as_str()).map(str::to_owned));
+    }
+    if payload.get("email_transcription").is_some() {
+        am.email_transcription = Set(payload.get("email_transcription").and_then(|v| v.as_str()).map(str::to_owned));
+    }
+    if payload.get("email_response").is_some() {
+        am.email_response = Set(payload.get("email_response").and_then(|v| v.as_str()).map(str::to_owned));
+    }
+    if let Some(v) = payload.get("email_retry_count").and_then(|v| v.as_i64()) {
+        am.email_retry_count = Set(v as i32);
     }
     match am.update(db).await {
         Ok(r) => (
@@ -500,7 +572,216 @@ pub fn email_queue_router() -> Router {
         )
         .route("/api/v1/email_queue/{id}/retry", post(retry_email))
         .route("/api/v1/email_queue/{id}/send", post(send_email))
+        .route(
+            "/api/v1/email_templates",
+            post(create_template).get(list_templates),
+        )
+        .route(
+            "/api/v1/email_templates/{id}",
+            axum::routing::get(get_template)
+                .patch(patch_template)
+                .delete(delete_template),
+        )
         .layer(axum::middleware::from_fn(crate::require_tenant))
+}
+
+// ---- email_templates (PHP v_email_templates + Python EmailTemplate superset) ----
+fn ser_template(r: &email_templates::Model) -> serde_json::Value {
+    let mut v = serde_json::json!({
+        "email_template_uuid": r.email_template_uuid,
+        "template_name": r.template_name,
+        "name": r.template_name,
+        "template_language": r.template_language,
+        "template_category": r.template_category,
+        "template_subcategory": r.template_subcategory,
+        "template_subject": r.template_subject,
+        "subject": r.template_subject,
+        "template_body": r.template_body,
+        "body": r.template_body,
+        "template_type": r.template_type,
+        "template_enabled": r.template_enabled,
+        "enabled": r.template_enabled,
+        "template_description": r.template_description,
+        "description": r.template_description,
+    });
+    crate::alias::emit_aliases(&mut v);
+    v
+}
+
+fn tpl_str(p: &serde_json::Value, keys: &[&str]) -> Option<String> {
+    for k in keys {
+        if let Some(v) = p.get(k) {
+            if let Some(s) = v.as_str() {
+                let t = s.trim();
+                if !t.is_empty() {
+                    return Some(t.to_owned());
+                }
+            }
+        }
+    }
+    None
+}
+
+async fn create_template(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "email_template_add") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let now = crate::routing_db::now();
+    let am = email_templates::ActiveModel {
+        email_template_uuid: Set(crate::routing_db::new_uuid()),
+        domain_id: Set(Some(domain)),
+        template_name: Set(tpl_str(&payload, &["template_name", "name"]).unwrap_or_default()),
+        template_language: Set(tpl_str(&payload, &["template_language", "language"])),
+        template_category: Set(tpl_str(&payload, &["template_category", "category"])),
+        template_subcategory: Set(tpl_str(&payload, &["template_subcategory", "subcategory"])),
+        template_subject: Set(tpl_str(&payload, &["template_subject", "subject"])),
+        template_body: Set(tpl_str(&payload, &["template_body", "body"])),
+        template_type: Set(tpl_str(&payload, &["template_type", "type"])),
+        template_enabled: Set(payload.get("template_enabled").or_else(|| payload.get("enabled")).and_then(|v| v.as_bool()).unwrap_or(true)),
+        template_description: Set(tpl_str(&payload, &["template_description", "description"])),
+        created_at: Set(now),
+        updated_at: Set(now),
+    };
+    match am.insert(db).await {
+        Ok(r) => (StatusCode::CREATED, Json(ser_template(&r))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn list_templates(Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "email_template_view") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    let show_all = crate::tenant::wants_all(&claims, show_q.show.as_deref(), "email_template_all");
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(_) => return Json(serde_json::json!({"data": [], "total": 0})).into_response(),
+    };
+    if show_all {
+        crate::routing_db::set_tenant_all(&txn).await;
+    }
+    let domain = crate::routing_db::domain(&claims);
+    let mut sel = email_templates::Entity::find();
+    if !show_all {
+        sel = sel.filter(email_templates::Column::DomainId.eq(Some(domain)));
+    }
+    let rows = sel.all(&txn).await.unwrap_or_default();
+    let data: Vec<serde_json::Value> = rows.iter().map(ser_template).collect();
+    Json(serde_json::json!({"data": data, "total": data.len()})).into_response()
+}
+
+async fn get_template(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "email_template_view") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    match email_templates::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
+        Some(r) if r.domain_id == Some(domain) => (StatusCode::OK, Json(ser_template(&r))).into_response(),
+        _ => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response(),
+    }
+}
+
+async fn patch_template(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "email_template_add") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    let Some(r) = email_templates::Entity::find_by_id(id).one(db).await.unwrap_or(None) else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    if r.domain_id != Some(domain) {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    }
+    let mut am: email_templates::ActiveModel = r.into();
+    if let Some(v) = tpl_str(&payload, &["template_name", "name"]) {
+        am.template_name = Set(v);
+    }
+    for (keys, slot) in [
+        (&["template_language", "language"][..], &mut am.template_language),
+        (&["template_category", "category"][..], &mut am.template_category),
+        (&["template_subcategory", "subcategory"][..], &mut am.template_subcategory),
+        (&["template_subject", "subject"][..], &mut am.template_subject),
+        (&["template_body", "body"][..], &mut am.template_body),
+        (&["template_type", "type"][..], &mut am.template_type),
+        (&["template_description", "description"][..], &mut am.template_description),
+    ] {
+        if let Some(v) = tpl_str(&payload, keys) {
+            *slot = Set(Some(v));
+        }
+    }
+    if let Some(v) = payload.get("template_enabled").or_else(|| payload.get("enabled")).and_then(|v| v.as_bool()) {
+        am.template_enabled = Set(v);
+    }
+    match am.update(db).await {
+        Ok(r) => (StatusCode::OK, Json(ser_template(&r))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn delete_template(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "email_template_delete") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(&claims);
+    match email_templates::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
+        Some(r) if r.domain_id == Some(domain) => {
+            let am: email_templates::ActiveModel = r.into();
+            match am.delete(db).await {
+                Ok(_) => StatusCode::NO_CONTENT.into_response(),
+                Err(e) => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+                )
+                    .into_response(),
+            }
+        }
+        _ => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response(),
+    }
 }
 
 #[cfg(test)]

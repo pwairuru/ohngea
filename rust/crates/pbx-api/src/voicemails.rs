@@ -183,9 +183,25 @@ async fn list_vm(
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let paginator = voicemails::Entity::find()
-        .filter(voicemails::Column::DomainId.eq(domain))
-        .paginate(db, per_page);
+    let show_all = crate::tenant::wants_all(&claims, pq.show.as_deref(), "voicemail_all");
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(_) => {
+            return (
+                crate::paged_headers("/api/v1/voicemails", page, per_page, 0),
+                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+            )
+                .into_response();
+        }
+    };
+    if show_all {
+        crate::routing_db::set_tenant_all(&txn).await;
+    }
+    let mut sel = voicemails::Entity::find();
+    if !show_all {
+        sel = sel.filter(voicemails::Column::DomainId.eq(domain));
+    }
+    let paginator = sel.paginate(&txn, per_page);
     let total = paginator.num_items().await.unwrap_or(0);
     let rows = paginator
         .fetch_page(page.saturating_sub(1))

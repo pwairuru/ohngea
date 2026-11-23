@@ -157,6 +157,8 @@ struct ExtensionCreate {
 /// allowlist, `filter[extension]` alias.
 #[derive(Debug, Deserialize)]
 struct ListQuery {
+    #[serde(default)]
+    show: Option<String>,
     #[serde(default = "list_default_page")]
     page: u64,
     #[serde(default = "list_default_per_page")]
@@ -557,7 +559,7 @@ async fn list_extensions(
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "extension_view") {
         return (s, j).into_response();
     }
-    let (per_page, _) = crate::PageQuery {
+    let (per_page, _) = crate::PageQuery { show: None,
         page: pq.page,
         per_page: pq.per_page,
     }
@@ -576,6 +578,10 @@ async fn list_extensions(
                 .into_response();
         }
     };
+    let show_all = crate::tenant::wants_all(&claims, pq.show.as_deref(), "extension_all");
+    if show_all {
+        crate::routing_db::set_tenant_all(&txn).await;
+    }
     let domain_id = crate::routing_db::domain(&claims);
     // `q` parity with Python `list_extensions` service: substring match on
     // extension / effective_caller_id_name / number_alias / description.
@@ -586,8 +592,10 @@ async fn list_extensions(
         .or(pq.q)
         .map(|s| s.trim().to_owned())
         .filter(|s| !s.is_empty());
-    let mut sel = pbx_db::entities::extensions::Entity::find()
-        .filter(pbx_db::entities::extensions::Column::DomainId.eq(domain_id));
+    let mut sel = pbx_db::entities::extensions::Entity::find();
+    if !show_all {
+        sel = sel.filter(pbx_db::entities::extensions::Column::DomainId.eq(domain_id));
+    }
     if let Some(ref needle) = q {
         let pat = format!("%{needle}%");
         sel = sel.filter(

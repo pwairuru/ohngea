@@ -478,17 +478,27 @@ async fn create_rg(
         .into_response()
 }
 
-async fn list_rg(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
+async fn list_rg(Extension(claims): Extension<pbx_core::auth::Claims>,
+    axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
+) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "ring_group_view") {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
+    let show_all = crate::tenant::wants_all(&claims, show_q.show.as_deref(), "ring_group_all");
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(_) => return Json(serde_json::json!({"data": [], "total": 0})).into_response(),
+    };
+    if show_all {
+        crate::routing_db::set_tenant_all(&txn).await;
+    }
     let domain = crate::routing_db::domain(&claims);
-    let rows = ring_groups::Entity::find()
-        .filter(ring_groups::Column::DomainId.eq(domain))
-        .all(db)
-        .await
-        .unwrap_or_default();
+    let mut sel = ring_groups::Entity::find();
+    if !show_all {
+        sel = sel.filter(ring_groups::Column::DomainId.eq(domain));
+    }
+    let rows = sel.all(&txn).await.unwrap_or_default();
     let total = rows.len();
     let data: Vec<serde_json::Value> = rows
         .iter()

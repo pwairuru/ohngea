@@ -186,3 +186,17 @@ pub async fn tenant_txn(
     pbx_db::set_tenant(&txn, &id.to_string()).await?;
     Ok(txn)
 }
+
+/// Unlock cross-domain reads inside an open transaction: `SET LOCAL
+/// app.domain_all = '1'` (satisfies the `tenant_all_*` RLS policies).
+/// Call ONLY after [`crate::tenant::wants_all`] verified the JWT holds the
+/// resource's `_all` perm for this request. Best-effort like `set_tenant`
+/// (no-op on sqlite unit tests, which have no RLS anyway).
+pub async fn set_tenant_all<C>(conn: &C)
+where
+    C: sea_orm::ConnectionTrait,
+{
+    let _ = conn
+        .execute_unprepared("SET LOCAL app.domain_all = '1'")
+        .await;
+}

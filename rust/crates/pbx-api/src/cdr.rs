@@ -257,6 +257,20 @@ async fn store_row_ext(
     ext: CdrExtended,
 ) -> String {
     let db = crate::routing_db::conn().await;
+    // FORCE RLS: plain-pool inserts have no tenant GUC (`SET LOCAL` is
+    // txn-scoped), so every import was silently rejected. Insert inside an
+    // explicit tenant txn like the other writers (`tenant_txn` parity).
+    use sea_orm::TransactionTrait;
+    let txn = match db.begin().await {
+        Ok(t) => t,
+        Err(_) => return crate::routing_db::new_uuid(),
+    };
+    if pbx_db::set_tenant(&txn, &domain.to_string())
+        .await
+        .is_err()
+    {
+        return crate::routing_db::new_uuid();
+    }
     let id = crate::routing_db::new_uuid();
     let am = cdr::ActiveModel {
         cdr_uuid: Set(id.clone()),
@@ -289,8 +303,60 @@ async fn store_row_ext(
         malformed: Set(malformed),
         ..Default::default()
     };
-    let _ = am.insert(db).await;
-    id
+    // Return a fresh id (not the row id) when the insert fails so callers
+    // never mistake a dropped write for a stored CDR.
+    match am.insert(&txn).await {
+        Ok(_) => {
+            let _ = txn.commit().await;
+            id
+        }
+        Err(_) => crate::routing_db::new_uuid(),
+    }
+}
+
+/// Domain for mod_xml_cdr imports (Basic-auth, no tenant claim): resolve
+/// from CDR variables, python parity (`domain_uuid`, then `domain_name`,
+/// then SIP host). JWT path keeps claims domain.
+async fn import_domain(claims: &pbx_core::auth::Claims, text: &str) -> uuid::Uuid {
+    if claims.username != "freeswitch" {
+        return crate::routing_db::domain(claims);
+    }
+    if let Some(u) = find_tag(text, "domain_uuid") {
+        if let Ok(id) = u.trim().parse::<uuid::Uuid>() {
+            return id;
+        }
+    }
+    let db = crate::routing_db::conn().await;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    for tag in ["domain_name", "sip_to_host", "sip_from_host"] {
+        if let Some(name) = find_tag(text, tag) {
+            let name = name.trim();
+            if name.is_empty() || name.starts_with("192.168.") || name.starts_with("10.") {
+                continue;
+            }
+            if let Ok(Some(row)) = pbx_db::entities::domains::Entity::find()
+                .filter(pbx_db::entities::domains::Column::DomainName.eq(name))
+                .one(db)
+                .await
+            {
+                return row.domain_id;
+            }
+        }
+    }
+    // Loopback/inline legs carry no domain: attribute the CDR to the domain
+    // owning the dialplan context it routed through (mirrors the dialplan
+    // XML context-owner fallback). Never drop a CDR: nil domain last resort.
+    if let Some(ctx) = find_tag(text, "context").map(|s| s.trim().to_owned()).filter(|s| !s.is_empty()) {
+        if let Ok(Some(row)) = pbx_db::entities::dialplans::Entity::find()
+            .filter(pbx_db::entities::dialplans::Column::Context.eq(ctx))
+            .filter(pbx_db::entities::dialplans::Column::Enabled.eq(true))
+            .one(db)
+            .await
+        {
+            return row.domain_id;
+        }
+    }
+    crate::routing_db::domain(claims)
 }
 
 async fn import_cdr(
@@ -298,10 +364,9 @@ async fn import_cdr(
     headers: HeaderMap,
     body: Bytes,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_add") {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["cdr_add", "xml_cdr_add"]) {
         return (s, j).into_response();
     }
-    let domain = crate::routing_db::domain(&claims);
     let ctype = headers
         .get("content-type")
         .and_then(|v| v.to_str().ok())
@@ -311,6 +376,9 @@ async fn import_cdr(
     // `String` on the store paths below (single copy, not two).
     let text = String::from_utf8_lossy(&body);
     let trimmed = text.trim();
+    // Basic-auth (mod_xml_cdr) has no tenant claim: resolve the domain
+    // from the payload. RLS scoping happens inside the store txn.
+    let domain = import_domain(&claims, &text).await;
 
     // JSON path (tests + modern FS json_cdr).
     if ctype.contains("json") || trimmed.starts_with('{') {
@@ -366,6 +434,33 @@ async fn import_cdr(
     }
 
     // XML path: well-formed or not, always 200 + stored.
+    // mod_xml_cdr posts form-encoded `cdr=<url-encoded XML>` (Python
+    // `normalize_cdr_xml` parity): strip the prefix and percent-decode first.
+    let mut text = text.into_owned();
+    if let Some(rest) = text.strip_prefix("cdr=") {
+        let mut out = String::with_capacity(rest.len());
+        let b = rest.as_bytes();
+        let mut i = 0;
+        while i < b.len() {
+            if b[i] == b'%' && i + 2 < b.len() {
+                let h = |c: u8| match c {
+                    b'0'..=b'9' => Some(c - b'0'),
+                    b'a'..=b'f' => Some(c - b'a' + 10),
+                    b'A'..=b'F' => Some(c - b'A' + 10),
+                    _ => None,
+                };
+                if let (Some(h), Some(l)) = (h(b[i + 1]), h(b[i + 2])) {
+                    out.push((h << 4 | l) as char);
+                    i += 3;
+                    continue;
+                }
+            }
+            out.push(if b[i] == b'+' { ' ' } else { b[i] as char });
+            i += 1;
+        }
+        text = out;
+    }
+    let trimmed = text.trim().to_owned();
     // Quick well-formedness probe: balanced angle brackets check is best-effort;
     // either way we store the row.
     let malformed =
@@ -376,7 +471,7 @@ async fn import_cdr(
     let billsec = find_tag(&text, "billsec").and_then(|v| v.parse().ok());
     let duration = find_tag(&text, "duration").and_then(|v| v.parse().ok());
     let ext = parse_cdr_extended(&text);
-    let raw = text.into_owned();
+    let raw = text;
     let id = store_row_ext(
         domain,
         caller,
@@ -401,18 +496,34 @@ async fn list_cdr(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_view") {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["cdr_view", "xml_cdr_view", "xml_cdr_search", "xml_cdr_answered", "xml_cdr_extension_view", "xml_cdr_flow_view", "xml_cdr_json_view", "xml_cdr_log_view", "xml_cdr_transcript_view"]) {
         return (s, j).into_response();
     }
     let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
+    let show_all = crate::tenant::wants_all(&claims, pq.show.as_deref(), "xml_cdr_all");
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(_) => {
+            return (
+                crate::paged_headers("/api/v1/cdr", page, per_page, 0),
+                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+            )
+                .into_response();
+        }
+    };
+    if show_all {
+        crate::routing_db::set_tenant_all(&txn).await;
+    }
     let domain = crate::routing_db::domain(&claims);
     // DB-side pagination: only one page of models (with fat `raw_xml`)
     // is ever buffered, and `total` comes from `COUNT(*)`.
-    let paginator = cdr::Entity::find()
-        .filter(cdr::Column::DomainId.eq(domain))
-        .paginate(db, per_page);
+    let mut sel = cdr::Entity::find();
+    if !show_all {
+        sel = sel.filter(cdr::Column::DomainId.eq(domain));
+    }
+    let paginator = sel.paginate(&txn, per_page);
     let total = paginator.num_items().await.unwrap_or(0);
     let rows = paginator
         .fetch_page(page.saturating_sub(1))
@@ -450,7 +561,7 @@ async fn create_cdr(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<CdrJson>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_add") {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["cdr_add", "xml_cdr_add"]) {
         return (s, j).into_response();
     }
     let domain = crate::routing_db::domain(&claims);
@@ -483,7 +594,7 @@ async fn get_cdr(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(cdr_uuid): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_view") {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["cdr_view", "xml_cdr_view", "xml_cdr_search", "xml_cdr_answered", "xml_cdr_extension_view", "xml_cdr_flow_view", "xml_cdr_json_view", "xml_cdr_log_view", "xml_cdr_transcript_view"]) {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -527,7 +638,7 @@ async fn get_cdr(
 }
 
 async fn stats_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_view") {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["cdr_view", "xml_cdr_view", "xml_cdr_search", "xml_cdr_answered", "xml_cdr_extension_view", "xml_cdr_flow_view", "xml_cdr_json_view", "xml_cdr_log_view", "xml_cdr_transcript_view"]) {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -663,7 +774,7 @@ fn row_to_export(r: &cdr::Model) -> CdrExportRow {
 /// GET /api/v1/cdr/export — CSV dump (PHP `xml_cdr_export.php` parity,
 /// capped at 20k rows). Permission: `cdr_view`. Tenant-scoped.
 async fn export_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_view") {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["cdr_view", "xml_cdr_view", "xml_cdr_search", "xml_cdr_answered", "xml_cdr_extension_view", "xml_cdr_flow_view", "xml_cdr_json_view", "xml_cdr_log_view", "xml_cdr_transcript_view"]) {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -689,7 +800,7 @@ async fn export_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> imp
 async fn extension_summary_ep(
     Extension(claims): Extension<pbx_core::auth::Claims>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_view") {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["cdr_view", "xml_cdr_view", "xml_cdr_search", "xml_cdr_answered", "xml_cdr_extension_view", "xml_cdr_flow_view", "xml_cdr_json_view", "xml_cdr_log_view", "xml_cdr_transcript_view"]) {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -709,7 +820,7 @@ async fn extension_summary_ep(
 /// GET /api/v1/cdr/statistics — total/answered/missed + averages +
 /// by_hangup (PHP `xml_cdr_statistics*.php` parity). Permission: `cdr_view`.
 async fn statistics_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_view") {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["cdr_view", "xml_cdr_view", "xml_cdr_search", "xml_cdr_answered", "xml_cdr_extension_view", "xml_cdr_flow_view", "xml_cdr_json_view", "xml_cdr_log_view", "xml_cdr_transcript_view"]) {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -759,7 +870,7 @@ async fn archive_cdr(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<ArchiveReq>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "cdr_add") {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["cdr_add", "xml_cdr_add"]) {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -834,9 +945,14 @@ async fn archive_cdr(
 }
 
 pub fn cdr_router() -> Router {
-    Router::new()
+    // mod_xml_cdr posts with Basic `FS_XML_USER:FS_XML_PASSWORD` (no JWT);
+    // keep those import routes on the FS-tolerant guard (python parity:
+    // xml_cdr userinfo auth). Everything else stays Bearer-only.
+    let internal = Router::new()
         .route("/api/v1/cdr/import", post(import_cdr))
         .route("/api/v1/cdr/import/", post(import_cdr))
+        .layer(axum::middleware::from_fn(crate::require_fs_or_tenant));
+    Router::new()
         .route("/api/v1/cdr", post(create_cdr).get(list_cdr))
         .route("/api/v1/cdr/", post(create_cdr).get(list_cdr))
         .route("/api/v1/cdr/export", axum::routing::get(export_cdr))
@@ -851,6 +967,7 @@ pub fn cdr_router() -> Router {
         .route("/api/v1/cdr/archive", axum::routing::post(archive_cdr))
         .route("/api/v1/cdr/{cdr_uuid}", axum::routing::get(get_cdr))
         .layer(axum::middleware::from_fn(crate::require_tenant))
+        .merge(internal)
 }
 
 #[cfg(test)]

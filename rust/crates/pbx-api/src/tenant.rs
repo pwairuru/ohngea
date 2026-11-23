@@ -80,6 +80,57 @@ pub fn require_permission(
     deny_if_missing(claims, perm)
 }
 
+/// Any-of variant of [`deny_if_missing`]: allows shared endpoints that serve
+/// several PHP apps (e.g. `/api/v1/dialplans` backing dialplans +
+/// inbound/outbound routes, `/api/v1/cdr` backing xml_cdr views) to accept
+/// any of the PHP-equivalent permission names. Error names the first perm.
+#[must_use]
+pub fn deny_if_missing_any(
+    claims: &pbx_core::auth::Claims,
+    perms: &[&str],
+) -> Option<(StatusCode, axum::Json<serde_json::Value>)> {
+    if perms.iter().any(|p| has_permission(claims, p)) {
+        None
+    } else {
+        Some(forbidden(perms.first().copied().unwrap_or("unknown")))
+    }
+}
+
+/// `?show=all` cross-domain scope (PHP `show == 'all'` + `X_all` parity).
+/// True ONLY when the caller explicitly requests `show=all` AND holds the
+/// resource's `_all` permission. Default (no param, other values, or perm
+/// missing) stays tenant-scoped. Callers skip the `domain_id` query filter
+/// and set transaction-local `app.domain_all = '1'` (unlocks the
+/// `tenant_all_*` RLS policies) on this path only.
+#[must_use]
+pub fn wants_all(
+    claims: &pbx_core::auth::Claims,
+    show: Option<&str>,
+    all_perm: &str,
+) -> bool {
+    matches!(show.map(str::trim), Some("all")) && has_permission(claims, all_perm)
+}
+
+/// `{base}_domain` scope (PHP `gateway_domain` parity): holder additionally
+/// sees global (NULL-domain) rows alongside their own tenant's rows.
+#[must_use]
+pub fn sees_domain_nulls(claims: &pbx_core::auth::Claims, domain_perm: &str) -> bool {
+    has_permission(claims, domain_perm)
+}
+
+/// [`wants_all`] accepting any of several `_all` permissions (shared
+/// endpoints serving several PHP apps, e.g. `/api/v1/recordings` backing
+/// both `recording_all` and `call_recording_all` pages).
+#[must_use]
+pub fn wants_all_any(
+    claims: &pbx_core::auth::Claims,
+    show: Option<&str>,
+    all_perms: &[&str],
+) -> bool {
+    matches!(show.map(str::trim), Some("all"))
+        && all_perms.iter().any(|p| has_permission(claims, p))
+}
+
 /// Minimal standard-alphabet base64 decode (Basic-auth only, no new deps).
 fn b64_decode(s: &str) -> Option<Vec<u8>> {
     let mut out = Vec::with_capacity(s.len() * 3 / 4);

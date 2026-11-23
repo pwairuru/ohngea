@@ -1,4 +1,7 @@
+#![recursion_limit = "256"]
 mod analytics;
+mod admin;
+pub mod alias;
 mod auth;
 mod backup;
 mod call_centers;
@@ -8,8 +11,9 @@ mod conference_centers;
 mod conference_controls;
 mod conferences;
 mod contacts;
+mod dashboard;
 mod devices;
-mod dialplans;
+pub(crate) mod dialplans;
 mod domains;
 mod email_queue;
 mod extensions;
@@ -22,17 +26,20 @@ mod groups;
 mod health;
 mod ivr_menus;
 mod logs;
+mod menus;
 mod permissions;
 pub mod plugin_sandbox;
 pub mod plugins;
 pub mod provision;
 mod recordings;
+mod missing_tables;
 mod remaining;
 mod remaining_a;
 mod remaining_b;
 mod remaining_c;
 mod ring_groups;
 pub(crate) mod routing_db;
+mod services;
 mod settings;
 mod sip;
 mod system;
@@ -43,7 +50,7 @@ mod voicemails;
 
 pub use auth::auth_router;
 pub use health::health_router;
-pub use tenant::require_tenant;
+pub use tenant::{require_fs_or_tenant, require_tenant};
 // XML fragment builders (FS `dialplan`/`directory` wiring swap points).
 pub use cdr::{build_cdr_csv, build_cdr_xml, extension_summary, CdrExportRow};
 pub use conferences::build_conference_dialplan_xml;
@@ -90,6 +97,20 @@ pub struct PageQuery {
     pub page: u64,
     #[serde(default = "default_per_page")]
     pub per_page: u64,
+    /// `?show=all` cross-domain scope (PHP `show == 'all'` parity). Read via
+    /// [`tenant::wants_all`]; ignored unless the caller holds the resource's
+    /// `_all` permission, so adding it here is behavior-preserving for all
+    /// existing `PageQuery` lists.
+    #[serde(default)]
+    pub show: Option<String>,
+}
+
+/// `?show=all` passthrough for tenant-scoped list endpoints that define
+/// their own query struct (or none at all).
+#[derive(Debug, Default, serde::Deserialize)]
+pub struct ShowQuery {
+    #[serde(default)]
+    pub show: Option<String>,
 }
 
 fn default_page() -> u64 {
@@ -176,6 +197,9 @@ async fn api_root() -> axum::Json<serde_json::Value> {
             "freeswitch_status": {"href": "/api/v1/freeswitch/status"},
             "system_status": {"href": "/api/v1/system/status"},
             "system_info": {"href": "/api/v1/system/info"},
+            "services": {"href": "/api/v1/services"},
+            "default_settings": {"href": "/api/v1/default_settings"},
+            "domain_settings": {"href": "/api/v1/domain_settings"},
             "logs": {"href": "/api/v1/logs"},
             "plugins": {"href": "/api/v1/plugins"},
             "health": {"href": "/health"},
@@ -192,6 +216,10 @@ async fn openapi_json() -> axum::Json<serde_json::Value> {
         "paths": {
             "/api/v1": {"get": {"summary": "API root _links"}},
             "/api/v1/auth/login": {"post": {"summary": "Login"}},
+            "/api/v1/auth/mfa/enroll": {"post": {"summary": "Enroll TOTP"}},
+            "/api/v1/auth/mfa/verify": {"post": {"summary": "Verify TOTP"}},
+            "/api/v1/auth/password-reset/request": {"post": {"summary": "Request password reset"}},
+            "/api/v1/auth/password-reset/confirm": {"post": {"summary": "Confirm password reset"}},
             "/api/v1/auth/me": {"get": {"summary": "Current user"}},
             "/api/v1/auth/refresh": {"post": {"summary": "Refresh token"}},
             "/api/v1/auth/logout": {"post": {"summary": "Logout"}},
@@ -326,15 +354,20 @@ pub fn build_app() -> axum::Router {
         .merge(backup::backup_router())
         .merge(users::users_router())
         .merge(settings::settings_router())
+        .merge(services::services_router())
         .merge(groups::groups_router())
         .merge(domains::domains_bootstrap_router())
         .merge(domains::domains_router())
         .merge(permissions::permissions_router())
         .merge(contacts::contacts_router())
+        .merge(dashboard::dashboard_router())
         .merge(devices::devices_router())
         .merge(devices::device_sub_router())
         .merge(devices::provision_router())
         .merge(email_queue::email_queue_router())
+        .merge(admin::admin_router())
+        .merge(missing_tables::missing_tables_router())
+        .merge(menus::menus_router())
         .merge(remaining::remaining_router())
         .merge(plugins::plugins_router())
         .merge(plugins::plugins_available_router())

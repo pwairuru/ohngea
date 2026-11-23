@@ -33,6 +33,28 @@ struct DeviceCreate {
     domain: Option<String>,
     #[serde(default)]
     password: Option<String>,
+    #[serde(default)]
+    device_enabled_date: Option<String>,
+    #[serde(default)]
+    device_user_uuid: Option<String>,
+    #[serde(default)]
+    device_uuid_alternate: Option<String>,
+    #[serde(default)]
+    device_provisioned_agent: Option<String>,
+    #[serde(default)]
+    device_profile_uuid: Option<String>,
+    #[serde(default)]
+    device_template: Option<String>,
+    #[serde(default)]
+    device_location: Option<String>,
+    #[serde(default)]
+    device_serial_number: Option<String>,
+    #[serde(default)]
+    device_firmware_version: Option<String>,
+    #[serde(default)]
+    device_description: Option<String>,
+    #[serde(default)]
+    device_username: Option<String>,
 }
 
 fn valid_mac(m: &str) -> bool {
@@ -94,6 +116,10 @@ async fn create_device(
     let id = uuid::Uuid::now_v7();
     let now = crate::routing_db::now();
     let am = devices::ActiveModel {
+        device_enabled_date: Set(payload.device_enabled_date.as_deref().and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok())),
+        device_user_uuid: Set(payload.device_user_uuid.as_deref().and_then(|s| s.parse::<uuid::Uuid>().ok())),
+        device_uuid_alternate: Set(payload.device_uuid_alternate.clone()),
+        device_provisioned_agent: Set(payload.device_provisioned_agent.clone()),
         device_uuid: Set(id),
         mac: Set(mac.clone()),
         vendor: Set(vendor.clone()),
@@ -102,17 +128,17 @@ async fn create_device(
         enabled: Set(true),
         domain_id: Set(domain),
         extension_uuid: Set(None),
-        device_profile_uuid: Set(None),
+        device_profile_uuid: Set(payload.device_profile_uuid.as_deref().and_then(|s| s.parse::<uuid::Uuid>().ok())),
         device_address: Set(Some(mac.clone())),
         device_label: Set(payload.label.clone()),
         device_vendor: Set(Some(vendor.clone())),
         device_model: Set(payload.model.clone()),
-        device_firmware_version: Set(None),
-        device_template: Set(None),
-        device_location: Set(None),
-        device_serial_number: Set(None),
-        device_description: Set(None),
-        device_username: Set(None),
+        device_firmware_version: Set(payload.device_firmware_version.clone()),
+        device_template: Set(payload.device_template.clone()),
+        device_location: Set(payload.device_location.clone()),
+        device_serial_number: Set(payload.device_serial_number.clone()),
+        device_description: Set(payload.device_description.clone()),
+        device_username: Set(payload.device_username.clone()),
         device_password: Set(payload.password.clone()),
         device_provisioned_date: Set(None),
         device_provisioned_ip: Set(None),
@@ -161,10 +187,19 @@ async fn create_device(
             "mac": mac,
             "vendor": vendor,
             "model": payload.model,
+            "label": payload.label,
             "extension": payload.extension,
             "domain": payload.domain,
             "domain_id": domain,
             "enabled": true,
+            "device_profile_uuid": payload.device_profile_uuid,
+            "device_template": payload.device_template,
+            "device_location": payload.device_location,
+            "device_serial_number": payload.device_serial_number,
+            "device_firmware_version": payload.device_firmware_version,
+            "device_description": payload.device_description,
+            "device_username": payload.device_username,
+            "device_password": payload.password,
         })),
     )
         .into_response()
@@ -180,10 +215,26 @@ async fn list_devices(
     let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
+    let show_all = crate::tenant::wants_all(&claims, pq.show.as_deref(), "device_all");
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(_) => {
+            return (
+                crate::paged_headers("/api/v1/devices", page, per_page, 0),
+                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+            )
+                .into_response();
+        }
+    };
+    if show_all {
+        crate::routing_db::set_tenant_all(&txn).await;
+    }
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
-    let paginator = devices::Entity::find()
-        .filter(devices::Column::DomainId.eq(domain))
-        .paginate(db, per_page);
+    let mut sel = devices::Entity::find();
+    if !show_all {
+        sel = sel.filter(devices::Column::DomainId.eq(domain));
+    }
+    let paginator = sel.paginate(&txn, per_page);
     let total = paginator.num_items().await.unwrap_or(0);
     let rows = paginator
         .fetch_page(page.saturating_sub(1))
@@ -197,7 +248,7 @@ async fn list_devices(
     } else {
         device_lines::Entity::find()
             .filter(device_lines::Column::DeviceUuid.is_in(ids))
-            .all(db)
+            .all(&txn)
             .await
             .unwrap_or_default()
     };
@@ -209,23 +260,44 @@ async fn list_devices(
     let mut data = Vec::new();
     for r in rows.iter() {
         let line = first_line.get(&r.device_uuid).copied();
-        data.push(serde_json::json!({
-            "device_uuid": r.device_uuid,
-            "mac": r.mac,
-            "vendor": r.vendor,
-            "model": r.model,
-            "label": r.label,
-            "domain_id": r.domain_id,
-            "enabled": r.enabled,
-            "extension": line.as_ref().and_then(|l| l.user_id.clone()),
-            "domain": line.as_ref().and_then(|l| l.server_address.clone()),
-        }));
+        data.push(ser_device(r, line));
     }
     (
         crate::paged_headers("/api/v1/devices", page, per_page, total),
         Json(crate::paged_body(data, total, page, per_page)),
     )
         .into_response()
+}
+
+fn ser_device(r: &devices::Model, line: Option<&device_lines::Model>) -> serde_json::Value {
+    serde_json::json!({
+        "device_uuid": r.device_uuid,
+        "mac": r.mac,
+        "vendor": r.vendor,
+        "model": r.model,
+        "label": r.label,
+        "domain_id": r.domain_id,
+        "enabled": r.enabled,
+        "extension_uuid": r.extension_uuid,
+        "device_profile_uuid": r.device_profile_uuid,
+        "device_address": r.device_address,
+        "device_label": r.device_label,
+        "device_vendor": r.device_vendor,
+        "device_model": r.device_model,
+        "device_firmware_version": r.device_firmware_version,
+        "device_template": r.device_template,
+        "device_location": r.device_location,
+        "device_serial_number": r.device_serial_number,
+        "device_description": r.device_description,
+        "device_username": r.device_username,
+        "device_password": r.device_password,
+        "device_uuid_alternate": r.device_uuid_alternate,
+        "device_provisioned_date": r.device_provisioned_date,
+        "device_provisioned_ip": r.device_provisioned_ip,
+        "device_provisioned_method": r.device_provisioned_method,
+        "extension": line.as_ref().and_then(|l| l.user_id.clone()),
+        "domain": line.as_ref().and_then(|l| l.server_address.clone()),
+    })
 }
 
 async fn get_device(
@@ -243,17 +315,18 @@ async fn get_device(
         .await
         .unwrap_or(None);
     match row {
-        Some(r) => (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "device_uuid": r.device_uuid,
-                "mac": r.mac,
-                "vendor": r.vendor,
-                "model": r.model,
-                "enabled": r.enabled,
-            })),
-        )
-            .into_response(),
+        Some(r) => {
+            let line = device_lines::Entity::find()
+                .filter(device_lines::Column::DeviceUuid.eq(id))
+                .one(db)
+                .await
+                .unwrap_or(None);
+            (
+                StatusCode::OK,
+                Json(ser_device(&r, line.as_ref())),
+            )
+                .into_response()
+        }
         None => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -428,6 +501,7 @@ async fn patch_device(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_edit") {
         return (s, j).into_response();
     }
@@ -473,6 +547,43 @@ async fn patch_device(
         am.label = Set(Some(label.to_owned()));
         am.device_label = Set(Some(label.to_owned()));
     }
+    for key in [
+        "device_template",
+        "device_location",
+        "device_serial_number",
+        "device_firmware_version",
+        "device_description",
+        "device_username",
+        "device_password",
+        "device_model",
+        "device_vendor",
+        "device_address",
+    ] {
+        if let Some(v) = payload.get(key) {
+            let slot: &mut sea_orm::ActiveValue<Option<String>> = match key {
+                "device_template" => &mut am.device_template,
+                "device_location" => &mut am.device_location,
+                "device_serial_number" => &mut am.device_serial_number,
+                "device_firmware_version" => &mut am.device_firmware_version,
+                "device_description" => &mut am.device_description,
+                "device_username" => &mut am.device_username,
+                "device_password" => &mut am.device_password,
+                "device_model" => &mut am.device_model,
+                "device_vendor" => &mut am.device_vendor,
+                _ => &mut am.device_address,
+            };
+            if v.is_null() {
+                *slot = Set(None);
+            } else if let Some(s) = v.as_str() {
+                *slot = Set(Some(s.to_owned()));
+            }
+        }
+    }
+    if let Some(v) = payload.get("device_profile_uuid").and_then(|v| v.as_str()) {
+        if let Ok(u) = v.parse::<uuid::Uuid>() {
+            am.device_profile_uuid = Set(Some(u));
+        }
+    }
     if let Some(enabled) = payload.get("enabled").and_then(|v| v.as_bool()) {
         am.enabled = Set(enabled);
     }
@@ -480,13 +591,7 @@ async fn patch_device(
     match am.update(db).await {
         Ok(r) => (
             StatusCode::OK,
-            Json(serde_json::json!({
-                "device_uuid": r.device_uuid,
-                "mac": r.mac,
-                "vendor": r.vendor,
-                "model": r.model,
-                "enabled": r.enabled,
-            })),
+            Json(ser_device(&r, None)),
         )
             .into_response(),
         Err(e) => (
@@ -682,6 +787,7 @@ async fn patch_key(
     axum::extract::Path((id, kid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_edit") {
         return (s, j).into_response();
     }
@@ -872,6 +978,7 @@ async fn patch_line(
     axum::extract::Path((id, lid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_edit") {
         return (s, j).into_response();
     }
@@ -1057,6 +1164,7 @@ async fn patch_setting(
     axum::extract::Path((id, sid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_edit") {
         return (s, j).into_response();
     }
@@ -1131,16 +1239,32 @@ async fn list_profiles(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_view") {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["device_profile_view", "device_view"]) {
         return (s, j).into_response();
     }
     let (per_page, _) = pq.normalized();
     let page = pq.page.max(1);
     let db = crate::routing_db::conn().await;
+    let show_all = crate::tenant::wants_all(&claims, pq.show.as_deref(), "device_profile_all");
+    let txn = match crate::routing_db::tenant_txn(db, &claims).await {
+        Ok(t) => t,
+        Err(_) => {
+            return (
+                crate::paged_headers("/api/v1/device_profiles", page, per_page, 0),
+                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+            )
+                .into_response();
+        }
+    };
+    if show_all {
+        crate::routing_db::set_tenant_all(&txn).await;
+    }
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
-    let paginator = device_profiles::Entity::find()
-        .filter(device_profiles::Column::DomainId.eq(domain))
-        .paginate(db, per_page);
+    let mut sel = device_profiles::Entity::find();
+    if !show_all {
+        sel = sel.filter(device_profiles::Column::DomainId.eq(domain));
+    }
+    let paginator = sel.paginate(&txn, per_page);
     let total = paginator.num_items().await.unwrap_or(0);
     let rows = paginator
         .fetch_page(page.saturating_sub(1))
@@ -1230,6 +1354,7 @@ async fn patch_profile(
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    let payload = crate::alias::normalize(payload);
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "device_edit") {
         return (s, j).into_response();
     }
