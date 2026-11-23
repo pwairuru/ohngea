@@ -95,12 +95,8 @@ async fn domain_document(domain: &str) -> String {
         .await
         .unwrap_or_default();
     let settings = pbx_db::entities::extension_settings::Entity::find()
-        .filter(
-            pbx_db::entities::extension_settings::Column::ExtensionUuid.is_in(ext_ids),
-        )
-        .filter(
-            pbx_db::entities::extension_settings::Column::ExtensionSettingEnabled.eq(true),
-        )
+        .filter(pbx_db::entities::extension_settings::Column::ExtensionUuid.is_in(ext_ids))
+        .filter(pbx_db::entities::extension_settings::Column::ExtensionSettingEnabled.eq(true))
         .all(db)
         .await
         .unwrap_or_default();
@@ -135,10 +131,8 @@ fn directory_user_from_row(
     vm: Option<&pbx_db::entities::voicemails::Model>,
     settings: &[pbx_db::entities::extension_settings::Model],
 ) -> pbx_fs::xml::DirectoryUser {
-    let mut u = pbx_fs::xml::DirectoryUser::minimal(
-        &r.extension,
-        &r.password.clone().unwrap_or_default(),
-    );
+    let mut u =
+        pbx_fs::xml::DirectoryUser::minimal(&r.extension, &r.password.clone().unwrap_or_default());
     u.number_alias.clone_from(&r.number_alias);
     u.cidr.clone_from(&r.cidr);
     u.dial_string.clone_from(&r.dial_string);
@@ -153,11 +147,16 @@ fn directory_user_from_row(
     if !r.effective_caller_id_name.is_empty() {
         u.effective_caller_id_name = Some(r.effective_caller_id_name.clone());
     }
-    u.effective_caller_id_number.clone_from(&r.effective_caller_id_number);
-    u.outbound_caller_id_name.clone_from(&r.outbound_caller_id_name);
-    u.outbound_caller_id_number.clone_from(&r.outbound_caller_id_number);
-    u.emergency_caller_id_name.clone_from(&r.emergency_caller_id_name);
-    u.emergency_caller_id_number.clone_from(&r.emergency_caller_id_number);
+    u.effective_caller_id_number
+        .clone_from(&r.effective_caller_id_number);
+    u.outbound_caller_id_name
+        .clone_from(&r.outbound_caller_id_name);
+    u.outbound_caller_id_number
+        .clone_from(&r.outbound_caller_id_number);
+    u.emergency_caller_id_name
+        .clone_from(&r.emergency_caller_id_name);
+    u.emergency_caller_id_number
+        .clone_from(&r.emergency_caller_id_number);
     u.directory_first_name.clone_from(&r.directory_first_name);
     u.directory_last_name.clone_from(&r.directory_last_name);
     u.directory_visible = r.directory_visible;
@@ -178,11 +177,14 @@ fn directory_user_from_row(
     u.force_ping = r.force_ping;
     u.max_registrations.clone_from(&r.max_registrations);
     u.forward_all_enabled = r.forward_all_enabled;
-    u.forward_all_destination.clone_from(&r.forward_all_destination);
+    u.forward_all_destination
+        .clone_from(&r.forward_all_destination);
     u.forward_busy_enabled = r.forward_busy_enabled;
-    u.forward_busy_destination.clone_from(&r.forward_busy_destination);
+    u.forward_busy_destination
+        .clone_from(&r.forward_busy_destination);
     u.forward_no_answer_enabled = r.forward_no_answer_enabled;
-    u.forward_no_answer_destination.clone_from(&r.forward_no_answer_destination);
+    u.forward_no_answer_destination
+        .clone_from(&r.forward_no_answer_destination);
     u.forward_user_not_registered_enabled = r.forward_user_not_registered_enabled;
     u.forward_user_not_registered_destination
         .clone_from(&r.forward_user_not_registered_destination);
@@ -211,11 +213,13 @@ fn directory_user_from_row(
     u.settings = settings
         .iter()
         .filter_map(|s| {
-            s.extension_setting_type.as_deref().map(|t| pbx_fs::xml::ExtSetting {
-                setting_type: t.to_owned(),
-                name: s.extension_setting_name.clone(),
-                value: s.extension_setting_value.clone(),
-            })
+            s.extension_setting_type
+                .as_deref()
+                .map(|t| pbx_fs::xml::ExtSetting {
+                    setting_type: t.to_owned(),
+                    name: s.extension_setting_name.clone(),
+                    value: s.extension_setting_value.clone(),
+                })
         })
         .collect();
     let _ = domain_name;
@@ -288,12 +292,8 @@ async fn enriched_doc_for_row(
         .await
         .unwrap_or(None);
     let settings = pbx_db::entities::extension_settings::Entity::find()
-        .filter(
-            pbx_db::entities::extension_settings::Column::ExtensionUuid.eq(r.extension_uuid),
-        )
-        .filter(
-            pbx_db::entities::extension_settings::Column::ExtensionSettingEnabled.eq(true),
-        )
+        .filter(pbx_db::entities::extension_settings::Column::ExtensionUuid.eq(r.extension_uuid))
+        .filter(pbx_db::entities::extension_settings::Column::ExtensionSettingEnabled.eq(true))
         .all(db)
         .await
         .unwrap_or_default();
@@ -307,7 +307,7 @@ async fn enriched_doc_for_row(
 async fn dialplan_document_for_domain(claims_domain: &str, fallback_ctx: &str) -> String {
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
     let db = crate::routing_db::conn().await;
-    let domain_id = match claims_domain.parse::<uuid::Uuid>() {
+    let mut domain_id = match claims_domain.parse::<uuid::Uuid>() {
         Ok(id) => id,
         Err(_) => match pbx_db::entities::domains::Entity::find()
             .filter(pbx_db::entities::domains::Column::DomainName.eq(claims_domain.to_owned()))
@@ -323,13 +323,41 @@ async fn dialplan_document_for_domain(claims_domain: &str, fallback_ctx: &str) -
                 permissions: vec![],
                 exp: 0,
                 iat: 0,
+                jti: None,
             }),
         },
     };
+    // FS POST path: mod_xml_curl POSTs with empty query, so `require_fs_or_tenant`
+    // minted claims with nil-UUID tenant. Resolve the real tenant from the
+    // hunt context (usually the domain name) so POST dialplan hunts serve rows
+    // instead of the skeleton. JWT path keeps strict claims scoping.
+    if domain_id.is_nil() {
+        if let Ok(Some(d)) = pbx_db::entities::domains::Entity::find()
+            .filter(pbx_db::entities::domains::Column::DomainName.eq(fallback_ctx.to_owned()))
+            .one(db)
+            .await
+        {
+            domain_id = d.domain_id;
+        }
+    }
     // Tenant isolation: serve only this tenant's dialplans. Unknown tenants
     // (derived UUID with no rows) fall through to the static skeleton in
     // `dialplan_document` — never another tenant's rows.
-    dialplan_document(&domain_id, fallback_ctx).await
+    // Last-chance: if scoped rows are empty but the hunt context names a real
+    // domain, serve that domain (covers FS POST where claims were nil).
+    let doc = dialplan_document(&domain_id, fallback_ctx).await;
+    if doc.contains("local_extension") && fallback_ctx.contains('.') {
+        if let Ok(Some(d)) = pbx_db::entities::domains::Entity::find()
+            .filter(pbx_db::entities::domains::Column::DomainName.eq(fallback_ctx.to_owned()))
+            .one(db)
+            .await
+        {
+            if d.domain_id != domain_id {
+                return dialplan_document(&d.domain_id, fallback_ctx).await;
+            }
+        }
+    }
+    doc
 }
 
 async fn dialplan_document(domain_id: &uuid::Uuid, fallback_ctx: &str) -> String {
@@ -387,7 +415,11 @@ fn render_dialplan_document(
     rows.sort_by(|a, b| {
         a.context
             .cmp(&b.context)
-            .then(a.dialplan_order.unwrap_or(i32::MAX).cmp(&b.dialplan_order.unwrap_or(i32::MAX)))
+            .then(
+                a.dialplan_order
+                    .unwrap_or(i32::MAX)
+                    .cmp(&b.dialplan_order.unwrap_or(i32::MAX)),
+            )
             .then(a.name.cmp(&b.name))
             .then(a.dialplan_uuid.cmp(&b.dialplan_uuid))
     });
@@ -415,10 +447,13 @@ fn render_dialplan_document(
     let mut order: Vec<String> = Vec::new();
     let mut by_ctx: HashMap<String, Vec<&pbx_db::entities::dialplans::Model>> = HashMap::new();
     for r in &rows {
-        by_ctx.entry(r.context.clone()).or_insert_with(|| {
-            order.push(r.context.clone());
-            Vec::new()
-        }).push(r);
+        by_ctx
+            .entry(r.context.clone())
+            .or_insert_with(|| {
+                order.push(r.context.clone());
+                Vec::new()
+            })
+            .push(r);
     }
     for ctx in &order {
         out.push_str(&format!("  <context name=\"{}\">\n", xml_escape(ctx)));
@@ -614,7 +649,7 @@ fn render_extension(
                 ));
                 if let Some(d) = stamp_dom {
                     if let Some(name) = domain_names.get(&d) {
-                    ext.push_str(&format!(
+                        ext.push_str(&format!(
                         "        <action application=\"set\" data=\"domain_name={}\" inline=\"true\"/>\n",
                         xml_escape(name)
                     ));
@@ -637,13 +672,19 @@ fn render_extension(
 }
 
 fn xml_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 /// Task 5: DB-backed `configuration:{section}` documents (PHP
 /// `switch.php` + Lua `xml_handler` parity). Unknown sections keep the
 /// IP-fallback shell from `build_configuration_xml`.
 async fn render_configuration(key_value: &str, menu: &str) -> String {
+    if key_value.contains("acl.conf") {
+        return serve_acl_conf().await;
+    }
     if key_value.contains("sofia.conf") {
         return serve_sofia_conf().await;
     }
@@ -757,7 +798,8 @@ async fn serve_sofia_conf() -> String {
     for p in &profiles {
         let settings = pbx_db::entities::sip_profile_settings::Entity::find()
             .filter(
-                pbx_db::entities::sip_profile_settings::Column::SipProfileUuid.eq(p.sip_profile_uuid),
+                pbx_db::entities::sip_profile_settings::Column::SipProfileUuid
+                    .eq(p.sip_profile_uuid),
             )
             .filter(pbx_db::entities::sip_profile_settings::Column::Enabled.eq(true))
             .all(db)
@@ -778,8 +820,12 @@ async fn serve_sofia_conf() -> String {
             .map(|d| {
                 (
                     d.domain_name,
-                    d.domain_alias.filter(|s| !s.is_empty()).unwrap_or_else(|| "false".to_owned()),
-                    d.domain_parse.filter(|s| !s.is_empty()).unwrap_or_else(|| "false".to_owned()),
+                    d.domain_alias
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or_else(|| "false".to_owned()),
+                    d.domain_parse
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or_else(|| "false".to_owned()),
                 )
             })
             .collect();
@@ -817,9 +863,7 @@ async fn serve_sofia_conf() -> String {
     }
     let globals = pbx_db::entities::sofia_global_settings::Entity::find()
         .filter(pbx_db::entities::sofia_global_settings::Column::GlobalSettingEnabled.eq(true))
-        .order_by_asc(
-            pbx_db::entities::sofia_global_settings::Column::GlobalSettingName,
-        )
+        .order_by_asc(pbx_db::entities::sofia_global_settings::Column::GlobalSettingName)
         .all(db)
         .await
         .unwrap_or_default()
@@ -874,7 +918,10 @@ async fn serve_callcenter_conf() -> String {
         .await
         .unwrap_or_default();
     let by_queue: std::collections::HashMap<String, &pbx_db::entities::call_centers::Model> =
-        queues.iter().map(|q| (q.call_center_queue_uuid.clone(), q)).collect();
+        queues
+            .iter()
+            .map(|q| (q.call_center_queue_uuid.clone(), q))
+            .collect();
     let qinputs: Vec<(pbx_fs::config::CallcenterQueueInput, String)> = queues
         .iter()
         .map(|q| {
@@ -963,8 +1010,10 @@ async fn serve_ivr_conf(menu_uuid: &str) -> String {
     }
     let menus = mq.all(db).await.unwrap_or_default();
     let names = domain_name_map(db).await;
-    let mut out: Vec<(pbx_fs::config::IvrMenuInput, Vec<pbx_fs::config::IvrOptionInput>)> =
-        Vec::with_capacity(menus.len());
+    let mut out: Vec<(
+        pbx_fs::config::IvrMenuInput,
+        Vec<pbx_fs::config::IvrOptionInput>,
+    )> = Vec::with_capacity(menus.len());
     for m in &menus {
         let opts = pbx_db::entities::ivr_menu_options::Entity::find()
             .filter(
@@ -1012,10 +1061,10 @@ async fn serve_ivr_conf(menu_uuid: &str) -> String {
             opts,
         ));
     }
-    let refs: Vec<(&pbx_fs::config::IvrMenuInput, &[pbx_fs::config::IvrOptionInput])> = out
-        .iter()
-        .map(|(m, o)| (m, o.as_slice()))
-        .collect();
+    let refs: Vec<(
+        &pbx_fs::config::IvrMenuInput,
+        &[pbx_fs::config::IvrOptionInput],
+    )> = out.iter().map(|(m, o)| (m, o.as_slice())).collect();
     pbx_fs::config::build_ivr_xml(&refs)
 }
 
@@ -1066,9 +1115,7 @@ async fn serve_conference_conf() -> String {
                 pbx_db::entities::conference_control_details::Column::ConferenceControlUuid
                     .eq(c.conference_control_uuid.clone()),
             )
-            .filter(
-                pbx_db::entities::conference_control_details::Column::ControlEnabled.eq(true),
-            )
+            .filter(pbx_db::entities::conference_control_details::Column::ControlEnabled.eq(true))
             .all(db)
             .await
             .unwrap_or_default()
@@ -1121,6 +1168,47 @@ async fn serve_local_stream_conf() -> String {
         })
         .collect();
     pbx_fs::config::build_local_stream_xml(&inputs)
+}
+
+/// `acl.conf` from access_controls + nodes (Lua `acl.conf.lua` + Python
+/// `build_acl_xml` parity). Serves all domains (FS needs global view).
+async fn serve_acl_conf() -> String {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    let db = crate::routing_db::conn().await;
+    let names = domain_name_map(db).await;
+    let acls = pbx_db::entities::access_controls::Entity::find()
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let mut out: Vec<(pbx_fs::config::AclInput, String)> = Vec::with_capacity(acls.len());
+    for a in &acls {
+        let nodes = pbx_db::entities::access_control_nodes::Entity::find()
+            .filter(
+                pbx_db::entities::access_control_nodes::Column::AccessControlUuid
+                    .eq(a.access_control_uuid.clone()),
+            )
+            .all(db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|n| pbx_fs::config::AclNodeInput {
+                node_type: n.node_type,
+                cidr: n.node_cidr,
+            })
+            .collect();
+        out.push((
+            pbx_fs::config::AclInput {
+                name: a.access_control_name.clone(),
+                default: a.access_control_default.clone(),
+                nodes,
+            },
+            names
+                .get(&a.domain_id)
+                .cloned()
+                .unwrap_or_else(|| format!("tenant-{}", a.domain_id)),
+        ));
+    }
+    pbx_fs::config::build_acl_xml(&out)
 }
 async fn cached_or_render_async<F, Fut>(key: &str, render: F) -> String
 where
@@ -1264,10 +1352,12 @@ async fn fs_xml_handler(
                 format!("configuration:{key_value}")
             };
             let kv = key_value.clone();
-            let doc = cached_or_render_async(&key, || async move {
-                render_configuration(&kv, &menu).await
-            })
-            .await;
+            let doc =
+                cached_or_render_async(
+                    &key,
+                    || async move { render_configuration(&kv, &menu).await },
+                )
+                .await;
             (
                 StatusCode::OK,
                 [(axum::http::header::CONTENT_TYPE, "application/xml")],
@@ -1376,12 +1466,34 @@ mod dialplan_render_tests {
         let dp_uuid = "22222222-2222-2222-2222-222222222222";
         let rows = vec![dp(dp_uuid, "xfer", "default", 100, true)];
         let dets = vec![
-            det(dp_uuid, "condition", "destination_number", "^1000$", 0, 10, None, None, Some(true)),
-            det(dp_uuid, "action", "transfer", "1000 XML default", 0, 20, None, None, Some(true)),
+            det(
+                dp_uuid,
+                "condition",
+                "destination_number",
+                "^1000$",
+                0,
+                10,
+                None,
+                None,
+                Some(true),
+            ),
+            det(
+                dp_uuid,
+                "action",
+                "transfer",
+                "1000 XML default",
+                0,
+                20,
+                None,
+                None,
+                Some(true),
+            ),
         ];
         let xml = render_dialplan_document(&rows, &dets, &domains(), "default");
         assert!(
-            xml.contains(&format!("<extension name=\"xfer\" continue=\"true\" uuid=\"{dp_uuid}\">")),
+            xml.contains(&format!(
+                "<extension name=\"xfer\" continue=\"true\" uuid=\"{dp_uuid}\">"
+            )),
             "extension attrs: {xml}"
         );
     }
@@ -1391,8 +1503,28 @@ mod dialplan_render_tests {
         let dp_uuid = "33333333-3333-3333-3333-333333333333";
         let rows = vec![dp(dp_uuid, "nobrk", "default", 100, false)];
         let dets = vec![
-            det(dp_uuid, "condition", "destination_number", "^1001$", 0, 10, None, None, Some(true)),
-            det(dp_uuid, "action", "transfer", "1001 XML default", 0, 20, None, None, Some(true)),
+            det(
+                dp_uuid,
+                "condition",
+                "destination_number",
+                "^1001$",
+                0,
+                10,
+                None,
+                None,
+                Some(true),
+            ),
+            det(
+                dp_uuid,
+                "action",
+                "transfer",
+                "1001 XML default",
+                0,
+                20,
+                None,
+                None,
+                Some(true),
+            ),
         ];
         let xml = render_dialplan_document(&rows, &dets, &domains(), "default");
         assert!(!xml.contains("break="), "no forced break: {xml}");
@@ -1403,11 +1535,34 @@ mod dialplan_render_tests {
         let dp_uuid = "44444444-4444-4444-4444-444444444444";
         let rows = vec![dp(dp_uuid, "brk", "default", 100, false)];
         let dets = vec![
-            det(dp_uuid, "condition", "destination_number", "^1002$", 0, 10, Some("on-false"), None, Some(true)),
-            det(dp_uuid, "action", "set", "x=1", 0, 20, None, Some("true"), Some(true)),
+            det(
+                dp_uuid,
+                "condition",
+                "destination_number",
+                "^1002$",
+                0,
+                10,
+                Some("on-false"),
+                None,
+                Some(true),
+            ),
+            det(
+                dp_uuid,
+                "action",
+                "set",
+                "x=1",
+                0,
+                20,
+                None,
+                Some("true"),
+                Some(true),
+            ),
         ];
         let xml = render_dialplan_document(&rows, &dets, &domains(), "default");
-        assert!(xml.contains("break=\"on-false\""), "break passthrough: {xml}");
+        assert!(
+            xml.contains("break=\"on-false\""),
+            "break passthrough: {xml}"
+        );
         assert!(xml.contains("inline=\"true\""), "inline passthrough: {xml}");
     }
 
@@ -1416,16 +1571,50 @@ mod dialplan_render_tests {
         let dp_uuid = "55555555-5555-5555-5555-555555555555";
         let rows = vec![dp(dp_uuid, "tc", "default", 100, false)];
         let dets = vec![
-            det(dp_uuid, "condition", "hour", "8-17", 0, 10, None, None, Some(true)),
-            det(dp_uuid, "condition", "minute", "0-59", 0, 20, None, None, Some(true)),
-            det(dp_uuid, "action", "transfer", "1000 XML default", 0, 30, None, None, Some(true)),
+            det(
+                dp_uuid,
+                "condition",
+                "hour",
+                "8-17",
+                0,
+                10,
+                None,
+                None,
+                Some(true),
+            ),
+            det(
+                dp_uuid,
+                "condition",
+                "minute",
+                "0-59",
+                0,
+                20,
+                None,
+                None,
+                Some(true),
+            ),
+            det(
+                dp_uuid,
+                "action",
+                "transfer",
+                "1000 XML default",
+                0,
+                30,
+                None,
+                None,
+                Some(true),
+            ),
         ];
         let xml = render_dialplan_document(&rows, &dets, &domains(), "default");
         assert!(
             xml.contains("hour=\"8-17\"") && xml.contains("minute=\"0-59\""),
             "time merge: {xml}"
         );
-        assert_eq!(xml.matches("<condition").count(), 1, "single merged condition: {xml}");
+        assert_eq!(
+            xml.matches("<condition").count(),
+            1,
+            "single merged condition: {xml}"
+        );
     }
 
     #[test]
@@ -1433,9 +1622,39 @@ mod dialplan_render_tests {
         let dp_uuid = "66666666-6666-6666-6666-666666666666";
         let rows = vec![dp(dp_uuid, "unesc", "default", 100, false)];
         let dets = vec![
-            det(dp_uuid, "condition", "destination_number", "^1003$", 0, 10, None, None, Some(true)),
-            det(dp_uuid, "action", "set", "x=$${domain_name}", 0, 20, None, None, Some(true)),
-            det(dp_uuid, "action", "hangup", "", 0, 30, None, None, Some(false)),
+            det(
+                dp_uuid,
+                "condition",
+                "destination_number",
+                "^1003$",
+                0,
+                10,
+                None,
+                None,
+                Some(true),
+            ),
+            det(
+                dp_uuid,
+                "action",
+                "set",
+                "x=$${domain_name}",
+                0,
+                20,
+                None,
+                None,
+                Some(true),
+            ),
+            det(
+                dp_uuid,
+                "action",
+                "hangup",
+                "",
+                0,
+                30,
+                None,
+                None,
+                Some(false),
+            ),
         ];
         let xml = render_dialplan_document(&rows, &dets, &domains(), "default");
         assert!(xml.contains("${domain_name}"), "$$ unescape: {xml}");
@@ -1448,13 +1667,39 @@ mod dialplan_render_tests {
         let dp_uuid = "77777777-7777-7777-7777-777777777777";
         let rows = vec![dp(dp_uuid, "did", "public", 100, false)];
         let dets = vec![
-            det(dp_uuid, "condition", "destination_number", "^1555$", 0, 10, None, None, Some(true)),
-            det(dp_uuid, "action", "transfer", "1000 XML default", 0, 20, None, None, Some(true)),
+            det(
+                dp_uuid,
+                "condition",
+                "destination_number",
+                "^1555$",
+                0,
+                10,
+                None,
+                None,
+                Some(true),
+            ),
+            det(
+                dp_uuid,
+                "action",
+                "transfer",
+                "1000 XML default",
+                0,
+                20,
+                None,
+                None,
+                Some(true),
+            ),
         ];
         let xml = render_dialplan_document(&rows, &dets, &domains(), "public");
         assert!(xml.contains("call_direction=inbound"), "prologue: {xml}");
-        assert!(xml.contains("domain_uuid=11111111-1111-1111-1111-111111111111"), "prologue uuid: {xml}");
-        assert!(xml.contains("domain_name=example.com"), "prologue name: {xml}");
+        assert!(
+            xml.contains("domain_uuid=11111111-1111-1111-1111-111111111111"),
+            "prologue uuid: {xml}"
+        );
+        assert!(
+            xml.contains("domain_name=example.com"),
+            "prologue name: {xml}"
+        );
     }
 
     #[test]
@@ -1467,10 +1712,50 @@ mod dialplan_render_tests {
             dp(a_uuid, "alpha", "default", 100, false),
         ];
         let dets = vec![
-            det(b_uuid, "action", "transfer", "x", 0, 10, None, None, Some(true)),
-            det(b_uuid, "condition", "destination_number", "^9$", 0, 20, None, None, Some(true)),
-            det(a_uuid, "action", "transfer", "y", 0, 10, None, None, Some(true)),
-            det(a_uuid, "condition", "destination_number", "^8$", 0, 20, None, None, Some(true)),
+            det(
+                b_uuid,
+                "action",
+                "transfer",
+                "x",
+                0,
+                10,
+                None,
+                None,
+                Some(true),
+            ),
+            det(
+                b_uuid,
+                "condition",
+                "destination_number",
+                "^9$",
+                0,
+                20,
+                None,
+                None,
+                Some(true),
+            ),
+            det(
+                a_uuid,
+                "action",
+                "transfer",
+                "y",
+                0,
+                10,
+                None,
+                None,
+                Some(true),
+            ),
+            det(
+                a_uuid,
+                "condition",
+                "destination_number",
+                "^8$",
+                0,
+                20,
+                None,
+                None,
+                Some(true),
+            ),
         ];
         let xml = render_dialplan_document(&rows, &dets, &domains(), "default");
         let pa = xml.find("name=\"alpha\"").unwrap();
@@ -1487,8 +1772,28 @@ mod dialplan_render_tests {
         let dp_uuid = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
         let rows = vec![dp(dp_uuid, "rx", "default", 100, false)];
         let dets = vec![
-            det(dp_uuid, "regex", "sip_from_uri", "^sip:", 0, 10, None, None, Some(true)),
-            det(dp_uuid, "action", "transfer", "1000 XML default", 0, 20, None, None, Some(true)),
+            det(
+                dp_uuid,
+                "regex",
+                "sip_from_uri",
+                "^sip:",
+                0,
+                10,
+                None,
+                None,
+                Some(true),
+            ),
+            det(
+                dp_uuid,
+                "action",
+                "transfer",
+                "1000 XML default",
+                0,
+                20,
+                None,
+                None,
+                Some(true),
+            ),
         ];
         let xml = render_dialplan_document(&rows, &dets, &domains(), "default");
         assert!(xml.contains("<regex"), "regex element: {xml}");

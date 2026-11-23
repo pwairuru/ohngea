@@ -103,11 +103,7 @@ pub fn deny_if_missing_any(
 /// and set transaction-local `app.domain_all = '1'` (unlocks the
 /// `tenant_all_*` RLS policies) on this path only.
 #[must_use]
-pub fn wants_all(
-    claims: &pbx_core::auth::Claims,
-    show: Option<&str>,
-    all_perm: &str,
-) -> bool {
+pub fn wants_all(claims: &pbx_core::auth::Claims, show: Option<&str>, all_perm: &str) -> bool {
     matches!(show.map(str::trim), Some("all")) && has_permission(claims, all_perm)
 }
 
@@ -235,7 +231,9 @@ pub async fn require_fs_or_tenant(
     let user = std::env::var("FS_XML_USER").unwrap_or_else(|_| "freeswitch".to_owned());
     let pass = std::env::var("FS_XML_PASSWORD").unwrap_or_else(|_| "ClueCon".to_owned());
     let want = format!("{user}:{pass}");
-    let ok = b64_decode(b64).map(|b| b == want.as_bytes()).unwrap_or(false);
+    let ok = b64_decode(b64)
+        .map(|b| b == want.as_bytes())
+        .unwrap_or(false);
     // Constant-time-ish: never short-circuit on env presence.
     if !ok {
         return Err(StatusCode::UNAUTHORIZED);
@@ -249,6 +247,7 @@ pub async fn require_fs_or_tenant(
         permissions: vec!["*".to_string()],
         exp: 0,
         iat: 0,
+        jti: None,
     };
     let db = crate::routing_db::conn().await;
     crate::routing_db::set_tenant(db, &claims).await;
