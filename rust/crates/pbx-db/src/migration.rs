@@ -352,6 +352,20 @@ const DDL_TABLES: &[&str] = &[
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS contact_organization VARCHAR(128)",
     "CREATE INDEX IF NOT EXISTS ix_users_domain ON users (domain_id)",
     "CREATE INDEX IF NOT EXISTS ix_users_username ON users (username)",
+    // Refresh-token rotation families (blocker 4.1): one row per refresh
+    // jti; reuse of a non-latest row revokes the family.
+    "CREATE TABLE IF NOT EXISTS refresh_tokens (
+      token_uuid UUID PRIMARY KEY,
+      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      user_uuid UUID NOT NULL,
+      family_id UUID NOT NULL,
+      replaced_by UUID,
+      revoked BOOLEAN NOT NULL DEFAULT FALSE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    )",
+    "CREATE INDEX IF NOT EXISTS ix_refresh_tokens_family ON refresh_tokens (family_id)",
     "CREATE TABLE IF NOT EXISTS groups (
       group_uuid UUID PRIMARY KEY,
       domain_id UUID REFERENCES domains (domain_id) ON DELETE CASCADE,
@@ -2160,6 +2174,7 @@ const STRICT_TABLES: &[&str] = &[
     "voicemail_greetings",
     "voicemail_messages",
     "voicemail_options",
+    "refresh_tokens",
     "conference_centers",
     "conference_rooms",
     "conference_room_users",

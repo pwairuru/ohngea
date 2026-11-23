@@ -15,6 +15,10 @@ pub struct Claims {
     pub exp: usize,
     #[serde(default = "default_iat")]
     pub iat: usize,
+    /// Refresh-token binding: `jti` of the rotation family row. Absent on
+    /// legacy access tokens (stateless re-mint path) and MFA challenges.
+    #[serde(default)]
+    pub jti: Option<String>,
 }
 
 fn default_username() -> String {
@@ -71,6 +75,19 @@ pub fn encode_claims_with_exp(
     permissions: &[String],
     ttl_secs: u64,
 ) -> String {
+    encode_claims_full(sub, domain_id, username, permissions, ttl_secs, None)
+}
+
+/// Access/refresh pair mint with a `jti` binding the token to a server-side
+/// rotation row (`refresh_tokens`). `None` preserves legacy stateless tokens.
+pub fn encode_claims_full(
+    sub: &str,
+    domain_id: &str,
+    username: &str,
+    permissions: &[String],
+    ttl_secs: u64,
+    jti: Option<&str>,
+) -> String {
     let now = now_secs();
     let claims = Claims {
         sub: sub.to_owned(),
@@ -79,6 +96,7 @@ pub fn encode_claims_with_exp(
         permissions: permissions.to_vec(),
         exp: now + ttl_secs as usize,
         iat: now,
+        jti: jti.map(str::to_owned),
     };
     jsonwebtoken::encode(
         &jsonwebtoken::Header::default(),

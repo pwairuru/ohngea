@@ -26,6 +26,218 @@ struct TokenResponse {
     access_token: String,
     token_type: String,
     expires_in: u32,
+    /// Present on login + refresh-token rotation; absent (`None`) on the
+    /// legacy stateless access-token re-mint path.
+    refresh_token: Option<String>,
+}
+
+/// Refresh-token lifetime: 30 days (access tokens stay 1h).
+const REFRESH_TTL_SECS: u64 = 30 * 24 * 3600;
+
+/// Ensure the tenant `domains` row exists (idempotent) so rotation
+/// family rows satisfy their FK on fresh/stub tenants.
+async fn ensure_domain_row<C>(db: &C, did: uuid::Uuid, dname: &str)
+where
+    C: sea_orm::ConnectionTrait,
+{
+    use sea_orm::EntityTrait;
+    if pbx_db::entities::domains::Entity::find_by_id(did)
+        .one(db)
+        .await
+        .unwrap_or(None)
+        .is_some()
+    {
+        return;
+    }
+    let now = crate::routing_db::now();
+    let am = pbx_db::entities::domains::ActiveModel {
+        domain_id: sea_orm::Set(did),
+        domain_name: sea_orm::Set(dname.to_owned()),
+        enabled: sea_orm::Set(true),
+        description: sea_orm::Set(None),
+        created_at: sea_orm::Set(now),
+        updated_at: sea_orm::Set(now),
+    };
+    let _ = pbx_db::entities::domains::Entity::insert(am).exec(db).await;
+}
+
+/// Tenant-scoped transaction for login-time writes (no claims exist yet).
+/// Mirrors `routing_db::tenant_txn` with an explicit domain.
+async fn scoped_txn(domain: uuid::Uuid) -> Result<sea_orm::DatabaseTransaction, ()> {
+    use sea_orm::TransactionTrait;
+    let db = crate::routing_db::conn().await;
+    let txn = db.begin().await.map_err(|_| ())?;
+    pbx_db::set_tenant(&txn, &domain.to_string())
+        .await
+        .map_err(|_| ())?;
+    Ok(txn)
+}
+
+/// Login pair: short-lived access + rotation family, falling back to a
+/// stateless access token if the family row cannot be stored.
+async fn login_pair_for(
+    user: &pbx_db::entities::users::Model,
+    perms: &[String],
+) -> (HeaderMap, Json<TokenResponse>) {
+    let access = full_token_for(user, perms);
+    let refresh = match scoped_txn(user.domain_id).await {
+        Ok(txn) => {
+            ensure_domain_row(&txn, user.domain_id, &user.domain_id.to_string()).await;
+            let r =
+                mint_refresh_family(&txn, user.user_uuid, user.domain_id, &user.username, perms)
+                    .await;
+            let _ = txn.commit().await;
+            r
+        }
+        Err(_) => None,
+    };
+    token_pair_response(access, refresh)
+}
+
+/// Mint a refresh-token family row + signed refresh JWT (rotation root).
+/// The caller owns the transaction (tenant-scoped so Postgres RLS sees
+/// the insert); on failure returns `None` and login falls back to a
+/// stateless access token rather than failing the login.
+async fn mint_refresh_family<C>(
+    db: &C,
+    user_uuid: uuid::Uuid,
+    domain: uuid::Uuid,
+    username: &str,
+    permissions: &[String],
+) -> Option<String>
+where
+    C: sea_orm::ConnectionTrait,
+{
+    use pbx_db::entities::refresh_tokens;
+    use sea_orm::{ActiveModelTrait, Set};
+    let jti = uuid::Uuid::now_v7();
+    let now = crate::routing_db::now();
+    let am = refresh_tokens::ActiveModel {
+        token_uuid: Set(jti),
+        domain_id: Set(domain),
+        user_uuid: Set(user_uuid),
+        family_id: Set(uuid::Uuid::now_v7()),
+        replaced_by: Set(None),
+        revoked: Set(false),
+        expires_at: Set(now + chrono::Duration::seconds(REFRESH_TTL_SECS as i64)),
+        created_at: Set(now),
+        updated_at: Set(now),
+    };
+    if am.insert(db).await.is_err() {
+        return None;
+    }
+    Some(pbx_core::auth::encode_claims_full(
+        &user_uuid.to_string(),
+        &domain.to_string(),
+        username,
+        permissions,
+        REFRESH_TTL_SECS,
+        Some(&jti.to_string()),
+    ))
+}
+
+/// Revoke a whole rotation family (reuse detection).
+async fn revoke_family<C>(db: &C, family_id: uuid::Uuid)
+where
+    C: sea_orm::ConnectionTrait,
+{
+    use pbx_db::entities::refresh_tokens;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    let _ = refresh_tokens::Entity::update_many()
+        .col_expr(
+            refresh_tokens::Column::Revoked,
+            sea_orm::sea_query::Expr::value(true),
+        )
+        .filter(refresh_tokens::Column::FamilyId.eq(family_id))
+        .exec(db)
+        .await;
+}
+
+/// Rotation path: validate the presented refresh `jti`, mint the successor
+/// pair in the same family, revoke the presented row. Any other outcome
+/// (unknown/rotated/revoked/expired/bound-mismatch row) revokes the claimed
+/// family and answers 401 — a stolen token is single-use.
+async fn rotate_refresh(
+    claims: &pbx_core::auth::Claims,
+    jti: uuid::Uuid,
+) -> Result<(HeaderMap, Json<TokenResponse>), StatusCode> {
+    use pbx_db::entities::refresh_tokens;
+    use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+    let db = crate::routing_db::conn().await;
+    let domain = crate::routing_db::domain(claims);
+    let txn = crate::routing_db::tenant_txn(db, claims)
+        .await
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+    let row = refresh_tokens::Entity::find_by_id(jti)
+        .filter(refresh_tokens::Column::DomainId.eq(domain))
+        .one(&txn)
+        .await
+        .unwrap_or(None);
+    let now = crate::routing_db::now();
+    let valid = match &row {
+        Some(r) => {
+            !r.revoked
+                && r.replaced_by.is_none()
+                && r.expires_at > now
+                && r.user_uuid.to_string() == claims.sub
+                && r.domain_id == domain
+        }
+        None => false,
+    };
+    if !valid {
+        if let Some(r) = row {
+            revoke_family(&txn, r.family_id).await;
+            let _ = txn.commit().await;
+        }
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let r = row.unwrap_or_else(|| unreachable!("checked above"));
+    // Fresh permissions from the user row when it exists; otherwise the
+    // presented claims (stub/test logins have no DB user — same trust as
+    // the legacy stateless path).
+    let uid = r.user_uuid;
+    let family = r.family_id;
+    let (username, perms) = match pbx_db::entities::users::Entity::find_by_id(uid)
+        .one(&txn)
+        .await
+        .unwrap_or(None)
+    {
+        Some(u) if u.enabled => (u.username, user_permissions(&txn, uid).await),
+        Some(u) => (u.username, Vec::new()),
+        None => (claims.username.clone(), claims.permissions.clone()),
+    };
+    let access =
+        pbx_core::auth::encode_claims(&uid.to_string(), &domain.to_string(), &username, &perms);
+    let jti2 = uuid::Uuid::now_v7();
+    let refresh = pbx_core::auth::encode_claims_full(
+        &uid.to_string(),
+        &domain.to_string(),
+        &username,
+        &perms,
+        REFRESH_TTL_SECS,
+        Some(&jti2.to_string()),
+    );
+    let mut am: refresh_tokens::ActiveModel = r.into();
+    am.revoked = Set(true);
+    am.replaced_by = Set(Some(jti2));
+    am.updated_at = Set(now);
+    let _ = am.update(&txn).await;
+    let am2 = refresh_tokens::ActiveModel {
+        token_uuid: Set(jti2),
+        domain_id: Set(domain),
+        user_uuid: Set(uid),
+        family_id: Set(family),
+        replaced_by: Set(None),
+        revoked: Set(false),
+        expires_at: Set(now + chrono::Duration::seconds(REFRESH_TTL_SECS as i64)),
+        created_at: Set(now),
+        updated_at: Set(now),
+    };
+    if am2.insert(&txn).await.is_err() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let _ = txn.commit().await;
+    Ok(token_pair_response(access, Some(refresh)))
 }
 
 // UserRead parity: app/auth/schemas.py::UserRead
@@ -53,14 +265,22 @@ fn set_auth_cookie(headers: &mut HeaderMap, token: &str) {
 }
 
 fn token_response(token: String) -> (HeaderMap, Json<TokenResponse>) {
+    token_pair_response(token, None)
+}
+
+fn token_pair_response(
+    access: String,
+    refresh: Option<String>,
+) -> (HeaderMap, Json<TokenResponse>) {
     let mut headers = HeaderMap::new();
-    set_auth_cookie(&mut headers, &token);
+    set_auth_cookie(&mut headers, &access);
     (
         headers,
         Json(TokenResponse {
-            access_token: token,
+            access_token: access,
             token_type: "Bearer".to_string(),
             expires_in: 3600,
+            refresh_token: refresh,
         }),
     )
 }
@@ -80,10 +300,7 @@ fn token_response(token: String) -> (HeaderMap, Json<TokenResponse>) {
 // parity): when `user_totp_secret` is set the password step returns a
 // short-lived `mfa:pending` challenge instead of a session token; the client
 // completes login via `POST /auth/mfa/verify` (or single-step with `code`).
-async fn resolve_domain_id(
-    db: &sea_orm::DatabaseConnection,
-    domain: &str,
-) -> Option<uuid::Uuid> {
+async fn resolve_domain_id(db: &sea_orm::DatabaseConnection, domain: &str) -> Option<uuid::Uuid> {
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     let t = domain.trim();
     if t.is_empty() {
@@ -122,10 +339,10 @@ async fn resolve_domain_id(
 /// `app/auth/service.py::get_user_permissions` parity): permission names via
 /// `user_groups` → `group_permissions` → `permissions`, plus group names so
 /// a `superadmin` group grants the bypass.
-async fn user_permissions(
-    db: &sea_orm::DatabaseConnection,
-    user_uuid: uuid::Uuid,
-) -> Vec<String> {
+async fn user_permissions<C>(db: &C, user_uuid: uuid::Uuid) -> Vec<String>
+where
+    C: sea_orm::ConnectionTrait,
+{
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     let mems = pbx_db::entities::user_groups::Entity::find()
         .filter(pbx_db::entities::user_groups::Column::UserUuid.eq(user_uuid))
@@ -206,11 +423,7 @@ async fn login_handler(
     let username_raw = req.username.trim().to_owned();
     // Explicit domain wins; otherwise split `user@domain`. (No split when
     // explicit is present so email-shaped usernames keep working.)
-    let (bare, suffix) = match domain
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-    {
+    let (bare, suffix) = match domain.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         Some(_) => (username_raw.clone(), None),
         None => match username_raw.rsplit_once('@') {
             Some((b, s)) if !b.is_empty() && !s.trim().is_empty() => {
@@ -261,8 +474,7 @@ async fn login_handler(
         if let Some(secret) = u.user_totp_secret.as_deref().filter(|s| !s.is_empty()) {
             if let Some(code) = req.code.as_deref() {
                 if pbx_core::mfa::verify_current(secret, code) {
-                    return Ok((StatusCode::OK, token_response(full_token_for(&u, &perms)))
-                        .into_response());
+                    return Ok((StatusCode::OK, login_pair_for(&u, &perms).await).into_response());
                 }
                 return Err(unauthorized());
             }
@@ -281,19 +493,35 @@ async fn login_handler(
             )
                 .into_response());
         }
-        return Ok((StatusCode::OK, token_response(full_token_for(&u, &perms))).into_response());
+        return Ok((StatusCode::OK, login_pair_for(&u, &perms).await).into_response());
     }
     // Scoped miss for a username that lives in another tenant → 401 (no
     // stub leak across tenants). Unscoped misses fall through to stub.
     if scope.is_some() && user_exists_global(db, &bare).await {
         return Err(unauthorized());
     }
-    // Stub fallback (debug only): historical empty-DB login.
+    // Stub fallback (debug only): historical empty-DB login. Mints a
+    // rotation family too so refresh rotation is testable without a DB
+    // user; the family binds a fresh id to the derived tenant scope.
     #[cfg(debug_assertions)]
     {
-        let _ = domain;
-        let token = pbx_core::auth::encode_test_token();
-        return Ok((StatusCode::OK, token_response(token)).into_response());
+        let access = pbx_core::auth::encode_test_token();
+        let dname = domain.unwrap_or_else(|| "default".to_owned());
+        let did = dname
+            .parse::<uuid::Uuid>()
+            .unwrap_or_else(|_| uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_DNS, dname.as_bytes()));
+        let uid = uuid::Uuid::now_v7();
+        let perms = vec!["superadmin".to_string()];
+        let refresh = match scoped_txn(did).await {
+            Ok(txn) => {
+                ensure_domain_row(&txn, did, &dname).await;
+                let r = mint_refresh_family(&txn, uid, did, &username_raw, &perms).await;
+                let _ = txn.commit().await;
+                r
+            }
+            Err(_) => None,
+        };
+        return Ok((StatusCode::OK, token_pair_response(access, refresh)).into_response());
     }
     #[cfg(not(debug_assertions))]
     {
@@ -332,9 +560,7 @@ fn bearer_or_cookie_token(headers: &HeaderMap) -> Option<String> {
 /// fail closed (None). Stale cross-tenant tokens (UUID scope mismatch) also
 /// fail. Callers fall back to the legacy claim echo only for opaque test
 /// scopes, which have no DB row by design.
-async fn load_live_user(
-    claims: &pbx_core::auth::Claims,
-) -> Option<pbx_db::entities::users::Model> {
+async fn load_live_user(claims: &pbx_core::auth::Claims) -> Option<pbx_db::entities::users::Model> {
     use sea_orm::EntityTrait;
     let uid = claims.sub.parse::<uuid::Uuid>().ok()?;
     let db = crate::routing_db::conn().await;
@@ -389,6 +615,14 @@ async fn refresh_handler(headers: HeaderMap) -> Result<impl IntoResponse, Status
     if pbx_core::auth::is_mfa_pending(&claims) {
         return Err(StatusCode::UNAUTHORIZED);
     }
+    // Rotation path: jti-bearing refresh tokens rotate the family; reuse of
+    // a non-latest token revokes the family (reuse detection).
+    if let Some(jti) = claims.jti.clone() {
+        let uid = jti
+            .parse::<uuid::Uuid>()
+            .map_err(|_| StatusCode::UNAUTHORIZED)?;
+        return rotate_refresh(&claims, uid).await;
+    }
     // Fresh permissions from the DB (never trust stale claim perms), same
     // fail-closed rule as `me_handler`.
     if let Some(u) = load_live_user(&claims).await {
@@ -414,7 +648,29 @@ async fn refresh_handler(headers: HeaderMap) -> Result<impl IntoResponse, Status
     Ok(token_response(fresh))
 }
 
-async fn logout_handler() -> impl IntoResponse {
+async fn logout_handler(headers: HeaderMap) -> impl IntoResponse {
+    // Best-effort: revoke the presenting refresh family (reuse detection
+    // makes a stolen token single-use even if logout is skipped).
+    if let Some(token) = bearer_or_cookie_token(&headers) {
+        if let Ok(claims) = pbx_core::auth::decode_test_token(&token) {
+            if let Some(jti) = claims.jti.clone() {
+                if let Ok(uid) = jti.parse::<uuid::Uuid>() {
+                    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+                    let db = crate::routing_db::conn().await;
+                    if let Ok(txn) = crate::routing_db::tenant_txn(db, &claims).await {
+                        if let Some(r) = pbx_db::entities::refresh_tokens::Entity::find_by_id(uid)
+                            .one(&txn)
+                            .await
+                            .unwrap_or(None)
+                        {
+                            revoke_family(&txn, r.family_id).await;
+                        }
+                        let _ = txn.commit().await;
+                    }
+                }
+            }
+        }
+    }
     let mut headers = HeaderMap::new();
     headers.insert(
         header::SET_COOKIE,
@@ -607,13 +863,7 @@ async fn reset_request_handler(
     payload: Result<Json<ResetRequest>, JsonRejection>,
 ) -> impl IntoResponse {
     use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
-    let generic = || {
-        (
-            StatusCode::OK,
-            Json(serde_json::json!({"status": "ok"})),
-        )
-            .into_response()
-    };
+    let generic = || (StatusCode::OK, Json(serde_json::json!({"status": "ok"}))).into_response();
     let Json(body) = match payload {
         Ok(b) => b,
         Err(_) => return generic(),
@@ -665,8 +915,10 @@ async fn reset_request_handler(
         .unwrap_or(None)
         .map(|d| d.domain_name)
         .unwrap_or_else(|| "localhost".to_owned());
-    let reset_link = format!("https://{domain_name}/api/v1/auth/password-reset/confirm?token={token}");
-    let (subject, text_body) = crate::email_queue::render_password_reset_email(&reset_link, &domain_name);
+    let reset_link =
+        format!("https://{domain_name}/api/v1/auth/password-reset/confirm?token={token}");
+    let (subject, text_body) =
+        crate::email_queue::render_password_reset_email(&reset_link, &domain_name);
     let body_with_link = format!("{text_body}\nReset link: {reset_link}\ntoken={token}\n");
     let am = pbx_db::entities::email_queue::ActiveModel {
         email_queue_uuid: Set(uuid::Uuid::now_v7()),
@@ -819,7 +1071,8 @@ mod tests {
         let bytes = axum::body::to_bytes(res.into_body(), 1024 * 64)
             .await
             .unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+        let json: serde_json::Value =
+            serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
         (status, json)
     }
 
@@ -839,7 +1092,12 @@ mod tests {
         format!("{prefix}_{}", uuid::Uuid::now_v7().simple())
     }
 
-    async fn create_user(token: &str, username: &str, password: &str, email: Option<&str>) -> String {
+    async fn create_user(
+        token: &str,
+        username: &str,
+        password: &str,
+        email: Option<&str>,
+    ) -> String {
         let (s, v) = req(
             "POST",
             "/api/v1/users",
@@ -867,7 +1125,10 @@ mod tests {
         .await;
         assert_eq!(s, StatusCode::OK, "enroll: {v}");
         let secret = v["secret"].as_str().expect("secret").to_owned();
-        assert!(v["otpauth_url"].as_str().unwrap().starts_with("otpauth://totp/"));
+        assert!(v["otpauth_url"]
+            .as_str()
+            .unwrap()
+            .starts_with("otpauth://totp/"));
 
         // password-only login now challenges with 202 + mfa_token
         let (s, v) = req(
@@ -882,7 +1143,13 @@ mod tests {
         let mfa_token = v["mfa_token"].as_str().unwrap().to_owned();
 
         // pending token must not access /me
-        let (s, _) = req("GET", "/api/v1/auth/me", Some(&mfa_token), serde_json::json!({})).await;
+        let (s, _) = req(
+            "GET",
+            "/api/v1/auth/me",
+            Some(&mfa_token),
+            serde_json::json!({}),
+        )
+        .await;
         assert_eq!(s, StatusCode::UNAUTHORIZED);
 
         // wrong code rejected
@@ -964,7 +1231,13 @@ mod tests {
         assert_eq!(s, StatusCode::OK);
 
         // token arrives via the email_queue row body
-        let (s, v) = req("GET", "/api/v1/email_queue", Some(&admin), serde_json::json!({})).await;
+        let (s, v) = req(
+            "GET",
+            "/api/v1/email_queue",
+            Some(&admin),
+            serde_json::json!({}),
+        )
+        .await;
         assert_eq!(s, StatusCode::OK, "list queue: {v}");
         let token = v["data"]
             .as_array()
@@ -974,8 +1247,15 @@ mod tests {
             .filter_map(|r| r["email_body"].as_str())
             .find_map(extract_reset_token)
             .expect("reset email with token");
-        assert!(v["data"].as_array().unwrap().iter().any(|r| r["email_to"] == email
-            && r["email_subject"].as_str().unwrap().contains("Password Reset")));
+        assert!(v["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["email_to"] == email
+                && r["email_subject"]
+                    .as_str()
+                    .unwrap()
+                    .contains("Password Reset")));
 
         // confirm sets the new password
         let (s, v) = req(

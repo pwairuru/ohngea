@@ -759,7 +759,8 @@ const DDL_DEVICE_VENDOR_FUNCTIONS: &str = "CREATE TABLE IF NOT EXISTS device_ven
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 )";
-const DDL_DEVICE_VENDOR_FUNCTION_GROUPS: &str = "CREATE TABLE IF NOT EXISTS device_vendor_function_groups (
+const DDL_DEVICE_VENDOR_FUNCTION_GROUPS: &str =
+    "CREATE TABLE IF NOT EXISTS device_vendor_function_groups (
   device_vendor_function_group_uuid TEXT PRIMARY KEY,
   device_vendor_function_uuid TEXT NOT NULL,
   device_vendor_uuid TEXT NOT NULL,
@@ -922,7 +923,8 @@ const DDL_CONFERENCE_CENTERS: &str = "CREATE TABLE IF NOT EXISTS conference_cent
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 )";
-const DDL_CONFERENCE_CONTROL_DETAILS: &str = "CREATE TABLE IF NOT EXISTS conference_control_details (
+const DDL_CONFERENCE_CONTROL_DETAILS: &str =
+    "CREATE TABLE IF NOT EXISTS conference_control_details (
   conference_control_detail_uuid TEXT PRIMARY KEY,
   conference_control_uuid TEXT NOT NULL,
   domain_id TEXT NOT NULL,
@@ -1295,6 +1297,19 @@ const DDL_USERS: &str = "CREATE TABLE IF NOT EXISTS users (
   updated_at TEXT NOT NULL
 )";
 const DDL_USERS_IDX: &str = "CREATE INDEX IF NOT EXISTS ix_users_domain ON users (domain_id)";
+const DDL_REFRESH_TOKENS: &str = "CREATE TABLE IF NOT EXISTS refresh_tokens (
+  token_uuid TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL REFERENCES domains (domain_id),
+  user_uuid TEXT NOT NULL,
+  family_id TEXT NOT NULL,
+  replaced_by TEXT,
+  revoked BOOLEAN NOT NULL DEFAULT 0,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)";
+const DDL_REFRESH_TOKENS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_refresh_tokens_family ON refresh_tokens (family_id)";
 
 const DDL_GROUPS: &str = "CREATE TABLE IF NOT EXISTS groups (
   group_uuid TEXT PRIMARY KEY,
@@ -1663,6 +1678,16 @@ const DDL_DASHBOARD_WIDGETS: &str = "CREATE TABLE IF NOT EXISTS dashboard_widget
 )";
 const DDL_DASHBOARD_WIDGETS_IDX: &str =
     "CREATE INDEX IF NOT EXISTS ix_dashboard_widgets_dashboard ON dashboard_widgets (dashboard_uuid)";
+
+const DDL_DASHBOARD_WIDGET_GROUPS: &str = "CREATE TABLE IF NOT EXISTS dashboard_widget_groups (
+  dashboard_widget_group_uuid TEXT PRIMARY KEY,
+  dashboard_uuid TEXT REFERENCES dashboards (dashboard_uuid),
+  dashboard_widget_uuid TEXT REFERENCES dashboard_widgets (dashboard_widget_uuid),
+  group_uuid TEXT,
+  created_at TEXT NOT NULL
+)";
+const DDL_DASHBOARD_WIDGET_GROUPS_IDX: &str =
+    "CREATE INDEX IF NOT EXISTS ix_dashboard_widget_groups_widget ON dashboard_widget_groups (dashboard_widget_uuid)";
 
 const DDL_EMAIL_QUEUE: &str = "CREATE TABLE IF NOT EXISTS email_queue (
   email_queue_uuid TEXT PRIMARY KEY,
@@ -2288,6 +2313,8 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_CALL_RECORDINGS,
         DDL_USERS,
         DDL_USERS_IDX,
+        DDL_REFRESH_TOKENS,
+        DDL_REFRESH_TOKENS_IDX,
         DDL_GROUPS,
         DDL_GROUPS_IDX,
         DDL_USER_GROUPS,
@@ -2325,6 +2352,8 @@ pub async fn create_schema(db: &sea_orm::DatabaseConnection) -> Result<(), DbErr
         DDL_DASHBOARDS_IDX,
         DDL_DASHBOARD_WIDGETS,
         DDL_DASHBOARD_WIDGETS_IDX,
+        DDL_DASHBOARD_WIDGET_GROUPS,
+        DDL_DASHBOARD_WIDGET_GROUPS_IDX,
         DDL_EMAIL_QUEUE,
         DDL_EMAIL_QUEUE_IDX,
         DDL_EMAIL_TEMPLATES,
