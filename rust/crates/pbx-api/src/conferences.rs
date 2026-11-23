@@ -3,7 +3,7 @@
 //! Order: models → schemas → handlers → xml.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde::Deserialize;
 
 // ---- models ----
@@ -69,7 +69,11 @@ async fn conf_or_404(
     id: &str,
 ) -> Option<conferences::Model> {
     conferences::Entity::find_by_id(id.to_owned())
-        .filter(conferences::Column::DomainId.eq(domain))
+        .filter(
+            Condition::any()
+                .add(conferences::Column::DomainId.eq(domain))
+                .add(conferences::Column::DomainId.is_null())
+        )
         .one(db)
         .await
         .unwrap_or(None)
@@ -105,7 +109,7 @@ async fn create_conf(
         .unwrap_or_else(crate::ring_groups::new_dialplan_id);
     let am = conferences::ActiveModel {
         conference_uuid: Set(id.clone()),
-        domain_id: Set(domain),
+        domain_id: Set(Some(domain)),
         conference_name: Set(payload.conference_name.trim().to_owned()),
         conference_extension: Set(payload.conference_extension.trim().to_owned()),
         conference_profile: Set(payload.conference_profile),
@@ -152,7 +156,7 @@ async fn create_conf(
                 r.conference_description.clone(),
             );
             if let Err(e) =
-                crate::ring_groups::sync_app_dialplan(db, domain, dp_id, &spec).await
+                crate::ring_groups::sync_app_dialplan(db, Some(domain), dp_id, &spec).await
             {
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -197,7 +201,11 @@ async fn list_conf(
     }
     let mut sel = conferences::Entity::find();
     if !show_all {
-        sel = sel.filter(conferences::Column::DomainId.eq(domain));
+        sel = sel.filter(
+            Condition::any()
+                .add(conferences::Column::DomainId.eq(domain))
+                .add(conferences::Column::DomainId.is_null()),
+        );
     }
     let paginator = sel.paginate(&txn, per_page);
     let total = paginator.num_items().await.unwrap_or(0);
@@ -313,7 +321,7 @@ async fn patch_conf(
                 r.conference_description.clone(),
             );
             if let Err(e) =
-                crate::ring_groups::sync_app_dialplan(db, domain, dp_id, &spec).await
+                crate::ring_groups::sync_app_dialplan(db, Some(domain), dp_id, &spec).await
             {
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,

@@ -346,6 +346,7 @@ async fn import_domain(claims: &pbx_core::auth::Claims, text: &str) -> uuid::Uui
     // Loopback/inline legs carry no domain: attribute the CDR to the domain
     // owning the dialplan context it routed through (mirrors the dialplan
     // XML context-owner fallback). Never drop a CDR: nil domain last resort.
+    // Global dialplans attribute to the caller's tenant.
     if let Some(ctx) = find_tag(text, "context").map(|s| s.trim().to_owned()).filter(|s| !s.is_empty()) {
         if let Ok(Some(row)) = pbx_db::entities::dialplans::Entity::find()
             .filter(pbx_db::entities::dialplans::Column::Context.eq(ctx))
@@ -353,7 +354,9 @@ async fn import_domain(claims: &pbx_core::auth::Claims, text: &str) -> uuid::Uui
             .one(db)
             .await
         {
-            return row.domain_id;
+            if let Some(d) = row.domain_id {
+                return d;
+            }
         }
     }
     crate::routing_db::domain(claims)

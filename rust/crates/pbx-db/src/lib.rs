@@ -192,7 +192,7 @@ const DDL_DIALPLANS: &str = "CREATE TABLE IF NOT EXISTS dialplans (
   name VARCHAR(128) NOT NULL,
   context VARCHAR(128) NOT NULL,
   enabled BOOLEAN NOT NULL DEFAULT 1,
-  domain_id TEXT NOT NULL REFERENCES domains (domain_id),
+  domain_id TEXT REFERENCES domains (domain_id),
   description TEXT,
   dialplan_continue BOOLEAN NOT NULL DEFAULT 0,
   dialplan_order INTEGER,
@@ -233,7 +233,7 @@ const DDL_GATEWAYS: &str = "CREATE TABLE IF NOT EXISTS gateways (
   proxy VARCHAR(128),
   \"register\" BOOLEAN NOT NULL DEFAULT 1,
   enabled BOOLEAN NOT NULL DEFAULT 1,
-  domain_id TEXT NOT NULL REFERENCES domains (domain_id),
+  domain_id TEXT REFERENCES domains (domain_id),
   distinct_to BOOLEAN,
   auth_username VARCHAR(64),
   realm VARCHAR(128),
@@ -332,7 +332,7 @@ const DDL_DEVICES: &str = "CREATE TABLE IF NOT EXISTS devices (
   model VARCHAR(64),
   label VARCHAR(128),
   enabled BOOLEAN NOT NULL DEFAULT 1,
-  domain_id TEXT NOT NULL REFERENCES domains (domain_id),
+  domain_id TEXT REFERENCES domains (domain_id),
   extension_uuid TEXT,
   device_profile_uuid TEXT,
   device_address VARCHAR(32),
@@ -591,7 +591,7 @@ const DDL_CALL_CENTER_TIERS: &str = "CREATE TABLE IF NOT EXISTS call_center_tier
 
 const DDL_IVR_MENUS: &str = "CREATE TABLE IF NOT EXISTS ivr_menus (
   ivr_menu_uuid TEXT PRIMARY KEY,
-  domain_id TEXT NOT NULL,
+  domain_id TEXT,
   name VARCHAR(128) NOT NULL,
   extension VARCHAR(32),
   enabled BOOLEAN NOT NULL DEFAULT 1,
@@ -644,7 +644,7 @@ const DDL_IVR_MENU_OPTIONS_IDX: &str =
 
 const DDL_VOICEMAILS: &str = "CREATE TABLE IF NOT EXISTS voicemails (
   voicemail_uuid TEXT PRIMARY KEY,
-  domain_id TEXT NOT NULL,
+  domain_id TEXT,
   voicemail_id VARCHAR(32) NOT NULL,
   voicemail_password VARCHAR(32) NOT NULL,
   enabled BOOLEAN NOT NULL DEFAULT 1,
@@ -857,7 +857,7 @@ const DDL_XML_CDR_TRANSCRIPTS: &str = "CREATE TABLE IF NOT EXISTS xml_cdr_transc
 
 const DDL_CONFERENCES: &str = "CREATE TABLE IF NOT EXISTS conferences (
   conference_uuid TEXT PRIMARY KEY,
-  domain_id TEXT NOT NULL,
+  domain_id TEXT,
   conference_name VARCHAR(128) NOT NULL,
   conference_extension VARCHAR(32) NOT NULL,
   conference_profile VARCHAR(64) NOT NULL DEFAULT 'default',
@@ -1036,7 +1036,7 @@ const DDL_FAX_QUEUE_IDX: &str =
 
 const DDL_FAXES: &str = "CREATE TABLE IF NOT EXISTS fax (
   fax_uuid TEXT PRIMARY KEY,
-  domain_id TEXT NOT NULL,
+  domain_id TEXT,
   fax_extension VARCHAR(32) NOT NULL,
   fax_name VARCHAR(128) NOT NULL,
   description VARCHAR(512),
@@ -1718,7 +1718,7 @@ const DDL_REMAINING_RECORDS_IDX: &str =
 // ---- spillover-replacement tables (Python models.py column parity) ----
 const DDL_CALL_BLOCK: &str = "CREATE TABLE IF NOT EXISTS call_block (
   call_block_uuid TEXT PRIMARY KEY,
-  domain_id TEXT NOT NULL,
+  domain_id TEXT,
   call_block_direction VARCHAR(32),
   extension_uuid TEXT,
   call_block_name VARCHAR(128) NOT NULL,
@@ -1777,7 +1777,7 @@ const DDL_BRIDGES_IDX: &str = "CREATE INDEX IF NOT EXISTS ix_bridges_domain ON b
 
 const DDL_DESTINATIONS: &str = "CREATE TABLE IF NOT EXISTS destinations (
   destination_uuid TEXT PRIMARY KEY,
-  domain_id TEXT NOT NULL,
+  domain_id TEXT,
   destination_type VARCHAR(32) NOT NULL,
   destination_number VARCHAR(32) NOT NULL,
   destination_prefix VARCHAR(32),
@@ -1891,7 +1891,7 @@ const DDL_CALL_FORWARDS_IDX: &str =
 
 const DDL_TIME_CONDITIONS: &str = "CREATE TABLE IF NOT EXISTS time_conditions (
   time_condition_uuid TEXT PRIMARY KEY,
-  domain_id TEXT NOT NULL,
+  domain_id TEXT,
   name VARCHAR(128) NOT NULL,
   extension VARCHAR(32) NOT NULL,
   context VARCHAR(128),
@@ -1938,7 +1938,7 @@ const DDL_FEATURE_CODES_IDX: &str =
 
 const DDL_MUSIC_ON_HOLD: &str = "CREATE TABLE IF NOT EXISTS music_on_hold (
   music_on_hold_uuid TEXT PRIMARY KEY,
-  domain_id TEXT NOT NULL,
+  domain_id TEXT,
   music_name VARCHAR(128) NOT NULL,
   music_path VARCHAR(512) NOT NULL,
   music_rate INTEGER,
@@ -1961,7 +1961,7 @@ const DDL_MUSIC_ON_HOLD_IDX: &str =
 
 const DDL_PHRASES: &str = "CREATE TABLE IF NOT EXISTS phrases (
   phrase_uuid TEXT PRIMARY KEY,
-  domain_id TEXT NOT NULL,
+  domain_id TEXT,
   phrase_name VARCHAR(128) NOT NULL,
   phrase_language VARCHAR(16),
   phrase_enabled BOOLEAN NOT NULL DEFAULT 1,
@@ -2031,7 +2031,7 @@ const DDL_NUMBER_TRANSLATION_DETAILS_IDX: &str =
 
 const DDL_STREAMS: &str = "CREATE TABLE IF NOT EXISTS streams (
   stream_uuid TEXT PRIMARY KEY,
-  domain_id TEXT NOT NULL,
+  domain_id TEXT,
   stream_name VARCHAR(128) NOT NULL,
   stream_location VARCHAR(512),
   stream_enabled BOOLEAN NOT NULL DEFAULT 1,
@@ -2146,7 +2146,7 @@ const DDL_EVENT_GUARD_LOGS: &str = "CREATE TABLE IF NOT EXISTS event_guard_logs 
 
 const DDL_CALL_FLOWS: &str = "CREATE TABLE IF NOT EXISTS call_flows (
   call_flow_uuid TEXT PRIMARY KEY,
-  domain_id TEXT NOT NULL,
+  domain_id TEXT,
   dialplan_uuid TEXT,
   call_flow_name VARCHAR(128) NOT NULL,
   call_flow_extension VARCHAR(32) NOT NULL,

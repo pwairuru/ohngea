@@ -187,7 +187,7 @@ const DDL_TABLES: &[&str] = &[
       name VARCHAR(128) NOT NULL,
       context VARCHAR(128) NOT NULL,
       enabled BOOLEAN NOT NULL DEFAULT TRUE,
-      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      domain_id UUID REFERENCES domains (domain_id) ON DELETE CASCADE,
       description TEXT,
       dialplan_continue BOOLEAN NOT NULL DEFAULT FALSE,
       dialplan_order INTEGER,
@@ -199,6 +199,7 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     )",
+    "ALTER TABLE dialplans ALTER COLUMN domain_id DROP NOT NULL", // shared/global rows (PHP dialplans parity),
     "CREATE INDEX IF NOT EXISTS ix_dialplans_domain_name ON dialplans (domain_id, name)",
     "CREATE TABLE IF NOT EXISTS dialplan_details (
       detail_uuid UUID PRIMARY KEY,
@@ -225,7 +226,7 @@ const DDL_TABLES: &[&str] = &[
       proxy VARCHAR(128),
       \"register\" BOOLEAN NOT NULL DEFAULT TRUE,
       enabled BOOLEAN NOT NULL DEFAULT TRUE,
-      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      domain_id UUID REFERENCES domains (domain_id) ON DELETE CASCADE,
       distinct_to BOOLEAN,
       auth_username VARCHAR(64),
       realm VARCHAR(128),
@@ -256,6 +257,9 @@ const DDL_TABLES: &[&str] = &[
       updated_at TIMESTAMPTZ NOT NULL
     )",
     "CREATE INDEX IF NOT EXISTS ix_gateways_domain ON gateways (domain_id)",
+    // Global/shared gateways (PHP `gateway_domain` parity): pre-existing
+    // installs have NOT NULL; relax idempotently (no-op when already NULL-able).
+    "ALTER TABLE gateways ALTER COLUMN domain_id DROP NOT NULL",
     // sip profiles + domains + settings
     "CREATE TABLE IF NOT EXISTS sip_profiles (
       sip_profile_uuid UUID PRIMARY KEY,
@@ -413,7 +417,7 @@ const DDL_TABLES: &[&str] = &[
       model VARCHAR(64),
       label VARCHAR(128),
       enabled BOOLEAN NOT NULL DEFAULT TRUE,
-      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      domain_id UUID REFERENCES domains (domain_id) ON DELETE CASCADE,
       extension_uuid UUID REFERENCES extensions (extension_uuid),
       device_enabled_date TIMESTAMPTZ,
       device_user_uuid UUID,
@@ -422,6 +426,7 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     )",
+    "ALTER TABLE devices ALTER COLUMN domain_id DROP NOT NULL", // shared/global rows (PHP devices parity),
     "CREATE INDEX IF NOT EXISTS ix_devices_domain ON devices (domain_id)",
     "CREATE TABLE IF NOT EXISTS device_lines (
       device_line_uuid UUID PRIMARY KEY,
@@ -637,7 +642,7 @@ const DDL_TABLES: &[&str] = &[
     )",
     "CREATE TABLE IF NOT EXISTS ivr_menus (
       ivr_menu_uuid UUID PRIMARY KEY,
-      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      domain_id UUID REFERENCES domains (domain_id) ON DELETE CASCADE,
       name VARCHAR(128) NOT NULL,
       extension VARCHAR(32),
       enabled BOOLEAN NOT NULL DEFAULT TRUE,
@@ -671,6 +676,7 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     )",
+    "ALTER TABLE ivr_menus ALTER COLUMN domain_id DROP NOT NULL", // shared/global rows (PHP ivr_menus parity),
     "CREATE INDEX IF NOT EXISTS ix_ivr_menus_domain ON ivr_menus (domain_id)",
     "CREATE TABLE IF NOT EXISTS ivr_menu_options (
       option_uuid UUID PRIMARY KEY,
@@ -686,7 +692,7 @@ const DDL_TABLES: &[&str] = &[
     "CREATE INDEX IF NOT EXISTS ix_ivr_menu_options_parent ON ivr_menu_options (ivr_menu_uuid)",
     "CREATE TABLE IF NOT EXISTS voicemails (
       voicemail_uuid UUID PRIMARY KEY,
-      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      domain_id UUID REFERENCES domains (domain_id) ON DELETE CASCADE,
       voicemail_id VARCHAR(32) NOT NULL,
       voicemail_password VARCHAR(32) NOT NULL,
       enabled BOOLEAN NOT NULL DEFAULT TRUE,
@@ -711,6 +717,7 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     )",
+    "ALTER TABLE voicemails ALTER COLUMN domain_id DROP NOT NULL", // shared/global rows (PHP voicemails parity),
     "CREATE INDEX IF NOT EXISTS ix_voicemails_domain ON voicemails (domain_id)",
     "CREATE TABLE IF NOT EXISTS voicemail_greetings (
       voicemail_greeting_uuid UUID PRIMARY KEY,
@@ -898,7 +905,7 @@ const DDL_TABLES: &[&str] = &[
     )",
     "CREATE TABLE IF NOT EXISTS conferences (
       conference_uuid UUID PRIMARY KEY,
-      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      domain_id UUID REFERENCES domains (domain_id) ON DELETE CASCADE,
       conference_name VARCHAR(128) NOT NULL,
       conference_extension VARCHAR(32) NOT NULL,
       conference_profile VARCHAR(64) NOT NULL DEFAULT 'default',
@@ -914,6 +921,7 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     )",
+    "ALTER TABLE conferences ALTER COLUMN domain_id DROP NOT NULL", // shared/global rows (PHP conferences parity),
     "CREATE INDEX IF NOT EXISTS ix_conferences_domain ON conferences (domain_id)",
     "CREATE TABLE IF NOT EXISTS conference_users (
       conference_user_uuid UUID PRIMARY KEY,
@@ -1062,7 +1070,7 @@ const DDL_TABLES: &[&str] = &[
     "CREATE INDEX IF NOT EXISTS ix_fax_queue_domain ON fax_queue (domain_id)",
     "CREATE TABLE IF NOT EXISTS fax (
       fax_uuid UUID PRIMARY KEY,
-      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      domain_id UUID REFERENCES domains (domain_id) ON DELETE CASCADE,
       fax_extension VARCHAR(32) NOT NULL,
       fax_name VARCHAR(128) NOT NULL,
       description VARCHAR(512),
@@ -1093,6 +1101,7 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     )",
+    "ALTER TABLE fax ALTER COLUMN domain_id DROP NOT NULL", // shared/global rows (PHP fax parity),
     "CREATE INDEX IF NOT EXISTS ix_fax_domain ON fax (domain_id)",
     "ALTER TABLE fax ADD COLUMN IF NOT EXISTS fax_file VARCHAR(512)",
     "CREATE TABLE IF NOT EXISTS fax_files (
@@ -1654,7 +1663,7 @@ const DDL_TABLES: &[&str] = &[
     // ---- gap3: call_flows + extension_settings (Python models.py parity) ----
     "CREATE TABLE IF NOT EXISTS call_flows (
       call_flow_uuid UUID PRIMARY KEY,
-      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      domain_id UUID REFERENCES domains (domain_id) ON DELETE CASCADE,
       dialplan_uuid UUID,
       call_flow_name VARCHAR(128) NOT NULL,
       call_flow_extension VARCHAR(32) NOT NULL,
@@ -1676,6 +1685,7 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     )",
+    "ALTER TABLE call_flows ALTER COLUMN domain_id DROP NOT NULL", // shared/global rows (PHP call_flows parity),
     "CREATE INDEX IF NOT EXISTS ix_call_flows_domain ON call_flows (domain_id)",
     "CREATE TABLE IF NOT EXISTS extension_settings (
       extension_setting_uuid UUID PRIMARY KEY,
@@ -1693,7 +1703,7 @@ const DDL_TABLES: &[&str] = &[
     // ---- spillover replacement: per-table DDL (Python models.py parity) ----
     "CREATE TABLE IF NOT EXISTS call_block (
       call_block_uuid UUID PRIMARY KEY,
-      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      domain_id UUID REFERENCES domains (domain_id) ON DELETE CASCADE,
       call_block_direction VARCHAR(32),
       extension_uuid UUID,
       call_block_name VARCHAR(128) NOT NULL,
@@ -1711,6 +1721,7 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     )",
+    "ALTER TABLE call_block ALTER COLUMN domain_id DROP NOT NULL", // shared/global rows (PHP call_block parity),
     "CREATE INDEX IF NOT EXISTS ix_call_block_domain ON call_block (domain_id)",
     "CREATE TABLE IF NOT EXISTS call_broadcasts (
       call_broadcast_uuid UUID PRIMARY KEY,
@@ -1747,7 +1758,7 @@ const DDL_TABLES: &[&str] = &[
     "CREATE INDEX IF NOT EXISTS ix_bridges_domain ON bridges (domain_id)",
     "CREATE TABLE IF NOT EXISTS destinations (
       destination_uuid UUID PRIMARY KEY,
-      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      domain_id UUID REFERENCES domains (domain_id) ON DELETE CASCADE,
       destination_type VARCHAR(32) NOT NULL,
       destination_number VARCHAR(32) NOT NULL,
       destination_prefix VARCHAR(32),
@@ -1806,6 +1817,7 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     )",
+    "ALTER TABLE destinations ALTER COLUMN domain_id DROP NOT NULL", // shared/global rows (PHP destinations parity),
     "CREATE INDEX IF NOT EXISTS ix_destinations_domain ON destinations (domain_id)",
     "CREATE TABLE IF NOT EXISTS follow_me (
       follow_me_uuid UUID PRIMARY KEY,
@@ -1853,7 +1865,7 @@ const DDL_TABLES: &[&str] = &[
     "CREATE INDEX IF NOT EXISTS ix_call_forwards_domain ON call_forwards (domain_id)",
     "CREATE TABLE IF NOT EXISTS time_conditions (
       time_condition_uuid UUID PRIMARY KEY,
-      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      domain_id UUID REFERENCES domains (domain_id) ON DELETE CASCADE,
       name VARCHAR(128) NOT NULL,
       extension VARCHAR(32) NOT NULL,
       context VARCHAR(128),
@@ -1880,6 +1892,7 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     )",
+    "ALTER TABLE time_conditions ALTER COLUMN domain_id DROP NOT NULL", // shared/global rows (PHP time_conditions parity),
     "CREATE INDEX IF NOT EXISTS ix_time_conditions_domain ON time_conditions (domain_id)",
     "CREATE TABLE IF NOT EXISTS feature_codes (
       feature_code_uuid UUID PRIMARY KEY,
@@ -1896,7 +1909,7 @@ const DDL_TABLES: &[&str] = &[
     "CREATE INDEX IF NOT EXISTS ix_feature_codes_domain ON feature_codes (domain_id)",
     "CREATE TABLE IF NOT EXISTS music_on_hold (
       music_on_hold_uuid UUID PRIMARY KEY,
-      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      domain_id UUID REFERENCES domains (domain_id) ON DELETE CASCADE,
       music_name VARCHAR(128) NOT NULL,
       music_path VARCHAR(512) NOT NULL,
       music_rate INTEGER,
@@ -1914,10 +1927,11 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     )",
+    "ALTER TABLE music_on_hold ALTER COLUMN domain_id DROP NOT NULL", // shared/global rows (PHP music_on_hold parity),
     "CREATE INDEX IF NOT EXISTS ix_music_on_hold_domain ON music_on_hold (domain_id)",
     "CREATE TABLE IF NOT EXISTS phrases (
       phrase_uuid UUID PRIMARY KEY,
-      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      domain_id UUID REFERENCES domains (domain_id) ON DELETE CASCADE,
       phrase_name VARCHAR(128) NOT NULL,
       phrase_language VARCHAR(16),
       phrase_enabled BOOLEAN NOT NULL DEFAULT TRUE,
@@ -1925,6 +1939,7 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     )",
+    "ALTER TABLE phrases ALTER COLUMN domain_id DROP NOT NULL", // shared/global rows (PHP phrases parity),
     "CREATE INDEX IF NOT EXISTS ix_phrases_domain ON phrases (domain_id)",
     "CREATE TABLE IF NOT EXISTS phrase_details (
       phrase_detail_uuid UUID PRIMARY KEY,
@@ -1977,7 +1992,7 @@ const DDL_TABLES: &[&str] = &[
     "CREATE INDEX IF NOT EXISTS ix_number_translation_details_parent ON number_translation_details (number_translation_uuid)",
     "CREATE TABLE IF NOT EXISTS streams (
       stream_uuid UUID PRIMARY KEY,
-      domain_id UUID NOT NULL REFERENCES domains (domain_id) ON DELETE CASCADE,
+      domain_id UUID REFERENCES domains (domain_id) ON DELETE CASCADE,
       stream_name VARCHAR(128) NOT NULL,
       stream_location VARCHAR(512),
       stream_enabled BOOLEAN NOT NULL DEFAULT TRUE,
@@ -1985,6 +2000,7 @@ const DDL_TABLES: &[&str] = &[
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     )",
+    "ALTER TABLE streams ALTER COLUMN domain_id DROP NOT NULL", // shared/global rows (PHP streams parity),
     "CREATE INDEX IF NOT EXISTS ix_streams_domain ON streams (domain_id)",
     "CREATE TABLE IF NOT EXISTS access_controls (
       access_control_uuid UUID PRIMARY KEY,
@@ -2115,20 +2131,14 @@ const FORWARD_ALTERS: &[&str] = &[
 /// Strict tenant tables (non-nullable domain_id) — from 043_tenant_rls_all.py.
 const STRICT_TABLES: &[&str] = &[
     "extensions",
-    "dialplans",
-    "gateways",
     "sip_profiles",
     "sip_profile_domains",
     "sip_profile_settings",
-    "ivr_menus",
-    "devices",
     "cdr",
     "cdr_archive",
     "recordings",
     "contacts",
     "ring_groups",
-    "voicemails",
-    "conferences",
     "fax_queue",
     "email_queue",
     "call_centers",
@@ -2160,7 +2170,6 @@ const STRICT_TABLES: &[&str] = &[
     "xml_cdr_logs",
     "xml_cdr_transcripts",
     "conference_users",
-    "fax",
     "fax_files",
     "fax_logs",
     "fax_users",
@@ -2175,7 +2184,6 @@ const STRICT_TABLES: &[&str] = &[
     "contact_settings",
     "contact_times",
     "contact_users",
-    "dialplan_details",
     "device_lines",
     "device_settings",
     "device_keys",
@@ -2184,22 +2192,16 @@ const STRICT_TABLES: &[&str] = &[
     "device_profile_settings",
     "call_center_tiers",
     "remaining_records",
-    "call_block",
     "call_broadcasts",
     "bridges",
-    "destinations",
     "follow_me",
     "follow_me_destinations",
     "call_forwards",
-    "time_conditions",
     "feature_codes",
-    "music_on_hold",
-    "phrases",
     "phrase_details",
     "pin_numbers",
     "number_translations",
     "number_translation_details",
-    "streams",
     "access_controls",
     "access_control_nodes",
     "webrtc_settings",
@@ -2209,7 +2211,7 @@ const STRICT_TABLES: &[&str] = &[
 ];
 
 /// Nullable tenant tables (shared/global rows allowed).
-const NULLABLE_TABLES: &[&str] = &["groups", "users", "domain_settings"];
+const NULLABLE_TABLES: &[&str] = &["groups", "users", "domain_settings", "gateways", "destinations", "ivr_menus", "devices", "voicemails", "conferences", "fax", "time_conditions", "phrases", "streams", "call_block", "dialplans", "dialplan_details", "music_on_hold", "call_flows"];
 
 /// Key FS views (alembic 003/005/006/011/013 parity, trimmed to ported tables).
 const VIEWS: &[&str] = &[
@@ -2537,7 +2539,7 @@ pub async fn backfill_remaining_records<C: sea_orm::ConnectionTrait>(
                     };
                     let am = call_block::ActiveModel {
                         call_block_uuid: Set(row.id.clone()),
-                        domain_id: Set(row.domain_id),
+                        domain_id: Set(Some(row.domain_id)),
                         call_block_direction: Set(jstr(&data, &["call_block_direction"])),
                         call_block_name: Set(name),
                         call_block_country_code: Set(jstr(&data, &["call_block_country_code"])),
@@ -2665,7 +2667,7 @@ pub async fn backfill_remaining_records<C: sea_orm::ConnectionTrait>(
                     };
                     let am = destinations::ActiveModel {
                         destination_uuid: Set(row.id.clone()),
-                        domain_id: Set(row.domain_id),
+                        domain_id: Set(Some(row.domain_id)),
                         destination_type: Set(jstr(&data, &["destination_type", "type"])
                             .unwrap_or_else(|| "inbound".to_owned())),
                         destination_number: Set(number),
@@ -2827,7 +2829,7 @@ pub async fn backfill_remaining_records<C: sea_orm::ConnectionTrait>(
                     };
                     let am = time_conditions::ActiveModel {
                         time_condition_uuid: Set(row.id.clone()),
-                        domain_id: Set(row.domain_id),
+                        domain_id: Set(Some(row.domain_id)),
                         name: Set(name),
                         extension: Set(extension),
                         context: Set(jstr(&data, &["context", "dialplan_context"])),
@@ -2897,7 +2899,7 @@ pub async fn backfill_remaining_records<C: sea_orm::ConnectionTrait>(
                     };
                     let am = music_on_hold::ActiveModel {
                         music_on_hold_uuid: Set(row.id.clone()),
-                        domain_id: Set(row.domain_id),
+                        domain_id: Set(Some(row.domain_id)),
                         music_name: Set(name),
                         music_path: Set(jstr(&data, &["music_path", "path"]).unwrap_or_default()),
                         music_rate: Set(Some(jint(&data, &["music_rate"], 8000))),
@@ -2934,7 +2936,7 @@ pub async fn backfill_remaining_records<C: sea_orm::ConnectionTrait>(
                     };
                     let am = phrases::ActiveModel {
                         phrase_uuid: Set(row.id.clone()),
-                        domain_id: Set(row.domain_id),
+                        domain_id: Set(Some(row.domain_id)),
                         phrase_name: Set(name),
                         phrase_language: Set(jstr(&data, &["phrase_language"])),
                         phrase_enabled: Set(jbool(&data, &["phrase_enabled", "enabled"], true)),
@@ -3026,7 +3028,7 @@ pub async fn backfill_remaining_records<C: sea_orm::ConnectionTrait>(
                     };
                     let am = streams::ActiveModel {
                         stream_uuid: Set(row.id.clone()),
-                        domain_id: Set(row.domain_id),
+                        domain_id: Set(Some(row.domain_id)),
                         stream_name: Set(name),
                         stream_location: Set(jstr(&data, &["stream_location", "location"])),
                         stream_enabled: Set(jbool(&data, &["stream_enabled", "enabled"], true)),

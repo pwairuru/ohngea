@@ -3,7 +3,7 @@
 //! (+ details) and streams.
 
 use axum::{http::StatusCode, response::IntoResponse, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, Condition, EntityTrait, QueryFilter, Set};
 use serde_json::Value;
 
 // ---- models ----
@@ -201,7 +201,7 @@ fn feature_codes_router() -> Router {
 fn ser_moh(r: &music_on_hold::Model) -> Value {
     serde_json::json!({
         "music_on_hold_uuid": r.music_on_hold_uuid,
-        "domain_id": r.domain_id.to_string(),
+        "domain_id": r.domain_id.map(|d| d.to_string()),
         "music_name": r.music_name,
         "name": r.music_name,
         "music_path": r.music_path,
@@ -230,7 +230,25 @@ async fn create_moh(
         return unprocessable("name required").into_response();
     };
     let db = crate::routing_db::conn().await;
-    let domain = tenant_domain(db, &claims).await;
+    let tenant = tenant_domain(db, &claims).await;
+    // PHP `music_on_hold_domain` parity: holders post any domain (empty = global).
+    // NOTE: raw access, not s() — s() drops empty strings.
+    let posted_domain = payload
+        .get("domain_uuid")
+        .or_else(|| payload.get("domain_id"))
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .map(str::to_owned);
+    let domain: Option<uuid::Uuid> = match posted_domain.as_deref() {
+        Some(v) if !v.is_empty() && crate::tenant::has_permission(&claims, "music_on_hold_domain") => {
+            match v.parse::<uuid::Uuid>() {
+                Ok(id) => Some(id),
+                Err(_) => return unprocessable("domain_uuid must be a UUID or empty").into_response(),
+            }
+        }
+        Some(v) if v.is_empty() && crate::tenant::has_permission(&claims, "music_on_hold_domain") => None,
+        _ => Some(tenant),
+    };
     let now = crate::routing_db::now();
     let am = music_on_hold::ActiveModel {
         music_on_hold_uuid: Set(crate::routing_db::new_uuid()),
@@ -279,7 +297,13 @@ async fn list_moh(Extension(claims): Extension<Claims>,
     let domain = crate::routing_db::domain(&claims);
     let mut sel = music_on_hold::Entity::find();
     if !show_all {
-        sel = sel.filter(music_on_hold::Column::DomainId.eq(domain));
+        sel = sel.filter(if crate::tenant::sees_domain_nulls(&claims, "music_on_hold_global") {
+            Condition::any()
+                .add(music_on_hold::Column::DomainId.eq(domain))
+                .add(music_on_hold::Column::DomainId.is_null())
+        } else {
+            Condition::any().add(music_on_hold::Column::DomainId.eq(domain))
+        });
     }
     let rows = sel.all(&txn).await.unwrap_or_default();
     envelope(rows.iter().map(ser_moh).collect()).into_response()
@@ -299,7 +323,12 @@ async fn get_moh(
         .await
         .unwrap_or(None)
     {
-        Some(r) if r.domain_id == domain => (StatusCode::OK, Json(ser_moh(&r))).into_response(),
+        Some(r)
+        if r.domain_id == Some(domain)
+            || (r.domain_id.is_none()
+                && crate::tenant::sees_domain_nulls(&claims, "music_on_hold_global")) => {
+            (StatusCode::OK, Json(ser_moh(&r))).into_response()
+        }
         _ => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -330,7 +359,10 @@ async fn patch_moh(
         )
             .into_response();
     };
-    if r.domain_id != domain {
+    if r.domain_id != Some(domain)
+        && (r.domain_id.is_some()
+            || !crate::tenant::sees_domain_nulls(&claims, "music_on_hold_domain"))
+    {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -396,7 +428,10 @@ async fn delete_moh(
         .await
         .unwrap_or(None)
     {
-        Some(r) if r.domain_id == domain => {
+        Some(r)
+        if r.domain_id == Some(domain)
+            || (r.domain_id.is_none()
+                && crate::tenant::sees_domain_nulls(&claims, "music_on_hold_domain")) => {
             let am: music_on_hold::ActiveModel = r.into();
             let _ = am.delete(db).await;
             StatusCode::NO_CONTENT.into_response()
@@ -427,7 +462,7 @@ fn moh_router() -> Router {
 fn ser_phrase(r: &phrases::Model) -> Value {
     serde_json::json!({
         "phrase_uuid": r.phrase_uuid,
-        "domain_id": r.domain_id.to_string(),
+        "domain_id": r.domain_id.map(|d| d.to_string()),
         "phrase_name": r.phrase_name,
         "name": r.phrase_name,
         "phrase_language": r.phrase_language,
@@ -462,7 +497,7 @@ async fn create_phrase(
     let now = crate::routing_db::now();
     let am = phrases::ActiveModel {
         phrase_uuid: Set(crate::routing_db::new_uuid()),
-        domain_id: Set(domain),
+        domain_id: Set(Some(domain)),
         phrase_name: Set(name),
         phrase_language: Set(s(&payload, &["phrase_language"])),
         phrase_enabled: Set(b(&payload, &["phrase_enabled", "enabled"], true)),
@@ -498,7 +533,11 @@ async fn list_phrases(Extension(claims): Extension<Claims>,
     let domain = crate::routing_db::domain(&claims);
     let mut sel = phrases::Entity::find();
     if !show_all {
-        sel = sel.filter(phrases::Column::DomainId.eq(domain));
+        sel = sel.filter(
+            Condition::any()
+                .add(phrases::Column::DomainId.eq(domain))
+                .add(phrases::Column::DomainId.is_null()),
+        );
     }
     let rows = sel.all(&txn).await.unwrap_or_default();
     envelope(rows.iter().map(ser_phrase).collect()).into_response()
@@ -514,7 +553,7 @@ async fn scoped_phrase(
         .await
         .unwrap_or(None)
     {
-        Some(r) if r.domain_id == domain => Some(r),
+        Some(r) if r.domain_id == Some(domain) || r.domain_id.is_none() => Some(r),
         _ => None,
     }
 }
@@ -1120,7 +1159,7 @@ fn nt_router() -> Router {
 fn ser_stream(r: &streams::Model) -> Value {
     serde_json::json!({
         "stream_uuid": r.stream_uuid,
-        "domain_id": r.domain_id.to_string(),
+        "domain_id": r.domain_id.map(|d| d.to_string()),
         "stream_name": r.stream_name,
         "name": r.stream_name,
         "stream_location": r.stream_location,
@@ -1145,7 +1184,7 @@ async fn create_stream(
     let now = crate::routing_db::now();
     let am = streams::ActiveModel {
         stream_uuid: Set(crate::routing_db::new_uuid()),
-        domain_id: Set(domain),
+        domain_id: Set(Some(domain)),
         stream_name: Set(name),
         stream_location: Set(s(&payload, &["stream_location", "location"])),
         stream_enabled: Set(b(&payload, &["stream_enabled", "enabled"], true)),
@@ -1181,7 +1220,11 @@ async fn list_streams(Extension(claims): Extension<Claims>,
     let domain = crate::routing_db::domain(&claims);
     let mut sel = streams::Entity::find();
     if !show_all {
-        sel = sel.filter(streams::Column::DomainId.eq(domain));
+        sel = sel.filter(
+            Condition::any()
+                .add(streams::Column::DomainId.eq(domain))
+                .add(streams::Column::DomainId.is_null()),
+        );
     }
     let rows = sel.all(&txn).await.unwrap_or_default();
     envelope(rows.iter().map(ser_stream).collect()).into_response()
@@ -1201,7 +1244,7 @@ async fn get_stream(
         .await
         .unwrap_or(None)
     {
-        Some(r) if r.domain_id == domain => (StatusCode::OK, Json(ser_stream(&r))).into_response(),
+        Some(r) if r.domain_id == Some(domain) || r.domain_id.is_none() => (StatusCode::OK, Json(ser_stream(&r))).into_response(),
         _ => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -1232,7 +1275,7 @@ async fn patch_stream(
         )
             .into_response();
     };
-    if r.domain_id != domain {
+    if r.domain_id != Some(domain) && r.domain_id.is_some() {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -1278,7 +1321,7 @@ async fn delete_stream(
         .await
         .unwrap_or(None)
     {
-        Some(r) if r.domain_id == domain => {
+        Some(r) if r.domain_id == Some(domain) || r.domain_id.is_none() => {
             let am: streams::ActiveModel = r.into();
             let _ = am.delete(db).await;
             StatusCode::NO_CONTENT.into_response()

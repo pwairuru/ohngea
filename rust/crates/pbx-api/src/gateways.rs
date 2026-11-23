@@ -6,7 +6,7 @@
 use axum::{
     http::StatusCode, response::IntoResponse, routing::post, Extension as AxExtension, Json, Router,
 };
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, Condition, EntityTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -46,6 +46,9 @@ pub struct Gateway {
     pub extension_in_contact: Option<String>,
     pub hostname: Option<String>,
     pub description: Option<String>,
+    /// Tenant UUID, or None for a global/shared gateway
+    /// (PHP `gateway_domain` parity).
+    pub domain_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -84,6 +87,13 @@ struct GatewayCreate {
     #[serde(default)] extension_in_contact: Option<String>,
     #[serde(default)] hostname: Option<String>,
     #[serde(default)] description: Option<String>,
+    /// Target tenant: UUID string, empty string (global, needs
+    /// `gateway_domain`), or absent (caller's tenant). Without the perm the
+    /// value is ignored and the tenant is forced (PHP parity; PHP forms
+    /// post "" for an empty domain select). (Plain Option because serde
+    /// collapses explicit JSON null into absent for nested Options.)
+    #[serde(default)]
+    domain_id: Option<String>,
 }
 
 fn masked(mut g: Gateway) -> Gateway {
@@ -134,6 +144,7 @@ fn row_to_gateway(r: &pbx_db::entities::gateways::Model) -> Gateway {
         extension_in_contact: r.extension_in_contact.clone(),
         hostname: r.hostname.clone(),
         description: r.description.clone(),
+        domain_id: r.domain_id.map(|d| d.to_string()),
     }
 }
 
@@ -163,7 +174,26 @@ async fn create_gateway(
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
-    let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
+    let tenant_id = crate::routing_db::tenant_domain(db, &claims).await;
+    // PHP `gateway_domain` parity: perm holders may target another tenant
+    // (UUID string) or NULL (global/shared gateway). Everyone else — and
+    // absent values — resolve to the caller's own tenant.
+    let domain_id: Option<uuid::Uuid> = match payload.domain_id.as_deref().map(str::trim) {
+        Some("") if crate::tenant::has_permission(&claims, "gateway_domain") => None,
+        Some(s) if crate::tenant::has_permission(&claims, "gateway_domain") => {
+            match s.parse::<uuid::Uuid>() {
+                Ok(id) => Some(id),
+                Err(_) => {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(serde_json::json!({"detail": "domain_id must be a UUID or empty"})),
+                    )
+                        .into_response();
+                }
+            }
+        }
+        _ => Some(tenant_id),
+    };
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
         Err(e) => {
@@ -274,6 +304,7 @@ async fn create_gateway(
         extension_in_contact: payload.extension_in_contact,
         hostname: payload.hostname,
         description: payload.description,
+        domain_id: domain_id.map(|d| d.to_string()),
     };
     propagate_gateway(&profile, None);
     (StatusCode::CREATED, Json(serde_json::json!(masked(rec)))).into_response()
@@ -298,7 +329,16 @@ async fn list_gateways(
     let domain_id = crate::routing_db::domain(&claims);
     let mut sel = pbx_db::entities::gateways::Entity::find();
     if !show_all {
-        sel = sel.filter(pbx_db::entities::gateways::Column::DomainId.eq(domain_id));
+        // PHP `gateway_domain` parity: holders also see global (NULL) rows.
+        if crate::tenant::sees_domain_nulls(&claims, "gateway_domain") {
+            sel = sel.filter(
+                Condition::any()
+                    .add(pbx_db::entities::gateways::Column::DomainId.eq(domain_id))
+                    .add(pbx_db::entities::gateways::Column::DomainId.is_null()),
+            );
+        } else {
+            sel = sel.filter(pbx_db::entities::gateways::Column::DomainId.eq(domain_id));
+        }
     }
     let rows = sel
         .all(&txn)
@@ -336,12 +376,10 @@ async fn get_gateway(
         )
             .into_response();
     };
-    let row = pbx_db::entities::gateways::Entity::find()
-        .filter(pbx_db::entities::gateways::Column::GatewayUuid.eq(uid))
-        .filter(pbx_db::entities::gateways::Column::DomainId.eq(domain_id))
-        .one(&txn)
-        .await
-        .unwrap_or(None);
+    let row = {
+        let see_global = crate::tenant::sees_domain_nulls(&claims, "gateway_domain");
+        find_gateway_row(&txn, domain_id, uid, see_global).await
+    };
     let _ = txn.commit().await;
     match row {
         Some(r) => (
@@ -361,10 +399,23 @@ async fn find_gateway_row(
     txn: &sea_orm::DatabaseTransaction,
     domain_id: uuid::Uuid,
     id: uuid::Uuid,
+    see_global: bool,
 ) -> Option<pbx_db::entities::gateways::Model> {
+    // Tenant rows are always visible to their tenant; global (NULL-domain)
+    // rows only to `gateway_domain` holders (PHP list/edit parity).
+    let scope = if see_global {
+        Condition::any()
+            .add(pbx_db::entities::gateways::Column::DomainId.eq(domain_id))
+            .add(pbx_db::entities::gateways::Column::DomainId.is_null())
+    } else {
+        Condition::any().add(pbx_db::entities::gateways::Column::DomainId.eq(domain_id))
+    };
     pbx_db::entities::gateways::Entity::find()
-        .filter(pbx_db::entities::gateways::Column::GatewayUuid.eq(id))
-        .filter(pbx_db::entities::gateways::Column::DomainId.eq(domain_id))
+        .filter(
+            Condition::all()
+                .add(pbx_db::entities::gateways::Column::GatewayUuid.eq(id))
+                .add(scope),
+        )
         .one(txn)
         .await
         .unwrap_or(None)
@@ -392,7 +443,8 @@ async fn patch_gateway(
         }
     };
     let domain_id = crate::routing_db::domain(&claims);
-    let Some(row) = find_gateway_row(&txn, domain_id, id).await else {
+    let see_global = crate::tenant::sees_domain_nulls(&claims, "gateway_domain");
+    let Some(row) = find_gateway_row(&txn, domain_id, id, see_global).await else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Gateway not found"})),
@@ -433,6 +485,34 @@ async fn patch_gateway(
     }
     if let Some(b) = get("enabled").and_then(|v| v.as_bool()) {
         am.enabled = Set(b);
+    }
+    // PHP `gateway_domain` parity: perm holders may re-home a gateway
+    // (UUID string) or globalize it (empty string). Without the perm the
+    // key is ignored and the row keeps its domain.
+    if get("domain_id").or_else(|| get("domain_uuid")).is_some()
+        && crate::tenant::has_permission(&claims, "gateway_domain")
+    {
+        let raw = get("domain_id")
+            .or_else(|| get("domain_uuid"))
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .unwrap_or("");
+        if raw.is_empty() {
+            am.domain_id = Set(None);
+        } else {
+            match raw.parse::<uuid::Uuid>() {
+                Ok(id) => am.domain_id = Set(Some(id)),
+                Err(_) => {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(
+                            serde_json::json!({"detail": "domain_id must be a UUID or empty"}),
+                        ),
+                    )
+                        .into_response();
+                }
+            }
+        }
     }
     for key in [
         "distinct_to",
@@ -550,7 +630,8 @@ async fn delete_gateway(
         }
     };
     let domain_id = crate::routing_db::domain(&claims);
-    let Some(row) = find_gateway_row(&txn, domain_id, id).await else {
+    let see_global = crate::tenant::sees_domain_nulls(&claims, "gateway_domain");
+    let Some(row) = find_gateway_row(&txn, domain_id, id, see_global).await else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Gateway not found"})),

@@ -7,7 +7,7 @@
 //! Shared `s/b/i` payload helpers live here as `pub(crate)`.
 
 use axum::{http::StatusCode, response::IntoResponse, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, Condition, EntityTrait, QueryFilter, Set};
 use serde_json::Value;
 
 // ---- models ----
@@ -104,7 +104,7 @@ pub(crate) async fn tenant_domain(db: &sea_orm::DatabaseConnection, claims: &Cla
 fn ser_call_block(r: &call_block::Model) -> Value {
     serde_json::json!({
         "call_block_uuid": r.call_block_uuid,
-        "domain_id": r.domain_id.to_string(),
+        "domain_id": r.domain_id.map(|d| d.to_string()),
         "call_block_direction": r.call_block_direction,
         "extension_uuid": r.extension_uuid,
         "call_block_name": r.call_block_name,
@@ -134,7 +134,25 @@ async fn create_call_block(
     };
     let name = s(&payload, &["call_block_name", "name"]).unwrap_or_else(|| number.clone());
     let db = crate::routing_db::conn().await;
-    let domain = tenant_domain(db, &claims).await;
+    let tenant = tenant_domain(db, &claims).await;
+    let posted_domain = payload
+        .get("domain_uuid")
+        .or_else(|| payload.get("domain_id"))
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .map(str::to_owned);
+    // PHP parity: `call_block_domain` holders post any domain (empty = global).
+    // NOTE: raw access, not s() — s() drops empty strings.
+    let domain: Option<uuid::Uuid> = match posted_domain.as_deref() {
+        Some(v) if !v.is_empty() && crate::tenant::has_permission(&claims, "call_block_domain") => {
+            match v.parse::<uuid::Uuid>() {
+                Ok(id) => Some(id),
+                Err(_) => return unprocessable("domain_uuid must be a UUID or empty").into_response(),
+            }
+        }
+        Some(v) if v.is_empty() && crate::tenant::has_permission(&claims, "call_block_domain") => None,
+        _ => Some(tenant),
+    };
     let id = crate::routing_db::new_uuid();
     let now = crate::routing_db::now();
     let am = call_block::ActiveModel {
@@ -182,7 +200,16 @@ async fn list_call_block(Extension(claims): Extension<Claims>,
     let domain = crate::routing_db::domain(&claims);
     let mut sel = call_block::Entity::find();
     if !show_all {
-        sel = sel.filter(call_block::Column::DomainId.eq(domain));
+        // PHP `call_block_domain` parity: holders also see global rows.
+        if crate::tenant::sees_domain_nulls(&claims, "call_block_domain") {
+            sel = sel.filter(
+                Condition::any()
+                    .add(call_block::Column::DomainId.eq(domain))
+                    .add(call_block::Column::DomainId.is_null()),
+            );
+        } else {
+            sel = sel.filter(call_block::Column::DomainId.eq(domain));
+        }
     }
     let rows = sel.all(&txn).await.unwrap_or_default();
     envelope(rows.iter().map(ser_call_block).collect()).into_response()
@@ -202,7 +229,10 @@ async fn get_call_block(
         .await
         .unwrap_or(None)
     {
-        Some(r) if r.domain_id == domain => {
+        Some(r)
+        if r.domain_id == Some(domain)
+            || (r.domain_id.is_none()
+                && crate::tenant::sees_domain_nulls(&claims, "call_block_domain")) => {
             (StatusCode::OK, Json(ser_call_block(&r))).into_response()
         }
         _ => (
@@ -235,7 +265,10 @@ async fn patch_call_block(
         )
             .into_response();
     };
-    if r.domain_id != domain {
+    if r.domain_id != Some(domain)
+        && (r.domain_id.is_some()
+            || !crate::tenant::sees_domain_nulls(&claims, "call_block_domain"))
+    {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -287,7 +320,10 @@ async fn delete_call_block(
         .await
         .unwrap_or(None)
     {
-        Some(r) if r.domain_id == domain => {
+        Some(r)
+        if r.domain_id == Some(domain)
+            || (r.domain_id.is_none()
+                && crate::tenant::sees_domain_nulls(&claims, "call_block_domain")) => {
             let am: call_block::ActiveModel = r.into();
             let _ = am.delete(db).await;
             StatusCode::NO_CONTENT.into_response()
@@ -964,7 +1000,7 @@ fn ser_destination(r: &destinations::Model) -> Value {
     };
     let s = |x: &Option<String>| x.clone().map(Value::String).unwrap_or(Value::Null);
     put("destination_uuid", Value::String(r.destination_uuid.clone()));
-    put("domain_id", Value::String(r.domain_id.to_string()));
+    put("domain_id", r.domain_id.map(|d| Value::String(d.to_string())).unwrap_or(Value::Null));
     put("destination_type", Value::String(r.destination_type.clone()));
     put("type", Value::String(r.destination_type.clone()));
     put("destination_number", Value::String(r.destination_number.clone()));
@@ -1021,7 +1057,20 @@ async fn create_destination(
         return unprocessable("destination required").into_response();
     };
     let db = crate::routing_db::conn().await;
-    let domain = tenant_domain(db, &claims).await;
+    let tenant = tenant_domain(db, &claims).await;
+    // PHP `destination_domain` parity: holders may assign another tenant
+    // (valid UUID only — empty falls back, never global via this path).
+    let domain: Option<uuid::Uuid> = match s(&payload, &["domain_uuid", "domain_id"])
+        .map(|v| v.trim().to_owned())
+    {
+        Some(v) if !v.is_empty() && crate::tenant::has_permission(&claims, "destination_domain") => {
+            match v.parse::<uuid::Uuid>() {
+                Ok(id) => Some(id),
+                Err(_) => return unprocessable("domain_uuid must be a UUID").into_response(),
+            }
+        }
+        _ => Some(tenant),
+    };
     let now = crate::routing_db::now();
     let am = destinations::ActiveModel {
         destination_uuid: Set(crate::routing_db::new_uuid()),
@@ -1098,7 +1147,12 @@ async fn list_destinations(Extension(claims): Extension<Claims>,
     let domain = crate::routing_db::domain(&claims);
     let mut sel = destinations::Entity::find();
     if !show_all {
-        sel = sel.filter(destinations::Column::DomainId.eq(domain));
+        // PHP parity: global (NULL-domain) destinations show for everyone.
+        sel = sel.filter(
+            Condition::any()
+                .add(destinations::Column::DomainId.eq(domain))
+                .add(destinations::Column::DomainId.is_null()),
+        );
     }
     let rows = sel.all(&txn).await.unwrap_or_default();
     envelope(rows.iter().map(ser_destination).collect()).into_response()
@@ -1118,7 +1172,7 @@ async fn get_destination(
         .await
         .unwrap_or(None)
     {
-        Some(r) if r.domain_id == domain => {
+        Some(r) if r.domain_id == Some(domain) || r.domain_id.is_none() => {
             (StatusCode::OK, Json(ser_destination(&r))).into_response()
         }
         _ => (
@@ -1151,7 +1205,7 @@ async fn patch_destination(
         )
             .into_response();
     };
-    if r.domain_id != domain {
+    if r.domain_id != Some(domain) && r.domain_id.is_some() {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -1258,7 +1312,7 @@ async fn delete_destination(
         .await
         .unwrap_or(None)
     {
-        Some(r) if r.domain_id == domain => {
+        Some(r) if r.domain_id == Some(domain) || r.domain_id.is_none() => {
             let am: destinations::ActiveModel = r.into();
             let _ = am.delete(db).await;
             StatusCode::NO_CONTENT.into_response()
@@ -1815,7 +1869,7 @@ fn valid_tc_extension(ext: &str) -> bool {
 fn ser_time_condition(r: &time_conditions::Model) -> Value {
     serde_json::json!({
         "time_condition_uuid": r.time_condition_uuid,
-        "domain_id": r.domain_id.to_string(),
+        "domain_id": r.domain_id.map(|d| d.to_string()),
         "name": r.name,
         "time_condition_name": r.name,
         "extension": r.extension,
@@ -1861,7 +1915,26 @@ async fn create_time_condition(
     let enabled = b(&payload, &["enabled", "time_condition_enabled", "dialplan_enabled"], true);
     let description = s(&payload, &["description", "time_condition_description", "dialplan_description"]);
     let db = crate::routing_db::conn().await;
-    let domain = tenant_domain(db, &claims).await;
+    let tenant = tenant_domain(db, &claims).await;
+    let posted_domain = payload
+        .get("domain_uuid")
+        .or_else(|| payload.get("domain_id"))
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .map(str::to_owned);
+    // PHP `time_condition_domain` parity: holders post any domain
+    // (empty = global); everyone else resolves to their own tenant.
+    // NOTE: raw access, not s() — s() drops empty strings.
+    let domain: Option<uuid::Uuid> = match posted_domain.as_deref() {
+        Some(v) if !v.is_empty() && crate::tenant::has_permission(&claims, "time_condition_domain") => {
+            match v.parse::<uuid::Uuid>() {
+                Ok(id) => Some(id),
+                Err(_) => return unprocessable("domain_uuid must be a UUID or empty").into_response(),
+            }
+        }
+        Some(v) if v.is_empty() && crate::tenant::has_permission(&claims, "time_condition_domain") => None,
+        _ => Some(tenant),
+    };
     let now = crate::routing_db::now();
     let id = crate::routing_db::new_uuid();
     let am = time_conditions::ActiveModel {
@@ -1943,7 +2016,12 @@ async fn list_time_conditions(Extension(claims): Extension<Claims>,
     let domain = crate::routing_db::domain(&claims);
     let mut sel = time_conditions::Entity::find();
     if !show_all {
-        sel = sel.filter(time_conditions::Column::DomainId.eq(domain));
+        // PHP parity: global time_conditions show for everyone.
+        sel = sel.filter(
+            Condition::any()
+                .add(time_conditions::Column::DomainId.eq(domain))
+                .add(time_conditions::Column::DomainId.is_null()),
+        );
     }
     let rows = sel.all(&txn).await.unwrap_or_default();
     // Backing-dialplan orders (PHP order lives on v_dialplans).
@@ -1980,7 +2058,7 @@ async fn get_time_condition(
         .await
         .unwrap_or(None)
     {
-        Some(r) if r.domain_id == domain => {
+        Some(r) if r.domain_id == Some(domain) || r.domain_id.is_none() => {
             let mut v = ser_time_condition(&r);
             if let Some(dp) = r.dialplan_uuid.as_deref().and_then(|s| s.parse::<uuid::Uuid>().ok()) {
                 if let Ok(Some(d)) = pbx_db::entities::dialplans::Entity::find_by_id(dp).one(db).await {
@@ -2019,7 +2097,7 @@ async fn patch_time_condition(
         )
             .into_response();
     };
-    if r.domain_id != domain {
+    if r.domain_id != Some(domain) && r.domain_id.is_some() {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -2073,7 +2151,7 @@ async fn patch_time_condition(
             let order = payload.get("dialplan_order").or_else(|| payload.get("order")).and_then(|v| v.as_i64()).map(|v| v as i32);
             let existing = r.dialplan_uuid.as_deref().and_then(|s| s.parse::<uuid::Uuid>().ok());
             let dp_id = crate::dialplans::sync_tc_dialplan(
-                db, domain, &r.name, &r.extension, order, r.context.clone(), r.enabled,
+                db, r.domain_id, &r.name, &r.extension, order, r.context.clone(), r.enabled,
                 r.description.clone(), r.timezone.clone(), r.true_destination.clone(),
                 r.false_destination.clone(), r.details.as_ref(), existing,
             )
@@ -2115,7 +2193,7 @@ async fn delete_time_condition(
         .await
         .unwrap_or(None)
     {
-        Some(r) if r.domain_id == domain => {
+        Some(r) if r.domain_id == Some(domain) || r.domain_id.is_none() => {
             if let Some(dp) = r.dialplan_uuid.as_deref().and_then(|s| s.parse::<uuid::Uuid>().ok()) {
                 crate::dialplans::delete_tc_dialplan(db, dp).await;
             }

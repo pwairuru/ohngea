@@ -312,7 +312,7 @@ pub async fn seed_dialplans(
             name: Set(s.name.to_owned()),
             context: Set(domain_name.to_owned()),
             enabled: Set(true),
-            domain_id: Set(domain_id),
+            domain_id: Set(Some(domain_id)),
             description: Set(s.description.map(str::to_owned)),
             dialplan_continue: Set(false),
             dialplan_order: Set(Some(s.order)),

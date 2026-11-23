@@ -86,7 +86,11 @@ async fn domain_document(domain: &str) -> String {
     }
     let ext_ids: Vec<uuid::Uuid> = rows.iter().map(|r| r.extension_uuid).collect();
     let vms = pbx_db::entities::voicemails::Entity::find()
-        .filter(pbx_db::entities::voicemails::Column::DomainId.eq(domain_id))
+        .filter(
+            sea_orm::Condition::any()
+                .add(pbx_db::entities::voicemails::Column::DomainId.eq(domain_id))
+                .add(pbx_db::entities::voicemails::Column::DomainId.is_null()),
+        )
         .all(db)
         .await
         .unwrap_or_default();
@@ -333,7 +337,11 @@ async fn dialplan_document(domain_id: &uuid::Uuid, fallback_ctx: &str) -> String
     let db = crate::routing_db::conn().await;
     let domain_id = *domain_id;
     let rows = pbx_db::entities::dialplans::Entity::find()
-        .filter(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
+        .filter(
+            sea_orm::Condition::any()
+                .add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
+                .add(pbx_db::entities::dialplans::Column::DomainId.is_null()),
+        )
         .filter(pbx_db::entities::dialplans::Column::Enabled.eq(true))
         .all(db)
         .await
@@ -597,15 +605,20 @@ fn render_extension(
             // direction + tenant domain before the first action figure.
             if is_public_ctx(&r.context) && d.tag == "action" && first_action {
                 ext.push_str("        <action application=\"export\" data=\"call_direction=inbound\" inline=\"true\"/>\n");
+                // Tenant rows stamp their own domain; global rows fall back
+                // to the config domain (PHP stamps the session domain here).
+                let stamp_dom = r.domain_id.or_else(|| domain_names.keys().next().copied());
                 ext.push_str(&format!(
                     "        <action application=\"set\" data=\"domain_uuid={}\" inline=\"true\"/>\n",
-                    r.domain_id
+                    stamp_dom.map(|d| d.to_string()).unwrap_or_default()
                 ));
-                if let Some(name) = domain_names.get(&r.domain_id) {
+                if let Some(d) = stamp_dom {
+                    if let Some(name) = domain_names.get(&d) {
                     ext.push_str(&format!(
                         "        <action application=\"set\" data=\"domain_name={}\" inline=\"true\"/>\n",
                         xml_escape(name)
                     ));
+                    }
                 }
                 first_action = false;
             }
@@ -667,8 +680,15 @@ async fn domain_name_map(
         .collect()
 }
 
-fn domain_label(map: &std::collections::HashMap<uuid::Uuid, String>, id: &uuid::Uuid) -> String {
-    map.get(id).cloned().unwrap_or_else(|| format!("tenant-{id}"))
+fn domain_label(
+    map: &std::collections::HashMap<uuid::Uuid, String>,
+    id: &Option<uuid::Uuid>,
+) -> String {
+    match id {
+        Some(d) => map.get(d).cloned().unwrap_or_else(|| format!("tenant-{d}")),
+        // Global (shared) rows render under a stable pseudo-domain.
+        None => "global".to_owned(),
+    }
 }
 
 /// Hostname scoping (Lua `... or hostname is null or hostname = ''`
@@ -879,7 +899,7 @@ async fn serve_callcenter_conf() -> String {
                     announce_sound: q.announce_sound.clone(),
                     announce_frequency: q.announce_frequency,
                 },
-                domain_label(&names, &q.domain_id),
+                domain_label(&names, &Some(q.domain_id)),
             )
         })
         .collect();
@@ -901,7 +921,7 @@ async fn serve_callcenter_conf() -> String {
                     busy_delay_time: a.agent_busy_delay_time,
                     ..Default::default()
                 },
-                domain_label(&names, &a.domain_id),
+                domain_label(&names, &Some(a.domain_id)),
             )
         })
         .collect();
@@ -924,7 +944,7 @@ async fn serve_callcenter_conf() -> String {
                     tier_level: t.tier_level,
                     tier_position: t.tier_position,
                 },
-                domain_label(&names, &t.domain_id),
+                domain_label(&names, &Some(t.domain_id)),
             )
         })
         .collect();
@@ -1303,7 +1323,7 @@ mod dialplan_render_tests {
             name: name.to_owned(),
             context: ctx.to_owned(),
             enabled: true,
-            domain_id: domain_id(),
+            domain_id: Some(domain_id()),
             description: None,
             dialplan_continue: cont,
             dialplan_order: Some(order),

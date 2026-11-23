@@ -9,7 +9,7 @@ use uuid::Uuid;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub music_on_hold_uuid: String,
-    pub domain_id: Uuid,
+    pub domain_id: Option<Uuid>,
     pub music_name: String,
     pub music_path: String,
     pub music_rate: Option<i32>,

@@ -10,7 +10,7 @@ use uuid::Uuid;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub destination_uuid: String,
-    pub domain_id: Uuid,
+    pub domain_id: Option<Uuid>,
     pub destination_type: String,
     pub destination_number: String,
     pub destination_prefix: Option<String>,
@@ -59,6 +59,9 @@ pub struct Model {
     pub destination_alternate_data: Option<String>,
     pub alternate_data: Option<String>,
     pub destination_caller_id: Option<String>,
+    pub destination_cid_name_prefix: Option<String>,
+    pub destination_order: Option<i32>,
+    pub destination_email: Option<String>,
     pub destination_insert_user: Option<String>,
     pub insert_user: Option<String>,
     pub destination_insert_date: Option<DateTime<Utc>>,

@@ -9,7 +9,7 @@ use uuid::Uuid;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub time_condition_uuid: String,
-    pub domain_id: Uuid,
+    pub domain_id: Option<Uuid>,
     pub name: String,
     pub extension: String,
     pub context: Option<String>,

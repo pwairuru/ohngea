@@ -3,7 +3,7 @@
 //! Order: models → schemas → handlers → xml.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde::Deserialize;
 
 // ---- models ----
@@ -92,7 +92,11 @@ async fn vm_or_404(
     id: &str,
 ) -> Option<voicemails::Model> {
     voicemails::Entity::find_by_id(id.to_owned())
-        .filter(voicemails::Column::DomainId.eq(domain))
+        .filter(
+            Condition::any()
+                .add(voicemails::Column::DomainId.eq(domain))
+                .add(voicemails::Column::DomainId.is_null())
+        )
         .one(db)
         .await
         .unwrap_or(None)
@@ -125,7 +129,7 @@ async fn create_vm(
     let now = crate::routing_db::now();
     let am = voicemails::ActiveModel {
         voicemail_uuid: Set(id.clone()),
-        domain_id: Set(domain),
+        domain_id: Set(Some(domain)),
         voicemail_id: Set(payload.voicemail_id.trim().to_owned()),
         voicemail_password: Set(payload.voicemail_password),
         enabled: Set(payload.enabled.unwrap_or(true)),
@@ -199,7 +203,11 @@ async fn list_vm(
     }
     let mut sel = voicemails::Entity::find();
     if !show_all {
-        sel = sel.filter(voicemails::Column::DomainId.eq(domain));
+        sel = sel.filter(
+            Condition::any()
+                .add(voicemails::Column::DomainId.eq(domain))
+                .add(voicemails::Column::DomainId.is_null()),
+        );
     }
     let paginator = sel.paginate(&txn, per_page);
     let total = paginator.num_items().await.unwrap_or(0);

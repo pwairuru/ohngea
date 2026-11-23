@@ -9,7 +9,7 @@ use uuid::Uuid;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub stream_uuid: String,
-    pub domain_id: Uuid,
+    pub domain_id: Option<Uuid>,
     pub stream_name: String,
     pub stream_location: Option<String>,
     pub stream_enabled: bool,

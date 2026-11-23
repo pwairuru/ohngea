@@ -9,7 +9,7 @@ use uuid::Uuid;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub call_block_uuid: String,
-    pub domain_id: Uuid,
+    pub domain_id: Option<Uuid>,
     pub call_block_direction: Option<String>,
     pub extension_uuid: Option<String>,
     pub call_block_name: String,

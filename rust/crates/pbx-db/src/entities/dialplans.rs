@@ -12,7 +12,7 @@ pub struct Model {
     pub name: String,
     pub context: String,
     pub enabled: bool,
-    pub domain_id: Uuid,
+    pub domain_id: Option<Uuid>,
     pub description: Option<String>,
     pub dialplan_continue: bool,
     pub dialplan_order: Option<i32>,

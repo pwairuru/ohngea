@@ -38,7 +38,10 @@ mod remaining_a;
 mod remaining_b;
 mod remaining_c;
 mod ring_groups;
-pub(crate) mod routing_db;
+/// Routing-DB helpers (tenant txn/GUCs). Public so integration tests can
+/// seed rows directly (e.g. legacy NULL-domain rows) against the same
+/// connection the handlers use.
+pub mod routing_db;
 mod services;
 mod settings;
 mod sip;

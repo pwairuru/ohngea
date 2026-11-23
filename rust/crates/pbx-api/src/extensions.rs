@@ -449,7 +449,7 @@ async fn create_extension(
                     .unwrap_or_else(|| pbx_db::extensions::ensure_password(None));
                 let vam = pbx_db::entities::voicemails::ActiveModel {
                     voicemail_uuid: Set(crate::routing_db::new_uuid()),
-                    domain_id: Set(domain_id),
+                    domain_id: Set(Some(domain_id)),
                     voicemail_id: Set(ext.clone()),
                     voicemail_password: Set(vpw),
                     enabled: Set(payload.voicemail_enabled.unwrap_or(true)),

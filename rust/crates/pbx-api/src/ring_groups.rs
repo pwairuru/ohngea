@@ -110,7 +110,7 @@ pub(crate) async fn resolve_domain_name(
 /// failure; ESL `reloadxml` failures stay loud-but-non-fatal (Task 5).
 pub(crate) async fn sync_app_dialplan(
     db: &sea_orm::DatabaseConnection,
-    domain: uuid::Uuid,
+    domain: Option<uuid::Uuid>,
     id: uuid::Uuid,
     spec: &AppDialplan,
 ) -> Result<(), String> {
@@ -176,7 +176,7 @@ pub(crate) async fn sync_app_dialplan(
             detail_type: Set("destination_number".to_owned()),
             data: Set(cond.expression.clone()),
             order: Set(order_no),
-            domain_id: Set(Some(domain)),
+            domain_id: Set(domain),
             dialplan_detail_break: Set(cond.break_attr.clone()),
             dialplan_detail_inline: Set(None),
             dialplan_detail_group: Set(Some(cond.group)),
@@ -196,7 +196,7 @@ pub(crate) async fn sync_app_dialplan(
                 detail_type: Set(a.application.clone()),
                 data: Set(a.data.clone()),
                 order: Set(order_no),
-                domain_id: Set(Some(domain)),
+                domain_id: Set(domain),
                 dialplan_detail_break: Set(None),
                 dialplan_detail_inline: Set(a.inline.clone()),
                 dialplan_detail_group: Set(Some(cond.group)),
@@ -457,7 +457,7 @@ async fn create_rg(
         payload.enabled.unwrap_or(true),
         payload.description.clone(),
     );
-    if let Err(e) = sync_app_dialplan(db, domain, dp_id, &spec).await {
+    if let Err(e) = sync_app_dialplan(db, Some(domain), dp_id, &spec).await {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": e})),
@@ -681,7 +681,7 @@ async fn patch_rg(
                 r.enabled,
                 r.description.clone(),
             );
-            if let Err(e) = sync_app_dialplan(db, domain, dp_id, &spec).await {
+            if let Err(e) = sync_app_dialplan(db, Some(domain), dp_id, &spec).await {
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(serde_json::json!({"detail": e})),

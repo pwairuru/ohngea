@@ -532,7 +532,7 @@ async fn create_queue(
                     r.queue_description.clone(),
                 );
                 if let Err(e) =
-                    crate::ring_groups::sync_app_dialplan(db, domain, dp, &spec).await
+                    crate::ring_groups::sync_app_dialplan(db, Some(domain), dp, &spec).await
                 {
                     return (
                         StatusCode::INTERNAL_SERVER_ERROR,
@@ -699,7 +699,7 @@ async fn patch_queue(
                         r.queue_description.clone(),
                     );
                     if let Err(e) =
-                        crate::ring_groups::sync_app_dialplan(db, domain, dp, &spec).await
+                        crate::ring_groups::sync_app_dialplan(db, Some(domain), dp, &spec).await
                     {
                         return (
                             StatusCode::INTERNAL_SERVER_ERROR,

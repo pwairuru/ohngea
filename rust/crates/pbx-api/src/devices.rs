@@ -13,7 +13,7 @@
 //! back to a generic stub — full 31-vendor matrix is a later pass.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, Set};
 
 // ---- models ----
 use pbx_db::entities::{device_lines, devices, domains};
@@ -37,6 +37,8 @@ struct DeviceCreate {
     device_enabled_date: Option<String>,
     #[serde(default)]
     device_user_uuid: Option<String>,
+    #[serde(default)]
+    device_domain_uuid: Option<String>,
     #[serde(default)]
     device_uuid_alternate: Option<String>,
     #[serde(default)]
@@ -96,7 +98,24 @@ async fn create_device(
             .into_response();
     }
     let db = crate::routing_db::conn().await;
-    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let tenant = crate::routing_db::tenant_domain(db, &claims).await;
+    // PHP `device_domain` parity: holders may assign another tenant
+    // (valid UUID only — never global via this path).
+    let domain: uuid::Uuid = match payload.device_domain_uuid.as_deref().map(str::trim) {
+        Some(v) if !v.is_empty() && crate::tenant::has_permission(&claims, "device_domain") => {
+            match v.parse::<uuid::Uuid>() {
+                Ok(id) => id,
+                Err(_) => {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(serde_json::json!({"detail": "device_domain_uuid must be a UUID"})),
+                    )
+                        .into_response();
+                }
+            }
+        }
+        _ => tenant,
+    };
     let mac = norm_mac(&payload.mac);
     let vendor = payload.vendor.trim().to_lowercase();
     // MAC unique per tenant → second POST is 409 (test accepts 201/200/409).
@@ -126,7 +145,7 @@ async fn create_device(
         model: Set(payload.model.clone()),
         label: Set(payload.label.clone()),
         enabled: Set(true),
-        domain_id: Set(domain),
+        domain_id: Set(Some(domain)),
         extension_uuid: Set(None),
         device_profile_uuid: Set(payload.device_profile_uuid.as_deref().and_then(|s| s.parse::<uuid::Uuid>().ok())),
         device_address: Set(Some(mac.clone())),
@@ -232,7 +251,11 @@ async fn list_devices(
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let mut sel = devices::Entity::find();
     if !show_all {
-        sel = sel.filter(devices::Column::DomainId.eq(domain));
+        sel = sel.filter(
+            Condition::any()
+                .add(devices::Column::DomainId.eq(domain))
+                .add(devices::Column::DomainId.is_null()),
+        );
     }
     let paginator = sel.paginate(&txn, per_page);
     let total = paginator.num_items().await.unwrap_or(0);
@@ -310,7 +333,11 @@ async fn get_device(
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = devices::Entity::find_by_id(id)
-        .filter(devices::Column::DomainId.eq(domain))
+        .filter(
+            Condition::any()
+                .add(devices::Column::DomainId.eq(domain))
+                .add(devices::Column::DomainId.is_null())
+        )
         .one(db)
         .await
         .unwrap_or(None);
@@ -456,12 +483,18 @@ async fn get_provision(
         .and_then(|l| l.server_address.clone())
         .unwrap_or_default();
     // Resolve tenant domain name for context; fall back to stored sip domain.
-    let domain_name = domains::Entity::find_by_id(dev.domain_id)
-        .one(db)
-        .await
-        .unwrap_or(None)
-        .map(|d| d.domain_name)
-        .unwrap_or_default();
+    // Global devices have no tenant row: skip straight to the fallback.
+    let domain_name = match dev.domain_id {
+        Some(did) => {
+            domains::Entity::find_by_id(did)
+                .one(db)
+                .await
+                .unwrap_or(None)
+                .map(|d| d.domain_name)
+                .unwrap_or_default()
+        }
+        None => String::new(),
+    };
     let domain = if sip_domain.is_empty() {
         domain_name
     } else {
@@ -508,7 +541,11 @@ async fn patch_device(
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = devices::Entity::find_by_id(id)
-        .filter(devices::Column::DomainId.eq(domain))
+        .filter(
+            Condition::any()
+                .add(devices::Column::DomainId.eq(domain))
+                .add(devices::Column::DomainId.is_null())
+        )
         .one(db)
         .await
         .unwrap_or(None);
@@ -612,7 +649,11 @@ async fn delete_device(
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::tenant_domain(db, &claims).await;
     let row = devices::Entity::find_by_id(id)
-        .filter(devices::Column::DomainId.eq(domain))
+        .filter(
+            Condition::any()
+                .add(devices::Column::DomainId.eq(domain))
+                .add(devices::Column::DomainId.is_null())
+        )
         .one(db)
         .await
         .unwrap_or(None);
@@ -664,7 +705,11 @@ async fn device_or_404(
     id: &uuid::Uuid,
 ) -> Option<devices::Model> {
     devices::Entity::find_by_id(*id)
-        .filter(devices::Column::DomainId.eq(domain))
+        .filter(
+            Condition::any()
+                .add(devices::Column::DomainId.eq(domain))
+                .add(devices::Column::DomainId.is_null())
+        )
         .one(db)
         .await
         .unwrap_or(None)

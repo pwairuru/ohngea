@@ -4,7 +4,7 @@
 //! Order: models → schemas → handlers → xml (no FS XML for fax; S3/file stub note).
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
 
 // ---- models ----
@@ -102,7 +102,11 @@ async fn fax_or_404(
     id: &str,
 ) -> Option<faxes::Model> {
     faxes::Entity::find_by_id(id.to_owned())
-        .filter(faxes::Column::DomainId.eq(domain))
+        .filter(
+            Condition::any()
+                .add(faxes::Column::DomainId.eq(domain))
+                .add(faxes::Column::DomainId.is_null())
+        )
         .one(db)
         .await
         .unwrap_or(None)
@@ -149,7 +153,7 @@ async fn create_fax(
     let now = crate::routing_db::now();
     let am = faxes::ActiveModel {
         fax_uuid: Set(id.clone()),
-        domain_id: Set(domain),
+        domain_id: Set(Some(domain)),
         fax_extension: Set(ext.to_owned()),
         fax_name: Set(name.to_owned()),
         description: Set(payload
@@ -228,7 +232,11 @@ async fn list_fax(
     }
     let mut sel = faxes::Entity::find();
     if !show_all {
-        sel = sel.filter(faxes::Column::DomainId.eq(domain));
+        sel = sel.filter(
+            Condition::any()
+                .add(faxes::Column::DomainId.eq(domain))
+                .add(faxes::Column::DomainId.is_null()),
+        );
     }
     let paginator = sel.paginate(&txn, per_page);
     let total = paginator.num_items().await.unwrap_or(0);

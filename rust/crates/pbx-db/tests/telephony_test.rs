@@ -230,7 +230,7 @@ async fn devices_provisioning_tables_exist_and_link() {
     let dev_id = Uuid::now_v7();
     devices::Entity::insert(devices::ActiveModel {
         device_uuid: Set(dev_id),
-        domain_id: Set(domain_id),
+        domain_id: Set(Some(domain_id)),
         mac: Set("00:11:22:33:44:55".to_owned()),
         vendor: Set("yealink".to_owned()),
         enabled: Set(true),

@@ -3,7 +3,7 @@
 //! Order: models → schemas → handlers → xml.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
 
 // ---- models ----
@@ -31,6 +31,8 @@ struct IvrCreate {
     options: Vec<OptionIn>,
     #[serde(default)]
     description: Option<String>,
+    #[serde(default)]
+    domain_id: Option<String>,
     #[serde(default)]
     enabled: Option<bool>,
     #[serde(default)]
@@ -117,7 +119,24 @@ async fn create_ivr(
             .into_response();
     }
     let db = crate::routing_db::conn().await;
-    let domain = crate::routing_db::domain(&claims);
+    let tenant = crate::routing_db::domain(&claims);
+    // PHP `ivr_menu_domain` parity: holders post any domain (empty = global).
+    let domain: Option<uuid::Uuid> = match payload.domain_id.as_deref().map(str::trim) {
+        Some(v) if !v.is_empty() && crate::tenant::has_permission(&claims, "ivr_menu_domain") => {
+            match v.parse::<uuid::Uuid>() {
+                Ok(id) => Some(id),
+                Err(_) => {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(serde_json::json!({"detail": "domain_id must be a UUID or empty"})),
+                    )
+                        .into_response();
+                }
+            }
+        }
+        Some(v) if v.is_empty() && crate::tenant::has_permission(&claims, "ivr_menu_domain") => None,
+        _ => Some(tenant),
+    };
     let id = crate::routing_db::new_uuid();
     let now = crate::routing_db::now();
     // PHP mints the dialplan row alongside the menu.
@@ -176,7 +195,7 @@ async fn create_ivr(
         let oam = ivr_menu_options::ActiveModel {
             option_uuid: Set(crate::routing_db::new_uuid()),
             ivr_menu_uuid: Set(id.clone()),
-            domain_id: Set(domain),
+            domain_id: Set(domain.unwrap_or(tenant)),
             digits: Set(o.digits.clone()),
             action: Set(o.action.clone()),
             param: Set(o.param.clone()),
@@ -254,7 +273,11 @@ async fn list_ivr(
     }
     let mut sel = ivr_menus::Entity::find();
     if !show_all {
-        sel = sel.filter(ivr_menus::Column::DomainId.eq(domain));
+        sel = sel.filter(
+            Condition::any()
+                .add(ivr_menus::Column::DomainId.eq(domain))
+                .add(ivr_menus::Column::DomainId.is_null()),
+        );
     }
     let paginator = sel.paginate(&txn, per_page);
     let total = paginator.num_items().await.unwrap_or(0);
@@ -313,7 +336,11 @@ async fn ivr_or_404(
     id: &str,
 ) -> Option<ivr_menus::Model> {
     ivr_menus::Entity::find_by_id(id.to_owned())
-        .filter(ivr_menus::Column::DomainId.eq(domain))
+        .filter(
+            Condition::any()
+                .add(ivr_menus::Column::DomainId.eq(domain))
+                .add(ivr_menus::Column::DomainId.is_null())
+        )
         .one(db)
         .await
         .unwrap_or(None)
@@ -419,7 +446,7 @@ async fn patch_ivr(
                     r.description.clone(),
                 );
                 if let Err(e) =
-                    crate::ring_groups::sync_app_dialplan(db, domain, dp_id, &spec).await
+                    crate::ring_groups::sync_app_dialplan(db, r.domain_id, dp_id, &spec).await
                 {
                     return (
                         StatusCode::INTERNAL_SERVER_ERROR,
@@ -771,7 +798,11 @@ async fn get_ivr(
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
     let row = ivr_menus::Entity::find_by_id(id.clone())
-        .filter(ivr_menus::Column::DomainId.eq(domain))
+        .filter(
+            Condition::any()
+                .add(ivr_menus::Column::DomainId.eq(domain))
+                .add(ivr_menus::Column::DomainId.is_null())
+        )
         .one(db)
         .await
         .unwrap_or(None);

@@ -21,7 +21,7 @@ pub struct Model {
     #[sea_orm(column_name = "register")]
     pub gateway_register: bool,
     pub enabled: bool,
-    pub domain_id: Uuid,
+    pub domain_id: Option<Uuid>,
     pub distinct_to: Option<bool>,
     pub auth_username: Option<String>,
     pub realm: Option<String>,
