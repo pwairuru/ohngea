@@ -276,6 +276,32 @@ async fn patch_call_block(
             .into_response();
     }
     let mut am: call_block::ActiveModel = r.into();
+    // PHP `call_block_domain` parity: perm holders may re-home the row (UUID string)
+    // or globalize it (empty string); otherwise the domain is untouched.
+    if payload.get("domain_uuid").or_else(|| payload.get("domain_id")).is_some()
+        && crate::tenant::sees_domain_nulls(&claims, "call_block_domain")
+    {
+        let raw = payload
+            .get("domain_uuid")
+            .or_else(|| payload.get("domain_id"))
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .unwrap_or("");
+        if raw.is_empty() {
+            am.domain_id = Set(None);
+        } else {
+            match raw.parse::<uuid::Uuid>() {
+                Ok(id) => am.domain_id = Set(Some(id)),
+                Err(_) => {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(serde_json::json!({"detail": "domain_uuid must be a UUID or empty"})),
+                    )
+                        .into_response();
+                }
+            }
+        }
+    }
     if let Some(v) = s(&payload, &["call_block_name", "name"]) {
         am.call_block_name = Set(v);
     }
@@ -1213,6 +1239,28 @@ async fn patch_destination(
             .into_response();
     }
     let mut am: destinations::ActiveModel = r.into();
+    // PHP `destination_domain` parity: holders may re-home to another
+    // tenant (valid UUID only — never global via this path).
+    if let Some(v) = payload
+        .get("domain_uuid")
+        .or_else(|| payload.get("domain_id"))
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
+        if crate::tenant::sees_domain_nulls(&claims, "destination_domain") {
+            match v.parse::<uuid::Uuid>() {
+                Ok(id) => am.domain_id = Set(Some(id)),
+                Err(_) => {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(serde_json::json!({"detail": "domain_uuid must be a UUID"})),
+                    )
+                        .into_response();
+                }
+            }
+        }
+    }
     if let Some(v) = s(&payload, &["destination_number", "destination", "number"]) {
         am.destination_number = Set(v);
     }
@@ -2110,6 +2158,32 @@ async fn patch_time_condition(
         }
     }
     let mut am: time_conditions::ActiveModel = r.into();
+    // PHP `time_condition_domain` parity: perm holders may re-home the row (UUID string)
+    // or globalize it (empty string); otherwise the domain is untouched.
+    if payload.get("domain_uuid").or_else(|| payload.get("domain_id")).is_some()
+        && crate::tenant::sees_domain_nulls(&claims, "time_condition_domain")
+    {
+        let raw = payload
+            .get("domain_uuid")
+            .or_else(|| payload.get("domain_id"))
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .unwrap_or("");
+        if raw.is_empty() {
+            am.domain_id = Set(None);
+        } else {
+            match raw.parse::<uuid::Uuid>() {
+                Ok(id) => am.domain_id = Set(Some(id)),
+                Err(_) => {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(serde_json::json!({"detail": "domain_uuid must be a UUID or empty"})),
+                    )
+                        .into_response();
+                }
+            }
+        }
+    }
     if let Some(v) = s(&payload, &["name", "time_condition_name", "dialplan_name"]) {
         am.name = Set(v);
     }

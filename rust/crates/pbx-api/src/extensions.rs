@@ -79,10 +79,10 @@ pub struct Extension {
 #[derive(Debug, Deserialize)]
 struct ExtensionCreate {
     extension: String,
-    /// Accepted for Python parity (`ExtensionCreate.domain_id`); the router
-    /// always auto-fills the tenant domain from JWT, so this is ignored.
+    /// Accepted for Python parity (`ExtensionCreate.domain_id`); honored
+    /// only with the `extension_domain` perm (PHP parity — cross-tenant
+    /// assign), otherwise the tenant domain from JWT wins.
     #[serde(default)]
-    #[allow(dead_code)]
     domain_id: Option<String>,
     #[serde(default)] password: Option<String>,
     #[serde(default)] domain: Option<String>,
@@ -296,7 +296,25 @@ async fn create_extension(
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| ext.clone());
     let db = crate::routing_db::conn().await;
-    let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
+    // PHP `extension_domain` parity: holders may assign another tenant
+    // (valid UUID only — never global; extensions have no shared rows).
+    // Without the perm the posted value is ignored (legacy behavior).
+    let tenant_id = crate::routing_db::tenant_domain(db, &claims).await;
+    let domain_id = match payload.domain_id.as_deref().map(str::trim) {
+        Some(v) if !v.is_empty() && crate::tenant::has_permission(&claims, "extension_domain") => {
+            match v.parse::<uuid::Uuid>() {
+                Ok(id) => id,
+                Err(_) => {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(serde_json::json!({"detail": "domain_id must be a UUID"})),
+                    )
+                        .into_response();
+                }
+            }
+        }
+        _ => tenant_id,
+    };
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
         Err(e) => {
@@ -894,6 +912,28 @@ async fn patch_extension(
             .into_response();
     };
     let mut am: pbx_db::entities::extensions::ActiveModel = row.into();
+    // PHP `extension_domain` parity: holders may re-home to another tenant
+    // (valid UUID only — extensions are never global).
+    if let Some(v) = payload
+        .get("domain_uuid")
+        .or_else(|| payload.get("domain_id"))
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
+        if crate::tenant::has_permission(&claims, "extension_domain") {
+            match v.parse::<uuid::Uuid>() {
+                Ok(id) => am.domain_id = Set(id),
+                Err(_) => {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(serde_json::json!({"detail": "domain_uuid must be a UUID"})),
+                    )
+                        .into_response();
+                }
+            }
+        }
+    }
     if let Err(detail) = apply_patch(&mut am, &payload) {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,

@@ -513,6 +513,32 @@ async fn patch_dialplan(
             .into_response();
     };
     let mut am: pbx_db::entities::dialplans::ActiveModel = r.into();
+    // PHP `dialplan_domain` parity: perm holders may re-home the row
+    // (UUID string) or globalize it (empty string); otherwise untouched.
+    if payload.get("domain_uuid").or_else(|| payload.get("domain_id")).is_some()
+        && crate::tenant::sees_domain_nulls(&claims, "dialplan_domain")
+    {
+        let raw = payload
+            .get("domain_uuid")
+            .or_else(|| payload.get("domain_id"))
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .unwrap_or("");
+        if raw.is_empty() {
+            am.domain_id = sea_orm::Set(None);
+        } else {
+            match raw.parse::<uuid::Uuid>() {
+                Ok(id) => am.domain_id = sea_orm::Set(Some(id)),
+                Err(_) => {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(serde_json::json!({"detail": "domain_uuid must be a UUID or empty"})),
+                    )
+                        .into_response();
+                }
+            }
+        }
+    }
     if let Some(v) = payload.get("name").and_then(|v| v.as_str()) {
         am.name = sea_orm::Set(v.to_owned());
     }

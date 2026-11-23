@@ -370,6 +370,32 @@ async fn patch_moh(
             .into_response();
     }
     let mut am: music_on_hold::ActiveModel = r.into();
+    // PHP `music_on_hold_domain` parity: perm holders may re-home the row (UUID string)
+    // or globalize it (empty string); otherwise the domain is untouched.
+    if payload.get("domain_uuid").or_else(|| payload.get("domain_id")).is_some()
+        && crate::tenant::sees_domain_nulls(&claims, "music_on_hold_domain")
+    {
+        let raw = payload
+            .get("domain_uuid")
+            .or_else(|| payload.get("domain_id"))
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .unwrap_or("");
+        if raw.is_empty() {
+            am.domain_id = Set(None);
+        } else {
+            match raw.parse::<uuid::Uuid>() {
+                Ok(id) => am.domain_id = Set(Some(id)),
+                Err(_) => {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(serde_json::json!({"detail": "domain_uuid must be a UUID or empty"})),
+                    )
+                        .into_response();
+                }
+            }
+        }
+    }
     if let Some(v) = s(&payload, &["music_name", "name"]) {
         am.music_name = Set(v);
     }

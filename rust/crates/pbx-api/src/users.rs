@@ -86,7 +86,29 @@ async fn create_user(
             .into_response();
     }
     let db = crate::routing_db::conn().await;
-    let domain = crate::routing_db::tenant_domain(db, &claims).await;
+    let tenant = crate::routing_db::tenant_domain(db, &claims).await;
+    // PHP `user_domain` parity: holders may assign another tenant
+    // (valid UUID only — users are never global).
+    let domain: uuid::Uuid = match payload
+        .get("domain_uuid")
+        .or_else(|| payload.get("domain_id"))
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+    {
+        Some(v) if !v.is_empty() && crate::tenant::has_permission(&claims, "user_domain") => {
+            match v.parse::<uuid::Uuid>() {
+                Ok(id) => id,
+                Err(_) => {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(serde_json::json!({"detail": "domain_uuid must be a UUID"})),
+                    )
+                        .into_response();
+                }
+            }
+        }
+        _ => tenant,
+    };
     // duplicate username within tenant → 409 (parity with Python unique index).
     let exists = users::Entity::find()
         .filter(users::Column::DomainId.eq(domain))
@@ -331,8 +353,49 @@ async fn patch_user(
         }
     }
     am.updated_at = Set(crate::routing_db::now());
+    // PHP `user_domain` parity: holders may move the user to another
+    // tenant (valid UUID only). Group memberships follow the user
+    // (PHP user_edit adjusts user_groups rows on domain change).
+    let mut move_to: Option<uuid::Uuid> = None;
+    if let Some(v) = payload
+        .get("domain_uuid")
+        .or_else(|| payload.get("domain_id"))
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
+        if crate::tenant::has_permission(&claims, "user_domain") {
+            match v.parse::<uuid::Uuid>() {
+                Ok(tid) if tid != domain => {
+                    am.domain_id = Set(tid);
+                    move_to = Some(tid);
+                }
+                Ok(_) => {}
+                Err(_) => {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(serde_json::json!({"detail": "domain_uuid must be a UUID"})),
+                    )
+                        .into_response();
+                }
+            }
+        }
+    }
     match am.update(db).await {
-        Ok(r) => (StatusCode::OK, Json(ser_user(&r))).into_response(),
+        Ok(r) => {
+            if let Some(tid) = move_to {
+                use sea_orm::EntityTrait as _;
+                let _ = pbx_db::entities::user_groups::Entity::update_many()
+                    .col_expr(
+                        pbx_db::entities::user_groups::Column::DomainId,
+                        sea_orm::sea_query::Expr::value(tid),
+                    )
+                    .filter(pbx_db::entities::user_groups::Column::UserUuid.eq(r.user_uuid))
+                    .exec(db)
+                    .await;
+            }
+            (StatusCode::OK, Json(ser_user(&r))).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("update failed: {e}")})),

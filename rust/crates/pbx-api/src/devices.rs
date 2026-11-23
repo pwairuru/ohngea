@@ -557,6 +557,29 @@ async fn patch_device(
             .into_response();
     };
     let mut am: devices::ActiveModel = r.into();
+    // PHP `device_domain` parity: holders may re-home to another tenant
+    // (valid UUID only — never global via this path).
+    if let Some(v) = payload
+        .get("device_domain_uuid")
+        .or_else(|| payload.get("domain_uuid"))
+        .or_else(|| payload.get("domain_id"))
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
+        if crate::tenant::has_permission(&claims, "device_domain") {
+            match v.parse::<uuid::Uuid>() {
+                Ok(id) => am.domain_id = Set(Some(id)),
+                Err(_) => {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(serde_json::json!({"detail": "domain_uuid must be a UUID"})),
+                    )
+                        .into_response();
+                }
+            }
+        }
+    }
     if let Some(mac) = payload.get("mac").and_then(|v| v.as_str()) {
         if !valid_mac(mac) {
             return (
