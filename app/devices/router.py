@@ -9,7 +9,7 @@ from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
 from app.freeswitch.cache import invalidate_fs_cache, invalidate_fs_cache_for_session
-from app.devices.models import Device, DeviceKey, DeviceSetting, DeviceProfile, DeviceProfileKey, DeviceProfileSetting
+from app.devices.models import Device, DeviceKey, DeviceLine, DeviceSetting, DeviceProfile, DeviceProfileKey, DeviceProfileSetting
 from app.devices.provision import render_provision
 
 router = APIRouter(prefix="/api/v1/devices", tags=["devices"])
@@ -78,8 +78,9 @@ async def create_device(payload: dict, response: Response, session: AsyncSession
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(d)
     response.headers["Location"] = f"/api/v1/devices/{d.device_uuid}"
     return {"device_uuid": str(d.device_uuid), "mac": d.mac, "vendor": d.vendor, "_links": {"self": {"href": f"/api/v1/devices/{d.device_uuid}"}}}
@@ -122,8 +123,9 @@ async def patch_device(device_uuid: UUID, payload: dict, session: AsyncSession =
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(d)
     dd=_serialize(d)
     dd["_links"]={"self":{"href": f"/api/v1/devices/{d.device_uuid}"}}
@@ -142,8 +144,9 @@ async def delete_device(device_uuid: UUID, session: AsyncSession = Depends(get_s
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     return Response(status_code=204)
 
 
@@ -269,6 +272,68 @@ async def delete_device_setting(device_uuid: UUID, setting_uuid: UUID, session: 
     obj = r.scalar_one_or_none()
     if not obj:
         raise HTTPException(status_code=404, detail="Device setting not found")
+    await session.delete(obj)
+    await session.commit()
+    return Response(status_code=204)
+
+
+# --- device lines CRUD ---
+@router.get("/{device_uuid}/lines", dependencies=[Depends(require_permission("device_view"))])
+async def list_device_lines(device_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    r = await session.execute(select(Device).where(Device.device_uuid == device_uuid, Device.domain_id == domain_id))
+    if not r.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Device not found")
+    q = await session.execute(select(DeviceLine).where(DeviceLine.device_uuid == device_uuid, DeviceLine.domain_id == domain_id).order_by(DeviceLine.line_number))
+    rows = q.scalars().all()
+    return {"data": [_serialize(o) for o in rows], "total": len(rows)}
+
+
+@router.post("/{device_uuid}/lines", status_code=201)
+async def create_device_line(device_uuid: UUID, payload: dict, response: Response, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("device_add"))):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    r = await session.execute(select(Device).where(Device.device_uuid == device_uuid, Device.domain_id == domain_id))
+    if not r.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Device not found")
+    allowed={c.name for c in DeviceLine.__table__.columns} - {"device_line_uuid","created_at","updated_at","domain_id","device_uuid"}
+    data={k:v for k,v in payload.items() if k in allowed}
+    data["domain_id"]=domain_id
+    data["device_uuid"]=device_uuid
+    obj = DeviceLine(**data)
+    session.add(obj)
+    await session.commit()
+    await session.refresh(obj)
+    response.headers["Location"] = f"/api/v1/devices/{device_uuid}/lines/{obj.device_line_uuid}"
+    return _serialize(obj)
+
+
+@router.patch("/{device_uuid}/lines/{line_uuid}")
+async def patch_device_line(device_uuid: UUID, line_uuid: UUID, payload: dict, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("device_edit"))):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    r = await session.execute(select(DeviceLine).where(DeviceLine.device_line_uuid == line_uuid, DeviceLine.device_uuid == device_uuid, DeviceLine.domain_id == domain_id))
+    obj = r.scalar_one_or_none()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Device line not found")
+    allowed={c.name for c in DeviceLine.__table__.columns} - {"device_line_uuid","created_at","updated_at","domain_id","device_uuid"}
+    for k in allowed:
+        if k in payload:
+            setattr(obj, k, payload[k])
+    await session.commit()
+    await session.refresh(obj)
+    return _serialize(obj)
+
+
+@router.delete("/{device_uuid}/lines/{line_uuid}", status_code=204)
+async def delete_device_line(device_uuid: UUID, line_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("device_delete"))):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    r = await session.execute(select(DeviceLine).where(DeviceLine.device_line_uuid == line_uuid, DeviceLine.device_uuid == device_uuid, DeviceLine.domain_id == domain_id))
+    obj = r.scalar_one_or_none()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Device line not found")
     await session.delete(obj)
     await session.commit()
     return Response(status_code=204)
@@ -475,10 +540,15 @@ async def delete_device_profile_setting(profile_uuid: UUID, setting_uuid: UUID, 
 
 @provision_router.get("/provision/{mac}.cfg", response_class=PlainTextResponse)
 async def get_provision(mac: str, session: AsyncSession = Depends(get_session)):
-    # provision is unauthenticated but scoped to device lookup; Jinga collapsed vendor matrix
+    import re
+    # Validate MAC to prevent enumeration/injection; phones fetch unauthenticated
+    # by design, so NEVER include secrets (SIP passwords) in rendered config.
+    if not re.match(r"^[0-9a-fA-F:\-]{12,17}$", mac):
+        raise HTTPException(status_code=400, detail="invalid mac")
+    mac_norm = re.sub(r"[^0-9a-fA-F]", "", mac).lower()
     from sqlalchemy import select
 
-    r = await session.execute(select(Device).where(Device.mac.ilike(mac)))
+    r = await session.execute(select(Device).where(Device.mac.ilike(f"%{mac_norm}%")))
     device = r.scalar_one_or_none()
     vendor = (device.vendor if device and device.vendor else "poly")
     model = (device.model if device and device.model else "")
@@ -487,9 +557,10 @@ async def get_provision(mac: str, session: AsyncSession = Depends(get_session)):
         vendor = device.device_vendor
     if device and not model and getattr(device, "device_model", None):
         model = device.device_model
-    ctx = {"mac": mac, "vendor": vendor, "model": model, "extension": "", "domain": ""}
+    ctx = {"mac": mac_norm, "vendor": vendor, "model": model, "extension": "", "domain": ""}
     if device:
-        # include device meta for templates
+        # include device meta for templates — NEVER include SIP password here;
+        # phones authenticate via line keys provisioned out-of-band.
         ctx["label"] = getattr(device, "label", "") or ""
         ctx["device_template"] = getattr(device, "device_template", "") or ""
         if device.extension_uuid:
@@ -506,10 +577,9 @@ async def get_provision(mac: str, session: AsyncSession = Depends(get_session)):
                 dom = rd.scalar_one_or_none()
                 if dom:
                     ctx["domain"] = dom.domain_name
-                ctx["password"] = getattr(ext, "password", "") or ""
                 ctx["effective_caller_id_name"] = getattr(ext, "effective_caller_id_name", "") or ""
     # include normalized mac variants for templates
-    ctx["mac_upper"] = mac.upper()
-    ctx["mac_lower"] = mac.lower()
+    ctx["mac_upper"] = mac_norm.upper()
+    ctx["mac_lower"] = mac_norm.lower()
     out = render_provision(vendor, ctx, model=model)
     return PlainTextResponse(out, media_type="text/plain")

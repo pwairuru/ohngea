@@ -88,9 +88,9 @@ export function DataTable<T extends Record<string, any>>({
           <TableHeader>
             <TableRow>
               {columns.map((c) => (
-                <TableHead key={c.key} className={c.className}>
+                <TableHead key={c.key} className={c.className} aria-sort={sort?.key === c.key ? (sort.order === "asc" ? "ascending" : "descending") : "none"}>
                   {c.sortable ? (
-                    <button onClick={() => cycleSort(c.key)} className="inline-flex items-center gap-1 hover:text-foreground">
+                    <button onClick={() => cycleSort(c.key)} aria-label={`Sort by ${c.header}`} className="inline-flex items-center gap-1 hover:text-foreground">
                       {c.header}
                       <ArrowUpDown className={`h-3 w-3 ${sort?.key === c.key ? "text-primary" : "text-muted-foreground"}`} />
                     </button>

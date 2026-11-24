@@ -71,8 +71,9 @@ async def patch_ph(uid:UUID, payload:PhraseUpdate, session:AsyncSession=Depends(
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(ph)
     _, dets=await get_phrase_with_details(session,ph.phrase_uuid,domain_id)
     return _ser(ph,dets)
@@ -87,6 +88,7 @@ async def delete_ph(uid:UUID, session:AsyncSession=Depends(get_session), user:Us
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     return Response(status_code=204)

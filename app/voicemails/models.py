@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -80,8 +80,8 @@ class VoicemailBase(SQLModel):
 class Voicemail(VoicemailBase, table=True):
     __tablename__ = "voicemails"
     voicemail_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class VoicemailDestinationBase(SQLModel):
@@ -93,7 +93,7 @@ class VoicemailDestinationBase(SQLModel):
 class VoicemailDestination(VoicemailDestinationBase, table=True):
     __tablename__ = "voicemail_destinations"
     voicemail_destination_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # --- Child tables parity: VoicemailMessage and VoicemailOption ---
@@ -116,8 +116,8 @@ class VoicemailMessageBase(SQLModel):
 class VoicemailMessage(VoicemailMessageBase, table=True):
     __tablename__ = "voicemail_messages"
     voicemail_message_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class VoicemailOptionBase(SQLModel):
@@ -133,5 +133,5 @@ class VoicemailOptionBase(SQLModel):
 class VoicemailOption(VoicemailOptionBase, table=True):
     __tablename__ = "voicemail_options"
     voicemail_option_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

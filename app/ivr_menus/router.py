@@ -42,8 +42,9 @@ async def create_ivr(payload: dict, response: Response, session: AsyncSession = 
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(m)
     response.headers["Location"] = f"/api/v1/ivr_menus/{m.ivr_menu_uuid}"
     return {"ivr_menu_uuid": str(m.ivr_menu_uuid), "name": m.name, "_links": {"self": {"href": f"/api/v1/ivr_menus/{m.ivr_menu_uuid}"}}}
@@ -86,8 +87,9 @@ async def patch_ivr(ivr_menu_uuid: UUID, payload: dict, session: AsyncSession = 
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(m)
     return {"ivr_menu_uuid": str(m.ivr_menu_uuid), "name": m.name, "extension": m.extension, "enabled": m.enabled, "_links": {"self": {"href": f"/api/v1/ivr_menus/{m.ivr_menu_uuid}"}}}
 
@@ -104,6 +106,81 @@ async def delete_ivr(ivr_menu_uuid: UUID, session: AsyncSession = Depends(get_se
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
+    return Response(status_code=204)
+
+
+def _opt_to_dict(o) -> dict:
+    return {
+        "option_uuid": str(o.option_uuid),
+        "ivr_menu_uuid": str(o.ivr_menu_uuid),
+        "digits": o.digits,
+        "action": o.action,
+        "param": o.param,
+        "order": o.order,
+    }
+
+
+async def _get_menu_or_404(session, ivr_menu_uuid: UUID, domain_id):
+    r = await session.execute(select(IvrMenu).where(IvrMenu.ivr_menu_uuid == ivr_menu_uuid, IvrMenu.domain_id == domain_id))
+    m = r.scalar_one_or_none()
+    if not m:
+        raise HTTPException(status_code=404, detail="IVR menu not found")
+    return m
+
+
+@router.get("/{ivr_menu_uuid}/options", response_model=dict)
+async def list_ivr_options(ivr_menu_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    await _get_menu_or_404(session, ivr_menu_uuid, domain_id)
+    r = await session.execute(select(IvrMenuOption).where(IvrMenuOption.ivr_menu_uuid == ivr_menu_uuid).order_by(IvrMenuOption.order))
+    items = r.scalars().all()
+    return {"data": [_opt_to_dict(o) for o in items], "total": len(items)}
+
+
+@router.post("/{ivr_menu_uuid}/options", response_model=dict, status_code=201)
+async def create_ivr_option(ivr_menu_uuid: UUID, payload: dict, response: Response, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("ivr_menu_add"))):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    await _get_menu_or_404(session, ivr_menu_uuid, domain_id)
+    if not payload.get("digits") or not payload.get("action"):
+        raise HTTPException(status_code=422, detail="digits and action required")
+    obj = IvrMenuOption(ivr_menu_uuid=ivr_menu_uuid, digits=str(payload["digits"]), action=str(payload["action"]), param=payload.get("param"), order=int(payload.get("order", 0)))
+    session.add(obj)
+    await session.commit()
+    await session.refresh(obj)
+    return _opt_to_dict(obj)
+
+
+@router.patch("/{ivr_menu_uuid}/options/{option_uuid}", response_model=dict)
+async def patch_ivr_option(ivr_menu_uuid: UUID, option_uuid: UUID, payload: dict, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("ivr_menu_edit"))):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    await _get_menu_or_404(session, ivr_menu_uuid, domain_id)
+    r = await session.execute(select(IvrMenuOption).where(IvrMenuOption.option_uuid == option_uuid, IvrMenuOption.ivr_menu_uuid == ivr_menu_uuid))
+    obj = r.scalar_one_or_none()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Option not found")
+    for k in ("digits", "action", "param", "order"):
+        if k in payload:
+            setattr(obj, k, int(payload[k]) if k == "order" and payload[k] not in (None, "") else payload[k])
+    await session.commit()
+    await session.refresh(obj)
+    return _opt_to_dict(obj)
+
+
+@router.delete("/{ivr_menu_uuid}/options/{option_uuid}", status_code=204)
+async def delete_ivr_option(ivr_menu_uuid: UUID, option_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("ivr_menu_delete"))):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    await _get_menu_or_404(session, ivr_menu_uuid, domain_id)
+    r = await session.execute(select(IvrMenuOption).where(IvrMenuOption.option_uuid == option_uuid, IvrMenuOption.ivr_menu_uuid == ivr_menu_uuid))
+    obj = r.scalar_one_or_none()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Option not found")
+    await session.delete(obj)
+    await session.commit()
     return Response(status_code=204)

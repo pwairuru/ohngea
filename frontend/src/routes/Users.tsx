@@ -38,6 +38,9 @@ export function Users() {
 
   // dialogs
   const [userOpen, setUserOpen] = React.useState(false);
+  const [importOpen, setImportOpen] = React.useState(false);
+  const [csvText, setCsvText] = React.useState("username,email,password\nalice,alice@example.com,Secret123!xxxx\n");
+  const [importResult, setImportResult] = React.useState<any>(null);
   const [editingUser, setEditingUser] = React.useState<any | null>(null);
   const [userForm, setUserForm] = React.useState({ username:"", email:"", password:"", password_confirm:"", enabled:true, user_status:"", user_type:"default", contact_uuid:"", user_language:"", user_time_zone:"", api_key:"", user_totp_secret:"", group_uuid_name:"", domain_id:"" });
   // multi-group checkbox state: replaces single group_uuid_name select
@@ -476,6 +479,7 @@ export function Users() {
             <CardTitle className="flex items-center gap-2"><UsersIcon className="h-5 w-5"/> Users <Badge variant="secondary">{usersTotal} total</Badge></CardTitle>
             <div className="flex flex-wrap gap-2 items-center">
               <Button size="sm" onClick={()=> startCreateUser()}><Plus className="h-4 w-4 mr-1"/>Add</Button>
+              <Button variant="outline" size="sm" onClick={()=> { setImportResult(null); setImportOpen(true); }}>Import</Button>
               {usersSelected.size>0 && <>
                 <Button variant="outline" size="sm" onClick={()=> bulkUsers("copy")}><Copy className="h-4 w-4 mr-1"/>Copy ({usersSelected.size})</Button>
                 <Button variant="outline" size="sm" onClick={()=> bulkUsers("toggle")}>Toggle ({usersSelected.size})</Button>
@@ -665,6 +669,19 @@ export function Users() {
           </div>
           <Button onClick={savePerms} className="w-full">Save Permissions</Button>
           <div className="text-xs text-muted-foreground">Grouped by application like group_permissions.php — search, view assigned/unassigned/protected, reload — PUT includes permission_protected</div>
+        </div>
+      </Dialog>
+
+      <Dialog open={importOpen} onOpenChange={(v)=>{ setImportOpen(v); if(!v) setImportResult(null); }}>
+        <DialogHeader><DialogTitle>Import Users (CSV)</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="text-sm text-muted-foreground">Paste CSV with headers username,email,password — preview below. Posts JSON {"{csv}"} to POST /users/import.</div>
+          <textarea value={csvText} onChange={e=> setCsvText(e.target.value)} rows={6} className="w-full border rounded p-2 font-mono text-sm" />
+          <div className="border rounded p-2 max-h-32 overflow-auto font-mono text-xs">
+            {csvText.split("\n").slice(0, 4).map((l, i)=> <div key={i} className={i===0?"font-bold":""}>{l}</div>)}
+          </div>
+          <Button onClick={async()=>{ try{ const r = await apiFetch(`/users/import`, {method:"POST", body:JSON.stringify({csv: csvText})}); setImportResult(r); loadUsers(); } catch(e:any){ alert(e.message); } }} className="w-full">Run Import</Button>
+          {importResult && <pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-40">{JSON.stringify({imported: importResult.imported, total: importResult.total, errors: (importResult.errors||[]).slice(0,5)}, null, 2)}</pre>}
         </div>
       </Dialog>
     </div>

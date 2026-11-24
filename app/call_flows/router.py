@@ -122,8 +122,9 @@ async def patch_cf(call_flow_uuid: UUID, payload: CallFlowUpdate, session: Async
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(cf)
     return _serialize(cf)
 
@@ -140,6 +141,7 @@ async def delete_cf(call_flow_uuid: UUID, session: AsyncSession = Depends(get_se
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     return Response(status_code=204)

@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, model_validator
 
 class RecordingCreate(BaseModel):
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
     domain_id: Optional[UUID] = None
     name: str
     file_path: Optional[str] = None
@@ -48,7 +48,7 @@ class RecordingRead(BaseModel):
     created_by: Optional[UUID] = None
 
 class RecordingUpdate(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
     name: Optional[str] = None
     file_path: Optional[str] = None
     duration: Optional[int] = None

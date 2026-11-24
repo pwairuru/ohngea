@@ -14,6 +14,8 @@ pub struct Model {
     pub action: String,
     pub param: Option<String>,
     pub option_order: i32,
+    pub ivr_menu_id: Option<String>,
+    pub ivr_menu_option_enabled: Option<bool>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

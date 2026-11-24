@@ -18,6 +18,8 @@ if config.config_file_name is not None:
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Import all models to populate SQLModel.metadata
+# NOTE: keep in sync with app/ modules. Run `python scripts/check_alembic_models.py`
+# to detect drift (missing imports).
 from app.domains.models import Domain, DomainSettings, DomainPlugin, DomainApp  # noqa
 from app.auth.models import User, Group, UserGroup, Permission, GroupPermission  # noqa
 from app.extensions.models import Extension  # noqa
@@ -28,6 +30,11 @@ from app.ivr_menus.models import IvrMenu, IvrMenuOption  # noqa
 from app.devices.models import Device, DeviceKey, DeviceLine, DeviceSetting, DeviceProfile, DeviceProfileKey, DeviceProfileSetting  # noqa
 from app.cdr.models import Cdr  # noqa
 from app.recordings.models import Recording  # noqa
+from app.call_recordings.models import CallRecording  # noqa
+from app.call_forward.models import CallForward  # noqa
+from app.domain_limits.models import DomainLimit  # noqa
+from app.admin_settings.models import DefaultSetting, EmailTemplate, MenuItem, UserLog, Notification, Service  # noqa
+from app.webrtc_settings.models import WebRTCSettings  # noqa
 from app.contacts.models import (  # noqa
     Contact,
     ContactAddress,

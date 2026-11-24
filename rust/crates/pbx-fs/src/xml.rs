@@ -241,9 +241,7 @@ pub fn build_directory_xml_multi(domain: &str, users: &[(&str, &str)]) -> String
 /// per-ext dial-string, verto/max-registration params, extension_settings
 /// params, and the full `<variables>` block.
 pub fn build_directory_xml_users(domain: &str, users: &[DirectoryUser]) -> String {
-    let mut w = Writer::new(Cursor::new(Vec::with_capacity(
-        2048 + users.len() * 256,
-    )));
+    let mut w = Writer::new(Cursor::new(Vec::with_capacity(2048 + users.len() * 256)));
     w.write_event(decl()).expect("write decl");
     decl_nl(&mut w);
     document(&mut w);
@@ -357,7 +355,10 @@ pub fn build_directory_xml_users(domain: &str, users: &[DirectoryUser]) -> Strin
         write_param(
             &mut w,
             "verto-context",
-            user.user_context.as_deref().filter(|s| !s.is_empty()).unwrap_or(domain),
+            user.user_context
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .unwrap_or(domain),
         );
         write_param(&mut w, "verto-dialplan", "XML");
         write_param(&mut w, "jsonrpc-allowed-methods", "verto");
@@ -406,21 +407,36 @@ pub fn build_directory_xml_users(domain: &str, users: &[DirectoryUser]) -> Strin
         write_variable(
             &mut w,
             "user_context",
-            user.user_context.as_deref().filter(|s| !s.is_empty()).unwrap_or(domain),
+            user.user_context
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .unwrap_or(domain),
         );
-        write_variable_opt(&mut w, "effective_caller_id_name", &user.effective_caller_id_name);
+        write_variable_opt(
+            &mut w,
+            "effective_caller_id_name",
+            &user.effective_caller_id_name,
+        );
         write_variable_opt(
             &mut w,
             "effective_caller_id_number",
             &user.effective_caller_id_number,
         );
-        write_variable_opt(&mut w, "outbound_caller_id_name", &user.outbound_caller_id_name);
+        write_variable_opt(
+            &mut w,
+            "outbound_caller_id_name",
+            &user.outbound_caller_id_name,
+        );
         write_variable_opt(
             &mut w,
             "outbound_caller_id_number",
             &user.outbound_caller_id_number,
         );
-        write_variable_opt(&mut w, "emergency_caller_id_name", &user.emergency_caller_id_name);
+        write_variable_opt(
+            &mut w,
+            "emergency_caller_id_name",
+            &user.emergency_caller_id_name,
+        );
         write_variable_opt(
             &mut w,
             "emergency_caller_id_number",
@@ -467,11 +483,19 @@ pub fn build_directory_xml_users(domain: &str, users: &[DirectoryUser]) -> Strin
         if user.forward_all_enabled {
             write_variable(&mut w, "forward_all_enabled", "true");
         }
-        write_variable_opt(&mut w, "forward_all_destination", &user.forward_all_destination);
+        write_variable_opt(
+            &mut w,
+            "forward_all_destination",
+            &user.forward_all_destination,
+        );
         if user.forward_busy_enabled {
             write_variable(&mut w, "forward_busy_enabled", "true");
         }
-        write_variable_opt(&mut w, "forward_busy_destination", &user.forward_busy_destination);
+        write_variable_opt(
+            &mut w,
+            "forward_busy_destination",
+            &user.forward_busy_destination,
+        );
         if user.forward_no_answer_enabled {
             write_variable(&mut w, "forward_no_answer_enabled", "true");
         }

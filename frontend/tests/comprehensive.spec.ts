@@ -282,21 +282,21 @@ test.describe("comprehensive interface", () => {
     await waitClear;
     await expect(page.getByRole("heading", { name: "Extensions", exact: true })).toBeVisible();
 
-    // Create extension via dialog
+    // Create extension via dialog (single full-parity form, PHP extension_edit.php)
     const ext = `99${Math.floor(Math.random() * 900 + 100)}`; // 99100-99999
     await page.click('button:has-text("Add Extension")');
-    await expect(page.getByText("Add Extension — Step 1 of 3")).toBeVisible();
+    await expect(page.getByText("Account", { exact: true })).toBeVisible();
     await page.fill('input[placeholder="1001"]', ext);
     await page.fill('input[placeholder="Alice Smith"]', "Test User");
-    await page.click('button:has-text("Next: Caller ID")');
-    await expect(page.getByText("Caller ID Number")).toBeVisible();
     await page.fill('input[placeholder="+15551234567"]', "1000");
-    await page.click('button:has-text("Next: Review")');
-    await expect(page.getByText("Extension:")).toBeVisible();
+    // full-parity fields present
+    await expect(page.getByText("Caller ID", { exact: true })).toBeVisible();
+    await expect(page.getByText("Forwarding & DND", { exact: true })).toBeVisible();
+    await expect(page.getByText("Advanced SIP", { exact: true })).toBeVisible();
     const waitCreate = page.waitForResponse((r) => r.url().includes("/extensions") && r.request().method() === "POST", { timeout: 5000 });
     await page.click('button:has-text("Create")');
     await waitCreate;
-    await expect(page.getByText("Add Extension — Step 1 of 3")).toBeHidden({ timeout: 5000 });
+    await expect(page.getByText("Account", { exact: true })).toBeHidden({ timeout: 5000 });
     // Should appear in table (hidden md:block) or cards
     // Search for it
     const waitFound = page.waitForResponse((r) => r.url().includes("/extensions") && r.request().method() === "GET" && r.url().includes(`q=${ext}`), { timeout: 10000 });
@@ -308,8 +308,7 @@ test.describe("comprehensive interface", () => {
     const editBtn = page.locator('button:has-text("Edit")').first();
     await editBtn.click();
     await expect(page.getByText("Edit Extension")).toBeVisible();
-    await page.click('button:has-text("Next: Caller ID")');
-    await page.click('button:has-text("Next: Review")');
+    await expect(page.getByText("Advanced SIP", { exact: true })).toBeVisible();
     const waitSave = page.waitForResponse((r) => r.url().includes("/extensions") && r.request().method() === "PATCH", { timeout: 5000 });
     await page.click('button:has-text("Save")');
     await waitSave;
@@ -353,10 +352,12 @@ test.describe("comprehensive interface", () => {
     // close via Cancel button inside dialog
     await page.locator('.fixed.z-50 button:has-text("Cancel")').click();
     await expect(page.getByText("CSV Import Wizard")).toBeHidden();
-    // reopen and import
+    // reopen and import (unique extensions: persistent dev DB keeps prior runs' rows,
+    // and batch import 409s on any duplicate, leaving the dialog open)
     await page.click('button:has-text("CSV Import")');
     await expect(page.getByText("CSV Import Wizard")).toBeVisible();
-    const csv = `extension,name\n98${Math.floor(Math.random()*90+10)},CsvUserA\n98${Math.floor(Math.random()*90+10)},CsvUserB`;
+    const uniqBase = Number(String(Date.now()).slice(-5)) % 90000 + 10000;
+    const csv = `extension,name\n98${uniqBase}\n98${(uniqBase + 1) % 100000}`;
     await page.fill("textarea", csv);
     const waitImport = page.waitForResponse((r) => r.url().includes("/extensions"), { timeout: 5000 });
     await page.locator('.fixed.z-50 button:has-text("Import")').click();

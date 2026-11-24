@@ -1,8 +1,8 @@
 //! Batch 2a telephony DB entities + seeds — TDD RED.
-//! Ground truth:
-//! - app/extensions/models.py:12-81 (extension 2-7 digit regex, 60 cols)
-//! - app/extensions/router.py + service.py (password auto-gen 20 chars,
-//!   user_context default domain_name)
+//! Ground truth (PHP original; Python mirrors where noted):
+//! - fusionpbx/app/extensions (v_extensions, 60 cols; `extension_edit.php`
+//!   requires non-empty extension only — no digit regex)
+//! - password auto-gen 20 chars, user_context defaults to domain name
 //! - app/dialplans/models.py:10-121 + app/seeds/dialplans.py (4 dialplans x 2 details)
 //! - app/gateways/models.py:11-62 (36 fields, `register` column alias,
 //!   defaults expire 800 / retry 30 / context public / profile external)
@@ -25,17 +25,23 @@ use pbx_fs::sofia::{build_sofia_xml, SofiaProfileInput};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use uuid::Uuid;
 
-// --- extension validation: app/extensions/models.py:15-20 ---
+// --- extension validation: PHP ground truth (extension_edit.php:
+/// `if (empty($extension))` is the only server-side rule) ---
 
 #[test]
-fn extension_rejects_non_2_to_7_digits() {
-    for bad in ["", "1", "12345678", "abc", "10a1", " 100", "1001 "] {
-        assert!(
-            validate_extension(bad).is_err(),
-            "{bad:?} must be rejected (2-7 digit regex ^\\d{{2,7}}$)"
-        );
+fn extension_rejects_blank_or_overlong() {
+    for bad in ["", "   "] {
+        assert!(validate_extension(bad).is_err(), "{bad:?} must be rejected");
     }
-    for good in ["10", "1001", "1234567"] {
+    assert!(
+        validate_extension(&"9".repeat(33)).is_err(),
+        "over-32 must be rejected"
+    );
+    // PHP-legal: any non-empty value, including non-numeric and long numerics
+    // the old Python `^\d{2,7}$` rule wrongly rejected.
+    for good in [
+        "10", "1001", "1234567", "1", "12345678", "*98", "abc", "10a1",
+    ] {
         assert!(
             validate_extension(good).is_ok(),
             "{good:?} must be accepted"

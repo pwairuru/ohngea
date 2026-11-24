@@ -1043,6 +1043,7 @@ ALL_PERMISSIONS: list[str] = [
 async def seed_permissions(session) -> int:
     """Idempotent global permission seed."""
     from sqlalchemy import select as _select
+
     from app.auth.models import Permission as _Permission
     n = 0
     for name in ALL_PERMISSIONS:

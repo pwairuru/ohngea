@@ -1,0 +1,116 @@
+#!/bin/sh
+# installerconfig — bsdinstall scripted auto-install for Ohngea turnkey ISO
+# This runs inside mfsBSD ramdisk on boot. Like FreePBX ISO, it wipes the first
+# disk, creates ZFS, installs Ohngea + deps, and reboots to a ready-to-use PBX
+# with URL http://<ip>/  (admin/ohngea). No manual steps.
+# For manual install, boot ISO and run: ohngea-install <disk>
+
+# --- Auto-detect first disk (prefer largest, else first) ---
+DISK=""
+for d in nda0 nvd0 ada0 da0 vtbd0; do
+  if [ -e "/dev/${d}" ]; then DISK=$d; break; fi
+done
+# Fallback via geom
+if [ -z "$DISK" ]; then
+  DISK=$(geom disk list 2>&1 | grep "Geom name:" | head -1 | awk '{print $3}')
+fi
+if [ -z "$DISK" ] || [ ! -e "/dev/${DISK}" ]; then
+  echo "No disk found for auto-install. Available:"
+  geom disk list 2>&1 | grep "Geom name" || ls /dev/ada* /dev/da* /dev/nvd* /dev/vtbd* 2>&1 | head -20
+  echo "Manual: ohngea-install <disk>"
+  # Drop to shell for manual
+  exit 1
+fi
+
+echo "=================================================="
+echo " Ohngea PBX auto-install to /dev/${DISK} (ZFS)"
+echo " WIPING disk in 5s — Ctrl-C to abort!"
+echo " For manual: Ctrl-C and run ohngea-install <disk>"
+echo "=================================================="
+sleep 5
+
+# --- ZFS install ---
+echo "Installing Ohngea to /dev/${DISK} (ZFS, BIOS+UEFI)..."
+if command -v zfsinstall >/dev/null 2>&1; then
+  zfsinstall -d "/dev/${DISK}" -p zroot -V 15.1 -e
+else
+  export ZFSBOOT_DISKS="${DISK}"
+  export ZFSBOOT_VDEV_TYPE="stripe"
+  export ZFSBOOT_POOL_NAME="zroot"
+  export nonInteractive="YES"
+  bsdinstall zfsboot
+fi
+
+# --- Install Ohngea pkg + deps into chroot ---
+BSDINSTALL_CHROOT=${BSDINSTALL_CHROOT:-/mnt}
+echo "Installing Ohngea pkg to ${BSDINSTALL_CHROOT}..."
+# Repo embedded at /tmp/repo (mfsBSD customfiles) or fetch from network if not present
+if [ -d /tmp/repo/All ]; then
+  mkdir -p "${BSDINSTALL_CHROOT}/tmp/repo"
+  mount -t nullfs /tmp/repo "${BSDINSTALL_CHROOT}/tmp/repo" 2>&1 | head -5 || cp -R /tmp/repo "${BSDINSTALL_CHROOT}/tmp/" 2>&1 | head -5
+  pkg -c "${BSDINSTALL_CHROOT}" add /tmp/repo/All/ohngea-*.pkg 2>&1 | tail -20 || pkg -c "${BSDINSTALL_CHROOT}" install -y ohngea 2>&1 | tail -20 || echo "pkg add failed, trying pkg install from network..."
+fi
+# Fallback: try network install if local repo failed and network available (pkg+https)
+if [ ! -f "${BSDINSTALL_CHROOT}/usr/local/www/ohngea/app/main.py" ]; then
+  echo "Trying network pkg install (requires internet)..."
+  pkg -c "${BSDINSTALL_CHROOT}" update 2>&1 | tail -10 || true
+  pkg -c "${BSDINSTALL_CHROOT}" install -y ohngea postgresql18-server valkey nginx freeswitch 2>&1 | tail -20 || echo "network pkg install also failed — check /tmp/repo"
+fi
+
+# --- Turnkey: enable first-boot init + services ---
+for svc in postgresql valkey nginx freeswitch ohngea ohngea_worker ohngea_beat ohngea_init; do
+  chroot "${BSDINSTALL_CHROOT}" sysrc "${svc}_enable=YES" 2>&1 | head -5 || true
+done
+chroot "${BSDINSTALL_CHROOT}" sysrc ohngea_init_domain="pbx.local" 2>&1 | head -5 || true
+chroot "${BSDINSTALL_CHROOT}" sysrc ohngea_init_admin="admin" 2>&1 | head -5 || true
+chroot "${BSDINSTALL_CHROOT}" sysrc ohngea_init_password="ohngea" 2>&1 | head -5 || true
+
+# Hostname
+echo 'ohngea' > "${BSDINSTALL_CHROOT}/etc/myname" 2>&1 | head -5 || true
+# Motd hint
+cat > "${BSDINSTALL_CHROOT}/etc/motd.ohngea" <<MOTD
+Ohngea PBX — installed to ZFS zroot on /dev/${DISK}
+First boot will auto-setup DB and bootstrap domain.
+After reboot: open http://<this-host-ip>/  login admin / ohngea  domain pbx.local
+Console: ohngea-url  |  cat /var/db/ohngea/url.txt  |  cat /etc/motd.ohngea
+MOTD
+cat "${BSDINSTALL_CHROOT}/etc/motd.ohngea" >> "${BSDINSTALL_CHROOT}/etc/motd" 2>&1 | head -5 || true
+
+# Ensure nginx/freeswitch configs are pre-seeded for first boot (ohngea_init will also do)
+if [ -f "${BSDINSTALL_CHROOT}/usr/local/etc/ohngea/nginx/ohngea.conf.sample" ]; then
+  mkdir -p "${BSDINSTALL_CHROOT}/usr/local/etc/nginx" 2>&1 | head -5
+  cp "${BSDINSTALL_CHROOT}/usr/local/etc/ohngea/nginx/ohngea.conf.sample" "${BSDINSTALL_CHROOT}/usr/local/etc/nginx/ohngea.conf" 2>&1 | head -5 || true
+  if [ -f "${BSDINSTALL_CHROOT}/usr/local/etc/ohngea/nginx/nginx.conf.sample" ] && [ ! -f "${BSDINSTALL_CHROOT}/usr/local/etc/nginx/nginx.conf" ]; then
+    cp "${BSDINSTALL_CHROOT}/usr/local/etc/ohngea/nginx/nginx.conf.sample" "${BSDINSTALL_CHROOT}/usr/local/etc/nginx/nginx.conf" 2>&1 | head -5 || true
+  fi
+fi
+
+# Firstboot URL helper
+cat > "${BSDINSTALL_CHROOT}/usr/local/bin/ohngea-firstboot-msg" <<'FIRSTBOOT'
+#!/bin/sh
+sleep 5
+IP=$(ifconfig em0 2>&1 | grep "inet " | awk '{print $2}' | head -1)
+if [ -z "$IP" ]; then IP=$(ifconfig 2>&1 | grep "inet " | grep -v "127.0.0.1" | awk '{print $2}' | head -1); fi
+echo ""
+echo "=================================================="
+echo " Ohngea PBX — http://${IP:-localhost}/"
+echo " Login: admin / ohngea  Domain: pbx.local"
+echo " Run: ohngea-url  cat /var/db/ohngea/url.txt"
+echo "=================================================="
+echo ""
+FIRSTBOOT
+chmod +x "${BSDINSTALL_CHROOT}/usr/local/bin/ohngea-firstboot-msg" 2>&1 | head -5 || true
+if ! grep -q "ohngea-firstboot-msg" "${BSDINSTALL_CHROOT}/etc/rc.local" 2>&1; then
+  echo "/usr/local/bin/ohngea-firstboot-msg &" >> "${BSDINSTALL_CHROOT}/etc/rc.local" 2>&1 | head -5 || echo "/usr/local/bin/ohngea-firstboot-msg &" > "${BSDINSTALL_CHROOT}/etc/rc.local"
+  chmod +x "${BSDINSTALL_CHROOT}/etc/rc.local" 2>&1 | head -5 || true
+fi
+
+echo ""
+echo "=================================================="
+echo " Ohngea install to /dev/${DISK} complete."
+echo " Rebooting in 5s to ZFS... After reboot:"
+echo "   http://<host-ip>/  admin / ohngea"
+echo "=================================================="
+sleep 5
+reboot
+

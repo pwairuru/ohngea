@@ -13,7 +13,17 @@ pub struct Model {
     pub contact_uuid: Uuid,
     pub address_label: Option<String>,
     pub address_street: Option<String>,
+    pub address_extended: Option<String>,
+    pub address_community: Option<String>,
     pub address_locality: Option<String>,
+    pub address_region: Option<String>,
+    pub address_postal_code: Option<String>,
+    pub address_country: Option<String>,
+    pub address_type: Option<String>,
+    pub address_primary: bool,
+    pub address_latitude: Option<String>,
+    pub address_longitude: Option<String>,
+    pub address_description: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 

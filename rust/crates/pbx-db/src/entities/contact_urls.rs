@@ -13,6 +13,9 @@ pub struct Model {
     pub contact_uuid: Uuid,
     pub url_label: Option<String>,
     pub url_address: String,
+    pub url_type: Option<String>,
+    pub url_primary: bool,
+    pub url_description: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 

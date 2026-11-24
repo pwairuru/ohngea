@@ -1,0 +1,55 @@
+[
+{ type: install
+  message: <<EOM
+Ohngea PBX installed to %%WWWDIR%%.
+
+Turnkey (like FreePBX) — one command, then open browser:
+
+  sysrc ohngea_init_enable=YES
+  service ohngea_init start   # auto: initdb, valkey, env, migrate, bootstrap
+  ohngea-url                  # shows http://<your-ip>/  admin/ohngea
+
+Or manual steps:
+
+  1) Enable:
+     sysrc postgresql_enable=YES valkey_enable=YES nginx_enable=YES freeswitch_enable=YES
+     sysrc ohngea_enable=YES ohngea_worker_enable=YES ohngea_beat_enable=YES
+
+  2) First-boot init (creates DB, env, runs migrations, bootstraps domain):
+     service ohngea_init start
+     # check: cat /var/db/ohngea/url.txt ; cat /etc/motd.ohngea
+
+  3) Or manual without ohngea_init:
+     service postgresql initdb && service postgresql start
+     psql -U postgres -c "CREATE USER ohngea WITH PASSWORD 'ohngea';"
+     psql -U postgres -c "CREATE DATABASE ohngea OWNER ohngea;"
+     psql -U postgres -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;" ohngea
+     cp %%ETCDIR%%/ohngea.env.sample %%ETCDIR%%/ohngea.env
+     vi %%ETCDIR%%/ohngea.env  # set JWT_SECRET=$(openssl rand -hex 32)
+     chmod 640 %%ETCDIR%%/ohngea.env && chown ohngea:ohngea %%ETCDIR%%/ohngea.env
+     service valkey start
+     sudo -u ohngea %%WWWDIR%%/.venv/bin/alembic -c %%WWWDIR%%/alembic.ini upgrade head
+     service ohngea start && sleep 3
+     curl -X POST http://127.0.0.1:8000/api/v1/domains/bootstrap -H "Content-Type: application/json" -d '{"domain_name":"pbx.local","admin_username":"admin","admin_password":"ohngea"}'
+     # freeswitch & nginx are auto-configured by ohngea_init, or manually:
+     cp %%ETCDIR%%/freeswitch/xml_curl.conf.xml.sample /usr/local/etc/freeswitch/autoload_configs/xml_curl.conf.xml
+     cp %%ETCDIR%%/nginx/ohngea.conf.sample /usr/local/etc/nginx/ohngea.conf
+     cp %%ETCDIR%%/nginx/nginx.conf.sample /usr/local/etc/nginx/nginx.conf  # if no nginx.conf exists
+     nginx -t && service nginx start && service freeswitch start
+     service ohngea_worker start && service ohngea_beat start
+
+Browser URL:
+  ohngea-url          # prints http://<ip>/  + admin/ohngea
+  fetch -o - http://127.0.0.1:8000/health
+  open http://<your-server-ip>/  (login: admin / ohngea, domain: pbx.local)
+
+Helpers:
+  ohngea-setup --help
+  ohngea-url
+  cat /var/db/ohngea/url.txt
+  cat /etc/motd.ohngea
+
+Docs: https://github.com/ohngea/ohngea/blob/main/docs/freebsd.md
+EOM
+}
+]

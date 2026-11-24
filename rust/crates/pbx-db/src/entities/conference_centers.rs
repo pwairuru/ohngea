@@ -14,6 +14,9 @@ pub struct Model {
     pub conference_center_extension: Option<String>,
     pub conference_center_description: Option<String>,
     pub conference_center_enabled: bool,
+    pub dialplan_uuid: Option<String>,
+    pub conference_center_pin_length: Option<i32>,
+    pub conference_center_greeting: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

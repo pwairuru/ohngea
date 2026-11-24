@@ -1,6 +1,6 @@
 import * as React from "react";
 
-type Theme = "light" | "dark" | "system" | "ohngea" | "ohngea-dark";
+type Theme = "light" | "dark" | "system" | "ohngea" | "ohngea-dark" | "fusion" | "fusion-dark";
 
 const ThemeContext = React.createContext<{ theme: Theme; setTheme: (t: Theme) => void }>({ theme: "system", setTheme: () => {} });
 
@@ -9,11 +9,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     const root = document.documentElement;
-    root.classList.remove("dark", "theme-ohngea", "theme-ohngea-dark");
+    root.classList.remove("dark", "theme-ohngea", "theme-ohngea-dark", "theme-fusion", "theme-fusion-dark");
     if (theme === "ohngea") {
       root.classList.add("theme-ohngea");
     } else if (theme === "ohngea-dark") {
-      root.classList.add("theme-ohngea-dark");
+      // ohngea-dark is itself dark — also add .dark so dark: utilities work
+      root.classList.add("theme-ohngea-dark", "dark");
+    } else if (theme === "fusion") {
+      root.classList.add("theme-fusion");
+    } else if (theme === "fusion-dark") {
+      root.classList.add("theme-fusion-dark", "dark");
     } else {
       const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
       const isDark = theme === "dark" || (theme === "system" && systemDark);
@@ -21,30 +26,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
     localStorage.setItem("theme", theme);
   }, [theme]);
-
-  // per-tenant override fetch if domain_id stored
-  React.useEffect(() => {
-    const domainId = localStorage.getItem("domain_id");
-    if (!domainId) return;
-    fetch(`/api/v1/domains/${domainId}/theme`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!data) return;
-        // validate primary_color before injection (hex #rrggbb, hsl(), or bare triple "174 72% 40%")
-        const isHex = typeof data.primary_color === "string" && /^#[0-9a-fA-F]{6}$/.test(data.primary_color);
-        const isHsl = typeof data.primary_color === "string" && /^hsl\(/i.test(data.primary_color);
-        const isHslTriple = typeof data.primary_color === "string" && /^\d+(\.\d+)?\s+\d+(\.\d+)?%\s+\d+(\.\d+)?%$/.test(data.primary_color.trim());
-        if (data.primary_color && !isHex && !isHsl && !isHslTriple) {
-          console.warn("Theme fetch: invalid primary_color", data.primary_color);
-          return;
-        }
-        const style = document.getElementById("tenant-theme") || document.createElement("style");
-        style.id = "tenant-theme";
-        style.textContent = `:root{--primary:${data.primary_color};--background:${data.background};--radius:${data.radius}}`;
-        document.head.appendChild(style);
-      })
-      .catch((e) => console.warn("Theme fetch failed", e));
-  }, []);
 
   return <ThemeContext.Provider value={{ theme, setTheme }}>{children}</ThemeContext.Provider>;
 }
@@ -55,7 +36,7 @@ export function useTheme() {
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
-  const order: Theme[] = ["light", "dark", "ohngea", "ohngea-dark", "system"];
+  const order: Theme[] = ["light", "dark", "ohngea", "ohngea-dark", "fusion", "fusion-dark", "system"];
   const cycle = () => {
     const idx = order.indexOf(theme);
     const next = order[(idx + 1) % order.length];
@@ -69,7 +50,7 @@ export function ThemeToggle() {
         className="inline-flex h-10 w-10 items-center justify-center rounded-md border min-h-[44px] min-w-[44px]"
         aria-label="Toggle theme"
       >
-        {theme === "dark" ? "☀️" : theme === "ohngea" ? "🟦" : theme === "ohngea-dark" ? "🌊" : theme === "system" ? "💻" : "🌙"}
+        {theme === "dark" ? "☀️" : theme === "ohngea" ? "🟦" : theme === "ohngea-dark" ? "🌊" : theme === "fusion" ? "📞" : theme === "fusion-dark" ? "🌃" : theme === "system" ? "💻" : "🌙"}
       </button>
       <select
         aria-label="Theme"
@@ -82,6 +63,8 @@ export function ThemeToggle() {
         <option value="dark">Dark</option>
         <option value="ohngea">Ohngea</option>
         <option value="ohngea-dark">Ohngea Dark</option>
+        <option value="fusion">Fusion</option>
+        <option value="fusion-dark">Fusion Dark</option>
         <option value="system">System</option>
       </select>
     </div>

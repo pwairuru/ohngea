@@ -49,13 +49,15 @@ async fn req(
     let bytes = axum::body::to_bytes(res.into_body(), 1024 * 256)
         .await
         .unwrap();
-    let json: serde_json::Value =
-        serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
     (status, json)
 }
 
 fn data_len(v: &serde_json::Value) -> usize {
-    v.get("data").and_then(|d| d.as_array()).map(|a| a.len()).unwrap_or(0)
+    v.get("data")
+        .and_then(|d| d.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0)
 }
 
 fn uniq(prefix: &str) -> String {
@@ -64,7 +66,8 @@ fn uniq(prefix: &str) -> String {
 
 static EXT_N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
-/// Extensions must be 2-7 digits; unique per test-process via atomic counter.
+/// Extensions: unique per test-process via atomic counter (numeric is
+/// conventional; PHP also accepts non-numeric values).
 fn uniq_ext() -> String {
     let n = EXT_N.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     format!("9{:04}", 1000 + (n % 9000))
@@ -128,7 +131,11 @@ async fn show_all_extensions_cross_tenant() {
     )
     .await;
     assert_eq!(s, StatusCode::OK);
-    assert_eq!(data_len(&v), 0, "show=all without perm must stay scoped: {v}");
+    assert_eq!(
+        data_len(&v),
+        0,
+        "show=all without perm must stay scoped: {v}"
+    );
 
     // tenant B WITH extension_all: ?show=all sees both tenants
     let b_all = token("tenant-b", &["extension_view", "extension_all"]);
@@ -195,7 +202,13 @@ async fn show_all_gateways_users_contacts() {
         ("/api/v1/contacts", "contact_all", "contact_view"),
     ] {
         let b = token("tenant-c", &[view_perm]);
-        let (s, v) = req("GET", &format!("{path}?show=all"), Some(&b), serde_json::json!({})).await;
+        let (s, v) = req(
+            "GET",
+            &format!("{path}?show=all"),
+            Some(&b),
+            serde_json::json!({}),
+        )
+        .await;
         assert_eq!(s, StatusCode::OK, "{path} scoped ok");
         let scoped = data_len(&v);
         let b_all = token("tenant-c", &[view_perm, all_perm]);
@@ -225,7 +238,11 @@ async fn show_all_cdr_emergency_user_logs() {
     let admin = login_token().await;
     for (path, all_perm, view_perm) in [
         ("/api/v1/cdr", "xml_cdr_all", "cdr_view"),
-        ("/api/v1/emergency_logs", "emergency_logs_view_all", "emergency_logs_view"),
+        (
+            "/api/v1/emergency_logs",
+            "emergency_logs_view_all",
+            "emergency_logs_view",
+        ),
         ("/api/v1/user_logs", "user_log_all", "user_log_view"),
     ] {
         let b = token("tenant-d", &[view_perm]);
@@ -238,7 +255,11 @@ async fn show_all_cdr_emergency_user_logs() {
             serde_json::json!({}),
         )
         .await;
-        assert_eq!(s, StatusCode::OK, "{path} show=all without perm ok (scoped)");
+        assert_eq!(
+            s,
+            StatusCode::OK,
+            "{path} show=all without perm ok (scoped)"
+        );
         let b_all = token("tenant-d", &[view_perm, all_perm]);
         let (s, v) = req(
             "GET",
@@ -259,24 +280,32 @@ async fn show_all_broad_resource_sweep() {
     let cases = [
         ("/api/v1/dialplans", "dialplan_all", "dialplan_view"),
         ("/api/v1/devices", "device_all", "device_view"),
-        ("/api/v1/device_profiles", "device_profile_all", "device_view"),
+        (
+            "/api/v1/device_profiles",
+            "device_profile_all",
+            "device_view",
+        ),
         ("/api/v1/ring_groups", "ring_group_all", "ring_group_view"),
         ("/api/v1/ivr_menus", "ivr_menu_all", "ivr_menu_view"),
         ("/api/v1/voicemails", "voicemail_all", "voicemail_view"),
         ("/api/v1/recordings", "recording_all", "recording_view"),
         ("/api/v1/conferences", "conference_all", "conference_view"),
-        ("/api/v1/conference_centers", "conference_center_all", "conference_center_view"),
-        ("/api/v1/call_centers", "call_center_all", "call_center_view"),
+        (
+            "/api/v1/conference_centers",
+            "conference_center_all",
+            "conference_center_view",
+        ),
+        (
+            "/api/v1/call_centers",
+            "call_center_all",
+            "call_center_view",
+        ),
         ("/api/v1/fax", "fax_extension_view_all", "fax_view"),
         ("/api/v1/fax/queue", "fax_queue_all", "fax_queue_view"),
         ("/api/v1/groups", "group_all", "group_view"),
         ("/api/v1/dashboards", "dashboard_all", "dashboard_view"),
         ("/api/v1/email_queue", "email_queue_all", "email_queue_view"),
-        (
-            "/api/v1/call_flows",
-            "call_flow_all",
-            "call_flow_view",
-        ),
+        ("/api/v1/call_flows", "call_flow_all", "call_flow_view"),
         (
             "/api/v1/extension_settings",
             "extension_setting_all",
@@ -320,10 +349,7 @@ async fn show_all_broad_resource_sweep() {
         )
         .await;
         assert_eq!(s, StatusCode::OK, "{path} show=all with perm: {v}");
-        assert!(
-            data_len(&v) >= scoped,
-            "{path} show=all is a superset: {v}"
-        );
+        assert!(data_len(&v) >= scoped, "{path} show=all is a superset: {v}");
         // unknown show values behave like scoped
         let (s, v) = req(
             "GET",

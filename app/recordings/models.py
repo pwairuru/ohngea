@@ -29,4 +29,4 @@ class RecordingBase(SQLModel):
 class Recording(RecordingBase, table=True):
     __tablename__ = "recordings"
     recording_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

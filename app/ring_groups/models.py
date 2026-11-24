@@ -62,8 +62,8 @@ class RingGroupBase(SQLModel):
 class RingGroup(RingGroupBase, table=True):
     __tablename__ = "ring_groups"
     ring_group_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class RingGroupMemberBase(SQLModel):
@@ -79,7 +79,7 @@ class RingGroupMemberBase(SQLModel):
 class RingGroupMember(RingGroupMemberBase, table=True):
     __tablename__ = "ring_group_members"
     ring_group_member_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # Compatibility alias — legacy PBX uses v_ring_group_destinations.
@@ -93,4 +93,4 @@ class RingGroupUser(SQLModel, table=True):
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
     ring_group_uuid: UUID = Field(foreign_key="ring_groups.ring_group_uuid", index=True, ondelete="CASCADE")
     user_uuid: UUID = Field(foreign_key="users.user_uuid", index=True, ondelete="CASCADE")
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

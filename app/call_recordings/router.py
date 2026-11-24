@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/v1/call_recordings", tags=["call_recordings"])
 
 
 class CallRecordingCreate(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
     domain_id: Optional[UUID] = None
     cdr_uuid: Optional[UUID] = None
     recording_path: Optional[str] = None
@@ -25,7 +25,7 @@ class CallRecordingCreate(BaseModel):
 
 
 class CallRecordingUpdate(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
     cdr_uuid: Optional[UUID] = None
     recording_path: Optional[str] = None
     recording_name: Optional[str] = None
@@ -154,7 +154,3 @@ async def delete_call_recording(
     await session.delete(o)
     await session.commit()
     return Response(status_code=204)
-
-
-# ensure get_current_user also referenced (for task spec)
-assert get_current_user  # noqa

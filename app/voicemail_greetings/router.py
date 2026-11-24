@@ -51,8 +51,9 @@ async def patch_ep(uid:UUID, payload:VoicemailGreetingUpdate, session:AsyncSessi
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass; await session.refresh(o); return _ser(o)
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True); await session.refresh(o); return _ser(o)
 @router.delete("/{uid}", status_code=204)
 async def delete_ep(uid:UUID, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("voicemail_add"))):
     domain_id=getattr(user,"_domain_id", user.domain_id)

@@ -74,6 +74,23 @@ import { OperatorPanel } from "./routes/OperatorPanel";
 import { Logs } from "./routes/Logs";
 import { DomainLimits } from "./routes/DomainLimits";
 import { Groups } from "./routes/Groups";
+import { CallForward } from "./routes/CallForward";
+import { Contacts } from "./routes/Contacts";
+import { Recordings } from "./routes/Recordings";
+import { CallRecordings } from "./routes/CallRecordings";
+import { DeviceProfiles } from "./routes/DeviceProfiles";
+import { WebrtcSettings } from "./routes/WebrtcSettings";
+import { DefaultSettings } from "./routes/DefaultSettings";
+import { DomainSettings } from "./routes/DomainSettings";
+import { EmailTemplates } from "./routes/EmailTemplates";
+import { MenuItems } from "./routes/MenuItems";
+import { Menus } from "./routes/Menus";
+import { UserLogs } from "./routes/UserLogs";
+import { Notifications } from "./routes/Notifications";
+import { Services } from "./routes/Services";
+import { Software } from "./routes/Software";
+import { Databases } from "./routes/Databases";
+import { UserSettings } from "./routes/UserSettings";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -188,6 +205,23 @@ function Nav() {
                 <Route path="/logs" element={<Logs />} />
                 <Route path="/domain_limits" element={<DomainLimits />} />
                 <Route path="/groups" element={<Groups />} />
+                <Route path="/call_forward" element={<CallForward />} />
+                <Route path="/contacts" element={<Contacts />} />
+                <Route path="/recordings" element={<Recordings />} />
+                <Route path="/call_recordings" element={<CallRecordings />} />
+                <Route path="/device_profiles" element={<DeviceProfiles />} />
+                <Route path="/webrtc_settings" element={<WebrtcSettings />} />
+                <Route path="/default_settings" element={<DefaultSettings />} />
+                <Route path="/domain_settings" element={<DomainSettings />} />
+                <Route path="/email_templates" element={<EmailTemplates />} />
+                <Route path="/menu_items" element={<MenuItems />} />
+                <Route path="/menus" element={<Menus />} />
+                <Route path="/user_logs" element={<UserLogs />} />
+                <Route path="/notifications" element={<Notifications />} />
+                <Route path="/services" element={<Services />} />
+                <Route path="/software" element={<Software />} />
+                <Route path="/databases" element={<Databases />} />
+                <Route path="/user_settings" element={<UserSettings />} />
                 <Route path="/system" element={<System />} />
                 <Route path="/vars" element={<Vars />} />
                 <Route path="/destinations" element={<Destinations />} />

@@ -37,14 +37,32 @@ _cpu_last_per_core: dict[int, dict[str, int]] = {}
 _last_global: dict[str, Any] = {}
 
 
-def _run(cmd: str, timeout: float = 2.0) -> str:
+def _run(cmd: list[str] | str, timeout: float = 2.0) -> str:
+    import logging
+    import shlex
+    _log = logging.getLogger("app.system")
     try:
-        return subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL, timeout=timeout).decode(errors="ignore").strip()
+        if isinstance(cmd, str):
+            # Strip legacy redirections; refuse shell metachars (pipes, etc.).
+            # Callers have psutil/procfs fallbacks, so returning "" is safe.
+            cleaned = cmd.replace("2>/dev/null", "").strip()
+            if any(c in cleaned for c in ("|", ";", "&", "$", "`", "(", ")", "<", ">")):
+                _log.debug("refused shell metachars in cmd: %s", cmd)
+                return ""
+            cmd_list = shlex.split(cleaned)
+        else:
+            cmd_list = cmd
+        # Validate binary allowlist to avoid arbitrary exec
+        _allowed = {"uname", "uptime", "lsb_release", "sysctl", "df", "free", "vm_stat", "cat", "grep", "dmesg", "top"}
+        if not cmd_list or cmd_list[0].split("/")[-1] not in _allowed:
+            _log.debug("refused non-allowlisted binary: %s", cmd_list)
+            return ""
+        return subprocess.check_output(cmd_list, shell=False, stderr=subprocess.DEVNULL, timeout=timeout).decode(errors="ignore").strip()
     except Exception:
         return ""
 
 
-def _run_to_thread(cmd: str) -> str:
+def _run_to_thread(cmd: list[str] | str) -> str:
     return _run(cmd)
 
 

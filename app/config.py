@@ -24,7 +24,11 @@ class Settings(BaseSettings):
     )
     jwt_secret: str = "dev-secret-change"
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60 * 24
+    jwt_expire_minutes: int = 60
+    # CORS — explicit origins in prod. Comma-separated via CORS_ORIGINS env.
+    # Default allows local dev (vite 5173, 3000). Never use "*" with credentials.
+    cors_origins: str = "http://localhost:3000,http://localhost:5173"
+    env: str = Field(default="dev", validation_alias=AliasChoices("ENV", "APP_ENV"))
     fs_esl_host: str = "127.0.0.1"
     fs_esl_port: int = 8021
     fs_esl_password: str = "ClueCon"
@@ -55,6 +59,21 @@ class Settings(BaseSettings):
         extra="ignore",
         case_sensitive=False,
     )
+
+    @model_validator(mode="after")
+    def _check_prod_secrets(self):
+        """Fail fast in prod with default secrets."""
+        if self.env.lower() in ("prod", "production"):
+            bad = []
+            if self.jwt_secret == "dev-secret-change":
+                bad.append("JWT_SECRET must be set in prod")
+            if self.fs_esl_password == "ClueCon":
+                bad.append("FS_ESL_PASSWORD must be changed in prod")
+            if self.fs_xml_password == "ClueCon":
+                bad.append("FS_XML_PASSWORD must be changed in prod")
+            if bad:
+                raise ValueError("; ".join(bad))
+        return self
 
     @model_validator(mode="after")
     def _sync_valkey_redis_urls(self):  # type: ignore[no-redef]

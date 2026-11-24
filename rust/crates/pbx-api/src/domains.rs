@@ -87,7 +87,10 @@ async fn bootstrap(Json(payload): Json<Bootstrap>) -> impl IntoResponse {
         domain_id: Set(id),
         domain_name: Set(name.clone()),
         enabled: Set(true),
-        description: Set(payload.description.clone().or(payload.domain_description.clone())),
+        description: Set(payload
+            .description
+            .clone()
+            .or(payload.domain_description.clone())),
         created_at: Set(now),
         updated_at: Set(now),
     };
@@ -176,7 +179,10 @@ async fn create_domain(
         domain_id: Set(id),
         domain_name: Set(name.clone()),
         enabled: Set(payload.enabled),
-        description: Set(payload.description.clone().or(payload.domain_description.clone())),
+        description: Set(payload
+            .description
+            .clone()
+            .or(payload.domain_description.clone())),
         created_at: Set(now),
         updated_at: Set(now),
     };
@@ -211,14 +217,12 @@ async fn list_domains(Extension(claims): Extension<pbx_core::auth::Claims>) -> i
     } else {
         // Required (never auto-inserting): unknown own tenant → empty list.
         match crate::routing_db::tenant_domain_required(db, &claims).await {
-            Ok(own) => {
-                domains::Entity::find_by_id(own)
-                    .one(db)
-                    .await
-                    .unwrap_or(None)
-                    .into_iter()
-                    .collect()
-            }
+            Ok(own) => domains::Entity::find_by_id(own)
+                .one(db)
+                .await
+                .unwrap_or(None)
+                .into_iter()
+                .collect(),
             Err(_) => Vec::new(),
         }
     };
@@ -327,7 +331,11 @@ async fn patch_domain(
     if let Some(v) = payload.get("domain_name").and_then(|v| v.as_str()) {
         am.domain_name = Set(v.to_owned());
     }
-    if let Some(v) = payload.get("description").or_else(|| payload.get("domain_description")).and_then(|v| v.as_str()) {
+    if let Some(v) = payload
+        .get("description")
+        .or_else(|| payload.get("domain_description"))
+        .and_then(|v| v.as_str())
+    {
         am.description = Set(Some(v.to_owned()));
     }
     if let Some(v) = payload.get("enabled").and_then(|v| v.as_bool()) {
@@ -403,20 +411,50 @@ async fn delete_domain(
         use pbx_db::entities::*;
         use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
         count_blockers!(
-            db, id, blockers,
-            ("extensions", extensions::Entity, extensions::Column::DomainId),
+            db,
+            id,
+            blockers,
+            (
+                "extensions",
+                extensions::Entity,
+                extensions::Column::DomainId
+            ),
             ("gateways", gateways::Entity, gateways::Column::DomainId),
             ("dialplans", dialplans::Entity, dialplans::Column::DomainId),
-            ("sip_profiles", sip_profiles::Entity, sip_profiles::Column::DomainId),
+            (
+                "sip_profiles",
+                sip_profiles::Entity,
+                sip_profiles::Column::DomainId
+            ),
             ("devices", devices::Entity, devices::Column::DomainId),
             ("contacts", contacts::Entity, contacts::Column::DomainId),
-            ("call_centers", call_centers::Entity, call_centers::Column::DomainId),
+            (
+                "call_centers",
+                call_centers::Entity,
+                call_centers::Column::DomainId
+            ),
             ("ivr_menus", ivr_menus::Entity, ivr_menus::Column::DomainId),
-            ("conferences", conferences::Entity, conferences::Column::DomainId),
-            ("voicemails", voicemails::Entity, voicemails::Column::DomainId),
-            ("ring_groups", ring_groups::Entity, ring_groups::Column::DomainId),
+            (
+                "conferences",
+                conferences::Entity,
+                conferences::Column::DomainId
+            ),
+            (
+                "voicemails",
+                voicemails::Entity,
+                voicemails::Column::DomainId
+            ),
+            (
+                "ring_groups",
+                ring_groups::Entity,
+                ring_groups::Column::DomainId
+            ),
             ("faxes", faxes::Entity, faxes::Column::DomainId),
-            ("destinations", destinations::Entity, destinations::Column::DomainId),
+            (
+                "destinations",
+                destinations::Entity,
+                destinations::Column::DomainId
+            ),
         );
     }
     if !blockers.is_empty() {

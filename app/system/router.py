@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Depends
-from app.auth.deps import get_current_user
+from fastapi import APIRouter, Depends, HTTPException
+from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
+from app.db import get_session
+from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 import platform
 from app.system.service import get_instance
@@ -38,7 +40,10 @@ async def _get_info_cached() -> dict:
     return data
 
 @router.get("/status", response_model=dict)
-async def system_status(user: User = Depends(get_current_user)):
+async def system_status(
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_permission("system_view")),
+):
     """Legacy compat + extended. Returns hostname, load_avg plus full metrics if available."""
     from app.freeswitch.status_router import _get_fs_status_cached
     fs = await _get_fs_status_cached()
@@ -66,14 +71,20 @@ async def system_status(user: User = Depends(get_current_user)):
     return {"freeswitch": fs, "system": system, "_links": {"self": {"href": "/api/v1/system/status"}, "info": {"href": "/api/v1/system/info"}, "metrics": {"href": "/api/v1/system/metrics"}}}
 
 @router.get("/info", response_model=dict)
-async def system_info(user: User = Depends(get_current_user)):
+async def system_info(
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_permission("system_view")),
+):
     """Full system information (OS, CPU, memory, disk, uptime, load)."""
     data = await _get_info_cached()
     data["_links"] = {"self": {"href": "/api/v1/system/info"}, "metrics": {"href": "/api/v1/system/metrics"}, "status": {"href": "/api/v1/system/status"}}
     return data
 
 @router.get("/metrics", response_model=dict)
-async def system_metrics(user: User = Depends(get_current_user)):
+async def system_metrics(
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_permission("system_view")),
+):
     """Lightweight live metrics for polling/dashboard (cpu, mem, disk, load)."""
     data = await _get_metrics_cached()
     data["_links"] = {"self": {"href": "/api/v1/system/metrics"}, "info": {"href": "/api/v1/system/info"}}

@@ -53,8 +53,7 @@ async fn req(
     let bytes = axum::body::to_bytes(res.into_body(), 1024 * 256)
         .await
         .unwrap();
-    let json: serde_json::Value =
-        serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
     (status, json)
 }
 
@@ -86,7 +85,11 @@ async fn fax_assigned_only_without_domain_perm() {
     )
     .await;
     assert_eq!(s, StatusCode::CREATED, "create fax: {v}");
-    let fid = v.get("fax_uuid").and_then(|i| i.as_str()).unwrap().to_owned();
+    let fid = v
+        .get("fax_uuid")
+        .and_then(|i| i.as_str())
+        .unwrap()
+        .to_owned();
 
     // Plain fax_view holder sees nothing (not assigned).
     let b = token("asg-tenant", &["fax_view"]);
@@ -102,9 +105,7 @@ async fn fax_assigned_only_without_domain_perm() {
     let db = pbx_api::routing_db::conn().await;
     pbx_db::entities::fax_users::Entity::insert(pbx_db::entities::fax_users::ActiveModel {
         fax_user_uuid: Set(uuid::Uuid::now_v7().to_string()),
-        domain_id: Set(
-            uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
-        ),
+        domain_id: Set(uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()),
         fax_uuid: Set(fid.clone()),
         user_uuid: Set(Some(sub_of("asg-tenant"))),
         created_at: Set(chrono::Utc::now()),
@@ -145,7 +146,13 @@ async fn ring_group_assigned_only_without_domain_perm() {
         .to_owned();
 
     let b = token("asr-tenant", &["ring_group_view"]);
-    let (s, v) = req("GET", "/api/v1/ring_groups", Some(&b), serde_json::json!({})).await;
+    let (s, v) = req(
+        "GET",
+        "/api/v1/ring_groups",
+        Some(&b),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(
         v.get("total").and_then(|t| t.as_u64()).unwrap_or(999),
@@ -157,9 +164,7 @@ async fn ring_group_assigned_only_without_domain_perm() {
     pbx_db::entities::ring_group_users::Entity::insert(
         pbx_db::entities::ring_group_users::ActiveModel {
             ring_group_user_uuid: Set(uuid::Uuid::now_v7().to_string()),
-            domain_id: Set(
-                uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
-            ),
+            domain_id: Set(uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()),
             ring_group_uuid: Set(rid.clone()),
             user_uuid: Set(sub_of("asr-tenant")),
         },
@@ -167,7 +172,13 @@ async fn ring_group_assigned_only_without_domain_perm() {
     .exec(db)
     .await
     .unwrap();
-    let (s, v) = req("GET", "/api/v1/ring_groups", Some(&b), serde_json::json!({})).await;
+    let (s, v) = req(
+        "GET",
+        "/api/v1/ring_groups",
+        Some(&b),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK);
     let ids: Vec<String> = v
         .get("data")
@@ -199,7 +210,12 @@ async fn voicemail_own_mailboxes_without_domain_perm() {
     ensure_tenant("asv-tenant", &["extension_add"]).await;
     let a = token(
         "asv-tenant",
-        &["extension_add", "extension_view", "voicemail_add", "voicemail_view"],
+        &[
+            "extension_add",
+            "extension_view",
+            "voicemail_add",
+            "voicemail_view",
+        ],
     );
     // B owns extension 8301.
     let b = token("asv-tenant", &["voicemail_view"]);
@@ -222,9 +238,7 @@ async fn voicemail_own_mailboxes_without_domain_perm() {
     pbx_db::entities::extension_users::Entity::insert(
         pbx_db::entities::extension_users::ActiveModel {
             extension_user_uuid: Set(uuid::Uuid::now_v7().to_string()),
-            domain_id: Set(
-                uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap(),
-            ),
+            domain_id: Set(uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()),
             extension_uuid: Set(b_ext),
             user_uuid: Set(sub_of("asv-tenant")),
         },

@@ -81,8 +81,9 @@ async def patch_dest(dest_uuid: UUID, payload: DestinationUpdate, session: Async
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(d)
     return _serialize(d)
 
@@ -99,6 +100,7 @@ async def delete_dest(dest_uuid: UUID, session: AsyncSession = Depends(get_sessi
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     return Response(status_code=204)

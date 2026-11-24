@@ -15,6 +15,11 @@ pub struct Model {
     pub name: String,
     pub file_path: String,
     pub storage_backend: String,
+    pub recording_voice: Option<String>,
+    pub recording_description: Option<String>,
+    pub recording_speed: Option<String>,
+    pub recording_message: Option<String>,
+    pub recording_base64: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

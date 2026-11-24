@@ -121,7 +121,8 @@ async fn list_services(
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "service_view") {
         return (s, j).into_response();
     }
-    let (per_page, _) = crate::PageQuery { show: None,
+    let (per_page, _) = crate::PageQuery {
+        show: None,
         page: pq.page,
         per_page: pq.per_page,
     }
@@ -160,7 +161,11 @@ async fn get_service(
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
-    match services::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
+    match services::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    {
         Some(r) => (StatusCode::OK, Json(ser(&r))).into_response(),
         None => (
             StatusCode::NOT_FOUND,
@@ -200,14 +205,22 @@ async fn patch_service(
     {
         am.service_name = Set(Some(v.to_owned()));
     }
-    if payload.get("service_category").or_else(|| payload.get("category")).is_some() {
+    if payload
+        .get("service_category")
+        .or_else(|| payload.get("category"))
+        .is_some()
+    {
         am.service_category = Set(payload
             .get("service_category")
             .or_else(|| payload.get("category"))
             .and_then(|v| v.as_str())
             .map(str::to_owned));
     }
-    if payload.get("service_file").or_else(|| payload.get("file")).is_some() {
+    if payload
+        .get("service_file")
+        .or_else(|| payload.get("file"))
+        .is_some()
+    {
         am.service_file = Set(payload
             .get("service_file")
             .or_else(|| payload.get("file"))
@@ -221,7 +234,11 @@ async fn patch_service(
     {
         am.service_enabled = Set(v);
     }
-    if payload.get("service_description").or_else(|| payload.get("description")).is_some() {
+    if payload
+        .get("service_description")
+        .or_else(|| payload.get("description"))
+        .is_some()
+    {
         am.service_description = Set(payload
             .get("service_description")
             .or_else(|| payload.get("description"))

@@ -26,6 +26,7 @@ export function CallForward() {
     forward_no_answer_enabled: false,
     forward_user_not_registered_destination: "",
     forward_user_not_registered_enabled: false,
+    do_not_disturb: false,
     enabled: true,
     description: "",
   });
@@ -55,6 +56,7 @@ export function CallForward() {
       forward_no_answer_enabled: false,
       forward_user_not_registered_destination: "",
       forward_user_not_registered_enabled: false,
+      do_not_disturb: false,
       enabled: true,
       description: "",
     });
@@ -73,6 +75,7 @@ export function CallForward() {
       forward_no_answer_enabled: row.forward_no_answer_enabled ?? false,
       forward_user_not_registered_destination: row.forward_user_not_registered_destination ?? "",
       forward_user_not_registered_enabled: row.forward_user_not_registered_enabled ?? false,
+      do_not_disturb: (row as any).do_not_disturb ?? false,
       enabled: row.enabled ?? true,
       description: row.description ?? "",
     });
@@ -99,6 +102,12 @@ export function CallForward() {
         await apiFetch(`/call_forward/${uid}`, { method: "PATCH", body: JSON.stringify(payload) });
       } else {
         await apiFetch("/call_forward", { method: "POST", body: JSON.stringify(payload) });
+      }
+      // PHP parity: DND lives on the extension row — mirror it there too.
+      if (form.extension_uuid) {
+        try {
+          await apiFetch(`/extensions/${form.extension_uuid}`, { method: "PATCH", body: JSON.stringify({ do_not_disturb: !!form.do_not_disturb }) });
+        } catch { /* extension link optional; forward rule already saved */ }
       }
       setOpen(false);
       setEditing(null);
@@ -181,6 +190,7 @@ export function CallForward() {
           <div className="flex items-center gap-2"><input type="checkbox" id="forward_no_answer_enabled" checked={form.forward_no_answer_enabled as boolean} onChange={(e) => setForm({ ...form, forward_no_answer_enabled: e.target.checked })} className="h-4 w-4" /><Label htmlFor="forward_no_answer_enabled" className="cursor-pointer">Forward No Answer Enabled</Label></div>
           <div><Label>Forward No Answer Destination</Label><Input value={form.forward_no_answer_destination} onChange={(e) => setForm({ ...form, forward_no_answer_destination: e.target.value })} placeholder="no-answer dest" /></div>
           <div className="flex items-center gap-2"><input type="checkbox" id="forward_user_not_registered_enabled" checked={form.forward_user_not_registered_enabled as boolean} onChange={(e) => setForm({ ...form, forward_user_not_registered_enabled: e.target.checked })} className="h-4 w-4" /><Label htmlFor="forward_user_not_registered_enabled" className="cursor-pointer">Forward Not Registered Enabled</Label></div>
+          <div className="flex items-center gap-2"><input type="checkbox" id="do_not_disturb" checked={(form as any).do_not_disturb as boolean} onChange={(e) => setForm({ ...form, do_not_disturb: e.target.checked })} className="h-4 w-4" /><Label htmlFor="do_not_disturb" className="cursor-pointer">Do Not Disturb (on extension)</Label></div>
           <div><Label>Forward Not Registered Destination</Label><Input value={form.forward_user_not_registered_destination} onChange={(e) => setForm({ ...form, forward_user_not_registered_destination: e.target.value })} placeholder="not registered dest" /></div>
           <div className="flex items-center gap-2"><input type="checkbox" id="enabled" checked={form.enabled as boolean} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} className="h-4 w-4" /><Label htmlFor="enabled" className="cursor-pointer">Enabled</Label></div>
           <div><Label>Description</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Description" /></div>

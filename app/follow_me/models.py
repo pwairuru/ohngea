@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -21,8 +21,8 @@ class FollowMeBase(SQLModel):
 class FollowMe(FollowMeBase, table=True):
     __tablename__ = "follow_me"
     follow_me_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class FollowMeDestinationBase(SQLModel):
@@ -38,4 +38,4 @@ class FollowMeDestinationBase(SQLModel):
 class FollowMeDestination(FollowMeDestinationBase, table=True):
     __tablename__ = "follow_me_destinations"
     follow_me_destination_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

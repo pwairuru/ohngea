@@ -63,8 +63,9 @@ async def patch_ep(uid:UUID, payload:EmailQueueUpdate, session:AsyncSession=Depe
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(o)
     return _ser(o)
 

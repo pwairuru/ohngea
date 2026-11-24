@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 async function login(page: any) {
-  const res = await page.request.post("http://localhost:8000/auth/login", {
+  const res = await page.request.post("/auth/login", {
     data: { username: "admin", password: "admin", domain: "test.example.com" },
   });
   const json = await res.json();

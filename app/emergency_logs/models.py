@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 from sqlmodel import Field, SQLModel
@@ -10,4 +10,4 @@ class EmergencyLogBase(SQLModel):
 class EmergencyLog(EmergencyLogBase, table=True):
     __tablename__="emergency_logs"
     emergency_log_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

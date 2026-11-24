@@ -200,8 +200,9 @@ async def patch_rg(
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(rg)
     _, members = await get_ring_group_with_members(session, rg.ring_group_uuid, domain_id)
     return _serialize(rg, members)
@@ -219,6 +220,7 @@ async def delete_rg(ring_group_uuid: UUID, session: AsyncSession = Depends(get_s
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     return Response(status_code=204)

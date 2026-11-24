@@ -115,18 +115,25 @@ async def _make_user(test_db, domain, username, perms):
         await session.refresh(user)
 
         # If perms is not wildcard-only, create group with those perms and link user
-        non_wild = [p for p in perms if p != "*"]
-        if non_wild:
-            grp = Group(domain_id=domain.domain_id, name=f"grp-{username}-{uuid4().hex[:4]}")
+        # Wildcard "*" also needs a DB group so require_permission (DB-loaded) passes.
+        all_perms = perms if "*" in perms else [p for p in perms if p != "*"]
+        if all_perms:
+            grp_level = 80 if "*" in perms else 10
+            grp = Group(domain_id=domain.domain_id, name=f"grp-{username}-{uuid4().hex[:4]}", group_level=grp_level)
             session.add(grp)
             await session.commit()
             await session.refresh(grp)
             # link permissions
-            for pname in non_wild:
+            for pname in all_perms:
                 r = await session.execute(
                     __import__("sqlalchemy").select(Permission).where(Permission.name == pname)
                 )
-                perm = r.scalar_one()
+                perm = r.scalar_one_or_none()
+                if perm is None:
+                    perm = Permission(name=pname)
+                    session.add(perm)
+                    await session.commit()
+                    await session.refresh(perm)
                 session.add(GroupPermission(group_uuid=grp.group_uuid, permission_uuid=perm.permission_uuid))
             await session.commit()
             # link user to group

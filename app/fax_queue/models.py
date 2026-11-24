@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 from sqlmodel import Field, SQLModel
@@ -32,8 +32,8 @@ class FaxQueueBase(SQLModel):
 class FaxQueue(FaxQueueBase, table=True):
     __tablename__ = "fax_queue"
     fax_queue_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     # worker helpers — nullable for backwards compat
     fax_retry_count: int = Field(default=0)
     fax_error: str | None = Field(default=None, max_length=512)

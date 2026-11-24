@@ -80,8 +80,9 @@ async def patch_cf(cf_uuid: UUID, payload: CallForwardUpdate, session: AsyncSess
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(cf)
     return _serialize(cf)
 
@@ -97,6 +98,7 @@ async def delete_cf(cf_uuid: UUID, session: AsyncSession = Depends(get_session),
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     return Response(status_code=204)

@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -49,8 +49,8 @@ class FaxBase(SQLModel):
 class Fax(FaxBase, table=True):
     __tablename__ = "fax"
     fax_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class FaxUser(SQLModel, table=True):
@@ -59,8 +59,8 @@ class FaxUser(SQLModel, table=True):
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
     fax_uuid: UUID = Field(foreign_key="fax.fax_uuid", index=True, ondelete="CASCADE")
     user_uuid: UUID = Field(foreign_key="users.user_uuid", index=True, ondelete="CASCADE")
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class FaxFile(SQLModel, table=True):
@@ -74,8 +74,8 @@ class FaxFile(SQLModel, table=True):
     # legacy compat aliases
     fax_file_path: Optional[str] = Field(default=None, max_length=512)
     fax_file_type: Optional[str] = Field(default=None, max_length=32)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class FaxLog(SQLModel, table=True):
@@ -86,4 +86,4 @@ class FaxLog(SQLModel, table=True):
     fax_success: Optional[str] = Field(default=None, max_length=32, description="Success flag 1/0 or true/false")
     result_code: Optional[int] = Field(default=None, description="Result code numeric")
     fax_result_text: Optional[str] = Field(default=None, max_length=512)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

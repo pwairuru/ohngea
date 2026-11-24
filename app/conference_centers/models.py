@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 from sqlmodel import Field, SQLModel
@@ -15,8 +15,8 @@ class ConferenceCenterBase(SQLModel):
 class ConferenceCenter(ConferenceCenterBase, table=True):
     __tablename__="conference_centers"
     conference_center_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ConferenceRoomBase(SQLModel):
@@ -48,8 +48,8 @@ class ConferenceRoomBase(SQLModel):
 class ConferenceRoom(ConferenceRoomBase, table=True):
     __tablename__ = "conference_rooms"
     conference_room_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ConferenceRoomUser(SQLModel, table=True):
@@ -58,8 +58,8 @@ class ConferenceRoomUser(SQLModel, table=True):
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
     conference_room_uuid: UUID = Field(foreign_key="conference_rooms.conference_room_uuid", index=True, ondelete="CASCADE")
     user_uuid: UUID = Field(foreign_key="users.user_uuid", index=True, ondelete="CASCADE")
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ConferenceSessionBase(SQLModel):
@@ -75,8 +75,8 @@ class ConferenceSessionBase(SQLModel):
 class ConferenceSession(ConferenceSessionBase, table=True):
     __tablename__ = "conference_sessions"
     conference_session_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ConferenceSessionDetailBase(SQLModel):
@@ -95,5 +95,5 @@ class ConferenceSessionDetailBase(SQLModel):
 class ConferenceSessionDetail(ConferenceSessionDetailBase, table=True):
     __tablename__ = "conference_session_details"
     conference_session_detail_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

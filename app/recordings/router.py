@@ -99,7 +99,7 @@ async def get_ep(uid: UUID, session: AsyncSession = Depends(get_session), user: 
     return _ser(obj, include_presigned=True)
 
 @router.get("/{uid}/playback")
-async def playback_ep(uid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("recording_view")), expires: int = Query(3600, ge=60, le=86400)):
+async def playback_ep(uid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("recording_view")), expires: int = Query(3600, ge=60, le=3600)):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(Recording).where(Recording.recording_uuid == uid, Recording.domain_id == domain_id))
@@ -111,7 +111,7 @@ async def playback_ep(uid: UUID, session: AsyncSession = Depends(get_session), u
     return RedirectResponse(url=url, status_code=302)
 
 @router.get("/{uid}/presign", response_model=dict)
-async def presign_ep(uid: UUID, expires: int = Query(3600, ge=60, le=86400), session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("recording_view"))):
+async def presign_ep(uid: UUID, expires: int = Query(3600, ge=60, le=3600), session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("recording_view"))):
     domain_id = getattr(user, "_domain_id", user.domain_id)
     await set_tenant(session, domain_id)
     r = await session.execute(select(Recording).where(Recording.recording_uuid == uid, Recording.domain_id == domain_id))
@@ -146,7 +146,3 @@ async def delete_ep(uid: UUID, session: AsyncSession = Depends(get_session), use
     await session.delete(obj)
     await session.commit()
     return Response(status_code=204)
-
-@router.get("/health", include_in_schema=False)
-async def health():
-    return {"plugin": "recordings", "status": "ok", "backend": "s3"}

@@ -192,14 +192,15 @@ async def patch_conf(
         if k in ("domain_id",):
             continue
         setattr(conf, k, v)
-    from datetime import datetime
+    from datetime import datetime, timezone
 
-    conf.updated_at = datetime.utcnow()
+    conf.updated_at = datetime.now(timezone.utc)
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(conf)
     return _serialize(conf)
 
@@ -223,8 +224,9 @@ async def delete_conf(conference_uuid: UUID, session: AsyncSession = Depends(get
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     return Response(status_code=204)
 
 
@@ -265,7 +267,8 @@ async def add_conf_user(conference_uuid: UUID, payload: dict, session: AsyncSess
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(cu)
     return {"conference_user_uuid": str(cu.conference_user_uuid), "conference_uuid": str(cu.conference_uuid), "domain_id": str(cu.domain_id), "user_uuid": str(cu.user_uuid)}

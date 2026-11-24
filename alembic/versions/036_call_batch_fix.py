@@ -96,10 +96,10 @@ def upgrade() -> None:
     _add_col("call_broadcasts", sa.Column("broadcast_destination_data", sa.String(length=512), nullable=True))
     _add_col("call_broadcasts", sa.Column("broadcast_accountcode", sa.String(length=64), nullable=True))
     _add_col("call_broadcasts", sa.Column("broadcast_toll_allow", sa.String(length=128), nullable=True))
-    try:
-        op.create_foreign_key("fk_cb_recording", "call_broadcasts", "recordings", ["recording_uuid"], ["recording_uuid"], ondelete="SET NULL")
-    except Exception:
-        pass
+    # NOTE: no FK to recordings(recording_uuid) — its PK is composite
+    # (recording_uuid, domain_id), so a single-column FK is invalid. Integrity
+    # is enforced at the application layer. (No DROP here either: emitting any
+    # failing statement aborts the whole PG transaction even when caught.)
     try:
         op.create_index("ix_call_broadcasts_recording", "call_broadcasts", ["recording_uuid"])
     except Exception:
@@ -312,7 +312,8 @@ def upgrade() -> None:
             sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
             sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
             sa.ForeignKeyConstraint(["domain_id"], ["domains.domain_id"], ondelete="CASCADE"),
-            sa.ForeignKeyConstraint(["cdr_uuid"], ["cdr.cdr_uuid"], ondelete="SET NULL"),
+            # NOTE: no FK cdr_uuid -> cdr(cdr_uuid): cdr PK is composite
+            # (cdr_uuid, domain_id). Application-layer integrity only.
             sa.PrimaryKeyConstraint("call_recording_uuid"),
         )
     except Exception:

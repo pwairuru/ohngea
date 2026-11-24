@@ -15,7 +15,7 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: Optional[str] = None
     token_type: str = "Bearer"
-    expires_in: int = 86400
+    expires_in: int = 3600
 
 
 class UserCreate(BaseModel):

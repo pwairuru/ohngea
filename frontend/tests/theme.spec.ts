@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 async function login(page: any) {
-  const res = await page.request.post("http://localhost:8000/auth/login", {
+  const res = await page.request.post("/auth/login", {
     data: { username: "admin", password: "admin", domain: "test.example.com" },
   });
   const json = await res.json();
@@ -30,11 +30,11 @@ test("theme toggle + mobile drawer", async ({ page }) => {
 });
 
 test("REST pagination headers", async ({ request }) => {
-  const r = await request.get("http://localhost:8000/api/v1/extensions?page=1&per_page=5", {
+  const r = await request.get("/api/v1/extensions?page=1&per_page=5", {
     headers: { Authorization: "Bearer dummy" },
   });
   // may be 401 without auth, but should still have CORS headers; for unauthed we check 401 still has Link? we test health instead
-  const health = await request.get("http://localhost:8000/health");
+  const health = await request.get("/health");
   expect(health.status()).toBe(200);
 });
 

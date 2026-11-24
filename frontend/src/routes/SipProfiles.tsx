@@ -24,6 +24,8 @@ export function SipProfiles() {
     ext_rtp_ip: "192.168.1.108",
     realm: "192.168.1.108",
     context: "192.168.1.108",
+    hostname: "",
+    description: "",
     enabled: true,
   });
   const [statusMap, setStatusMap] = React.useState<Record<string, { fs_state: string; running: boolean }>>({});
@@ -46,7 +48,7 @@ export function SipProfiles() {
 
   const startCreate = () => {
     setEditing(null);
-    setForm({ name: "internal", sip_port: 5060, sip_ip: "0.0.0.0", ext_sip_ip: "192.168.1.108", ext_rtp_ip: "192.168.1.108", realm: "192.168.1.108", context: "192.168.1.108", enabled: true });
+    setForm({ name: "internal", sip_port: 5060, sip_ip: "0.0.0.0", ext_sip_ip: "192.168.1.108", ext_rtp_ip: "192.168.1.108", realm: "192.168.1.108", context: "192.168.1.108", hostname: "", description: "", enabled: true });
     setOpen(true);
   };
   const startEdit = (p: any) => {
@@ -59,6 +61,8 @@ export function SipProfiles() {
       ext_rtp_ip: p.ext_rtp_ip || "192.168.1.108",
       realm: p.realm || p.name || "192.168.1.108",
       context: p.context || p.realm || "192.168.1.108",
+      hostname: p.hostname || "",
+      description: p.description || "",
       enabled: !!p.enabled,
     });
     setOpen(true);
@@ -128,6 +132,7 @@ export function SipProfiles() {
           <div><Label>SIP IP (bind)</Label><Input value={form.sip_ip} onChange={(e) => setForm({ ...form, sip_ip: e.target.value })} placeholder="0.0.0.0" /><p className="text-xs text-muted-foreground">Inside container bind, usually 0.0.0.0</p></div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3"><div><Label>Ext SIP IP (advertised)</Label><Input value={form.ext_sip_ip} onChange={(e) => setForm({ ...form, ext_sip_ip: e.target.value })} placeholder="192.168.1.108" /><p className="text-xs text-muted-foreground">Host LAN IP phones see</p></div><div><Label>Ext RTP IP</Label><Input value={form.ext_rtp_ip} onChange={(e) => setForm({ ...form, ext_rtp_ip: e.target.value })} placeholder="192.168.1.108" /></div></div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3"><div><Label>Realm</Label><Input value={form.realm} onChange={(e) => setForm({ ...form, realm: e.target.value })} placeholder="192.168.1.108" /><p className="text-xs text-muted-foreground">SIP auth realm, use IP for IP-only</p></div><div><Label>Context</Label><Input value={form.context} onChange={(e) => setForm({ ...form, context: e.target.value })} placeholder="192.168.1.108" /><p className="text-xs text-muted-foreground">Dialplan context</p></div></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3"><div><Label>Hostname</Label><Input value={form.hostname} onChange={(e) => setForm({ ...form, hostname: e.target.value })} placeholder="fs1" /></div><div><Label>Description</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div></div>
           <p className="text-xs text-muted-foreground">Saving regenerates <code>sofia.conf.xml</code> and runs <code>reloadxml + sofia profile restart</code> — no host file edit.</p>
           <Button onClick={createOrUpdate} className="w-full">{editing ? "Save & Reload" : "Create & Reload"}</Button>
         </div>

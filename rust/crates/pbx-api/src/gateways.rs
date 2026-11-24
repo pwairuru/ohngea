@@ -55,38 +55,70 @@ pub struct Gateway {
 struct GatewayCreate {
     gateway: Option<String>,
     name: Option<String>,
-    #[serde(default)] username: Option<String>,
-    #[serde(default)] password: Option<String>,
-    #[serde(default)] proxy: Option<String>,
-    #[serde(default)] register: Option<bool>,
-    #[serde(default)] gateway_register: Option<bool>,
-    #[serde(default)] profile: Option<String>,
-    #[serde(default)] context: Option<String>,
-    #[serde(default)] enabled: Option<bool>,
-    #[serde(default)] distinct_to: Option<bool>,
-    #[serde(default)] auth_username: Option<String>,
-    #[serde(default)] realm: Option<String>,
-    #[serde(default)] from_user: Option<String>,
-    #[serde(default)] from_domain: Option<String>,
-    #[serde(default)] register_proxy: Option<String>,
-    #[serde(default)] outbound_proxy: Option<String>,
-    #[serde(default)] expire_seconds: Option<i32>,
-    #[serde(default)] register_transport: Option<String>,
-    #[serde(default)] contact_params: Option<String>,
-    #[serde(default)] retry_seconds: Option<i32>,
-    #[serde(default)] extension: Option<String>,
-    #[serde(default)] ping: Option<String>,
-    #[serde(default)] ping_min: Option<i32>,
-    #[serde(default)] ping_max: Option<i32>,
-    #[serde(default)] contact_in_ping: Option<bool>,
-    #[serde(default)] caller_id_in_from: Option<bool>,
-    #[serde(default)] supress_cng: Option<bool>,
-    #[serde(default)] sip_cid_type: Option<String>,
-    #[serde(default)] codec_prefs: Option<String>,
-    #[serde(default)] channels: Option<i32>,
-    #[serde(default)] extension_in_contact: Option<String>,
-    #[serde(default)] hostname: Option<String>,
-    #[serde(default)] description: Option<String>,
+    #[serde(default)]
+    username: Option<String>,
+    #[serde(default)]
+    password: Option<String>,
+    #[serde(default)]
+    proxy: Option<String>,
+    #[serde(default)]
+    register: Option<bool>,
+    #[serde(default)]
+    gateway_register: Option<bool>,
+    #[serde(default)]
+    profile: Option<String>,
+    #[serde(default)]
+    context: Option<String>,
+    #[serde(default)]
+    enabled: Option<bool>,
+    #[serde(default)]
+    distinct_to: Option<bool>,
+    #[serde(default)]
+    auth_username: Option<String>,
+    #[serde(default)]
+    realm: Option<String>,
+    #[serde(default)]
+    from_user: Option<String>,
+    #[serde(default)]
+    from_domain: Option<String>,
+    #[serde(default)]
+    register_proxy: Option<String>,
+    #[serde(default)]
+    outbound_proxy: Option<String>,
+    #[serde(default)]
+    expire_seconds: Option<i32>,
+    #[serde(default)]
+    register_transport: Option<String>,
+    #[serde(default)]
+    contact_params: Option<String>,
+    #[serde(default)]
+    retry_seconds: Option<i32>,
+    #[serde(default)]
+    extension: Option<String>,
+    #[serde(default)]
+    ping: Option<String>,
+    #[serde(default)]
+    ping_min: Option<i32>,
+    #[serde(default)]
+    ping_max: Option<i32>,
+    #[serde(default)]
+    contact_in_ping: Option<bool>,
+    #[serde(default)]
+    caller_id_in_from: Option<bool>,
+    #[serde(default)]
+    supress_cng: Option<bool>,
+    #[serde(default)]
+    sip_cid_type: Option<String>,
+    #[serde(default)]
+    codec_prefs: Option<String>,
+    #[serde(default)]
+    channels: Option<i32>,
+    #[serde(default)]
+    extension_in_contact: Option<String>,
+    #[serde(default)]
+    hostname: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
     /// Target tenant: UUID string, empty string (global, needs
     /// `gateway_domain`), or absent (caller's tenant). Without the perm the
     /// value is ignored and the tenant is forced (PHP parity; PHP forms
@@ -222,7 +254,10 @@ async fn create_gateway(
         username: Set(payload.username.clone()),
         password: Set(payload.password.clone()),
         proxy: Set(payload.proxy.clone()),
-        gateway_register: Set(payload.register.or(payload.gateway_register).unwrap_or(true)),
+        gateway_register: Set(payload
+            .register
+            .or(payload.gateway_register)
+            .unwrap_or(true)),
         enabled: Set(payload.enabled.unwrap_or(true)),
         domain_id: Set(domain_id),
         distinct_to: Set(payload.distinct_to),
@@ -340,10 +375,7 @@ async fn list_gateways(
             sel = sel.filter(pbx_db::entities::gateways::Column::DomainId.eq(domain_id));
         }
     }
-    let rows = sel
-        .all(&txn)
-        .await
-        .unwrap_or_default();
+    let rows = sel.all(&txn).await.unwrap_or_default();
     let _ = txn.commit().await;
     let items: Vec<Gateway> = rows.iter().map(row_to_gateway).map(masked).collect();
     let total = items.len();
@@ -505,9 +537,7 @@ async fn patch_gateway(
                 Err(_) => {
                     return (
                         StatusCode::UNPROCESSABLE_ENTITY,
-                        Json(
-                            serde_json::json!({"detail": "domain_id must be a UUID or empty"}),
-                        ),
+                        Json(serde_json::json!({"detail": "domain_id must be a UUID or empty"})),
                     )
                         .into_response();
                 }

@@ -170,13 +170,14 @@ async def patch_tc(
             continue
         setattr(tc, k, v)
     # update updated_at
-    from datetime import datetime
-    tc.updated_at = datetime.utcnow()
+    from datetime import datetime, timezone
+    tc.updated_at = datetime.now(timezone.utc)
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(tc)
     return _serialize(tc)
 
@@ -199,6 +200,7 @@ async def delete_tc(time_condition_uuid: UUID, session: AsyncSession = Depends(g
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     return Response(status_code=204)

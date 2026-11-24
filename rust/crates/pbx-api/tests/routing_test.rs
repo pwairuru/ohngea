@@ -283,6 +283,62 @@ async fn fax_queue_submit() {
     assert!(b.get("data").and_then(|d| d.as_array()).is_some());
 }
 
+// (7b) CDR mod_xml_cdr form ingest: `cdr=<url-encoded XML>` must parse
+// clean (not malformed) with extracted caller/destination.
+#[tokio::test]
+async fn cdr_form_encoded_cdr_prefix_parses_clean() {
+    let token = login_token().await;
+    let xml = "<cdr><caller_id_number>7101</caller_id_number><destination_number>7202</destination_number><hangup_cause>NORMAL_CLEARING</hangup_cause><direction>inbound</direction></cdr>";
+    let body = format!(
+        "cdr={}",
+        xml.replace('<', "%3C")
+            .replace('>', "%3E")
+            .replace('/', "%2F")
+            .replace(' ', "+")
+    );
+    let res = pbx_api::test_app()
+        .oneshot(auth(
+            Request::post("/api/v1/cdr/import")
+                .header("content-type", "application/x-www-form-urlencoded")
+                .body(Body::from(body))
+                .unwrap(),
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK, "form ingest must be 200");
+    let bytes = axum::body::to_bytes(res.into_body(), 1024 * 64)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        v.get("malformed"),
+        Some(&serde_json::Value::Bool(false)),
+        "must not be malformed: {v}"
+    );
+    let uuid = v
+        .get("cdr_uuid")
+        .and_then(|u| u.as_str())
+        .unwrap()
+        .to_string();
+    let (s, g) = get_json(pbx_api::test_app(), &token, &format!("/api/v1/cdr/{uuid}")).await;
+    assert_eq!(s, StatusCode::OK, "get: {g}");
+    assert_eq!(
+        g.get("caller_id_number")
+            .and_then(|c| c.as_str())
+            .unwrap_or(""),
+        "7101",
+        "caller parsed: {g}"
+    );
+    assert_eq!(
+        g.get("destination_number")
+            .and_then(|c| c.as_str())
+            .unwrap_or(""),
+        "7202",
+        "dest parsed: {g}"
+    );
+}
+
 // (7) CDR tolerant ingest: malformed XML still 200 + counted
 #[tokio::test]
 async fn cdr_tolerant_ingest_malformed_still_200_and_counted() {

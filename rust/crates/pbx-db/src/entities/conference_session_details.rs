@@ -12,6 +12,13 @@ pub struct Model {
     pub domain_id: Uuid,
     pub conference_session_uuid: String,
     pub username: Option<String>,
+    pub meeting_uuid: Option<String>,
+    pub caller_id_name: Option<String>,
+    pub caller_id_number: Option<String>,
+    pub moderator: Option<bool>,
+    pub network_addr: Option<String>,
+    pub start_epoch: Option<i64>,
+    pub end_epoch: Option<i64>,
     pub created_at: DateTime<Utc>,
 }
 

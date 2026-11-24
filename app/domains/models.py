@@ -17,8 +17,8 @@ class DomainBase(SQLModel):
 class Domain(DomainBase, table=True):
     __tablename__ = "domains"
     domain_id: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class DomainSettings(SQLModel, table=True):
@@ -30,7 +30,7 @@ class DomainSettings(SQLModel, table=True):
     key: str = Field(max_length=64)
     value: str = Field(max_length=1024)
     enabled: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class DomainPlugin(SQLModel, table=True):
@@ -39,7 +39,7 @@ class DomainPlugin(SQLModel, table=True):
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
     plugin_name: str = Field(max_length=64, index=True)
     enabled: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class DomainApp(SQLModel, table=True):
@@ -48,7 +48,7 @@ class DomainApp(SQLModel, table=True):
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
     app_name: str = Field(max_length=64, index=True)
     enabled: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     __table_args__ = (
         UniqueConstraint("domain_id", "app_name", name="uq_domain_apps_domain_app"),
         {"comment": "per-tenant app toggle"},

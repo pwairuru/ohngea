@@ -1,0 +1,4542 @@
+{
+  "alembic/env.py": {
+    "mtime": 1790269527.8978612,
+    "ast_hash": "adc696b5960eed4d02fcc959994ce4e1",
+    "semantic_hash": "adc696b5960eed4d02fcc959994ce4e1"
+  },
+  "alembic/versions/001_initial.py": {
+    "mtime": 1787997826.3179805,
+    "ast_hash": "a0c3ccde97c83b636c1968b2b715e8aa",
+    "semantic_hash": "a0c3ccde97c83b636c1968b2b715e8aa"
+  },
+  "alembic/versions/002_recordings_contacts.py": {
+    "mtime": 1787997826.3179805,
+    "ast_hash": "64d09d9f1fd389b1f314fd96ad7bae7e",
+    "semantic_hash": "64d09d9f1fd389b1f314fd96ad7bae7e"
+  },
+  "alembic/versions/003_ring_groups.py": {
+    "mtime": 1787997826.3179805,
+    "ast_hash": "691e71089dd4d6fbb89c9dd8de35e1ad",
+    "semantic_hash": "691e71089dd4d6fbb89c9dd8de35e1ad"
+  },
+  "alembic/versions/004_time_conditions.py": {
+    "mtime": 1787997826.3179805,
+    "ast_hash": "cd044834b401b28711e2ce043931f5a2",
+    "semantic_hash": "cd044834b401b28711e2ce043931f5a2"
+  },
+  "alembic/versions/005_voicemails.py": {
+    "mtime": 1787997826.3179805,
+    "ast_hash": "59fc913609feca21082c6842815f4a2a",
+    "semantic_hash": "59fc913609feca21082c6842815f4a2a"
+  },
+  "alembic/versions/006_conferences.py": {
+    "mtime": 1787997826.3179805,
+    "ast_hash": "7b5dddce3893e18ea02188448f1470e5",
+    "semantic_hash": "7b5dddce3893e18ea02188448f1470e5"
+  },
+  "alembic/versions/007_fax.py": {
+    "mtime": 1787997826.3179805,
+    "ast_hash": "82304590dd87b636cf5da458ccfb9dbc",
+    "semantic_hash": "82304590dd87b636cf5da458ccfb9dbc"
+  },
+  "alembic/versions/008_call_flows.py": {
+    "mtime": 1787997826.3184938,
+    "ast_hash": "31bc7e245b9abbb0534b7e53e204b072",
+    "semantic_hash": "31bc7e245b9abbb0534b7e53e204b072"
+  },
+  "alembic/versions/009_fix_permissions.py": {
+    "mtime": 1787997826.3184938,
+    "ast_hash": "4f0e25a9c832bea1caf8b5ae4e45fe2a",
+    "semantic_hash": "4f0e25a9c832bea1caf8b5ae4e45fe2a"
+  },
+  "alembic/versions/010_music_on_hold.py": {
+    "mtime": 1787997826.3184938,
+    "ast_hash": "86cf51c3c0bea2e15c020ca88c6638c0",
+    "semantic_hash": "86cf51c3c0bea2e15c020ca88c6638c0"
+  },
+  "alembic/versions/011_misc.py": {
+    "mtime": 1787997826.3184938,
+    "ast_hash": "2205ced700f6f92ed0d5e548a405c6f2",
+    "semantic_hash": "2205ced700f6f92ed0d5e548a405c6f2"
+  },
+  "alembic/versions/012_pins_phrases_streams_bridges.py": {
+    "mtime": 1787997826.3184938,
+    "ast_hash": "d6d871044afeca38b7927e6ec2a14c57",
+    "semantic_hash": "d6d871044afeca38b7927e6ec2a14c57"
+  },
+  "alembic/versions/013_fifo_cc_vars_nt.py": {
+    "mtime": 1787997826.3184938,
+    "ast_hash": "bafa1241ec7ac2403534c9370cff6817",
+    "semantic_hash": "bafa1241ec7ac2403534c9370cff6817"
+  },
+  "alembic/versions/014_conf_acl.py": {
+    "mtime": 1787997826.3184938,
+    "ast_hash": "c75ee35bbb4af62217edf5c83d70c7aa",
+    "semantic_hash": "c75ee35bbb4af62217edf5c83d70c7aa"
+  },
+  "alembic/versions/015_broadcast_emerg_vm_greet_faxq.py": {
+    "mtime": 1787997826.3184938,
+    "ast_hash": "cebdb71b12e1c4b3b4f21f003cfb8964",
+    "semantic_hash": "cebdb71b12e1c4b3b4f21f003cfb8964"
+  },
+  "alembic/versions/016_extset_email_sofia_feat.py": {
+    "mtime": 1787997826.3184938,
+    "ast_hash": "6d013c92b90004acbb5e236c59f6be7f",
+    "semantic_hash": "6d013c92b90004acbb5e236c59f6be7f"
+  },
+  "alembic/versions/017_dbtrans_event_modules.py": {
+    "mtime": 1787997826.3184938,
+    "ast_hash": "7e01822baea5fce00c72196746efd46b",
+    "semantic_hash": "7e01822baea5fce00c72196746efd46b"
+  },
+  "alembic/versions/018_logs_perm.py": {
+    "mtime": 1787997826.3184938,
+    "ast_hash": "18d82626461b25bb039c7fbc90fc307f",
+    "semantic_hash": "18d82626461b25bb039c7fbc90fc307f"
+  },
+  "alembic/versions/020_domain_apps.py": {
+    "mtime": 1787997826.3184938,
+    "ast_hash": "065bbcb659748a22b992df6162d6e536",
+    "semantic_hash": "065bbcb659748a22b992df6162d6e536"
+  },
+  "alembic/versions/020_webrtc_settings.py": {
+    "mtime": 1787997826.3184938,
+    "ast_hash": "ec16d6ca733f8a2ae61f6cb09815ff7f",
+    "semantic_hash": "ec16d6ca733f8a2ae61f6cb09815ff7f"
+  },
+  "alembic/versions/021_extension_full_parity.py": {
+    "mtime": 1787997826.3184938,
+    "ast_hash": "fadf6f98a77605df5e45e5a095a9c93a",
+    "semantic_hash": "fadf6f98a77605df5e45e5a095a9c93a"
+  },
+  "alembic/versions/022_gateways_full.py": {
+    "mtime": 1787997826.3184938,
+    "ast_hash": "7f3192caf84d7397dbd28a71de856b78",
+    "semantic_hash": "7f3192caf84d7397dbd28a71de856b78"
+  },
+  "alembic/versions/023_devices_dialplans_sip_ivr.py": {
+    "mtime": 1787997826.3194938,
+    "ast_hash": "6b84523d58d764beca302df43bb93bc2",
+    "semantic_hash": "6b84523d58d764beca302df43bb93bc2"
+  },
+  "alembic/versions/023_groups_users_parity.py": {
+    "mtime": 1787997826.3194938,
+    "ast_hash": "b11e69f9163734d8256952eea85b612e",
+    "semantic_hash": "b11e69f9163734d8256952eea85b612e"
+  },
+  "alembic/versions/024_peripheral.py": {
+    "mtime": 1787997826.3194938,
+    "ast_hash": "7ef6e61caebed59b8df65f8e1b4da3ef",
+    "semantic_hash": "7ef6e61caebed59b8df65f8e1b4da3ef"
+  },
+  "alembic/versions/024_sip_profiles_wss.py": {
+    "mtime": 1787997826.3194938,
+    "ast_hash": "b01379b8756fc05351ce87beb1548c0c",
+    "semantic_hash": "b01379b8756fc05351ce87beb1548c0c"
+  },
+  "alembic/versions/025_final_parity.py": {
+    "mtime": 1787997826.3194938,
+    "ast_hash": "c3b558b5585af78fb6c30d8b3e4b0989",
+    "semantic_hash": "c3b558b5585af78fb6c30d8b3e4b0989"
+  },
+  "alembic/versions/025_webrtc_settings_rls.py": {
+    "mtime": 1787997826.3194938,
+    "ast_hash": "6b540a8ffed01c6b367c251b26518541",
+    "semantic_hash": "6b540a8ffed01c6b367c251b26518541"
+  },
+  "alembic/versions/026_groups_users_rls.py": {
+    "mtime": 1787997826.3194938,
+    "ast_hash": "8dfa42a1b1241db6c09eb417392b4f90",
+    "semantic_hash": "8dfa42a1b1241db6c09eb417392b4f90"
+  },
+  "alembic/versions/027_call_forward.py": {
+    "mtime": 1787997826.3194938,
+    "ast_hash": "7b6e71d0d0fb905684d024c17b43bb12",
+    "semantic_hash": "7b6e71d0d0fb905684d024c17b43bb12"
+  },
+  "alembic/versions/028_gap6_recordings_s3_fax_email.py": {
+    "mtime": 1787997826.3194938,
+    "ast_hash": "4234f936807726c28ab2e881e812cd90",
+    "semantic_hash": "4234f936807726c28ab2e881e812cd90"
+  },
+  "alembic/versions/029_vars_fix.py": {
+    "mtime": 1787997826.3194938,
+    "ast_hash": "8a7482ecb4751f1825d381bbe30d9e45",
+    "semantic_hash": "8a7482ecb4751f1825d381bbe30d9e45"
+  },
+  "alembic/versions/030_gateways_dialplans_fix.py": {
+    "mtime": 1787997826.3204937,
+    "ast_hash": "c6571af680422be1bd2c0c700193fb6e",
+    "semantic_hash": "c6571af680422be1bd2c0c700193fb6e"
+  },
+  "alembic/versions/031_ring_ivr_fix.py": {
+    "mtime": 1787997826.3204937,
+    "ast_hash": "5e2687dfbb2464cacf43557153b79e99",
+    "semantic_hash": "5e2687dfbb2464cacf43557153b79e99"
+  },
+  "alembic/versions/032_devices_sip_parity.py": {
+    "mtime": 1790355929.9318855,
+    "ast_hash": "ea9a3ac54edfc63884e415a93591dd55",
+    "semantic_hash": "ea9a3ac54edfc63884e415a93591dd55"
+  },
+  "alembic/versions/033_fax_recordings_fix.py": {
+    "mtime": 1787997826.3204937,
+    "ast_hash": "951eade545f680ee03b60910fe39a360",
+    "semantic_hash": "951eade545f680ee03b60910fe39a360"
+  },
+  "alembic/versions/034_combined_fix.py": {
+    "mtime": 1787997826.3204937,
+    "ast_hash": "46bb33647e66c00a5a07e6f2fe9de0af",
+    "semantic_hash": "46bb33647e66c00a5a07e6f2fe9de0af"
+  },
+  "alembic/versions/035_provision_defaults.py": {
+    "mtime": 1790357601.8326945,
+    "ast_hash": "f8694217ef7ba05e4d478dd43f667cd7",
+    "semantic_hash": "f8694217ef7ba05e4d478dd43f667cd7"
+  },
+  "alembic/versions/036_call_batch_fix.py": {
+    "mtime": 1790356845.8858595,
+    "ast_hash": "e757d1ac1f60504fbfc0b33d757c9ddd",
+    "semantic_hash": "e757d1ac1f60504fbfc0b33d757c9ddd"
+  },
+  "alembic/versions/036_dest_gap_stub.py": {
+    "mtime": 1787997826.3204937,
+    "ast_hash": "13f7f0bfda4b4f21a237c88cc258595a",
+    "semantic_hash": "13f7f0bfda4b4f21a237c88cc258595a"
+  },
+  "alembic/versions/037_dest_db_fix.py": {
+    "mtime": 1787997826.3204937,
+    "ast_hash": "fa22ff7b3a5f8ad35295a055213d6958",
+    "semantic_hash": "fa22ff7b3a5f8ad35295a055213d6958"
+  },
+  "alembic/versions/038_fifo_batch_fix.py": {
+    "mtime": 1790357847.783593,
+    "ast_hash": "fb9e3e9a8fe427e83ac6a2a6acb4115f",
+    "semantic_hash": "fb9e3e9a8fe427e83ac6a2a6acb4115f"
+  },
+  "alembic/versions/039_voicemail_cdr_fix.py": {
+    "mtime": 1790357588.936595,
+    "ast_hash": "5eb0d544d22f41cd136d5d9d5541fda0",
+    "semantic_hash": "5eb0d544d22f41cd136d5d9d5541fda0"
+  },
+  "alembic/versions/040_contacts_fix.py": {
+    "mtime": 1787997826.3204937,
+    "ast_hash": "ffb5f16d12140caf75a014b8caa307cd",
+    "semantic_hash": "ffb5f16d12140caf75a014b8caa307cd"
+  },
+  "alembic/versions/041_admin_editors.py": {
+    "mtime": 1790357171.1333702,
+    "ast_hash": "56e310a41f13f7f3099ff8c1a890ba75",
+    "semantic_hash": "56e310a41f13f7f3099ff8c1a890ba75"
+  },
+  "alembic/versions/042_perm_seeds.py": {
+    "mtime": 1790188107.138957,
+    "ast_hash": "6c56beb10087ef91ab34951cac53770a",
+    "semantic_hash": "6c56beb10087ef91ab34951cac53770a"
+  },
+  "alembic/versions/043_tenant_rls_all.py": {
+    "mtime": 1790357958.1864452,
+    "ast_hash": "dfc7712ecfd544c8de67150fedfe2259",
+    "semantic_hash": "dfc7712ecfd544c8de67150fedfe2259"
+  },
+  "alembic/versions/044_sip_profile_ext_ips.py": {
+    "mtime": 1790364797.3661947,
+    "ast_hash": "f1b241f5d5273661117473514b1f9c1c",
+    "semantic_hash": "f1b241f5d5273661117473514b1f9c1c"
+  },
+  "alembic/versions/045_seed_parity.py": {
+    "mtime": 1795377829.6343832,
+    "ast_hash": "c5911736a9677956739eaecaaffb3639",
+    "semantic_hash": "c5911736a9677956739eaecaaffb3639"
+  },
+  "alembic/versions/046_services_parity.py": {
+    "mtime": 1795418636.5735753,
+    "ast_hash": "49fd4210a1bf52be5872b9002b22f92a",
+    "semantic_hash": "49fd4210a1bf52be5872b9002b22f92a"
+  },
+  "alembic/versions/047_show_all_rls.py": {
+    "mtime": 1795418682.768407,
+    "ast_hash": "c19328290ff28b8c21658bac50944464",
+    "semantic_hash": "c19328290ff28b8c21658bac50944464"
+  },
+  "alembic/versions/048_gateway_nullable_domain.py": {
+    "mtime": 1795418646.592052,
+    "ast_hash": "c2f0107244af862ccc481958515617f4",
+    "semantic_hash": "c2f0107244af862ccc481958515617f4"
+  },
+  "alembic/versions/049_global_domain_rows.py": {
+    "mtime": 1795418646.5924985,
+    "ast_hash": "bd85d5897b977f4638fc4b9c707e6b73",
+    "semantic_hash": "bd85d5897b977f4638fc4b9c707e6b73"
+  },
+  "app/__init__.py": {
+    "mtime": 1787997826.3204937,
+    "ast_hash": "0c13598990f5daaee5fbce79a70606ff",
+    "semantic_hash": "0c13598990f5daaee5fbce79a70606ff"
+  },
+  "app/access_controls/models.py": {
+    "mtime": 1790364484.208925,
+    "ast_hash": "63b51f8cd2ffd17bfff99ea48b27047e",
+    "semantic_hash": "63b51f8cd2ffd17bfff99ea48b27047e"
+  },
+  "app/access_controls/router.py": {
+    "mtime": 1790353832.4277334,
+    "ast_hash": "38dadd5d737d2c166543741f08159c5b",
+    "semantic_hash": "38dadd5d737d2c166543741f08159c5b"
+  },
+  "app/access_controls/schemas.py": {
+    "mtime": 1787997826.3214939,
+    "ast_hash": "9251ab39d7a5943b7e729d75849910bd",
+    "semantic_hash": "9251ab39d7a5943b7e729d75849910bd"
+  },
+  "app/access_controls/service.py": {
+    "mtime": 1787997826.3214939,
+    "ast_hash": "11fabc3d35e4f546317a4fd03a12317f",
+    "semantic_hash": "11fabc3d35e4f546317a4fd03a12317f"
+  },
+  "app/active_calls/router.py": {
+    "mtime": 1790188334.6017559,
+    "ast_hash": "89fd7ab77278459ea78ff23bf78a4936",
+    "semantic_hash": "89fd7ab77278459ea78ff23bf78a4936"
+  },
+  "app/active_conferences/__init__.py": {
+    "mtime": 1787997826.3214939,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "app/active_conferences/router.py": {
+    "mtime": 1790188426.7043865,
+    "ast_hash": "3db91a743b22b334c384ececd239cf8e",
+    "semantic_hash": "3db91a743b22b334c384ececd239cf8e"
+  },
+  "app/admin_settings/models.py": {
+    "mtime": 1790364484.334926,
+    "ast_hash": "a75afdaeb40e4655280cf48eef7402e3",
+    "semantic_hash": "a75afdaeb40e4655280cf48eef7402e3"
+  },
+  "app/admin_settings/router.py": {
+    "mtime": 1790359419.9307282,
+    "ast_hash": "19a08f74303af663d9bc7a8dab08efed",
+    "semantic_hash": "19a08f74303af663d9bc7a8dab08efed"
+  },
+  "app/auth/deps.py": {
+    "mtime": 1790270053.5759504,
+    "ast_hash": "b9204a4269982760cc4f2b2ef92420dc",
+    "semantic_hash": "b9204a4269982760cc4f2b2ef92420dc"
+  },
+  "app/auth/models.py": {
+    "mtime": 1790364484.334926,
+    "ast_hash": "c81902ca6c64c354c29807fcacb57e46",
+    "semantic_hash": "c81902ca6c64c354c29807fcacb57e46"
+  },
+  "app/auth/router.py": {
+    "mtime": 1790269758.619656,
+    "ast_hash": "606f8f19adc2d62a3b14f4d508a84fdd",
+    "semantic_hash": "606f8f19adc2d62a3b14f4d508a84fdd"
+  },
+  "app/auth/schemas.py": {
+    "mtime": 1790269761.5936792,
+    "ast_hash": "a4caf5d76cb3669e724b5520d81a31ca",
+    "semantic_hash": "a4caf5d76cb3669e724b5520d81a31ca"
+  },
+  "app/auth/service.py": {
+    "mtime": 1787997826.3214939,
+    "ast_hash": "73c5aa3e15582d12cfa935203c6be879",
+    "semantic_hash": "73c5aa3e15582d12cfa935203c6be879"
+  },
+  "app/bridges/models.py": {
+    "mtime": 1790364484.332926,
+    "ast_hash": "4fa7f11d6dc7e74ccb2b7210af45754a",
+    "semantic_hash": "4fa7f11d6dc7e74ccb2b7210af45754a"
+  },
+  "app/bridges/router.py": {
+    "mtime": 1787997826.3214939,
+    "ast_hash": "c87747253d7a0b6cc4fdc2806fa151a8",
+    "semantic_hash": "c87747253d7a0b6cc4fdc2806fa151a8"
+  },
+  "app/bridges/schemas.py": {
+    "mtime": 1787997826.3214939,
+    "ast_hash": "09e1a85d99e330056d31650f24ab17d7",
+    "semantic_hash": "09e1a85d99e330056d31650f24ab17d7"
+  },
+  "app/bridges/service.py": {
+    "mtime": 1787997826.3214939,
+    "ast_hash": "bc09809408cea2b6966102525012db11",
+    "semantic_hash": "bc09809408cea2b6966102525012db11"
+  },
+  "app/call_block/models.py": {
+    "mtime": 1790364484.332926,
+    "ast_hash": "a845b194a8d6c6ca3d1da88ef3973d9c",
+    "semantic_hash": "a845b194a8d6c6ca3d1da88ef3973d9c"
+  },
+  "app/call_block/router.py": {
+    "mtime": 1790269796.0336845,
+    "ast_hash": "2386b888dbc05d40355702638073910c",
+    "semantic_hash": "2386b888dbc05d40355702638073910c"
+  },
+  "app/call_block/schemas.py": {
+    "mtime": 1787997826.3214939,
+    "ast_hash": "cbbc08d881b621a3e700d8e3d69f9c9e",
+    "semantic_hash": "cbbc08d881b621a3e700d8e3d69f9c9e"
+  },
+  "app/call_block/service.py": {
+    "mtime": 1787997826.3214939,
+    "ast_hash": "c28c29a292ca20a1e933145f7259ffa0",
+    "semantic_hash": "c28c29a292ca20a1e933145f7259ffa0"
+  },
+  "app/call_broadcast/models.py": {
+    "mtime": 1790364484.332926,
+    "ast_hash": "09d8aecf8ce8cb2505ad337e6ca0670a",
+    "semantic_hash": "09d8aecf8ce8cb2505ad337e6ca0670a"
+  },
+  "app/call_broadcast/router.py": {
+    "mtime": 1790358995.4654517,
+    "ast_hash": "cd638c8d8512014c3e3193fa0b661089",
+    "semantic_hash": "cd638c8d8512014c3e3193fa0b661089"
+  },
+  "app/call_broadcast/schemas.py": {
+    "mtime": 1787997826.3224938,
+    "ast_hash": "e295add78199567d994aa4c3df82c611",
+    "semantic_hash": "e295add78199567d994aa4c3df82c611"
+  },
+  "app/call_broadcast/service.py": {
+    "mtime": 1787997826.3224938,
+    "ast_hash": "cf67ec4406ddd6dc5f1ca86776240e3a",
+    "semantic_hash": "cf67ec4406ddd6dc5f1ca86776240e3a"
+  },
+  "app/call_center_active/__init__.py": {
+    "mtime": 1787997826.3224938,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "app/call_center_active/router.py": {
+    "mtime": 1787997826.3224938,
+    "ast_hash": "7b9311f6e54736b76b7a77fd10c743c7",
+    "semantic_hash": "7b9311f6e54736b76b7a77fd10c743c7"
+  },
+  "app/call_centers/models.py": {
+    "mtime": 1790364484.330926,
+    "ast_hash": "97cff8657e5d269a3aaed4f8d94ea847",
+    "semantic_hash": "97cff8657e5d269a3aaed4f8d94ea847"
+  },
+  "app/call_centers/router.py": {
+    "mtime": 1790188107.129957,
+    "ast_hash": "3dc059bb1dbe9129c317737e805d45b1",
+    "semantic_hash": "3dc059bb1dbe9129c317737e805d45b1"
+  },
+  "app/call_centers/schemas.py": {
+    "mtime": 1787997826.3224938,
+    "ast_hash": "a3db80ba774c6a06119d40d7f9ecc9b7",
+    "semantic_hash": "a3db80ba774c6a06119d40d7f9ecc9b7"
+  },
+  "app/call_centers/service.py": {
+    "mtime": 1787997826.3224938,
+    "ast_hash": "4fc81ff3c2904e1eacefde63be2be285",
+    "semantic_hash": "4fc81ff3c2904e1eacefde63be2be285"
+  },
+  "app/call_flows/models.py": {
+    "mtime": 1790364484.333926,
+    "ast_hash": "27624a64ac77cf3244e4cecc99bdb23d",
+    "semantic_hash": "27624a64ac77cf3244e4cecc99bdb23d"
+  },
+  "app/call_flows/router.py": {
+    "mtime": 1790269796.0328448,
+    "ast_hash": "d7f6e05286845db363f14e97e05dd98f",
+    "semantic_hash": "d7f6e05286845db363f14e97e05dd98f"
+  },
+  "app/call_flows/schemas.py": {
+    "mtime": 1787997826.3224938,
+    "ast_hash": "70861b869033794b8d8172064eac55a8",
+    "semantic_hash": "70861b869033794b8d8172064eac55a8"
+  },
+  "app/call_flows/service.py": {
+    "mtime": 1787997826.3224938,
+    "ast_hash": "ad0c3b8311a42997f9847e0452c4eaf1",
+    "semantic_hash": "ad0c3b8311a42997f9847e0452c4eaf1"
+  },
+  "app/call_forward/__init__.py": {
+    "mtime": 1787997826.3234937,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "app/call_forward/models.py": {
+    "mtime": 1790364484.3319259,
+    "ast_hash": "a16fda91c9868f5875199ca6f0208d7e",
+    "semantic_hash": "a16fda91c9868f5875199ca6f0208d7e"
+  },
+  "app/call_forward/router.py": {
+    "mtime": 1790269796.0375102,
+    "ast_hash": "375fbfaefbbcc3438dc2ecc46a4ed2b4",
+    "semantic_hash": "375fbfaefbbcc3438dc2ecc46a4ed2b4"
+  },
+  "app/call_forward/schemas.py": {
+    "mtime": 1787997826.3234937,
+    "ast_hash": "507152514c7ce9c12d6bd288ad0e83aa",
+    "semantic_hash": "507152514c7ce9c12d6bd288ad0e83aa"
+  },
+  "app/call_forward/service.py": {
+    "mtime": 1787997826.3234937,
+    "ast_hash": "8794332032d7ab238843336ed64b8a23",
+    "semantic_hash": "8794332032d7ab238843336ed64b8a23"
+  },
+  "app/call_recordings/models.py": {
+    "mtime": 1790364484.332926,
+    "ast_hash": "f41486bc487803137466a57d6b60244d",
+    "semantic_hash": "f41486bc487803137466a57d6b60244d"
+  },
+  "app/call_recordings/router.py": {
+    "mtime": 1790353575.8567579,
+    "ast_hash": "8a0dfe2b2da48ccf5fc6b4018fd614f7",
+    "semantic_hash": "8a0dfe2b2da48ccf5fc6b4018fd614f7"
+  },
+  "app/cdr/models.py": {
+    "mtime": 1790364492.895988,
+    "ast_hash": "c1d423c8882fc3a4492b6ad6bbf8eccd",
+    "semantic_hash": "c1d423c8882fc3a4492b6ad6bbf8eccd"
+  },
+  "app/cdr/partition.py": {
+    "mtime": 1787997826.3234937,
+    "ast_hash": "437c1b4aed23537f0c76278e5db87e48",
+    "semantic_hash": "437c1b4aed23537f0c76278e5db87e48"
+  },
+  "app/cdr/router.py": {
+    "mtime": 1793201203.7596734,
+    "ast_hash": "5c033dedf6aa8a54dbd71b2dc13af499",
+    "semantic_hash": "5c033dedf6aa8a54dbd71b2dc13af499"
+  },
+  "app/cli/import_legacy.py": {
+    "mtime": 1790759778.6443295,
+    "ast_hash": "62c106972a7c52ca5ffa45911f47651c",
+    "semantic_hash": "62c106972a7c52ca5ffa45911f47651c"
+  },
+  "app/click_to_call/__init__.py": {
+    "mtime": 1787997826.3234937,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "app/click_to_call/router.py": {
+    "mtime": 1790188107.1303837,
+    "ast_hash": "bed859238b56fa2a9fa642daab9b2943",
+    "semantic_hash": "bed859238b56fa2a9fa642daab9b2943"
+  },
+  "app/conference_centers/models.py": {
+    "mtime": 1790364492.8969882,
+    "ast_hash": "5694a19ce908b9e55c15f39425ed69f0",
+    "semantic_hash": "5694a19ce908b9e55c15f39425ed69f0"
+  },
+  "app/conference_centers/router.py": {
+    "mtime": 1790269796.0354483,
+    "ast_hash": "83d78a9ec58a045b497ef882d0ca0ed4",
+    "semantic_hash": "83d78a9ec58a045b497ef882d0ca0ed4"
+  },
+  "app/conference_centers/schemas.py": {
+    "mtime": 1787997826.324494,
+    "ast_hash": "9218b248377e8aad69bc9f404507e7c4",
+    "semantic_hash": "9218b248377e8aad69bc9f404507e7c4"
+  },
+  "app/conference_centers/service.py": {
+    "mtime": 1787997826.324494,
+    "ast_hash": "5c14ad1c0bdad57792ceafae98d639b5",
+    "semantic_hash": "5c14ad1c0bdad57792ceafae98d639b5"
+  },
+  "app/conference_controls/models.py": {
+    "mtime": 1790364492.8969882,
+    "ast_hash": "954d204e60c1f91ff02198c5513a54f9",
+    "semantic_hash": "954d204e60c1f91ff02198c5513a54f9"
+  },
+  "app/conference_controls/router.py": {
+    "mtime": 1790269796.0352345,
+    "ast_hash": "022dbf7bde1fabd283e3d3f6fb4155e9",
+    "semantic_hash": "022dbf7bde1fabd283e3d3f6fb4155e9"
+  },
+  "app/conference_controls/schemas.py": {
+    "mtime": 1787997826.324494,
+    "ast_hash": "0e414578282032d56fec031b5f19440e",
+    "semantic_hash": "0e414578282032d56fec031b5f19440e"
+  },
+  "app/conference_controls/service.py": {
+    "mtime": 1787997826.324494,
+    "ast_hash": "0a4be42db5cbb0c8407e31cbf6d48097",
+    "semantic_hash": "0a4be42db5cbb0c8407e31cbf6d48097"
+  },
+  "app/conference_profiles/models.py": {
+    "mtime": 1790364492.897988,
+    "ast_hash": "b1e98af8c3e7a4097eb453c157d9ee5e",
+    "semantic_hash": "b1e98af8c3e7a4097eb453c157d9ee5e"
+  },
+  "app/conference_profiles/router.py": {
+    "mtime": 1790269796.0350218,
+    "ast_hash": "ead7a3943f66a40848a5117069ac1de6",
+    "semantic_hash": "ead7a3943f66a40848a5117069ac1de6"
+  },
+  "app/conference_profiles/schemas.py": {
+    "mtime": 1787997826.324494,
+    "ast_hash": "57d1493d01a12192f64a5888397597c7",
+    "semantic_hash": "57d1493d01a12192f64a5888397597c7"
+  },
+  "app/conference_profiles/service.py": {
+    "mtime": 1787997826.324494,
+    "ast_hash": "b01a338fc8cfefda06202426f1955fc7",
+    "semantic_hash": "b01a338fc8cfefda06202426f1955fc7"
+  },
+  "app/conferences/__init__.py": {
+    "mtime": 1787997826.324494,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "app/conferences/models.py": {
+    "mtime": 1790364492.897988,
+    "ast_hash": "d1343c209cb5c87f154c795f71096778",
+    "semantic_hash": "d1343c209cb5c87f154c795f71096778"
+  },
+  "app/conferences/router.py": {
+    "mtime": 1790364492.897988,
+    "ast_hash": "4045d879abcfd1accf420639f4679f3b",
+    "semantic_hash": "4045d879abcfd1accf420639f4679f3b"
+  },
+  "app/conferences/schemas.py": {
+    "mtime": 1787997826.3254938,
+    "ast_hash": "e8e3f7c654cbb636df4246784344f0ed",
+    "semantic_hash": "e8e3f7c654cbb636df4246784344f0ed"
+  },
+  "app/conferences/service.py": {
+    "mtime": 1787997826.3254938,
+    "ast_hash": "15ca292e557abe1dafd717615567fc69",
+    "semantic_hash": "15ca292e557abe1dafd717615567fc69"
+  },
+  "app/config.py": {
+    "mtime": 1790269753.1796138,
+    "ast_hash": "17e348523746741cd006f16b11c39e27",
+    "semantic_hash": "17e348523746741cd006f16b11c39e27"
+  },
+  "app/contacts/models.py": {
+    "mtime": 1790364492.898988,
+    "ast_hash": "def56c307dc5ef45f2ab7cfed92546e4",
+    "semantic_hash": "def56c307dc5ef45f2ab7cfed92546e4"
+  },
+  "app/contacts/router.py": {
+    "mtime": 1790353508.808911,
+    "ast_hash": "0bfc7589345e24b109be500eefcc9468",
+    "semantic_hash": "0bfc7589345e24b109be500eefcc9468"
+  },
+  "app/database_transactions/models.py": {
+    "mtime": 1790364492.8999882,
+    "ast_hash": "9a6f882c8f64c4c6663e86abf261a1a4",
+    "semantic_hash": "9a6f882c8f64c4c6663e86abf261a1a4"
+  },
+  "app/database_transactions/router.py": {
+    "mtime": 1787997826.3254938,
+    "ast_hash": "4f4260ce5f01f2bff2b16922ca88db4a",
+    "semantic_hash": "4f4260ce5f01f2bff2b16922ca88db4a"
+  },
+  "app/database_transactions/schemas.py": {
+    "mtime": 1787997826.3254938,
+    "ast_hash": "7a12ea27e275d8b4ccfa284a63d85a0f",
+    "semantic_hash": "7a12ea27e275d8b4ccfa284a63d85a0f"
+  },
+  "app/database_transactions/service.py": {
+    "mtime": 1787997826.3254938,
+    "ast_hash": "634f3c088ea0568481025db0fa8f091d",
+    "semantic_hash": "634f3c088ea0568481025db0fa8f091d"
+  },
+  "app/db.py": {
+    "mtime": 1793200960.626825,
+    "ast_hash": "914af12c6cede30b261ada7eb6cc6dba",
+    "semantic_hash": "914af12c6cede30b261ada7eb6cc6dba"
+  },
+  "app/destinations/models.py": {
+    "mtime": 1790364492.8999882,
+    "ast_hash": "474cd427350d61cc0dba73aa8f71fde2",
+    "semantic_hash": "474cd427350d61cc0dba73aa8f71fde2"
+  },
+  "app/destinations/router.py": {
+    "mtime": 1790269796.0339267,
+    "ast_hash": "9ed51343cb4707944cac0dc72a242e75",
+    "semantic_hash": "9ed51343cb4707944cac0dc72a242e75"
+  },
+  "app/destinations/schemas.py": {
+    "mtime": 1787997826.3264937,
+    "ast_hash": "04e502dd23e8d0ceacb9d89dc8a3fa8c",
+    "semantic_hash": "04e502dd23e8d0ceacb9d89dc8a3fa8c"
+  },
+  "app/destinations/service.py": {
+    "mtime": 1787997826.3264937,
+    "ast_hash": "e2b8e4cd1637a581c0e4ea808a2319ae",
+    "semantic_hash": "e2b8e4cd1637a581c0e4ea808a2319ae"
+  },
+  "app/devices/models.py": {
+    "mtime": 1790364503.509065,
+    "ast_hash": "c80f9571f1f4cc4fac31b98338808b66",
+    "semantic_hash": "c80f9571f1f4cc4fac31b98338808b66"
+  },
+  "app/devices/provision.py": {
+    "mtime": 1787997826.3264937,
+    "ast_hash": "28664dfe0edd0be8a6ac8269346dc5c0",
+    "semantic_hash": "28664dfe0edd0be8a6ac8269346dc5c0"
+  },
+  "app/devices/router.py": {
+    "mtime": 1790269796.0313437,
+    "ast_hash": "de10f8e7779fa4184ba64c1628ab7220",
+    "semantic_hash": "de10f8e7779fa4184ba64c1628ab7220"
+  },
+  "app/dialplans/models.py": {
+    "mtime": 1790364503.510065,
+    "ast_hash": "ac756d70b266f6fadc8baeb4ad646c7e",
+    "semantic_hash": "ac756d70b266f6fadc8baeb4ad646c7e"
+  },
+  "app/dialplans/router.py": {
+    "mtime": 1790269796.0300632,
+    "ast_hash": "04cec207289f259226766b42d57abef3",
+    "semantic_hash": "04cec207289f259226766b42d57abef3"
+  },
+  "app/dialplans/xml_models.py": {
+    "mtime": 1787997826.3264937,
+    "ast_hash": "04f6fb59dbaaa520e5de9d34e3797ac0",
+    "semantic_hash": "04f6fb59dbaaa520e5de9d34e3797ac0"
+  },
+  "app/domain_limits/models.py": {
+    "mtime": 1790364503.510065,
+    "ast_hash": "2e5e3bdccb553d7283f88c6b7184fdfe",
+    "semantic_hash": "2e5e3bdccb553d7283f88c6b7184fdfe"
+  },
+  "app/domain_limits/router.py": {
+    "mtime": 1790353503.0801973,
+    "ast_hash": "b359d187fbb923e7d485f22c1e1360ef",
+    "semantic_hash": "b359d187fbb923e7d485f22c1e1360ef"
+  },
+  "app/domains/models.py": {
+    "mtime": 1790364503.509065,
+    "ast_hash": "c07564d5a9347fc8c7b6fdbdb6931932",
+    "semantic_hash": "c07564d5a9347fc8c7b6fdbdb6931932"
+  },
+  "app/domains/router.py": {
+    "mtime": 1790188107.1303837,
+    "ast_hash": "e63f8c2270e846a8adb760525d22b95e",
+    "semantic_hash": "e63f8c2270e846a8adb760525d22b95e"
+  },
+  "app/domains/schemas.py": {
+    "mtime": 1787997826.327494,
+    "ast_hash": "b9b806b87fad1868211ca86707a214c6",
+    "semantic_hash": "b9b806b87fad1868211ca86707a214c6"
+  },
+  "app/domains/service.py": {
+    "mtime": 1790759927.790604,
+    "ast_hash": "fbc7d76f9d62c616dc2e8c93cec24f86",
+    "semantic_hash": "fbc7d76f9d62c616dc2e8c93cec24f86"
+  },
+  "app/email_queue/models.py": {
+    "mtime": 1790364503.510065,
+    "ast_hash": "95ab153337d64b03a71d653351ffd89d",
+    "semantic_hash": "95ab153337d64b03a71d653351ffd89d"
+  },
+  "app/email_queue/router.py": {
+    "mtime": 1790269796.0364187,
+    "ast_hash": "d8269873a5fe58e125f3ff0fe51bd677",
+    "semantic_hash": "d8269873a5fe58e125f3ff0fe51bd677"
+  },
+  "app/email_queue/schemas.py": {
+    "mtime": 1787997826.327494,
+    "ast_hash": "13a79bb10863b377a5c74ed4f4893d2b",
+    "semantic_hash": "13a79bb10863b377a5c74ed4f4893d2b"
+  },
+  "app/email_queue/service.py": {
+    "mtime": 1787997826.327494,
+    "ast_hash": "d040d4a215a0eb48417e2439257476a2",
+    "semantic_hash": "d040d4a215a0eb48417e2439257476a2"
+  },
+  "app/emergency_logs/models.py": {
+    "mtime": 1790364503.510065,
+    "ast_hash": "11a290f1f04cf0cddb2161628f3544fd",
+    "semantic_hash": "11a290f1f04cf0cddb2161628f3544fd"
+  },
+  "app/emergency_logs/router.py": {
+    "mtime": 1790269796.035876,
+    "ast_hash": "4cf40f5f4f571a29c4cf107e764f2fb6",
+    "semantic_hash": "4cf40f5f4f571a29c4cf107e764f2fb6"
+  },
+  "app/emergency_logs/schemas.py": {
+    "mtime": 1787997826.3284938,
+    "ast_hash": "3b0fb4a15631c2299acd73ee5db20f34",
+    "semantic_hash": "3b0fb4a15631c2299acd73ee5db20f34"
+  },
+  "app/emergency_logs/service.py": {
+    "mtime": 1787997826.3284938,
+    "ast_hash": "f9a6f5086c97f0898859f1d53f504823",
+    "semantic_hash": "f9a6f5086c97f0898859f1d53f504823"
+  },
+  "app/event_guard/models.py": {
+    "mtime": 1790364503.510065,
+    "ast_hash": "dad5e1089e8292571105bcb806ed4810",
+    "semantic_hash": "dad5e1089e8292571105bcb806ed4810"
+  },
+  "app/event_guard/router.py": {
+    "mtime": 1787997826.3284938,
+    "ast_hash": "c2682a3ab1697b1b253a7ab241bebfe4",
+    "semantic_hash": "c2682a3ab1697b1b253a7ab241bebfe4"
+  },
+  "app/event_guard/schemas.py": {
+    "mtime": 1787997826.3284938,
+    "ast_hash": "4e697e41281f5e0986fead8aea6b0204",
+    "semantic_hash": "4e697e41281f5e0986fead8aea6b0204"
+  },
+  "app/event_guard/service.py": {
+    "mtime": 1787997826.3284938,
+    "ast_hash": "9cee61fd5aa4f3922951b476c4540246",
+    "semantic_hash": "9cee61fd5aa4f3922951b476c4540246"
+  },
+  "app/extension_settings/models.py": {
+    "mtime": 1790364503.510065,
+    "ast_hash": "d66f8b391f8aaae398c62fc87d079ceb",
+    "semantic_hash": "d66f8b391f8aaae398c62fc87d079ceb"
+  },
+  "app/extension_settings/router.py": {
+    "mtime": 1790269796.036267,
+    "ast_hash": "3d5013b6af6dcc345c65c4e9f8e9f3a3",
+    "semantic_hash": "3d5013b6af6dcc345c65c4e9f8e9f3a3"
+  },
+  "app/extension_settings/schemas.py": {
+    "mtime": 1787997826.3284938,
+    "ast_hash": "e9f65214deb9443dcfa25c47745550c6",
+    "semantic_hash": "e9f65214deb9443dcfa25c47745550c6"
+  },
+  "app/extension_settings/service.py": {
+    "mtime": 1787997826.3284938,
+    "ast_hash": "01f1df52920eebd1fbf7e0e772378bf8",
+    "semantic_hash": "01f1df52920eebd1fbf7e0e772378bf8"
+  },
+  "app/extensions/models.py": {
+    "mtime": 1790364503.513065,
+    "ast_hash": "37e8c84c0cd157826183e5130921d91f",
+    "semantic_hash": "37e8c84c0cd157826183e5130921d91f"
+  },
+  "app/extensions/router.py": {
+    "mtime": 1790269796.0298765,
+    "ast_hash": "19e9ca4f099d9e581b4183920c81e99b",
+    "semantic_hash": "19e9ca4f099d9e581b4183920c81e99b"
+  },
+  "app/extensions/schemas.py": {
+    "mtime": 1787997826.3294938,
+    "ast_hash": "6f0f5d4730ae6f403e71b4a74294063d",
+    "semantic_hash": "6f0f5d4730ae6f403e71b4a74294063d"
+  },
+  "app/extensions/service.py": {
+    "mtime": 1787997826.3294938,
+    "ast_hash": "f1b4bc70168e5b692930a141f1fd64a2",
+    "semantic_hash": "f1b4bc70168e5b692930a141f1fd64a2"
+  },
+  "app/extensions/xml_models.py": {
+    "mtime": 1787997826.3294938,
+    "ast_hash": "d5846d0b15bac61cd728fb365775eda8",
+    "semantic_hash": "d5846d0b15bac61cd728fb365775eda8"
+  },
+  "app/fax/models.py": {
+    "mtime": 1790364503.510065,
+    "ast_hash": "b9898c126025a3cfd5e9e6f1ff31f437",
+    "semantic_hash": "b9898c126025a3cfd5e9e6f1ff31f437"
+  },
+  "app/fax/router.py": {
+    "mtime": 1790358650.2737873,
+    "ast_hash": "f506028575a6a50b28bcd1e51854742e",
+    "semantic_hash": "f506028575a6a50b28bcd1e51854742e"
+  },
+  "app/fax/schemas.py": {
+    "mtime": 1787997826.3294938,
+    "ast_hash": "4a2606ad7aedb1706853eaacf12b62b7",
+    "semantic_hash": "4a2606ad7aedb1706853eaacf12b62b7"
+  },
+  "app/fax/service.py": {
+    "mtime": 1787997826.3294938,
+    "ast_hash": "9c403b251836d11f32b69c00b50877ca",
+    "semantic_hash": "9c403b251836d11f32b69c00b50877ca"
+  },
+  "app/fax_queue/models.py": {
+    "mtime": 1790364509.4741082,
+    "ast_hash": "69b49f52d2442ddeaef222856855da7b",
+    "semantic_hash": "69b49f52d2442ddeaef222856855da7b"
+  },
+  "app/fax_queue/router.py": {
+    "mtime": 1790269796.0361009,
+    "ast_hash": "85cf8f8da2c0c98569372a7ca2c90126",
+    "semantic_hash": "85cf8f8da2c0c98569372a7ca2c90126"
+  },
+  "app/fax_queue/schemas.py": {
+    "mtime": 1787997826.3294938,
+    "ast_hash": "65de21531bd08efd258c24a103453ff9",
+    "semantic_hash": "65de21531bd08efd258c24a103453ff9"
+  },
+  "app/fax_queue/service.py": {
+    "mtime": 1787997826.330494,
+    "ast_hash": "0af7364d4bbccdf15cf45cfdb6bf95eb",
+    "semantic_hash": "0af7364d4bbccdf15cf45cfdb6bf95eb"
+  },
+  "app/feature_codes/models.py": {
+    "mtime": 1790364509.4741082,
+    "ast_hash": "058a24c6c30e2207a00a9b7e194c52a9",
+    "semantic_hash": "058a24c6c30e2207a00a9b7e194c52a9"
+  },
+  "app/feature_codes/router.py": {
+    "mtime": 1790269796.036585,
+    "ast_hash": "8a518b07987a7bca13b840fc7d5b57ed",
+    "semantic_hash": "8a518b07987a7bca13b840fc7d5b57ed"
+  },
+  "app/feature_codes/schemas.py": {
+    "mtime": 1787997826.330494,
+    "ast_hash": "ae5450bc4fc8a3e190c9c1938ca022d4",
+    "semantic_hash": "ae5450bc4fc8a3e190c9c1938ca022d4"
+  },
+  "app/feature_codes/service.py": {
+    "mtime": 1787997826.330494,
+    "ast_hash": "4e96e29eb79bca345b76c7b796ab2cee",
+    "semantic_hash": "4e96e29eb79bca345b76c7b796ab2cee"
+  },
+  "app/fifo/models.py": {
+    "mtime": 1790364509.4761083,
+    "ast_hash": "8cddda998659344aea4297772e5e8928",
+    "semantic_hash": "8cddda998659344aea4297772e5e8928"
+  },
+  "app/fifo/router.py": {
+    "mtime": 1790269796.0345032,
+    "ast_hash": "6d12785f03433c853464835b62b4c8b1",
+    "semantic_hash": "6d12785f03433c853464835b62b4c8b1"
+  },
+  "app/fifo/schemas.py": {
+    "mtime": 1787997826.330494,
+    "ast_hash": "55d92ff4fbc2300dec53344296328158",
+    "semantic_hash": "55d92ff4fbc2300dec53344296328158"
+  },
+  "app/fifo/service.py": {
+    "mtime": 1787997826.330494,
+    "ast_hash": "7352f83df13d4ae46f5272b6e50640d2",
+    "semantic_hash": "7352f83df13d4ae46f5272b6e50640d2"
+  },
+  "app/fifo_list/__init__.py": {
+    "mtime": 1787997826.330494,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "app/fifo_list/router.py": {
+    "mtime": 1790188426.70461,
+    "ast_hash": "7628c459c199c0ace7d2b0dd1f9b55e2",
+    "semantic_hash": "7628c459c199c0ace7d2b0dd1f9b55e2"
+  },
+  "app/follow_me/models.py": {
+    "mtime": 1790364509.586109,
+    "ast_hash": "eeb4dca8ea1002d603991516e5117e7c",
+    "semantic_hash": "eeb4dca8ea1002d603991516e5117e7c"
+  },
+  "app/follow_me/router.py": {
+    "mtime": 1790269796.033108,
+    "ast_hash": "226d298358a54ea307563b1000ae685e",
+    "semantic_hash": "226d298358a54ea307563b1000ae685e"
+  },
+  "app/follow_me/schemas.py": {
+    "mtime": 1787997826.3314939,
+    "ast_hash": "d84e9992f3aab6b93a9f1cb9d76c1dfe",
+    "semantic_hash": "d84e9992f3aab6b93a9f1cb9d76c1dfe"
+  },
+  "app/follow_me/service.py": {
+    "mtime": 1787997826.3314939,
+    "ast_hash": "416b80ce774aa34d296a7544f0f0d935",
+    "semantic_hash": "416b80ce774aa34d296a7544f0f0d935"
+  },
+  "app/freeswitch/cache.py": {
+    "mtime": 1787997826.3314939,
+    "ast_hash": "028345412a87571f8f4b8e2b857b9dd2",
+    "semantic_hash": "028345412a87571f8f4b8e2b857b9dd2"
+  },
+  "app/freeswitch/esl_client.py": {
+    "mtime": 1787997826.3314939,
+    "ast_hash": "39c8294270b21243920758943418915e",
+    "semantic_hash": "39c8294270b21243920758943418915e"
+  },
+  "app/freeswitch/mock_esl_server.py": {
+    "mtime": 1793289090.1349318,
+    "ast_hash": "746e08d3d3640975e15905559fb9db04",
+    "semantic_hash": "746e08d3d3640975e15905559fb9db04"
+  },
+  "app/freeswitch/sanitize.py": {
+    "mtime": 1790188107.138957,
+    "ast_hash": "75c3f0af6bd96f5dfaf056d0410fb937",
+    "semantic_hash": "75c3f0af6bd96f5dfaf056d0410fb937"
+  },
+  "app/freeswitch/sofia_config.py": {
+    "mtime": 1790358497.0726047,
+    "ast_hash": "819511c258885ccce2a7a7c764f9116e",
+    "semantic_hash": "819511c258885ccce2a7a7c764f9116e"
+  },
+  "app/freeswitch/status_router.py": {
+    "mtime": 1787997826.332494,
+    "ast_hash": "d05cf2fb34a0c37f060ffc4de41e4e43",
+    "semantic_hash": "d05cf2fb34a0c37f060ffc4de41e4e43"
+  },
+  "app/freeswitch/xml_builder.py": {
+    "mtime": 1787997826.332494,
+    "ast_hash": "cfb53dabc31832cf76379287faa5107f",
+    "semantic_hash": "cfb53dabc31832cf76379287faa5107f"
+  },
+  "app/freeswitch/xml_router.py": {
+    "mtime": 1790372692.439672,
+    "ast_hash": "2dddbfdb2d6283442f1a50157707fe43",
+    "semantic_hash": "2dddbfdb2d6283442f1a50157707fe43"
+  },
+  "app/gateways/models.py": {
+    "mtime": 1790364509.588109,
+    "ast_hash": "4d7b9698035b5751fc7b913438126d66",
+    "semantic_hash": "4d7b9698035b5751fc7b913438126d66"
+  },
+  "app/gateways/router.py": {
+    "mtime": 1790269796.0301766,
+    "ast_hash": "634dadec79bf55eabcdd84041ca971cc",
+    "semantic_hash": "634dadec79bf55eabcdd84041ca971cc"
+  },
+  "app/groups/__init__.py": {
+    "mtime": 1787997826.332494,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "app/groups/router.py": {
+    "mtime": 1790353508.8092415,
+    "ast_hash": "13c27618c14a0a6f8780a364df67c066",
+    "semantic_hash": "13c27618c14a0a6f8780a364df67c066"
+  },
+  "app/groups/schemas.py": {
+    "mtime": 1787997826.333494,
+    "ast_hash": "5e5d3af971d941a095efda845db8bf71",
+    "semantic_hash": "5e5d3af971d941a095efda845db8bf71"
+  },
+  "app/groups/service.py": {
+    "mtime": 1787997826.333494,
+    "ast_hash": "3917ac09ff9833e68bacbea767b45ae7",
+    "semantic_hash": "3917ac09ff9833e68bacbea767b45ae7"
+  },
+  "app/ivr_menus/models.py": {
+    "mtime": 1790364509.587109,
+    "ast_hash": "d536ccb70e98198c84858cea6550cddc",
+    "semantic_hash": "d536ccb70e98198c84858cea6550cddc"
+  },
+  "app/ivr_menus/router.py": {
+    "mtime": 1790269796.030998,
+    "ast_hash": "f3647b54d5e15f6cc8b2010d47770b25",
+    "semantic_hash": "f3647b54d5e15f6cc8b2010d47770b25"
+  },
+  "app/log_viewer/router.py": {
+    "mtime": 1790364474.672856,
+    "ast_hash": "e2e1e58f597271b216c38d2b0bee7b96",
+    "semantic_hash": "e2e1e58f597271b216c38d2b0bee7b96"
+  },
+  "app/main.py": {
+    "mtime": 1790353559.8126342,
+    "ast_hash": "baa42d8355f5f853c125eda7471c6af1",
+    "semantic_hash": "baa42d8355f5f853c125eda7471c6af1"
+  },
+  "app/middleware/app_gate.py": {
+    "mtime": 1790188107.130957,
+    "ast_hash": "dc31d0f562c8351a22401559e5f605ef",
+    "semantic_hash": "dc31d0f562c8351a22401559e5f605ef"
+  },
+  "app/middleware/audit.py": {
+    "mtime": 1790353866.5719965,
+    "ast_hash": "ae03d858d522aa690a70aa25538289e8",
+    "semantic_hash": "ae03d858d522aa690a70aa25538289e8"
+  },
+  "app/middleware/rate_limit.py": {
+    "mtime": 1790269651.2258205,
+    "ast_hash": "cdd7467145040829c7a6d8f8e6f594e3",
+    "semantic_hash": "cdd7467145040829c7a6d8f8e6f594e3"
+  },
+  "app/middleware/tenant.py": {
+    "mtime": 1790188107.130957,
+    "ast_hash": "735d92c0d05ab15a105983edea1a4b75",
+    "semantic_hash": "735d92c0d05ab15a105983edea1a4b75"
+  },
+  "app/modules/models.py": {
+    "mtime": 1790364509.588109,
+    "ast_hash": "a20b672dba301710107040a89208c816",
+    "semantic_hash": "a20b672dba301710107040a89208c816"
+  },
+  "app/modules/router.py": {
+    "mtime": 1787997826.333494,
+    "ast_hash": "497e9aa8758daf5125382f9eb46b3c11",
+    "semantic_hash": "497e9aa8758daf5125382f9eb46b3c11"
+  },
+  "app/modules/schemas.py": {
+    "mtime": 1787997826.333494,
+    "ast_hash": "e90dab52de8e7e2860b5072d8aa628a7",
+    "semantic_hash": "e90dab52de8e7e2860b5072d8aa628a7"
+  },
+  "app/modules/service.py": {
+    "mtime": 1787997826.333494,
+    "ast_hash": "1acaed373f0eeebb11396f40fe8daa54",
+    "semantic_hash": "1acaed373f0eeebb11396f40fe8daa54"
+  },
+  "app/music_on_hold/models.py": {
+    "mtime": 1790364509.588109,
+    "ast_hash": "b5beb654d6763e257c6bb2135dbaca21",
+    "semantic_hash": "b5beb654d6763e257c6bb2135dbaca21"
+  },
+  "app/music_on_hold/router.py": {
+    "mtime": 1790269796.0329735,
+    "ast_hash": "2ec3988d967f8a9625ad1123712528ae",
+    "semantic_hash": "2ec3988d967f8a9625ad1123712528ae"
+  },
+  "app/music_on_hold/schemas.py": {
+    "mtime": 1787997826.3344939,
+    "ast_hash": "d7b37bbbe0b484a354b12a2de0eb4081",
+    "semantic_hash": "d7b37bbbe0b484a354b12a2de0eb4081"
+  },
+  "app/music_on_hold/service.py": {
+    "mtime": 1787997826.3344939,
+    "ast_hash": "0de2e1d59e1cbd66fa43c185433c0c3e",
+    "semantic_hash": "0de2e1d59e1cbd66fa43c185433c0c3e"
+  },
+  "app/number_translations/models.py": {
+    "mtime": 1790364509.588109,
+    "ast_hash": "2643dd7ac4dcde603dc38cd46616b25e",
+    "semantic_hash": "2643dd7ac4dcde603dc38cd46616b25e"
+  },
+  "app/number_translations/router.py": {
+    "mtime": 1790269796.0348256,
+    "ast_hash": "05c1b3590d9314c456c716378a05202f",
+    "semantic_hash": "05c1b3590d9314c456c716378a05202f"
+  },
+  "app/number_translations/schemas.py": {
+    "mtime": 1787997826.3344939,
+    "ast_hash": "cd86aa7cfed0eb0e7ea77b7c5a674b31",
+    "semantic_hash": "cd86aa7cfed0eb0e7ea77b7c5a674b31"
+  },
+  "app/number_translations/service.py": {
+    "mtime": 1787997826.3344939,
+    "ast_hash": "99030df35edada5c70832a91348a014c",
+    "semantic_hash": "99030df35edada5c70832a91348a014c"
+  },
+  "app/operator_panel/router.py": {
+    "mtime": 1790188107.130957,
+    "ast_hash": "f35d33c3b7ffeb891918557c4a0e7aa0",
+    "semantic_hash": "f35d33c3b7ffeb891918557c4a0e7aa0"
+  },
+  "app/phrases/models.py": {
+    "mtime": 1790364509.588109,
+    "ast_hash": "1ad323bd31127e323d63e9739250358c",
+    "semantic_hash": "1ad323bd31127e323d63e9739250358c"
+  },
+  "app/phrases/router.py": {
+    "mtime": 1790269796.0342124,
+    "ast_hash": "47baefb25cb39d8652f88f4a4b877056",
+    "semantic_hash": "47baefb25cb39d8652f88f4a4b877056"
+  },
+  "app/phrases/schemas.py": {
+    "mtime": 1787997826.3344939,
+    "ast_hash": "ceec44fca00e5c17534105d30d7d71a3",
+    "semantic_hash": "ceec44fca00e5c17534105d30d7d71a3"
+  },
+  "app/phrases/service.py": {
+    "mtime": 1787997826.3344939,
+    "ast_hash": "ea521e62fdc08500a7cee11706b50ce7",
+    "semantic_hash": "ea521e62fdc08500a7cee11706b50ce7"
+  },
+  "app/pin_numbers/models.py": {
+    "mtime": 1790364517.018163,
+    "ast_hash": "de366b8e9e8ed94c813b194e4158008f",
+    "semantic_hash": "de366b8e9e8ed94c813b194e4158008f"
+  },
+  "app/pin_numbers/router.py": {
+    "mtime": 1790269796.0340889,
+    "ast_hash": "97a7299d1969956c05032ab79c9398d6",
+    "semantic_hash": "97a7299d1969956c05032ab79c9398d6"
+  },
+  "app/pin_numbers/schemas.py": {
+    "mtime": 1787997826.335494,
+    "ast_hash": "3e198d4594746ca3ce8744c83e2fef58",
+    "semantic_hash": "3e198d4594746ca3ce8744c83e2fef58"
+  },
+  "app/pin_numbers/service.py": {
+    "mtime": 1787997826.335494,
+    "ast_hash": "659e01252187e6faa03b319749ab01a6",
+    "semantic_hash": "659e01252187e6faa03b319749ab01a6"
+  },
+  "app/plugins/base.py": {
+    "mtime": 1787997826.335494,
+    "ast_hash": "860c02a3e7b085a13cf12a72faee25ea",
+    "semantic_hash": "860c02a3e7b085a13cf12a72faee25ea"
+  },
+  "app/plugins/registry.py": {
+    "mtime": 1787997826.335494,
+    "ast_hash": "e69b742f6d85104fd59ce9f775293867",
+    "semantic_hash": "e69b742f6d85104fd59ce9f775293867"
+  },
+  "app/plugins/router.py": {
+    "mtime": 1787997826.335494,
+    "ast_hash": "cce88e0887dffff5cbe3eaaa5f7bd293",
+    "semantic_hash": "cce88e0887dffff5cbe3eaaa5f7bd293"
+  },
+  "app/recordings/models.py": {
+    "mtime": 1790364517.019163,
+    "ast_hash": "045966c311da5c0fa7ff73f0b45ae1a7",
+    "semantic_hash": "045966c311da5c0fa7ff73f0b45ae1a7"
+  },
+  "app/recordings/router.py": {
+    "mtime": 1790353625.4261396,
+    "ast_hash": "5a5a41765378c66ef228107da462beb6",
+    "semantic_hash": "5a5a41765378c66ef228107da462beb6"
+  },
+  "app/recordings/schemas.py": {
+    "mtime": 1790188107.130957,
+    "ast_hash": "323203475016df0dd4ec735c4984525c",
+    "semantic_hash": "323203475016df0dd4ec735c4984525c"
+  },
+  "app/recordings/service.py": {
+    "mtime": 1787997826.335494,
+    "ast_hash": "380284352a654496060de7c4778ea0d9",
+    "semantic_hash": "380284352a654496060de7c4778ea0d9"
+  },
+  "app/registrations/router.py": {
+    "mtime": 1787997826.335494,
+    "ast_hash": "57d9f5e6c9f5b3baf38b5e6d0f7339c0",
+    "semantic_hash": "57d9f5e6c9f5b3baf38b5e6d0f7339c0"
+  },
+  "app/registry.py": {
+    "mtime": 1787997826.335494,
+    "ast_hash": "f7f125afb5e7ee0ece475cf9c54b82e3",
+    "semantic_hash": "f7f125afb5e7ee0ece475cf9c54b82e3"
+  },
+  "app/ring_groups/__init__.py": {
+    "mtime": 1787997826.335494,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "app/ring_groups/models.py": {
+    "mtime": 1790364517.018163,
+    "ast_hash": "92de18f46970a873bf40a1d5c5ea6dec",
+    "semantic_hash": "92de18f46970a873bf40a1d5c5ea6dec"
+  },
+  "app/ring_groups/router.py": {
+    "mtime": 1790269796.0319934,
+    "ast_hash": "625539e390d107f08287780bfbccc96c",
+    "semantic_hash": "625539e390d107f08287780bfbccc96c"
+  },
+  "app/ring_groups/schemas.py": {
+    "mtime": 1787997826.335494,
+    "ast_hash": "ea075f1130b1b79236aaf73b163d9a19",
+    "semantic_hash": "ea075f1130b1b79236aaf73b163d9a19"
+  },
+  "app/ring_groups/service.py": {
+    "mtime": 1787997826.336494,
+    "ast_hash": "28a60c3e8c2281f3da10d9722c036d42",
+    "semantic_hash": "28a60c3e8c2281f3da10d9722c036d42"
+  },
+  "app/seed_provision_defaults.py": {
+    "mtime": 1787997826.336494,
+    "ast_hash": "7630f53b54d81cc119d72dd560a9318a",
+    "semantic_hash": "7630f53b54d81cc119d72dd560a9318a"
+  },
+  "app/seeds/__init__.py": {
+    "mtime": 1790759927.790604,
+    "ast_hash": "82fe3b51a372864162e0649cbed24434",
+    "semantic_hash": "82fe3b51a372864162e0649cbed24434"
+  },
+  "app/seeds/cli.py": {
+    "mtime": 1790759927.7916043,
+    "ast_hash": "250e955c994b6a2133a1f0a361a229b0",
+    "semantic_hash": "250e955c994b6a2133a1f0a361a229b0"
+  },
+  "app/seeds/default_settings.py": {
+    "mtime": 1790759343.0323493,
+    "ast_hash": "40a61aeda58936ebd71f2fd9362c8ae8",
+    "semantic_hash": "40a61aeda58936ebd71f2fd9362c8ae8"
+  },
+  "app/seeds/dialplans.py": {
+    "mtime": 1790759927.7916043,
+    "ast_hash": "5d0afc6e8f55e6d457273db6672ac3ce",
+    "semantic_hash": "5d0afc6e8f55e6d457273db6672ac3ce"
+  },
+  "app/seeds/domain_settings.py": {
+    "mtime": 1790759927.7916043,
+    "ast_hash": "1bec4924ccdd12e978ec707364d57b33",
+    "semantic_hash": "1bec4924ccdd12e978ec707364d57b33"
+  },
+  "app/seeds/operational.py": {
+    "mtime": 1790759927.790604,
+    "ast_hash": "747158ae311c7c845832b2e59bc45340",
+    "semantic_hash": "747158ae311c7c845832b2e59bc45340"
+  },
+  "app/seeds/permissions.py": {
+    "mtime": 1790759927.7406037,
+    "ast_hash": "c5a47c6faa8653b25cd81f038752544a",
+    "semantic_hash": "c5a47c6faa8653b25cd81f038752544a"
+  },
+  "app/seeds/sip_profiles.py": {
+    "mtime": 1790759927.7916043,
+    "ast_hash": "8dc333da27d6519d9804d6069238057e",
+    "semantic_hash": "8dc333da27d6519d9804d6069238057e"
+  },
+  "app/seeds/sofia.py": {
+    "mtime": 1790759399.8941536,
+    "ast_hash": "b7c12e5b85c875046e149481b5ef5ed3",
+    "semantic_hash": "b7c12e5b85c875046e149481b5ef5ed3"
+  },
+  "app/seeds/vars.py": {
+    "mtime": 1790759927.7916043,
+    "ast_hash": "da608584e3adc49897a34c581d89dd37",
+    "semantic_hash": "da608584e3adc49897a34c581d89dd37"
+  },
+  "app/sip_profiles/models.py": {
+    "mtime": 1790364517.018163,
+    "ast_hash": "86ccbcbab9ec46d5bc06a0890dbf1c8f",
+    "semantic_hash": "86ccbcbab9ec46d5bc06a0890dbf1c8f"
+  },
+  "app/sip_profiles/router.py": {
+    "mtime": 1790269796.030303,
+    "ast_hash": "061d5996d9d6cc9897a7e3d73dfcf427",
+    "semantic_hash": "061d5996d9d6cc9897a7e3d73dfcf427"
+  },
+  "app/sofia_global_settings/models.py": {
+    "mtime": 1790364517.3831656,
+    "ast_hash": "eec626a5c2e5bc80c41a06dc81ffc7f5",
+    "semantic_hash": "eec626a5c2e5bc80c41a06dc81ffc7f5"
+  },
+  "app/sofia_global_settings/router.py": {
+    "mtime": 1787997826.336494,
+    "ast_hash": "f2e25fb0d3e083ea0e36af9e96a13ffc",
+    "semantic_hash": "f2e25fb0d3e083ea0e36af9e96a13ffc"
+  },
+  "app/sofia_global_settings/schemas.py": {
+    "mtime": 1787997826.336494,
+    "ast_hash": "e2fe17ec2ce2ea2629d265578868e63a",
+    "semantic_hash": "e2fe17ec2ce2ea2629d265578868e63a"
+  },
+  "app/sofia_global_settings/service.py": {
+    "mtime": 1787997826.336494,
+    "ast_hash": "a6c510ac69b36aca285c7995398fb37f",
+    "semantic_hash": "a6c510ac69b36aca285c7995398fb37f"
+  },
+  "app/status_aliases/router.py": {
+    "mtime": 1790269640.3067358,
+    "ast_hash": "ea6aa2c03a4be0148ec4173114dab002",
+    "semantic_hash": "ea6aa2c03a4be0148ec4173114dab002"
+  },
+  "app/storage/__init__.py": {
+    "mtime": 1787997826.336494,
+    "ast_hash": "326774fdc406cd605a9e45da0e3a0d01",
+    "semantic_hash": "326774fdc406cd605a9e45da0e3a0d01"
+  },
+  "app/storage/s3.py": {
+    "mtime": 1790188107.130957,
+    "ast_hash": "308b248af564e67a9af4b3b9088fb370",
+    "semantic_hash": "308b248af564e67a9af4b3b9088fb370"
+  },
+  "app/streams/models.py": {
+    "mtime": 1790364518.414173,
+    "ast_hash": "76ae96bc9e0732726ee33df7f3629e08",
+    "semantic_hash": "76ae96bc9e0732726ee33df7f3629e08"
+  },
+  "app/streams/router.py": {
+    "mtime": 1790269796.0343525,
+    "ast_hash": "522a76a533e2e1025305b0d46be01b5b",
+    "semantic_hash": "522a76a533e2e1025305b0d46be01b5b"
+  },
+  "app/streams/schemas.py": {
+    "mtime": 1787997826.336494,
+    "ast_hash": "d76d9cd9979f2a01d588398a85fb7e98",
+    "semantic_hash": "d76d9cd9979f2a01d588398a85fb7e98"
+  },
+  "app/streams/service.py": {
+    "mtime": 1787997826.336494,
+    "ast_hash": "fb92a43ac7a664d935731cad13dac187",
+    "semantic_hash": "fb92a43ac7a664d935731cad13dac187"
+  },
+  "app/system/__init__.py": {
+    "mtime": 1787997826.336494,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "app/system/router.py": {
+    "mtime": 1790353493.3351223,
+    "ast_hash": "b9ebebcefdfad6265ae6450e3ea74662",
+    "semantic_hash": "b9ebebcefdfad6265ae6450e3ea74662"
+  },
+  "app/system/service.py": {
+    "mtime": 1790188107.1319568,
+    "ast_hash": "022f61b161d53aa675a0a8e9128b47dd",
+    "semantic_hash": "022f61b161d53aa675a0a8e9128b47dd"
+  },
+  "app/time_conditions/__init__.py": {
+    "mtime": 1787997826.337494,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "app/time_conditions/models.py": {
+    "mtime": 1790364518.414173,
+    "ast_hash": "ec9e2bb0cf774f3248af8b2c20f1dc9c",
+    "semantic_hash": "ec9e2bb0cf774f3248af8b2c20f1dc9c"
+  },
+  "app/time_conditions/router.py": {
+    "mtime": 1790364518.414173,
+    "ast_hash": "998e36b93f36b370d9121dbb5ee392f9",
+    "semantic_hash": "998e36b93f36b370d9121dbb5ee392f9"
+  },
+  "app/time_conditions/schemas.py": {
+    "mtime": 1787997826.337494,
+    "ast_hash": "825a8cb4f38144e75352b6ce72f964eb",
+    "semantic_hash": "825a8cb4f38144e75352b6ce72f964eb"
+  },
+  "app/time_conditions/service.py": {
+    "mtime": 1787997826.337494,
+    "ast_hash": "e5cb09ac0b5522fc3275e12cd73bc38b",
+    "semantic_hash": "e5cb09ac0b5522fc3275e12cd73bc38b"
+  },
+  "app/users/import_service.py": {
+    "mtime": 1787997826.337494,
+    "ast_hash": "969b58fe2fb54e6ff0b03ab6edc89fa2",
+    "semantic_hash": "969b58fe2fb54e6ff0b03ab6edc89fa2"
+  },
+  "app/users/router.py": {
+    "mtime": 1790358317.9602222,
+    "ast_hash": "671ddbadf7144432b34242ec8068924b",
+    "semantic_hash": "671ddbadf7144432b34242ec8068924b"
+  },
+  "app/vars/models.py": {
+    "mtime": 1790364518.414173,
+    "ast_hash": "b559f3a22896ed596044e6f9f64f4135",
+    "semantic_hash": "b559f3a22896ed596044e6f9f64f4135"
+  },
+  "app/vars/router.py": {
+    "mtime": 1790269796.034678,
+    "ast_hash": "1f4a11c6eb657aa06d7e1808652058c0",
+    "semantic_hash": "1f4a11c6eb657aa06d7e1808652058c0"
+  },
+  "app/vars/schemas.py": {
+    "mtime": 1787997826.338494,
+    "ast_hash": "e1f24d9a562a702c4f9312b0f7da409b",
+    "semantic_hash": "e1f24d9a562a702c4f9312b0f7da409b"
+  },
+  "app/vars/service.py": {
+    "mtime": 1787997826.338494,
+    "ast_hash": "0bd3f740b5f8df4b10d15ffa60ebb737",
+    "semantic_hash": "0bd3f740b5f8df4b10d15ffa60ebb737"
+  },
+  "app/voicemail_greetings/models.py": {
+    "mtime": 1790364518.414173,
+    "ast_hash": "a65d8354e436fd8ede7fa0ef740c16ee",
+    "semantic_hash": "a65d8354e436fd8ede7fa0ef740c16ee"
+  },
+  "app/voicemail_greetings/router.py": {
+    "mtime": 1790269796.0359817,
+    "ast_hash": "dd7946ce3c3b506937c56e6f094cade0",
+    "semantic_hash": "dd7946ce3c3b506937c56e6f094cade0"
+  },
+  "app/voicemail_greetings/schemas.py": {
+    "mtime": 1787997826.338494,
+    "ast_hash": "f7df2c5abd3bcf4f5ecf757351e182e3",
+    "semantic_hash": "f7df2c5abd3bcf4f5ecf757351e182e3"
+  },
+  "app/voicemail_greetings/service.py": {
+    "mtime": 1787997826.339494,
+    "ast_hash": "ce163eb505ac31acc385ae29e111f94b",
+    "semantic_hash": "ce163eb505ac31acc385ae29e111f94b"
+  },
+  "app/voicemails/__init__.py": {
+    "mtime": 1787997826.339494,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "app/voicemails/models.py": {
+    "mtime": 1790364524.361216,
+    "ast_hash": "ebc1e900c814fd1b9dcd88d5aa6c41c1",
+    "semantic_hash": "ebc1e900c814fd1b9dcd88d5aa6c41c1"
+  },
+  "app/voicemails/router.py": {
+    "mtime": 1790364524.361216,
+    "ast_hash": "20c0bf57d45ee50343eb05a3d990064b",
+    "semantic_hash": "20c0bf57d45ee50343eb05a3d990064b"
+  },
+  "app/voicemails/schemas.py": {
+    "mtime": 1787997826.339494,
+    "ast_hash": "ebd15f2793cd28f51e29fa6ae7cf6c2d",
+    "semantic_hash": "ebd15f2793cd28f51e29fa6ae7cf6c2d"
+  },
+  "app/voicemails/service.py": {
+    "mtime": 1787997826.339494,
+    "ast_hash": "b9a07166cc8cffdd1dce4cf96237c27d",
+    "semantic_hash": "b9a07166cc8cffdd1dce4cf96237c27d"
+  },
+  "app/webrtc/__init__.py": {
+    "mtime": 1787997826.339494,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "app/webrtc/credentials_router.py": {
+    "mtime": 1790188200.8476982,
+    "ast_hash": "f6685ae4746c9454f60b89bc163ae491",
+    "semantic_hash": "f6685ae4746c9454f60b89bc163ae491"
+  },
+  "app/webrtc_settings/__init__.py": {
+    "mtime": 1787997826.339494,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "app/webrtc_settings/models.py": {
+    "mtime": 1790364524.4302166,
+    "ast_hash": "55f2ef4623bce87e06a22023a903a735",
+    "semantic_hash": "55f2ef4623bce87e06a22023a903a735"
+  },
+  "app/webrtc_settings/router.py": {
+    "mtime": 1790364524.4312167,
+    "ast_hash": "55751c4483bf0cd0e9326755388e977b",
+    "semantic_hash": "55751c4483bf0cd0e9326755388e977b"
+  },
+  "app/workers/celery_app.py": {
+    "mtime": 1790358362.5415664,
+    "ast_hash": "f38e36331554a135c80008783f7ada91",
+    "semantic_hash": "f38e36331554a135c80008783f7ada91"
+  },
+  "docker/sipphone/sip_endpoint.py": {
+    "mtime": 1790365480.3441448,
+    "ast_hash": "39b30871cec828e06bfaa259aed20af5",
+    "semantic_hash": "39b30871cec828e06bfaa259aed20af5"
+  },
+  "docs/php-parity-all.json": {
+    "mtime": 1794858571.6225903,
+    "ast_hash": "e694b54a77f148d4382a41552d3b93fe",
+    "semantic_hash": "e694b54a77f148d4382a41552d3b93fe"
+  },
+  "freebsd/mfsbsd/customfiles/usr/local/bin/ohngea-install": {
+    "mtime": 1790188107.140228,
+    "ast_hash": "c618fc16e77d41aa5bfb86d051fef00e",
+    "semantic_hash": "c618fc16e77d41aa5bfb86d051fef00e"
+  },
+  "freebsd/mfsbsd/installerconfig": {
+    "mtime": 1790188107.1403193,
+    "ast_hash": "4d88ee38f97a2395513c4bb54bf69e0d",
+    "semantic_hash": "4d88ee38f97a2395513c4bb54bf69e0d"
+  },
+  "freebsd/port/www/ohngea/files/ohngea-setup": {
+    "mtime": 1790188107.1406372,
+    "ast_hash": "097cf46ea12816545ad19caf050158a7",
+    "semantic_hash": "097cf46ea12816545ad19caf050158a7"
+  },
+  "freebsd/port/www/ohngea/files/ohngea-url": {
+    "mtime": 1790188107.1406372,
+    "ast_hash": "fc69ceba88b030ced12c13e0bc7a8b61",
+    "semantic_hash": "fc69ceba88b030ced12c13e0bc7a8b61"
+  },
+  "freebsd/scripts/build-iso.sh": {
+    "mtime": 1790188107.140957,
+    "ast_hash": "f581e81ed5d347926eed2fa815ffa97e",
+    "semantic_hash": "f581e81ed5d347926eed2fa815ffa97e"
+  },
+  "freebsd/scripts/build-poudriere.sh": {
+    "mtime": 1790188107.1412234,
+    "ast_hash": "e1e116e5d9de28370197bfb15b4ec275",
+    "semantic_hash": "e1e116e5d9de28370197bfb15b4ec275"
+  },
+  "freebsd/scripts/create-dist.sh": {
+    "mtime": 1790188107.1412234,
+    "ast_hash": "586cd2bdd60bc4cd06926fdcdc2bf666",
+    "semantic_hash": "586cd2bdd60bc4cd06926fdcdc2bf666"
+  },
+  "freebsd/scripts/repo-init.sh": {
+    "mtime": 1790188107.1412234,
+    "ast_hash": "3611eb7b2a8f428f2b6d753d21fa823d",
+    "semantic_hash": "3611eb7b2a8f428f2b6d753d21fa823d"
+  },
+  "frontend/dev-dist/registerSW.js": {
+    "mtime": 1794838323.1647544,
+    "ast_hash": "3ca0b8505b4bec776b69afdba2768812",
+    "semantic_hash": "3ca0b8505b4bec776b69afdba2768812"
+  },
+  "frontend/dev-dist/sw.js": {
+    "mtime": 1794838326.3497088,
+    "ast_hash": "725fac6a3319bf17e4557b876d68783c",
+    "semantic_hash": "725fac6a3319bf17e4557b876d68783c"
+  },
+  "frontend/dev-dist/workbox-7e5eb42b.js": {
+    "mtime": 1794838326.3510458,
+    "ast_hash": "733f99f3ff5771d4fde4b9ced7839754",
+    "semantic_hash": "733f99f3ff5771d4fde4b9ced7839754"
+  },
+  "frontend/package.json": {
+    "mtime": 1787997826.344494,
+    "ast_hash": "d3d8159afc317e991163297ec50f9450",
+    "semantic_hash": "d3d8159afc317e991163297ec50f9450"
+  },
+  "frontend/playwright.config.ts": {
+    "mtime": 1793194772.7507339,
+    "ast_hash": "e64cfbaab25722bfd499024c6fc74817",
+    "semantic_hash": "e64cfbaab25722bfd499024c6fc74817"
+  },
+  "frontend/postcss.config.js": {
+    "mtime": 1787997826.344494,
+    "ast_hash": "c735540bb63936a123bc867d950c9f69",
+    "semantic_hash": "c735540bb63936a123bc867d950c9f69"
+  },
+  "frontend/src/App.tsx": {
+    "mtime": 1794863621.7887766,
+    "ast_hash": "7346e648ed48759aafb23098138946f1",
+    "semantic_hash": "7346e648ed48759aafb23098138946f1"
+  },
+  "frontend/src/components/DataTable.test.tsx": {
+    "mtime": 1787997826.345494,
+    "ast_hash": "c9cb034c6bd9d3cf22a8e7a9653ea43f",
+    "semantic_hash": "c9cb034c6bd9d3cf22a8e7a9653ea43f"
+  },
+  "frontend/src/components/DataTable.tsx": {
+    "mtime": 1790353917.3883877,
+    "ast_hash": "ed6a2ff146c3e223f9894df4bad7548d",
+    "semantic_hash": "ed6a2ff146c3e223f9894df4bad7548d"
+  },
+  "frontend/src/components/ErrorBoundary.test.tsx": {
+    "mtime": 1793208942.4810374,
+    "ast_hash": "979a5109cfebe425ee4f705ee6117d1a",
+    "semantic_hash": "979a5109cfebe425ee4f705ee6117d1a"
+  },
+  "frontend/src/components/ErrorBoundary.tsx": {
+    "mtime": 1793208873.2175698,
+    "ast_hash": "c70d55baa43562599645b6e5a14bff8e",
+    "semantic_hash": "c70d55baa43562599645b6e5a14bff8e"
+  },
+  "frontend/src/components/FormDialog.tsx": {
+    "mtime": 1787997826.3458652,
+    "ast_hash": "9fadd0997920ae62510c452cbde3c7cd",
+    "semantic_hash": "9fadd0997920ae62510c452cbde3c7cd"
+  },
+  "frontend/src/components/FsStatus.tsx": {
+    "mtime": 1787997826.3458652,
+    "ast_hash": "c951896aed790b3e6ba2ef0e91b78cab",
+    "semantic_hash": "c951896aed790b3e6ba2ef0e91b78cab"
+  },
+  "frontend/src/components/FullCrudPage.test.tsx": {
+    "mtime": 1794854215.4780824,
+    "ast_hash": "97d939eaabe2c260a02c451bb0f3f969",
+    "semantic_hash": "97d939eaabe2c260a02c451bb0f3f969"
+  },
+  "frontend/src/components/FullCrudPage.tsx": {
+    "mtime": 1794853969.2917488,
+    "ast_hash": "566fd325c67a1e9e344815a583a2ac29",
+    "semantic_hash": "566fd325c67a1e9e344815a583a2ac29"
+  },
+  "frontend/src/components/LiveTable.test.tsx": {
+    "mtime": 1790188107.1412234,
+    "ast_hash": "fc95e74de96f58216a2594f79e83ec63",
+    "semantic_hash": "fc95e74de96f58216a2594f79e83ec63"
+  },
+  "frontend/src/components/LiveTable.tsx": {
+    "mtime": 1790188107.1412234,
+    "ast_hash": "12e1a5a7a3b045868ba6815c49e1c1c2",
+    "semantic_hash": "12e1a5a7a3b045868ba6815c49e1c1c2"
+  },
+  "frontend/src/components/StatusBadge.tsx": {
+    "mtime": 1787997826.3458652,
+    "ast_hash": "63cdc22d438dbaedbbb583b0c829f6cd",
+    "semantic_hash": "63cdc22d438dbaedbbb583b0c829f6cd"
+  },
+  "frontend/src/components/WebPhone/ContactsView.test.tsx": {
+    "mtime": 1787997826.3458652,
+    "ast_hash": "5c9f095e0f047883ae378233cc2a6a7b",
+    "semantic_hash": "5c9f095e0f047883ae378233cc2a6a7b"
+  },
+  "frontend/src/components/WebPhone/ContactsView.tsx": {
+    "mtime": 1787997826.3463302,
+    "ast_hash": "41329baa378bd3973bbb4460de09ecc4",
+    "semantic_hash": "41329baa378bd3973bbb4460de09ecc4"
+  },
+  "frontend/src/components/WebPhone/DevicePicker.test.tsx": {
+    "mtime": 1787997826.346494,
+    "ast_hash": "bcc92a88d485e21a8674e109778c945e",
+    "semantic_hash": "bcc92a88d485e21a8674e109778c945e"
+  },
+  "frontend/src/components/WebPhone/DevicePicker.tsx": {
+    "mtime": 1787997826.346494,
+    "ast_hash": "d21b49c9f2728d2c19a441f566dfaa63",
+    "semantic_hash": "d21b49c9f2728d2c19a441f566dfaa63"
+  },
+  "frontend/src/components/WebPhone/HistoryView.test.tsx": {
+    "mtime": 1787997826.346494,
+    "ast_hash": "38a8bef647db4da0b70b2e1be3401b07",
+    "semantic_hash": "38a8bef647db4da0b70b2e1be3401b07"
+  },
+  "frontend/src/components/WebPhone/HistoryView.tsx": {
+    "mtime": 1787997826.346494,
+    "ast_hash": "af5cb933af3d89b59d3b5999b64e30de",
+    "semantic_hash": "af5cb933af3d89b59d3b5999b64e30de"
+  },
+  "frontend/src/components/WebPhone/WebPhone.test.tsx": {
+    "mtime": 1787997826.346494,
+    "ast_hash": "8a2cbca0067094bb0ce6be42453396fd",
+    "semantic_hash": "8a2cbca0067094bb0ce6be42453396fd"
+  },
+  "frontend/src/components/WebPhone/WebPhoneButton.tsx": {
+    "mtime": 1787997826.346494,
+    "ast_hash": "6251e657d76633788284820ee1cf92ce",
+    "semantic_hash": "6251e657d76633788284820ee1cf92ce"
+  },
+  "frontend/src/components/WebPhone/WebPhoneDock.test.tsx": {
+    "mtime": 1787997826.346494,
+    "ast_hash": "d306dc5d9e584a7fe01a525f72feb37a",
+    "semantic_hash": "d306dc5d9e584a7fe01a525f72feb37a"
+  },
+  "frontend/src/components/WebPhone/WebPhoneDock.tsx": {
+    "mtime": 1787997826.346494,
+    "ast_hash": "49fc1e2e59fb4ec03a946eed491fb70b",
+    "semantic_hash": "49fc1e2e59fb4ec03a946eed491fb70b"
+  },
+  "frontend/src/components/WebPhone/WebPhonePanel.tsx": {
+    "mtime": 1787997826.346494,
+    "ast_hash": "136d34e632e2a9b66c9a06a9494dc246",
+    "semantic_hash": "136d34e632e2a9b66c9a06a9494dc246"
+  },
+  "frontend/src/components/WebPhone/WebPhonePopup.tsx": {
+    "mtime": 1787997826.346494,
+    "ast_hash": "e20227043853c01b54727d36d9f053ff",
+    "semantic_hash": "e20227043853c01b54727d36d9f053ff"
+  },
+  "frontend/src/components/WebPhone/useWebPhone.ts": {
+    "mtime": 1787997826.346494,
+    "ast_hash": "97b2517812c52611cc80f0d19ad269b5",
+    "semantic_hash": "97b2517812c52611cc80f0d19ad269b5"
+  },
+  "frontend/src/components/shell/CommandPalette.tsx": {
+    "mtime": 1787997826.346494,
+    "ast_hash": "2df15caad59dc49d825cd2ddb75c9331",
+    "semantic_hash": "2df15caad59dc49d825cd2ddb75c9331"
+  },
+  "frontend/src/components/shell/MobileDrawer.tsx": {
+    "mtime": 1790374912.3849368,
+    "ast_hash": "b2152910db5d222478b413ef9d734bb5",
+    "semantic_hash": "b2152910db5d222478b413ef9d734bb5"
+  },
+  "frontend/src/components/shell/PageHeader.tsx": {
+    "mtime": 1787997826.3474941,
+    "ast_hash": "fc2a35cd7be0091426e4699c0f232357",
+    "semantic_hash": "fc2a35cd7be0091426e4699c0f232357"
+  },
+  "frontend/src/components/shell/Sidebar.test.tsx": {
+    "mtime": 1790358209.1493824,
+    "ast_hash": "045143ef4dd5ad0b3c6202e2884265b8",
+    "semantic_hash": "045143ef4dd5ad0b3c6202e2884265b8"
+  },
+  "frontend/src/components/shell/Sidebar.tsx": {
+    "mtime": 1790374908.249906,
+    "ast_hash": "9c09a1825a87b48807d72205f4e5744a",
+    "semantic_hash": "9c09a1825a87b48807d72205f4e5744a"
+  },
+  "frontend/src/components/shell/UserMenu.tsx": {
+    "mtime": 1787997826.3474941,
+    "ast_hash": "e0f5f3667b58a03c96c0eb4fd9adb6d1",
+    "semantic_hash": "e0f5f3667b58a03c96c0eb4fd9adb6d1"
+  },
+  "frontend/src/components/shell/paletteContext.tsx": {
+    "mtime": 1787997826.3474941,
+    "ast_hash": "d083624b3a85e65b2a1051a3d0edbaad",
+    "semantic_hash": "d083624b3a85e65b2a1051a3d0edbaad"
+  },
+  "frontend/src/components/theme/ThemeProvider.test.tsx": {
+    "mtime": 1790357703.4964793,
+    "ast_hash": "d31d5e4f778c792c95e220ae13472771",
+    "semantic_hash": "d31d5e4f778c792c95e220ae13472771"
+  },
+  "frontend/src/components/theme/ThemeProvider.tsx": {
+    "mtime": 1790357735.1397235,
+    "ast_hash": "e450456775ef1ef4ac2940aed6da1ba4",
+    "semantic_hash": "e450456775ef1ef4ac2940aed6da1ba4"
+  },
+  "frontend/src/components/types.ts": {
+    "mtime": 1787997826.3474941,
+    "ast_hash": "1702b9d2211d95a5e634a0fe7219caff",
+    "semantic_hash": "1702b9d2211d95a5e634a0fe7219caff"
+  },
+  "frontend/src/components/ui/badge.tsx": {
+    "mtime": 1787997826.3474941,
+    "ast_hash": "71d011b35a8e74012696050efb1411a2",
+    "semantic_hash": "71d011b35a8e74012696050efb1411a2"
+  },
+  "frontend/src/components/ui/button.tsx": {
+    "mtime": 1787997826.3480837,
+    "ast_hash": "15f555840e8670ca2899d50777a8d682",
+    "semantic_hash": "15f555840e8670ca2899d50777a8d682"
+  },
+  "frontend/src/components/ui/card.tsx": {
+    "mtime": 1787997826.3480837,
+    "ast_hash": "a8658a9afe6bc1640634633832c2e70a",
+    "semantic_hash": "a8658a9afe6bc1640634633832c2e70a"
+  },
+  "frontend/src/components/ui/confirm.test.tsx": {
+    "mtime": 1787997826.3480837,
+    "ast_hash": "293ddc1f69a14aaa7b79773ed4c15b1a",
+    "semantic_hash": "293ddc1f69a14aaa7b79773ed4c15b1a"
+  },
+  "frontend/src/components/ui/confirm.tsx": {
+    "mtime": 1787997826.3480837,
+    "ast_hash": "8069353fd9971de850973b39c2b4488e",
+    "semantic_hash": "8069353fd9971de850973b39c2b4488e"
+  },
+  "frontend/src/components/ui/dialog.tsx": {
+    "mtime": 1790188107.1319568,
+    "ast_hash": "3baec4f44c1f9bfcf15ffb8c5d2c5ede",
+    "semantic_hash": "3baec4f44c1f9bfcf15ffb8c5d2c5ede"
+  },
+  "frontend/src/components/ui/empty-state.tsx": {
+    "mtime": 1787997826.3480837,
+    "ast_hash": "a802167020d6482437a5ece8e397d040",
+    "semantic_hash": "a802167020d6482437a5ece8e397d040"
+  },
+  "frontend/src/components/ui/input.tsx": {
+    "mtime": 1787997826.3480837,
+    "ast_hash": "7d734859945f73b8b9366caa39650631",
+    "semantic_hash": "7d734859945f73b8b9366caa39650631"
+  },
+  "frontend/src/components/ui/label.tsx": {
+    "mtime": 1787997826.3480837,
+    "ast_hash": "a79f7d7729e67695cba798c6be019244",
+    "semantic_hash": "a79f7d7729e67695cba798c6be019244"
+  },
+  "frontend/src/components/ui/sheet.tsx": {
+    "mtime": 1787997826.3480837,
+    "ast_hash": "b27557e8e79e383e36a760be8d4b0394",
+    "semantic_hash": "b27557e8e79e383e36a760be8d4b0394"
+  },
+  "frontend/src/components/ui/skeleton.tsx": {
+    "mtime": 1787997826.3480837,
+    "ast_hash": "8525feef4ccb47359e3d68488cd78d56",
+    "semantic_hash": "8525feef4ccb47359e3d68488cd78d56"
+  },
+  "frontend/src/components/ui/table.tsx": {
+    "mtime": 1787997826.348494,
+    "ast_hash": "9ac372a8fd45b0666ad1d7173236cdaa",
+    "semantic_hash": "9ac372a8fd45b0666ad1d7173236cdaa"
+  },
+  "frontend/src/components/ui/tabs.tsx": {
+    "mtime": 1787997826.348494,
+    "ast_hash": "031380ef6d6b01c5b9c0de0625a40f71",
+    "semantic_hash": "031380ef6d6b01c5b9c0de0625a40f71"
+  },
+  "frontend/src/context/WebPhoneContext.tsx": {
+    "mtime": 1793195483.7386796,
+    "ast_hash": "f197069b6af4eaa956720e9b0d8f3999",
+    "semantic_hash": "f197069b6af4eaa956720e9b0d8f3999"
+  },
+  "frontend/src/context/webphoneStore.test.tsx": {
+    "mtime": 1787997826.3487651,
+    "ast_hash": "8ef69a1a791d364631968e2f7d2ceb97",
+    "semantic_hash": "8ef69a1a791d364631968e2f7d2ceb97"
+  },
+  "frontend/src/context/webphoneStore.ts": {
+    "mtime": 1787997826.3487651,
+    "ast_hash": "02f27f2c58ea791cff275f83e9373adb",
+    "semantic_hash": "02f27f2c58ea791cff275f83e9373adb"
+  },
+  "frontend/src/main.tsx": {
+    "mtime": 1787997826.349494,
+    "ast_hash": "87a14170fb160b764721b7e71785aa8c",
+    "semantic_hash": "87a14170fb160b764721b7e71785aa8c"
+  },
+  "frontend/src/plugins/call_center/App.tsx": {
+    "mtime": 1787997826.349606,
+    "ast_hash": "1f5e238627e1fc2a92075b018b9abbe0",
+    "semantic_hash": "1f5e238627e1fc2a92075b018b9abbe0"
+  },
+  "frontend/src/plugins/conferences/App.tsx": {
+    "mtime": 1787997826.349606,
+    "ast_hash": "f00572d5147e1b32d0d6537b52a724fa",
+    "semantic_hash": "f00572d5147e1b32d0d6537b52a724fa"
+  },
+  "frontend/src/plugins/contacts/App.tsx": {
+    "mtime": 1787997826.349606,
+    "ast_hash": "227036954de1a5e56a9b8f3d0633277f",
+    "semantic_hash": "227036954de1a5e56a9b8f3d0633277f"
+  },
+  "frontend/src/plugins/fax/App.tsx": {
+    "mtime": 1787997826.349606,
+    "ast_hash": "199c93204f7ed52fb545c53e9812c814",
+    "semantic_hash": "199c93204f7ed52fb545c53e9812c814"
+  },
+  "frontend/src/plugins/recordings/App.tsx": {
+    "mtime": 1787997826.349606,
+    "ast_hash": "de4a3562ac42db184d949e995cf98985",
+    "semantic_hash": "de4a3562ac42db184d949e995cf98985"
+  },
+  "frontend/src/plugins/ring_groups/App.tsx": {
+    "mtime": 1787997826.349606,
+    "ast_hash": "b6a67d56116ca914919b183d7068ac65",
+    "semantic_hash": "b6a67d56116ca914919b183d7068ac65"
+  },
+  "frontend/src/plugins/time_conditions/App.tsx": {
+    "mtime": 1787997826.349606,
+    "ast_hash": "dcd98e78c1abcb27d470284dd707b46e",
+    "semantic_hash": "dcd98e78c1abcb27d470284dd707b46e"
+  },
+  "frontend/src/plugins/voicemail/App.tsx": {
+    "mtime": 1787997826.349606,
+    "ast_hash": "0ff29f948891eb63af215f1a5afb6250",
+    "semantic_hash": "0ff29f948891eb63af215f1a5afb6250"
+  },
+  "frontend/src/routes/AccessControls.tsx": {
+    "mtime": 1790188107.1319568,
+    "ast_hash": "a890d2158f90479f65a18b85b80ca2f0",
+    "semantic_hash": "a890d2158f90479f65a18b85b80ca2f0"
+  },
+  "frontend/src/routes/ActiveCalls.tsx": {
+    "mtime": 1790188107.1319568,
+    "ast_hash": "57afd3889433aa85a46b37e402c0e4e0",
+    "semantic_hash": "57afd3889433aa85a46b37e402c0e4e0"
+  },
+  "frontend/src/routes/ActiveConferences.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "129661f8553a8e8ea6a441e98d277430",
+    "semantic_hash": "129661f8553a8e8ea6a441e98d277430"
+  },
+  "frontend/src/routes/Apps.tsx": {
+    "mtime": 1787997826.3504941,
+    "ast_hash": "1d95be059cab8d63f52baa8b29a9a337",
+    "semantic_hash": "1d95be059cab8d63f52baa8b29a9a337"
+  },
+  "frontend/src/routes/Bridges.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "ace9753612165992a196158aa37d2046",
+    "semantic_hash": "ace9753612165992a196158aa37d2046"
+  },
+  "frontend/src/routes/CallBlock.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "c5e4427a3bbd123e81be436edad9f276",
+    "semantic_hash": "c5e4427a3bbd123e81be436edad9f276"
+  },
+  "frontend/src/routes/CallBroadcasts.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "aaeee313d88ee1e0e8f064d2aae3c8c7",
+    "semantic_hash": "aaeee313d88ee1e0e8f064d2aae3c8c7"
+  },
+  "frontend/src/routes/CallCenterActive.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "ff4fe4dbb984ae2228eb6986ec50b9c2",
+    "semantic_hash": "ff4fe4dbb984ae2228eb6986ec50b9c2"
+  },
+  "frontend/src/routes/CallCenters.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "ac6682ad4a9843730dee7bd30b7751a1",
+    "semantic_hash": "ac6682ad4a9843730dee7bd30b7751a1"
+  },
+  "frontend/src/routes/CallFlows.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "06d13894b7a3a24f7a2997b75bdd4ce9",
+    "semantic_hash": "06d13894b7a3a24f7a2997b75bdd4ce9"
+  },
+  "frontend/src/routes/CallForward.tsx": {
+    "mtime": 1794845089.302275,
+    "ast_hash": "3c8ab8386cf79cad0eb7890510f9020b",
+    "semantic_hash": "3c8ab8386cf79cad0eb7890510f9020b"
+  },
+  "frontend/src/routes/CallRecordings.tsx": {
+    "mtime": 1790188107.1412234,
+    "ast_hash": "f43de92b1b74134339f4ab09fc6cb314",
+    "semantic_hash": "f43de92b1b74134339f4ab09fc6cb314"
+  },
+  "frontend/src/routes/Cdr.tsx": {
+    "mtime": 1793194725.7651439,
+    "ast_hash": "9e2f5d7363ac4d760bc4da30d651ad7f",
+    "semantic_hash": "9e2f5d7363ac4d760bc4da30d651ad7f"
+  },
+  "frontend/src/routes/ClickToCall.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "642a0c99d0b80245f7d080597b24cf8a",
+    "semantic_hash": "642a0c99d0b80245f7d080597b24cf8a"
+  },
+  "frontend/src/routes/ConferenceCenters.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "2653de1415d51bd8fdb390457ba16efb",
+    "semantic_hash": "2653de1415d51bd8fdb390457ba16efb"
+  },
+  "frontend/src/routes/ConferenceControls.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "895311e833a859bc4f77af80e9d13c97",
+    "semantic_hash": "895311e833a859bc4f77af80e9d13c97"
+  },
+  "frontend/src/routes/ConferenceProfiles.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "e988d548b21e7b8a261e6f999db2b022",
+    "semantic_hash": "e988d548b21e7b8a261e6f999db2b022"
+  },
+  "frontend/src/routes/Conferences.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "1704aa641474432a54e85fab1f604260",
+    "semantic_hash": "1704aa641474432a54e85fab1f604260"
+  },
+  "frontend/src/routes/Contacts.tsx": {
+    "mtime": 1790188107.1412234,
+    "ast_hash": "4e4af5c6d7e1fb8f64160cd26c1841a1",
+    "semantic_hash": "4e4af5c6d7e1fb8f64160cd26c1841a1"
+  },
+  "frontend/src/routes/Dashboard.test.tsx": {
+    "mtime": 1787997826.3504941,
+    "ast_hash": "90fbd1b4295fd839c7e06e2b9b2aaa84",
+    "semantic_hash": "90fbd1b4295fd839c7e06e2b9b2aaa84"
+  },
+  "frontend/src/routes/Dashboard.tsx": {
+    "mtime": 1787997826.3504941,
+    "ast_hash": "0b3991a1cfa8dd41616f2027b975bada",
+    "semantic_hash": "0b3991a1cfa8dd41616f2027b975bada"
+  },
+  "frontend/src/routes/DatabaseTransactions.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "cc039e94e7aa35b3dc280654b26871a7",
+    "semantic_hash": "cc039e94e7aa35b3dc280654b26871a7"
+  },
+  "frontend/src/routes/Databases.tsx": {
+    "mtime": 1794839742.6214118,
+    "ast_hash": "3b3fec97b0f6f6d998d584e56d891e7d",
+    "semantic_hash": "3b3fec97b0f6f6d998d584e56d891e7d"
+  },
+  "frontend/src/routes/DefaultSettings.tsx": {
+    "mtime": 1790188107.1412234,
+    "ast_hash": "54009945f096e58c5cbb3b5fbdfccc2d",
+    "semantic_hash": "54009945f096e58c5cbb3b5fbdfccc2d"
+  },
+  "frontend/src/routes/Destinations.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "242a12f82207fa883bc285a93387c301",
+    "semantic_hash": "242a12f82207fa883bc285a93387c301"
+  },
+  "frontend/src/routes/DeviceProfiles.tsx": {
+    "mtime": 1790188107.1412234,
+    "ast_hash": "64383d35c7013a4088645f3bfc30d663",
+    "semantic_hash": "64383d35c7013a4088645f3bfc30d663"
+  },
+  "frontend/src/routes/Devices.test.tsx": {
+    "mtime": 1794838905.865014,
+    "ast_hash": "dc8c4a46150676753ad3c2d3e7cc0f26",
+    "semantic_hash": "dc8c4a46150676753ad3c2d3e7cc0f26"
+  },
+  "frontend/src/routes/Devices.tsx": {
+    "mtime": 1794842486.0396326,
+    "ast_hash": "b6dd0846acedaca2a60017d42996ee12",
+    "semantic_hash": "b6dd0846acedaca2a60017d42996ee12"
+  },
+  "frontend/src/routes/Dialplans.test.tsx": {
+    "mtime": 1794838925.4751573,
+    "ast_hash": "d7ddd077b51cc50d051dcdb2321fc84c",
+    "semantic_hash": "d7ddd077b51cc50d051dcdb2321fc84c"
+  },
+  "frontend/src/routes/Dialplans.tsx": {
+    "mtime": 1794838876.6628006,
+    "ast_hash": "ede98072e19ec1d525cdd9b0c66c6cb3",
+    "semantic_hash": "ede98072e19ec1d525cdd9b0c66c6cb3"
+  },
+  "frontend/src/routes/DomainLimits.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "780cf8c13c4d9bbc51f24b4894908422",
+    "semantic_hash": "780cf8c13c4d9bbc51f24b4894908422"
+  },
+  "frontend/src/routes/DomainSettings.tsx": {
+    "mtime": 1790188107.1412234,
+    "ast_hash": "b79caba0fe4f926ffa65f98386983ba7",
+    "semantic_hash": "b79caba0fe4f926ffa65f98386983ba7"
+  },
+  "frontend/src/routes/Domains.tsx": {
+    "mtime": 1794861882.8801427,
+    "ast_hash": "5590e83c474fcbbe6851996631320b39",
+    "semantic_hash": "5590e83c474fcbbe6851996631320b39"
+  },
+  "frontend/src/routes/EmailQueue.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "e1bf319ebc928f62abfec5336e4fcf64",
+    "semantic_hash": "e1bf319ebc928f62abfec5336e4fcf64"
+  },
+  "frontend/src/routes/EmailTemplates.tsx": {
+    "mtime": 1790188107.1412234,
+    "ast_hash": "240906e68d692799163417b579e4c0cd",
+    "semantic_hash": "240906e68d692799163417b579e4c0cd"
+  },
+  "frontend/src/routes/EmergencyLogs.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "a85db3bc2d3a88f96e6f1abdac7e16d8",
+    "semantic_hash": "a85db3bc2d3a88f96e6f1abdac7e16d8"
+  },
+  "frontend/src/routes/EventGuard.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "4eb7b88099880dfc9d93f988a423ace4",
+    "semantic_hash": "4eb7b88099880dfc9d93f988a423ace4"
+  },
+  "frontend/src/routes/ExtensionSettings.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "f0c893ef3d67e6617bcf02aa21f16455",
+    "semantic_hash": "f0c893ef3d67e6617bcf02aa21f16455"
+  },
+  "frontend/src/routes/Extensions.test.tsx": {
+    "mtime": 1794842622.8113546,
+    "ast_hash": "6a8ab457d630467f29f5905aea788e68",
+    "semantic_hash": "6a8ab457d630467f29f5905aea788e68"
+  },
+  "frontend/src/routes/Extensions.tsx": {
+    "mtime": 1795424669.640821,
+    "ast_hash": "8845fe70555385fff53866558aa677e4",
+    "semantic_hash": "8845fe70555385fff53866558aa677e4"
+  },
+  "frontend/src/routes/Fax.tsx": {
+    "mtime": 1790358876.1095304,
+    "ast_hash": "52b9477151ee6a9ddbdab264a67979ea",
+    "semantic_hash": "52b9477151ee6a9ddbdab264a67979ea"
+  },
+  "frontend/src/routes/FaxQueue.tsx": {
+    "mtime": 1790188107.132957,
+    "ast_hash": "20bae31456cb8c95f673f07620daddda",
+    "semantic_hash": "20bae31456cb8c95f673f07620daddda"
+  },
+  "frontend/src/routes/FeatureCodes.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "31c587646102141cd461f38068760393",
+    "semantic_hash": "31c587646102141cd461f38068760393"
+  },
+  "frontend/src/routes/Fifo.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "382a8bf5ffb01854475cefc37167a499",
+    "semantic_hash": "382a8bf5ffb01854475cefc37167a499"
+  },
+  "frontend/src/routes/FifoList.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "fe76b33749e3fd52defe6c6af165033f",
+    "semantic_hash": "fe76b33749e3fd52defe6c6af165033f"
+  },
+  "frontend/src/routes/FollowMe.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "f4638b8c59b4633e56046dfd65e86fdb",
+    "semantic_hash": "f4638b8c59b4633e56046dfd65e86fdb"
+  },
+  "frontend/src/routes/Gateways.tsx": {
+    "mtime": 1787997826.351494,
+    "ast_hash": "f92897a9dba0d3d3b2885f2937442c90",
+    "semantic_hash": "f92897a9dba0d3d3b2885f2937442c90"
+  },
+  "frontend/src/routes/Groups.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "44df5bff3aca3d9a84caf41a97a68d4b",
+    "semantic_hash": "44df5bff3aca3d9a84caf41a97a68d4b"
+  },
+  "frontend/src/routes/IvrMenus.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "4d6c350e9331b687b4a17d80966b7007",
+    "semantic_hash": "4d6c350e9331b687b4a17d80966b7007"
+  },
+  "frontend/src/routes/Login.tsx": {
+    "mtime": 1787997826.352494,
+    "ast_hash": "4dfedeed16537b2bc53f59c9f64b68d0",
+    "semantic_hash": "4dfedeed16537b2bc53f59c9f64b68d0"
+  },
+  "frontend/src/routes/Logs.tsx": {
+    "mtime": 1787997826.352494,
+    "ast_hash": "1d3aa3ca08c860ea18a9f26f179ec92f",
+    "semantic_hash": "1d3aa3ca08c860ea18a9f26f179ec92f"
+  },
+  "frontend/src/routes/MenuItems.tsx": {
+    "mtime": 1790188107.1412234,
+    "ast_hash": "733d3e6edf0bd03c62ce7925bf195b2f",
+    "semantic_hash": "733d3e6edf0bd03c62ce7925bf195b2f"
+  },
+  "frontend/src/routes/Menus.tsx": {
+    "mtime": 1794863591.0664828,
+    "ast_hash": "425d475f070e3fe92bd5c9003d2b1d29",
+    "semantic_hash": "425d475f070e3fe92bd5c9003d2b1d29"
+  },
+  "frontend/src/routes/Modules.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "2cda006c8aac3be70f2d85a44e396ecb",
+    "semantic_hash": "2cda006c8aac3be70f2d85a44e396ecb"
+  },
+  "frontend/src/routes/MusicOnHold.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "e45c3c6bdf1fb9273537eabd3fc70dcc",
+    "semantic_hash": "e45c3c6bdf1fb9273537eabd3fc70dcc"
+  },
+  "frontend/src/routes/Notifications.tsx": {
+    "mtime": 1790188107.1412234,
+    "ast_hash": "3224ac4a1861beb5b4bb859e5fbfad33",
+    "semantic_hash": "3224ac4a1861beb5b4bb859e5fbfad33"
+  },
+  "frontend/src/routes/NumberTranslations.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "8c25529f40c482c1bbbf5625fcf823ae",
+    "semantic_hash": "8c25529f40c482c1bbbf5625fcf823ae"
+  },
+  "frontend/src/routes/OperatorPanel.test.tsx": {
+    "mtime": 1790188107.1412234,
+    "ast_hash": "8b573ced49b42510da21517f0cf413b9",
+    "semantic_hash": "8b573ced49b42510da21517f0cf413b9"
+  },
+  "frontend/src/routes/OperatorPanel.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "000d41e414840a8e5935fba371c045bb",
+    "semantic_hash": "000d41e414840a8e5935fba371c045bb"
+  },
+  "frontend/src/routes/Phone.tsx": {
+    "mtime": 1787997826.352494,
+    "ast_hash": "334dacf8438c4de9fdbab164187f8ce1",
+    "semantic_hash": "334dacf8438c4de9fdbab164187f8ce1"
+  },
+  "frontend/src/routes/Phrases.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "35c7a0e9196bb00383dc8e0a28393dfc",
+    "semantic_hash": "35c7a0e9196bb00383dc8e0a28393dfc"
+  },
+  "frontend/src/routes/PinNumbers.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "e49f7a76065bc4d7570910fd99cd797d",
+    "semantic_hash": "e49f7a76065bc4d7570910fd99cd797d"
+  },
+  "frontend/src/routes/PluginDetail.tsx": {
+    "mtime": 1787997826.352494,
+    "ast_hash": "900c2e11690593e6a78831a4a64e8b25",
+    "semantic_hash": "900c2e11690593e6a78831a4a64e8b25"
+  },
+  "frontend/src/routes/Plugins.tsx": {
+    "mtime": 1787997826.352494,
+    "ast_hash": "7507b9c667afefd29d3c8a7131bc00b5",
+    "semantic_hash": "7507b9c667afefd29d3c8a7131bc00b5"
+  },
+  "frontend/src/routes/Recordings.tsx": {
+    "mtime": 1790188107.1412234,
+    "ast_hash": "5de282bc4fcd724bc91354e19831ce33",
+    "semantic_hash": "5de282bc4fcd724bc91354e19831ce33"
+  },
+  "frontend/src/routes/ReferencePages.test.tsx": {
+    "mtime": 1794839814.3556607,
+    "ast_hash": "98aaf6fc7744b30a2c8df3700410545d",
+    "semantic_hash": "98aaf6fc7744b30a2c8df3700410545d"
+  },
+  "frontend/src/routes/Registrations.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "064785c14f7d9c86b04b0a6918d3d4ee",
+    "semantic_hash": "064785c14f7d9c86b04b0a6918d3d4ee"
+  },
+  "frontend/src/routes/RingGroups.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "0048909de5cd6b227ee48a10de1ad482",
+    "semantic_hash": "0048909de5cd6b227ee48a10de1ad482"
+  },
+  "frontend/src/routes/Services.tsx": {
+    "mtime": 1790188107.141957,
+    "ast_hash": "660ded49c8f4838480847fee7a1f62c7",
+    "semantic_hash": "660ded49c8f4838480847fee7a1f62c7"
+  },
+  "frontend/src/routes/Setup.tsx": {
+    "mtime": 1787997826.352494,
+    "ast_hash": "0b186d38d4f0b29a7f8d036a95b58efc",
+    "semantic_hash": "0b186d38d4f0b29a7f8d036a95b58efc"
+  },
+  "frontend/src/routes/SipProfiles.tsx": {
+    "mtime": 1794844017.4411898,
+    "ast_hash": "57f74b3accc1acbb646269e4c3eb3cd3",
+    "semantic_hash": "57f74b3accc1acbb646269e4c3eb3cd3"
+  },
+  "frontend/src/routes/SofiaGlobalSettings.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "26915aee56c37981ac16a6fff0616530",
+    "semantic_hash": "26915aee56c37981ac16a6fff0616530"
+  },
+  "frontend/src/routes/Software.tsx": {
+    "mtime": 1794839742.6214118,
+    "ast_hash": "4836dfc7cad013fad2b5c9e2d075a673",
+    "semantic_hash": "4836dfc7cad013fad2b5c9e2d075a673"
+  },
+  "frontend/src/routes/Streams.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "b92b66fee88bf0460421141ae732cee1",
+    "semantic_hash": "b92b66fee88bf0460421141ae732cee1"
+  },
+  "frontend/src/routes/System.test.tsx": {
+    "mtime": 1793208857.5451846,
+    "ast_hash": "18d58fbe5d55969eca94a529cd56df35",
+    "semantic_hash": "18d58fbe5d55969eca94a529cd56df35"
+  },
+  "frontend/src/routes/System.tsx": {
+    "mtime": 1795420397.4274585,
+    "ast_hash": "bdeb6ab58f9bec46871b8520baf56fa7",
+    "semantic_hash": "bdeb6ab58f9bec46871b8520baf56fa7"
+  },
+  "frontend/src/routes/TimeConditions.tsx": {
+    "mtime": 1790188107.133957,
+    "ast_hash": "7d24985f1e2b251e877a016a21f7f3dc",
+    "semantic_hash": "7d24985f1e2b251e877a016a21f7f3dc"
+  },
+  "frontend/src/routes/UserLogs.tsx": {
+    "mtime": 1790188107.141957,
+    "ast_hash": "4235a444abde63e910175e4e1ae08c34",
+    "semantic_hash": "4235a444abde63e910175e4e1ae08c34"
+  },
+  "frontend/src/routes/UserSettings.test.tsx": {
+    "mtime": 1790188107.141957,
+    "ast_hash": "e4144fa9edd7cdfa28fefc3577a241ae",
+    "semantic_hash": "e4144fa9edd7cdfa28fefc3577a241ae"
+  },
+  "frontend/src/routes/UserSettings.tsx": {
+    "mtime": 1795420428.3697858,
+    "ast_hash": "54257c7dedc570cb585516e1f3c69b28",
+    "semantic_hash": "54257c7dedc570cb585516e1f3c69b28"
+  },
+  "frontend/src/routes/Users.test.tsx": {
+    "mtime": 1790188107.141957,
+    "ast_hash": "22ab7885d9a65846b7fe8bca09208f71",
+    "semantic_hash": "22ab7885d9a65846b7fe8bca09208f71"
+  },
+  "frontend/src/routes/Users.tsx": {
+    "mtime": 1790188107.1349568,
+    "ast_hash": "5963105c59dbcc13e529ca568915d101",
+    "semantic_hash": "5963105c59dbcc13e529ca568915d101"
+  },
+  "frontend/src/routes/Vars.tsx": {
+    "mtime": 1790188107.1349568,
+    "ast_hash": "9fbafc97e03943efc8e39384b7e3d579",
+    "semantic_hash": "9fbafc97e03943efc8e39384b7e3d579"
+  },
+  "frontend/src/routes/VoicemailGreetings.tsx": {
+    "mtime": 1790188107.1349568,
+    "ast_hash": "4dd4cf4d9f7e58c5e5e97dd9336af9ba",
+    "semantic_hash": "4dd4cf4d9f7e58c5e5e97dd9336af9ba"
+  },
+  "frontend/src/routes/Voicemails.tsx": {
+    "mtime": 1790188107.1349568,
+    "ast_hash": "83a634fb0bf0551079f9f1705d90949c",
+    "semantic_hash": "83a634fb0bf0551079f9f1705d90949c"
+  },
+  "frontend/src/routes/WebrtcSettings.test.tsx": {
+    "mtime": 1790188107.141957,
+    "ast_hash": "feb57fc052a573976b35100de32d7b1a",
+    "semantic_hash": "feb57fc052a573976b35100de32d7b1a"
+  },
+  "frontend/src/routes/WebrtcSettings.tsx": {
+    "mtime": 1790188107.141957,
+    "ast_hash": "e4ad10289408ea32462c58fe71623baa",
+    "semantic_hash": "e4ad10289408ea32462c58fe71623baa"
+  },
+  "frontend/src/routes/batch-m.test.tsx": {
+    "mtime": 1790358892.1846545,
+    "ast_hash": "a0ddebc910cdbb3b91acba239aa9483c",
+    "semantic_hash": "a0ddebc910cdbb3b91acba239aa9483c"
+  },
+  "frontend/src/routes/live-actions.test.tsx": {
+    "mtime": 1790188107.141957,
+    "ast_hash": "c0d7c5896885950786fbc166dfee3704",
+    "semantic_hash": "c0d7c5896885950786fbc166dfee3704"
+  },
+  "frontend/src/routes/routes-coverage.test.tsx": {
+    "mtime": 1794863457.835655,
+    "ast_hash": "157b9eda96fe728ccde85ef13afa0c09",
+    "semantic_hash": "157b9eda96fe728ccde85ef13afa0c09"
+  },
+  "frontend/tailwind.config.js": {
+    "mtime": 1787997826.3534942,
+    "ast_hash": "338ab126df2a901acdf8538ddfaaef02",
+    "semantic_hash": "338ab126df2a901acdf8538ddfaaef02"
+  },
+  "frontend/tests/apps-nav.test.tsx": {
+    "mtime": 1787997826.3534942,
+    "ast_hash": "e9b9d71f41f663dc339a726624b85f0d",
+    "semantic_hash": "e9b9d71f41f663dc339a726624b85f0d"
+  },
+  "frontend/tests/branding.spec.ts": {
+    "mtime": 1787997826.3539004,
+    "ast_hash": "050f4327c7b93fb3e5871c19bdecac8d",
+    "semantic_hash": "050f4327c7b93fb3e5871c19bdecac8d"
+  },
+  "frontend/tests/cdr.mobile.spec.ts": {
+    "mtime": 1790358397.092833,
+    "ast_hash": "ffbd66ffcbaaa2c0706b1ce5a26800f9",
+    "semantic_hash": "ffbd66ffcbaaa2c0706b1ce5a26800f9"
+  },
+  "frontend/tests/comprehensive.spec.ts": {
+    "mtime": 1794864734.0282407,
+    "ast_hash": "886df1cabf6117b8f698493482ddebef",
+    "semantic_hash": "886df1cabf6117b8f698493482ddebef"
+  },
+  "frontend/tests/mobile.spec.ts": {
+    "mtime": 1790358397.091833,
+    "ast_hash": "ed1123c539117f1b7762bd0763fb2703",
+    "semantic_hash": "ed1123c539117f1b7762bd0763fb2703"
+  },
+  "frontend/tests/palette.spec.ts": {
+    "mtime": 1793194731.5973992,
+    "ast_hash": "f7b886d317187fb2af09cdba64d77f9d",
+    "semantic_hash": "f7b886d317187fb2af09cdba64d77f9d"
+  },
+  "frontend/tests/parity-gaps.spec.ts": {
+    "mtime": 1794861032.3715324,
+    "ast_hash": "1caf5080f5bfbe93e9c6ee5f7f327a30",
+    "semantic_hash": "1caf5080f5bfbe93e9c6ee5f7f327a30"
+  },
+  "frontend/tests/theme.spec.ts": {
+    "mtime": 1790358397.091833,
+    "ast_hash": "7b2d8ef52bc808d60c6835f176d46ccd",
+    "semantic_hash": "7b2d8ef52bc808d60c6835f176d46ccd"
+  },
+  "frontend/tests/webphone-contacts.spec.ts": {
+    "mtime": 1794832162.1597292,
+    "ast_hash": "2454a61b1fff11d458e0104a1b3b62ab",
+    "semantic_hash": "2454a61b1fff11d458e0104a1b3b62ab"
+  },
+  "frontend/tests/webphone-dock.spec.ts": {
+    "mtime": 1793198262.1260116,
+    "ast_hash": "a6608abfef243473fa53bc51b3c9f2b4",
+    "semantic_hash": "a6608abfef243473fa53bc51b3c9f2b4"
+  },
+  "frontend/tests/webphone-history.spec.ts": {
+    "mtime": 1793198258.9569867,
+    "ast_hash": "2c3dcc60fda09dd52472e6d77e9245fb",
+    "semantic_hash": "2c3dcc60fda09dd52472e6d77e9245fb"
+  },
+  "frontend/tests/webphone-panel.spec.ts": {
+    "mtime": 1793198273.1710956,
+    "ast_hash": "e1dc3aa008f599cf1d08134e014d3068",
+    "semantic_hash": "e1dc3aa008f599cf1d08134e014d3068"
+  },
+  "frontend/tests/webphone-phone-page.spec.ts": {
+    "mtime": 1793194801.6869383,
+    "ast_hash": "655f32ddd4c217d628e28ce56905c449",
+    "semantic_hash": "655f32ddd4c217d628e28ce56905c449"
+  },
+  "frontend/tests/webphone.spec.ts": {
+    "mtime": 1793198278.5261414,
+    "ast_hash": "df1a3ef3cef3724d8f497ed5c45399f4",
+    "semantic_hash": "df1a3ef3cef3724d8f497ed5c45399f4"
+  },
+  "frontend/tsconfig.json": {
+    "mtime": 1787997826.354494,
+    "ast_hash": "0405470f4418df611269d55732286259",
+    "semantic_hash": "0405470f4418df611269d55732286259"
+  },
+  "frontend/tsconfig.node.json": {
+    "mtime": 1787997826.354494,
+    "ast_hash": "767b2e9abe6452170cdc399ca052cfbc",
+    "semantic_hash": "767b2e9abe6452170cdc399ca052cfbc"
+  },
+  "frontend/vite.config.d.ts": {
+    "mtime": 1787997826.354494,
+    "ast_hash": "9fcf75521f4c43fd8b75300e0f63b867",
+    "semantic_hash": "9fcf75521f4c43fd8b75300e0f63b867"
+  },
+  "frontend/vite.config.ts": {
+    "mtime": 1793194723.3673847,
+    "ast_hash": "77f9fd3bb0fb0e2edea4f53b44957726",
+    "semantic_hash": "77f9fd3bb0fb0e2edea4f53b44957726"
+  },
+  "frontend/vitest.config.ts": {
+    "mtime": 1787997826.354494,
+    "ast_hash": "4d1d8d37715074f56c9a611d574591af",
+    "semantic_hash": "4d1d8d37715074f56c9a611d574591af"
+  },
+  "gunicorn.conf.py": {
+    "mtime": 1787997826.354494,
+    "ast_hash": "fd33fb16b4a464c4f38448992c57a2e9",
+    "semantic_hash": "fd33fb16b4a464c4f38448992c57a2e9"
+  },
+  "plugins/__init__.py": {
+    "mtime": 1787997826.354494,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "plugins/call_center/__init__.py": {
+    "mtime": 1787997826.354494,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "plugins/call_center/router.py": {
+    "mtime": 1787997826.354494,
+    "ast_hash": "c14e1d59d24ba4de353a866c7dee6951",
+    "semantic_hash": "c14e1d59d24ba4de353a866c7dee6951"
+  },
+  "plugins/conferences/__init__.py": {
+    "mtime": 1787997826.354494,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "plugins/conferences/router.py": {
+    "mtime": 1787997826.3550012,
+    "ast_hash": "5e4d5c1f1a8b70b356bc7263163d4080",
+    "semantic_hash": "5e4d5c1f1a8b70b356bc7263163d4080"
+  },
+  "plugins/contacts/__init__.py": {
+    "mtime": 1787997826.3550012,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "plugins/contacts/router.py": {
+    "mtime": 1787997826.3550012,
+    "ast_hash": "e42042a8240137b0df3bc759d96ea859",
+    "semantic_hash": "e42042a8240137b0df3bc759d96ea859"
+  },
+  "plugins/example/__init__.py": {
+    "mtime": 1787997826.3550012,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "plugins/example/router.py": {
+    "mtime": 1787997826.3550012,
+    "ast_hash": "cdca27fd950217ed1bd13439357a2953",
+    "semantic_hash": "cdca27fd950217ed1bd13439357a2953"
+  },
+  "plugins/fax/__init__.py": {
+    "mtime": 1787997826.3550012,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "plugins/fax/router.py": {
+    "mtime": 1787997826.3551815,
+    "ast_hash": "a9b76f389e49173e235f00b030dba4da",
+    "semantic_hash": "a9b76f389e49173e235f00b030dba4da"
+  },
+  "plugins/recordings/__init__.py": {
+    "mtime": 1787997826.3551815,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "plugins/recordings/router.py": {
+    "mtime": 1787997826.3552396,
+    "ast_hash": "d43a5e27fa994c6a4a7a94c0db47ecf0",
+    "semantic_hash": "d43a5e27fa994c6a4a7a94c0db47ecf0"
+  },
+  "plugins/ring_groups/__init__.py": {
+    "mtime": 1787997826.3552396,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "plugins/ring_groups/router.py": {
+    "mtime": 1787997826.3552988,
+    "ast_hash": "45f3b8f15974822ed97e8b80b5aa68a4",
+    "semantic_hash": "45f3b8f15974822ed97e8b80b5aa68a4"
+  },
+  "plugins/time_conditions/__init__.py": {
+    "mtime": 1787997826.3552988,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "plugins/time_conditions/router.py": {
+    "mtime": 1787997826.3553576,
+    "ast_hash": "1b6b4e93527a69a9182ad66a37e28e4f",
+    "semantic_hash": "1b6b4e93527a69a9182ad66a37e28e4f"
+  },
+  "plugins/voicemail/__init__.py": {
+    "mtime": 1787997826.3553576,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "plugins/voicemail/router.py": {
+    "mtime": 1787997826.3554392,
+    "ast_hash": "ecba55335f6788af7a019134f0c1386d",
+    "semantic_hash": "ecba55335f6788af7a019134f0c1386d"
+  },
+  "pyproject.toml": {
+    "mtime": 1790759751.077094,
+    "ast_hash": "82f2e8bf356f27642606a62c8983962b",
+    "semantic_hash": "82f2e8bf356f27642606a62c8983962b"
+  },
+  "rust/crates/pbx-api/src/admin.rs": {
+    "mtime": 1795457390.5547574,
+    "ast_hash": "f2d03e7bd8aa446d6afcf0cc91438a15",
+    "semantic_hash": "f2d03e7bd8aa446d6afcf0cc91438a15"
+  },
+  "rust/crates/pbx-api/src/alias.rs": {
+    "mtime": 1795420465.0299692,
+    "ast_hash": "ef794086b5cd90c852ae79133424e013",
+    "semantic_hash": "ef794086b5cd90c852ae79133424e013"
+  },
+  "rust/crates/pbx-api/src/analytics.rs": {
+    "mtime": 1793212089.415162,
+    "ast_hash": "9fd4fc6d822c68ee7997d62f77bf2222",
+    "semantic_hash": "9fd4fc6d822c68ee7997d62f77bf2222"
+  },
+  "rust/crates/pbx-api/src/auth.rs": {
+    "mtime": 1795465928.2976875,
+    "ast_hash": "30d9dd79db0a59af961306c2bdc90e67",
+    "semantic_hash": "30d9dd79db0a59af961306c2bdc90e67"
+  },
+  "rust/crates/pbx-api/src/backup.rs": {
+    "mtime": 1793215020.1096625,
+    "ast_hash": "cca67dcbd9d2e658d169889401a3f136",
+    "semantic_hash": "cca67dcbd9d2e658d169889401a3f136"
+  },
+  "rust/crates/pbx-api/src/banner.rs": {
+    "mtime": 1795462492.3933556,
+    "ast_hash": "70a216348ea4915d783c19a7b267e80e",
+    "semantic_hash": "70a216348ea4915d783c19a7b267e80e"
+  },
+  "rust/crates/pbx-api/src/call_centers.rs": {
+    "mtime": 1795420465.1069696,
+    "ast_hash": "e218029966b2bbf58f2489923c0eeead",
+    "semantic_hash": "e218029966b2bbf58f2489923c0eeead"
+  },
+  "rust/crates/pbx-api/src/calls.rs": {
+    "mtime": 1795420465.1099696,
+    "ast_hash": "665372d7570f9ce2a04d394478189e3b",
+    "semantic_hash": "665372d7570f9ce2a04d394478189e3b"
+  },
+  "rust/crates/pbx-api/src/cdr.rs": {
+    "mtime": 1795420465.1329699,
+    "ast_hash": "7852e7b479dc072610e2cfc35172e581",
+    "semantic_hash": "7852e7b479dc072610e2cfc35172e581"
+  },
+  "rust/crates/pbx-api/src/conference_centers.rs": {
+    "mtime": 1795420465.15797,
+    "ast_hash": "ea32154754eb612b6dc8c87c36cf6c6e",
+    "semantic_hash": "ea32154754eb612b6dc8c87c36cf6c6e"
+  },
+  "rust/crates/pbx-api/src/conference_controls.rs": {
+    "mtime": 1795457668.663807,
+    "ast_hash": "d948972111a9ed52262518014f3f72d8",
+    "semantic_hash": "d948972111a9ed52262518014f3f72d8"
+  },
+  "rust/crates/pbx-api/src/conferences.rs": {
+    "mtime": 1795421992.3033032,
+    "ast_hash": "3b695210512f0c6301e9c5fe6af9ab75",
+    "semantic_hash": "3b695210512f0c6301e9c5fe6af9ab75"
+  },
+  "rust/crates/pbx-api/src/contacts.rs": {
+    "mtime": 1795420465.2469707,
+    "ast_hash": "666ca84b1a64aeea13c8c24f91a47540",
+    "semantic_hash": "666ca84b1a64aeea13c8c24f91a47540"
+  },
+  "rust/crates/pbx-api/src/dashboard.rs": {
+    "mtime": 1795420465.2559707,
+    "ast_hash": "eed91a18253552eaf9e220f26d4dc957",
+    "semantic_hash": "eed91a18253552eaf9e220f26d4dc957"
+  },
+  "rust/crates/pbx-api/src/devices.rs": {
+    "mtime": 1795420465.296971,
+    "ast_hash": "c4c21fbde87c1c48d95f5e7aeaae60ee",
+    "semantic_hash": "c4c21fbde87c1c48d95f5e7aeaae60ee"
+  },
+  "rust/crates/pbx-api/src/dialplans.rs": {
+    "mtime": 1795420465.3219714,
+    "ast_hash": "65c07c24a0db9c71f22e397ac07b21d5",
+    "semantic_hash": "65c07c24a0db9c71f22e397ac07b21d5"
+  },
+  "rust/crates/pbx-api/src/domains.rs": {
+    "mtime": 1795420465.3349714,
+    "ast_hash": "81a111a5da8efbc1c394588d65719f1f",
+    "semantic_hash": "81a111a5da8efbc1c394588d65719f1f"
+  },
+  "rust/crates/pbx-api/src/email_queue.rs": {
+    "mtime": 1795420465.3529716,
+    "ast_hash": "cffa8a5db0e66a678214f5abe69b92fe",
+    "semantic_hash": "cffa8a5db0e66a678214f5abe69b92fe"
+  },
+  "rust/crates/pbx-api/src/extensions.rs": {
+    "mtime": 1795460843.783206,
+    "ast_hash": "cfa9c6bc7f504338e683855ae6830943",
+    "semantic_hash": "cfa9c6bc7f504338e683855ae6830943"
+  },
+  "rust/crates/pbx-api/src/fax.rs": {
+    "mtime": 1795421992.305767,
+    "ast_hash": "440bb0b64ee0a12df2a4d77462c981a2",
+    "semantic_hash": "440bb0b64ee0a12df2a4d77462c981a2"
+  },
+  "rust/crates/pbx-api/src/fs_status.rs": {
+    "mtime": 1793210573.6299827,
+    "ast_hash": "e2cc49754b5c4ee27d0a6469f1472775",
+    "semantic_hash": "e2cc49754b5c4ee27d0a6469f1472775"
+  },
+  "rust/crates/pbx-api/src/fs_xml.rs": {
+    "mtime": 1795464399.989419,
+    "ast_hash": "d6139e12e2f4f5e7688d29fceda4eb59",
+    "semantic_hash": "d6139e12e2f4f5e7688d29fceda4eb59"
+  },
+  "rust/crates/pbx-api/src/gateways.rs": {
+    "mtime": 1795420465.4969726,
+    "ast_hash": "bf6e61bd64596ed1d0e987f6feee6bf5",
+    "semantic_hash": "bf6e61bd64596ed1d0e987f6feee6bf5"
+  },
+  "rust/crates/pbx-api/src/groups.rs": {
+    "mtime": 1795420465.5259728,
+    "ast_hash": "9b05b18f90580f2ce573196ce3eee188",
+    "semantic_hash": "9b05b18f90580f2ce573196ce3eee188"
+  },
+  "rust/crates/pbx-api/src/health.rs": {
+    "mtime": 1793173554.723183,
+    "ast_hash": "297342c27a27956d8e0ecd0e7ddcb079",
+    "semantic_hash": "297342c27a27956d8e0ecd0e7ddcb079"
+  },
+  "rust/crates/pbx-api/src/ivr_menus.rs": {
+    "mtime": 1795457544.3438907,
+    "ast_hash": "48f4769fd70e390b2aa39c299da03fdd",
+    "semantic_hash": "48f4769fd70e390b2aa39c299da03fdd"
+  },
+  "rust/crates/pbx-api/src/lib.rs": {
+    "mtime": 1795462496.4133852,
+    "ast_hash": "f63a8976417daad9569356fd26033fa1",
+    "semantic_hash": "f63a8976417daad9569356fd26033fa1"
+  },
+  "rust/crates/pbx-api/src/logs.rs": {
+    "mtime": 1795420465.5849733,
+    "ast_hash": "ce4b3a945dec6c8655ce4472e1c44991",
+    "semantic_hash": "ce4b3a945dec6c8655ce4472e1c44991"
+  },
+  "rust/crates/pbx-api/src/main.rs": {
+    "mtime": 1795462501.536423,
+    "ast_hash": "423fc2a5aded4ffc25c54611a808a334",
+    "semantic_hash": "423fc2a5aded4ffc25c54611a808a334"
+  },
+  "rust/crates/pbx-api/src/menus.rs": {
+    "mtime": 1795420465.6039734,
+    "ast_hash": "bc1a425119ffb82acc71784ac1773b50",
+    "semantic_hash": "bc1a425119ffb82acc71784ac1773b50"
+  },
+  "rust/crates/pbx-api/src/missing_tables.rs": {
+    "mtime": 1795420465.6209736,
+    "ast_hash": "324100114ac6e35b9c9e3fe66d3c65e4",
+    "semantic_hash": "324100114ac6e35b9c9e3fe66d3c65e4"
+  },
+  "rust/crates/pbx-api/src/permissions.rs": {
+    "mtime": 1793214880.581587,
+    "ast_hash": "9a517daf109b9c61159a934df4199076",
+    "semantic_hash": "9a517daf109b9c61159a934df4199076"
+  },
+  "rust/crates/pbx-api/src/plugin_sandbox.rs": {
+    "mtime": 1795420950.790519,
+    "ast_hash": "a1808a096addc3e1dc0dfaddf3939ecf",
+    "semantic_hash": "a1808a096addc3e1dc0dfaddf3939ecf"
+  },
+  "rust/crates/pbx-api/src/plugins.rs": {
+    "mtime": 1795420951.838646,
+    "ast_hash": "4b06b1fb0514537f2a2aff07bafa9b28",
+    "semantic_hash": "4b06b1fb0514537f2a2aff07bafa9b28"
+  },
+  "rust/crates/pbx-api/src/provision/aastra.rs": {
+    "mtime": 1793193313.794039,
+    "ast_hash": "ec0a247eadb4f7149841eb2406663203",
+    "semantic_hash": "ec0a247eadb4f7149841eb2406663203"
+  },
+  "rust/crates/pbx-api/src/provision/acrobits.rs": {
+    "mtime": 1793193313.7940812,
+    "ast_hash": "5fe6c4aa43718a600dcbed6ca82f7244",
+    "semantic_hash": "5fe6c4aa43718a600dcbed6ca82f7244"
+  },
+  "rust/crates/pbx-api/src/provision/algo.rs": {
+    "mtime": 1793193313.7941172,
+    "ast_hash": "4b382c435d4bc4be17b3b4f109d46fc1",
+    "semantic_hash": "4b382c435d4bc4be17b3b4f109d46fc1"
+  },
+  "rust/crates/pbx-api/src/provision/atcom.rs": {
+    "mtime": 1793193313.7941456,
+    "ast_hash": "e499277731c97c1fb85aecae13c477f7",
+    "semantic_hash": "e499277731c97c1fb85aecae13c477f7"
+  },
+  "rust/crates/pbx-api/src/provision/avaya.rs": {
+    "mtime": 1793193313.7963135,
+    "ast_hash": "7be472a063b58da4cd5135ad54d256d1",
+    "semantic_hash": "7be472a063b58da4cd5135ad54d256d1"
+  },
+  "rust/crates/pbx-api/src/provision/cisco.rs": {
+    "mtime": 1793193313.7970266,
+    "ast_hash": "0f5e284b933460fcc0f97e4a45d1f695",
+    "semantic_hash": "0f5e284b933460fcc0f97e4a45d1f695"
+  },
+  "rust/crates/pbx-api/src/provision/digium.rs": {
+    "mtime": 1793193313.797062,
+    "ast_hash": "2055e6a0320b76a446ea024146690314",
+    "semantic_hash": "2055e6a0320b76a446ea024146690314"
+  },
+  "rust/crates/pbx-api/src/provision/escene.rs": {
+    "mtime": 1793193313.7970898,
+    "ast_hash": "298b215a2e09674f8e59381664bc2ca2",
+    "semantic_hash": "298b215a2e09674f8e59381664bc2ca2"
+  },
+  "rust/crates/pbx-api/src/provision/fanvil.rs": {
+    "mtime": 1793193313.7972238,
+    "ast_hash": "75cab4290a340d209021e258e838572c",
+    "semantic_hash": "75cab4290a340d209021e258e838572c"
+  },
+  "rust/crates/pbx-api/src/provision/flyingvoice.rs": {
+    "mtime": 1793193313.7974193,
+    "ast_hash": "3fd97edadeb0a3e177ebf528a50acf47",
+    "semantic_hash": "3fd97edadeb0a3e177ebf528a50acf47"
+  },
+  "rust/crates/pbx-api/src/provision/grandstream.rs": {
+    "mtime": 1793193313.797572,
+    "ast_hash": "f0b12ac0c6eebb2f436a98e322b2910a",
+    "semantic_hash": "f0b12ac0c6eebb2f436a98e322b2910a"
+  },
+  "rust/crates/pbx-api/src/provision/groundwire.rs": {
+    "mtime": 1793193313.7976134,
+    "ast_hash": "31aa4fe0fdff798e1e5c50e6941c87f0",
+    "semantic_hash": "31aa4fe0fdff798e1e5c50e6941c87f0"
+  },
+  "rust/crates/pbx-api/src/provision/htek.rs": {
+    "mtime": 1793193313.7977507,
+    "ast_hash": "c5bb7cad4b0200909eadb3d9f71ec1aa",
+    "semantic_hash": "c5bb7cad4b0200909eadb3d9f71ec1aa"
+  },
+  "rust/crates/pbx-api/src/provision/linksys.rs": {
+    "mtime": 1793193313.7978919,
+    "ast_hash": "998ee9d7752e163663765edd9fc163ad",
+    "semantic_hash": "998ee9d7752e163663765edd9fc163ad"
+  },
+  "rust/crates/pbx-api/src/provision/linphone.rs": {
+    "mtime": 1793193313.7979198,
+    "ast_hash": "1ea2f084b45b1f0467551b9ac1bb4909",
+    "semantic_hash": "1ea2f084b45b1f0467551b9ac1bb4909"
+  },
+  "rust/crates/pbx-api/src/provision/mitel.rs": {
+    "mtime": 1793193313.798048,
+    "ast_hash": "e7965f9bfbcc72587aa3bdd812c40cfa",
+    "semantic_hash": "e7965f9bfbcc72587aa3bdd812c40cfa"
+  },
+  "rust/crates/pbx-api/src/provision/mod.rs": {
+    "mtime": 1793193654.8517714,
+    "ast_hash": "1963e2bb35decf055667949333af812a",
+    "semantic_hash": "1963e2bb35decf055667949333af812a"
+  },
+  "rust/crates/pbx-api/src/provision/obihai.rs": {
+    "mtime": 1793193313.7981894,
+    "ast_hash": "2854843b1666d2182373dfc8e78de469",
+    "semantic_hash": "2854843b1666d2182373dfc8e78de469"
+  },
+  "rust/crates/pbx-api/src/provision/panasonic.rs": {
+    "mtime": 1793193313.798218,
+    "ast_hash": "40e4888a387fdb0065b48d15fb24e752",
+    "semantic_hash": "40e4888a387fdb0065b48d15fb24e752"
+  },
+  "rust/crates/pbx-api/src/provision/poly.rs": {
+    "mtime": 1793193313.7983513,
+    "ast_hash": "d37cda6456fe182d91cb4c93661bbd75",
+    "semantic_hash": "d37cda6456fe182d91cb4c93661bbd75"
+  },
+  "rust/crates/pbx-api/src/provision/polycom.rs": {
+    "mtime": 1793193313.7983842,
+    "ast_hash": "54358e533f4489f09e2cd47dcb733acf",
+    "semantic_hash": "54358e533f4489f09e2cd47dcb733acf"
+  },
+  "rust/crates/pbx-api/src/provision/sangoma.rs": {
+    "mtime": 1793193313.7984917,
+    "ast_hash": "7f7f82f531a4f06b55a8e3ef3e748580",
+    "semantic_hash": "7f7f82f531a4f06b55a8e3ef3e748580"
+  },
+  "rust/crates/pbx-api/src/provision/sipnetic.rs": {
+    "mtime": 1793193313.7986376,
+    "ast_hash": "7ef9ee393aa9120011de242644b0971a",
+    "semantic_hash": "7ef9ee393aa9120011de242644b0971a"
+  },
+  "rust/crates/pbx-api/src/provision/snom.rs": {
+    "mtime": 1793193313.798771,
+    "ast_hash": "d30dc5d285b31b3415062d891f4f1d75",
+    "semantic_hash": "d30dc5d285b31b3415062d891f4f1d75"
+  },
+  "rust/crates/pbx-api/src/provision/spectralink.rs": {
+    "mtime": 1793193313.7989566,
+    "ast_hash": "e409b2fa189cd714208f99de62a9a6b0",
+    "semantic_hash": "e409b2fa189cd714208f99de62a9a6b0"
+  },
+  "rust/crates/pbx-api/src/provision/swissvoice.rs": {
+    "mtime": 1793193313.7990127,
+    "ast_hash": "119e67ad23dd20910505be07eae3bd88",
+    "semantic_hash": "119e67ad23dd20910505be07eae3bd88"
+  },
+  "rust/crates/pbx-api/src/provision/telekonnectors.rs": {
+    "mtime": 1793193313.7991633,
+    "ast_hash": "e888d2bc35da4b0ba0e78e7c9992396d",
+    "semantic_hash": "e888d2bc35da4b0ba0e78e7c9992396d"
+  },
+  "rust/crates/pbx-api/src/provision/two_n.rs": {
+    "mtime": 1793193313.793967,
+    "ast_hash": "fb5c84f702d603e3a2ee10b8fe263af8",
+    "semantic_hash": "fb5c84f702d603e3a2ee10b8fe263af8"
+  },
+  "rust/crates/pbx-api/src/provision/vtech.rs": {
+    "mtime": 1793193313.7992065,
+    "ast_hash": "06805e0b3e43396d3619ff971410667e",
+    "semantic_hash": "06805e0b3e43396d3619ff971410667e"
+  },
+  "rust/crates/pbx-api/src/provision/yealink.rs": {
+    "mtime": 1793193313.7992356,
+    "ast_hash": "a164efae1914c252403f46a27865537c",
+    "semantic_hash": "a164efae1914c252403f46a27865537c"
+  },
+  "rust/crates/pbx-api/src/provision/yeastar.rs": {
+    "mtime": 1793193313.799371,
+    "ast_hash": "6ddf49b15d363b9a93c1608bd7ce01f4",
+    "semantic_hash": "6ddf49b15d363b9a93c1608bd7ce01f4"
+  },
+  "rust/crates/pbx-api/src/provision/zoiper.rs": {
+    "mtime": 1793193313.7994006,
+    "ast_hash": "211d7c3b36009c216db5048996fcb964",
+    "semantic_hash": "211d7c3b36009c216db5048996fcb964"
+  },
+  "rust/crates/pbx-api/src/recordings.rs": {
+    "mtime": 1795420465.655974,
+    "ast_hash": "36bcce7bbb0ef91af4a803ae86ea5159",
+    "semantic_hash": "36bcce7bbb0ef91af4a803ae86ea5159"
+  },
+  "rust/crates/pbx-api/src/remaining.rs": {
+    "mtime": 1795420465.668974,
+    "ast_hash": "28b87a20f97c5fce7e1f154e64835448",
+    "semantic_hash": "28b87a20f97c5fce7e1f154e64835448"
+  },
+  "rust/crates/pbx-api/src/remaining_a.rs": {
+    "mtime": 1795421992.3135045,
+    "ast_hash": "0adf6385635b8f6c749c78de78e2073a",
+    "semantic_hash": "0adf6385635b8f6c749c78de78e2073a"
+  },
+  "rust/crates/pbx-api/src/remaining_b.rs": {
+    "mtime": 1795460538.868959,
+    "ast_hash": "7a9ea6d489132595a27ac0c30cb6517d",
+    "semantic_hash": "7a9ea6d489132595a27ac0c30cb6517d"
+  },
+  "rust/crates/pbx-api/src/remaining_c.rs": {
+    "mtime": 1795458199.5547192,
+    "ast_hash": "33310e579eb6567b016009d859198186",
+    "semantic_hash": "33310e579eb6567b016009d859198186"
+  },
+  "rust/crates/pbx-api/src/ring_groups.rs": {
+    "mtime": 1795421992.3069348,
+    "ast_hash": "b0c3d3aea1eb6b26f6b47fa8b79ca91d",
+    "semantic_hash": "b0c3d3aea1eb6b26f6b47fa8b79ca91d"
+  },
+  "rust/crates/pbx-api/src/routing_db.rs": {
+    "mtime": 1795387214.7103624,
+    "ast_hash": "f10347775554d8a108768d6865aaee26",
+    "semantic_hash": "f10347775554d8a108768d6865aaee26"
+  },
+  "rust/crates/pbx-api/src/services.rs": {
+    "mtime": 1795420465.808975,
+    "ast_hash": "4cfabd2e847ead3e20422adaf0abeebe",
+    "semantic_hash": "4cfabd2e847ead3e20422adaf0abeebe"
+  },
+  "rust/crates/pbx-api/src/settings.rs": {
+    "mtime": 1795420465.824975,
+    "ast_hash": "f859a83eb804643ce7344023681efa90",
+    "semantic_hash": "f859a83eb804643ce7344023681efa90"
+  },
+  "rust/crates/pbx-api/src/sip.rs": {
+    "mtime": 1795420465.8449752,
+    "ast_hash": "2c6723dba62114b1ae65fb2965295478",
+    "semantic_hash": "2c6723dba62114b1ae65fb2965295478"
+  },
+  "rust/crates/pbx-api/src/system.rs": {
+    "mtime": 1795420508.1042945,
+    "ast_hash": "e7e41fe5929ede88b2bb59bbdf7c874f",
+    "semantic_hash": "e7e41fe5929ede88b2bb59bbdf7c874f"
+  },
+  "rust/crates/pbx-api/src/tenant.rs": {
+    "mtime": 1795464399.9923296,
+    "ast_hash": "b2b146416a0beeb1535ee72d2e162683",
+    "semantic_hash": "b2b146416a0beeb1535ee72d2e162683"
+  },
+  "rust/crates/pbx-api/src/users.rs": {
+    "mtime": 1795421557.3971972,
+    "ast_hash": "9ca8690d8b1c8d3444f1effe2e77397f",
+    "semantic_hash": "9ca8690d8b1c8d3444f1effe2e77397f"
+  },
+  "rust/crates/pbx-api/src/vars_fs.rs": {
+    "mtime": 1794920714.7814462,
+    "ast_hash": "5f4c283b5258bd1316126333179e46b9",
+    "semantic_hash": "5f4c283b5258bd1316126333179e46b9"
+  },
+  "rust/crates/pbx-api/src/voicemails.rs": {
+    "mtime": 1795461499.71904,
+    "ast_hash": "8271a66676cd7b0e64295e6ba46fd350",
+    "semantic_hash": "8271a66676cd7b0e64295e6ba46fd350"
+  },
+  "rust/crates/pbx-api/tests/assigned_visibility_test.rs": {
+    "mtime": 1795420465.9289758,
+    "ast_hash": "a5cae5765d14181c996a3b0098b492ea",
+    "semantic_hash": "a5cae5765d14181c996a3b0098b492ea"
+  },
+  "rust/crates/pbx-api/tests/auth_shape_test.rs": {
+    "mtime": 1795420465.939976,
+    "ast_hash": "64a4abc3f991918d37098b0640cbb65e",
+    "semantic_hash": "64a4abc3f991918d37098b0640cbb65e"
+  },
+  "rust/crates/pbx-api/tests/banner_test.rs": {
+    "mtime": 1795462100.3554664,
+    "ast_hash": "39351f34f2b4fb977f4b8d6f4fa25673",
+    "semantic_hash": "39351f34f2b4fb977f4b8d6f4fa25673"
+  },
+  "rust/crates/pbx-api/tests/batchA_test.rs": {
+    "mtime": 1794906643.8174891,
+    "ast_hash": "80841f24bd5d3f927da8915abdcc171a",
+    "semantic_hash": "80841f24bd5d3f927da8915abdcc171a"
+  },
+  "rust/crates/pbx-api/tests/batchb_test.rs": {
+    "mtime": 1793212089.561163,
+    "ast_hash": "4e7fc3cf0e000e5d26aeb1c2bf883b10",
+    "semantic_hash": "4e7fc3cf0e000e5d26aeb1c2bf883b10"
+  },
+  "rust/crates/pbx-api/tests/contacts_link_test.rs": {
+    "mtime": 1795420465.970976,
+    "ast_hash": "a843249d3286778224df2333bb00711d",
+    "semantic_hash": "a843249d3286778224df2333bb00711d"
+  },
+  "rust/crates/pbx-api/tests/dashboard_widget_groups_test.rs": {
+    "mtime": 1795420465.9779763,
+    "ast_hash": "6ab9b6d642bd0df8fb254dc7353f1425",
+    "semantic_hash": "6ab9b6d642bd0df8fb254dc7353f1425"
+  },
+  "rust/crates/pbx-api/tests/destconf_parity_test.rs": {
+    "mtime": 1795420465.9829762,
+    "ast_hash": "d376c8312192129a5f6a7fe19d3540e1",
+    "semantic_hash": "d376c8312192129a5f6a7fe19d3540e1"
+  },
+  "rust/crates/pbx-api/tests/dialdev_parity_test.rs": {
+    "mtime": 1795420465.9899764,
+    "ast_hash": "7d4f6b8574298d4108b6ac33b3a24374",
+    "semantic_hash": "7d4f6b8574298d4108b6ac33b3a24374"
+  },
+  "rust/crates/pbx-api/tests/domain_assign_test.rs": {
+    "mtime": 1795455169.7713835,
+    "ast_hash": "bec98b984ff89b2b3574419c9bedbebb",
+    "semantic_hash": "bec98b984ff89b2b3574419c9bedbebb"
+  },
+  "rust/crates/pbx-api/tests/domain_settings_test.rs": {
+    "mtime": 1795420466.0169766,
+    "ast_hash": "7cd433aae57a747db2743a01144607b3",
+    "semantic_hash": "7cd433aae57a747db2743a01144607b3"
+  },
+  "rust/crates/pbx-api/tests/e2e_call_test.rs": {
+    "mtime": 1793178398.7326767,
+    "ast_hash": "a8c46c2bef118c3fbaa53c46b1f812c3",
+    "semantic_hash": "a8c46c2bef118c3fbaa53c46b1f812c3"
+  },
+  "rust/crates/pbx-api/tests/extension_parity_test.rs": {
+    "mtime": 1795420466.0339768,
+    "ast_hash": "4f3058a13f2bd99bf9a0b9d2bfd6a064",
+    "semantic_hash": "4f3058a13f2bd99bf9a0b9d2bfd6a064"
+  },
+  "rust/crates/pbx-api/tests/fanout_test.rs": {
+    "mtime": 1795420466.048977,
+    "ast_hash": "b9a8590ba21befada1d9cab39dc54086",
+    "semantic_hash": "b9a8590ba21befada1d9cab39dc54086"
+  },
+  "rust/crates/pbx-api/tests/finalrow_parity_test.rs": {
+    "mtime": 1795420466.0539768,
+    "ast_hash": "f524452a1311a37a60ad76328861d905",
+    "semantic_hash": "f524452a1311a37a60ad76328861d905"
+  },
+  "rust/crates/pbx-api/tests/gaps2_test.rs": {
+    "mtime": 1793207119.15673,
+    "ast_hash": "4ff4de89c6a299698e88e37f5178a98f",
+    "semantic_hash": "4ff4de89c6a299698e88e37f5178a98f"
+  },
+  "rust/crates/pbx-api/tests/gaps3_test.rs": {
+    "mtime": 1795420466.0819771,
+    "ast_hash": "3124e9894788c5080a7c2f454edf9136",
+    "semantic_hash": "3124e9894788c5080a7c2f454edf9136"
+  },
+  "rust/crates/pbx-api/tests/global_gateways_test.rs": {
+    "mtime": 1795420466.088977,
+    "ast_hash": "111739181a5e74fe6c8b2b1369bef0dc",
+    "semantic_hash": "111739181a5e74fe6c8b2b1369bef0dc"
+  },
+  "rust/crates/pbx-api/tests/global_rows_test.rs": {
+    "mtime": 1795420466.1039772,
+    "ast_hash": "293662d50a979cb0311dc3a84ec7594a",
+    "semantic_hash": "293662d50a979cb0311dc3a84ec7594a"
+  },
+  "rust/crates/pbx-api/tests/health_test.rs": {
+    "mtime": 1793173800.951919,
+    "ast_hash": "5e2bbeb85f31ea2a5acd4d38d4febf49",
+    "semantic_hash": "5e2bbeb85f31ea2a5acd4d38d4febf49"
+  },
+  "rust/crates/pbx-api/tests/live_fs_ignored_test.rs": {
+    "mtime": 1795420466.1229773,
+    "ast_hash": "8198d3b46e80befd37ba7548c4c35707",
+    "semantic_hash": "8198d3b46e80befd37ba7548c4c35707"
+  },
+  "rust/crates/pbx-api/tests/menus_test.rs": {
+    "mtime": 1795420466.1409774,
+    "ast_hash": "f55fcf394fee868a222a141ac58267a9",
+    "semantic_hash": "f55fcf394fee868a222a141ac58267a9"
+  },
+  "rust/crates/pbx-api/tests/missing_tables_test.rs": {
+    "mtime": 1795420466.1509776,
+    "ast_hash": "15f314904a48775ee46bcf018d875d65",
+    "semantic_hash": "15f314904a48775ee46bcf018d875d65"
+  },
+  "rust/crates/pbx-api/tests/plugins_sandbox_test.rs": {
+    "mtime": 1795420950.7931204,
+    "ast_hash": "b010957841b6351d90ff8fd3bb79a844",
+    "semantic_hash": "b010957841b6351d90ff8fd3bb79a844"
+  },
+  "rust/crates/pbx-api/tests/plugins_test.rs": {
+    "mtime": 1793180853.7280054,
+    "ast_hash": "cd72787ade5cf46b14fd0f89d0b41e26",
+    "semantic_hash": "cd72787ade5cf46b14fd0f89d0b41e26"
+  },
+  "rust/crates/pbx-api/tests/provision_test.rs": {
+    "mtime": 1793193412.7270265,
+    "ast_hash": "1401a221bba2d4090a7d6dc973ca1aef",
+    "semantic_hash": "1401a221bba2d4090a7d6dc973ca1aef"
+  },
+  "rust/crates/pbx-api/tests/refresh_rotation_test.rs": {
+    "mtime": 1795464145.8595455,
+    "ast_hash": "98947ed5bdd854505a8e9d9453103cfa",
+    "semantic_hash": "98947ed5bdd854505a8e9d9453103cfa"
+  },
+  "rust/crates/pbx-api/tests/remaining_test.rs": {
+    "mtime": 1794906772.288463,
+    "ast_hash": "d7f4c20615dd3e2d65fe8f19ceb280a7",
+    "semantic_hash": "d7f4c20615dd3e2d65fe8f19ceb280a7"
+  },
+  "rust/crates/pbx-api/tests/review_gaps_test.rs": {
+    "mtime": 1795425629.9626634,
+    "ast_hash": "88754b4f99e0e154e864874140dc5c0b",
+    "semantic_hash": "88754b4f99e0e154e864874140dc5c0b"
+  },
+  "rust/crates/pbx-api/tests/round10_parity_test.rs": {
+    "mtime": 1795420466.1879778,
+    "ast_hash": "7fd56c16d146aec453cae33cfadeb9e7",
+    "semantic_hash": "7fd56c16d146aec453cae33cfadeb9e7"
+  },
+  "rust/crates/pbx-api/tests/round11_parity_test.rs": {
+    "mtime": 1795420466.1939778,
+    "ast_hash": "6addcf325ae304761d456fdd61c73347",
+    "semantic_hash": "6addcf325ae304761d456fdd61c73347"
+  },
+  "rust/crates/pbx-api/tests/round12_parity_test.rs": {
+    "mtime": 1795420466.197978,
+    "ast_hash": "89a24ad94d50c1ae6a5eab25bce10b51",
+    "semantic_hash": "89a24ad94d50c1ae6a5eab25bce10b51"
+  },
+  "rust/crates/pbx-api/tests/round13_parity_test.rs": {
+    "mtime": 1795420466.202978,
+    "ast_hash": "4c886318bc99a71a96d4aa525e1ebce2",
+    "semantic_hash": "4c886318bc99a71a96d4aa525e1ebce2"
+  },
+  "rust/crates/pbx-api/tests/round14_parity_test.rs": {
+    "mtime": 1795420466.206978,
+    "ast_hash": "92c0b89f015170386df4f3f36e90d6b8",
+    "semantic_hash": "92c0b89f015170386df4f3f36e90d6b8"
+  },
+  "rust/crates/pbx-api/tests/round2_parity_test.rs": {
+    "mtime": 1795420466.214978,
+    "ast_hash": "e38ba0ac5e7fcf45267da25f9a61671b",
+    "semantic_hash": "e38ba0ac5e7fcf45267da25f9a61671b"
+  },
+  "rust/crates/pbx-api/tests/round3_parity_test.rs": {
+    "mtime": 1795420466.220978,
+    "ast_hash": "a8f409039d6d85f3601fa21eba8f88f7",
+    "semantic_hash": "a8f409039d6d85f3601fa21eba8f88f7"
+  },
+  "rust/crates/pbx-api/tests/round4_parity_test.rs": {
+    "mtime": 1795420466.2279782,
+    "ast_hash": "c0d6c212e535a567e4af6159dece6d87",
+    "semantic_hash": "c0d6c212e535a567e4af6159dece6d87"
+  },
+  "rust/crates/pbx-api/tests/round5_parity_test.rs": {
+    "mtime": 1795420466.2339783,
+    "ast_hash": "9bcd4b8d70fc3f5820d11b494e56ab8c",
+    "semantic_hash": "9bcd4b8d70fc3f5820d11b494e56ab8c"
+  },
+  "rust/crates/pbx-api/tests/round6_parity_test.rs": {
+    "mtime": 1795420466.2389781,
+    "ast_hash": "4a954563cd06ccba47ba67ea06a47e6b",
+    "semantic_hash": "4a954563cd06ccba47ba67ea06a47e6b"
+  },
+  "rust/crates/pbx-api/tests/round7_parity_test.rs": {
+    "mtime": 1795420466.2449782,
+    "ast_hash": "e2f84322863e9bc72a0ecd080251be1d",
+    "semantic_hash": "e2f84322863e9bc72a0ecd080251be1d"
+  },
+  "rust/crates/pbx-api/tests/round8_parity_test.rs": {
+    "mtime": 1795420466.2499783,
+    "ast_hash": "bb2f3b3887b4ea6b617defb44ccf81ae",
+    "semantic_hash": "bb2f3b3887b4ea6b617defb44ccf81ae"
+  },
+  "rust/crates/pbx-api/tests/round9_parity_test.rs": {
+    "mtime": 1795420466.2559783,
+    "ast_hash": "fe7ecf7dde6dc7876d51e0707bbdfbae",
+    "semantic_hash": "fe7ecf7dde6dc7876d51e0707bbdfbae"
+  },
+  "rust/crates/pbx-api/tests/routing_test.rs": {
+    "mtime": 1795420466.2749784,
+    "ast_hash": "738ec6e44825a38faeec143020ea9ac0",
+    "semantic_hash": "738ec6e44825a38faeec143020ea9ac0"
+  },
+  "rust/crates/pbx-api/tests/services_test.rs": {
+    "mtime": 1795420466.2849786,
+    "ast_hash": "f9d4c8e764413759a3e00d5d6a4842d1",
+    "semantic_hash": "f9d4c8e764413759a3e00d5d6a4842d1"
+  },
+  "rust/crates/pbx-api/tests/show_all_test.rs": {
+    "mtime": 1795421965.8424253,
+    "ast_hash": "05bc025b4b5f9e7b8bedd746f0e149b9",
+    "semantic_hash": "05bc025b4b5f9e7b8bedd746f0e149b9"
+  },
+  "rust/crates/pbx-api/tests/system_test.rs": {
+    "mtime": 1793208623.2398827,
+    "ast_hash": "9205388602b16eea250186a07668e5a0",
+    "semantic_hash": "9205388602b16eea250186a07668e5a0"
+  },
+  "rust/crates/pbx-api/tests/telephony_test.rs": {
+    "mtime": 1795421961.7032733,
+    "ast_hash": "e8b72c093f0c929327a157bb2766cb90",
+    "semantic_hash": "e8b72c093f0c929327a157bb2766cb90"
+  },
+  "rust/crates/pbx-api/tests/tenant_test.rs": {
+    "mtime": 1795420466.350979,
+    "ast_hash": "015e74fda3330818c093d7453cfca1b4",
+    "semantic_hash": "015e74fda3330818c093d7453cfca1b4"
+  },
+  "rust/crates/pbx-api/tests/timecond_parity_test.rs": {
+    "mtime": 1795420466.3589792,
+    "ast_hash": "bdbb7f4eccc591816fe1edb54898f9e3",
+    "semantic_hash": "bdbb7f4eccc591816fe1edb54898f9e3"
+  },
+  "rust/crates/pbx-api/tests/trunk_parity_test.rs": {
+    "mtime": 1795420466.3649793,
+    "ast_hash": "1047912c598f67096edc2754f6851cf6",
+    "semantic_hash": "1047912c598f67096edc2754f6851cf6"
+  },
+  "rust/crates/pbx-api/tests/ui_contract_test.rs": {
+    "mtime": 1793181696.6363034,
+    "ast_hash": "78511f2ceb94dd749ef806bfe0e76f69",
+    "semantic_hash": "78511f2ceb94dd749ef806bfe0e76f69"
+  },
+  "rust/crates/pbx-core/src/auth.rs": {
+    "mtime": 1795463639.1268091,
+    "ast_hash": "30599eccf8cc57985c22b3bd8d618295",
+    "semantic_hash": "30599eccf8cc57985c22b3bd8d618295"
+  },
+  "rust/crates/pbx-core/src/lib.rs": {
+    "mtime": 1793215834.063494,
+    "ast_hash": "2e5bb7efbbd098899d811cf42bffc1d5",
+    "semantic_hash": "2e5bb7efbbd098899d811cf42bffc1d5"
+  },
+  "rust/crates/pbx-core/src/mfa.rs": {
+    "mtime": 1795420466.3959794,
+    "ast_hash": "d85287750b1e11e0a12df37b81832230",
+    "semantic_hash": "d85287750b1e11e0a12df37b81832230"
+  },
+  "rust/crates/pbx-db/gen_seeds.py": {
+    "mtime": 1793175826.3817983,
+    "ast_hash": "cffb08acc7484c2bc6ce4d3956c32a57",
+    "semantic_hash": "cffb08acc7484c2bc6ce4d3956c32a57"
+  },
+  "rust/crates/pbx-db/gen_telephony_seeds.py": {
+    "mtime": 1793176290.2056406,
+    "ast_hash": "30442bf4241c76b98fc44c59cd3dc21a",
+    "semantic_hash": "30442bf4241c76b98fc44c59cd3dc21a"
+  },
+  "rust/crates/pbx-db/src/entities.rs": {
+    "mtime": 1795463693.900213,
+    "ast_hash": "5886d572a896f1165761ac7b56eefe12",
+    "semantic_hash": "5886d572a896f1165761ac7b56eefe12"
+  },
+  "rust/crates/pbx-db/src/entities/access_control_nodes.rs": {
+    "mtime": 1793192242.1190407,
+    "ast_hash": "76bbaf2c33aca2d2a29a58275f66eae5",
+    "semantic_hash": "76bbaf2c33aca2d2a29a58275f66eae5"
+  },
+  "rust/crates/pbx-db/src/entities/access_controls.rs": {
+    "mtime": 1793192242.1120408,
+    "ast_hash": "978991fb3346e293621703db94eb83f8",
+    "semantic_hash": "978991fb3346e293621703db94eb83f8"
+  },
+  "rust/crates/pbx-db/src/entities/bridges.rs": {
+    "mtime": 1793192218.9138863,
+    "ast_hash": "24103d9769e5f8c04cc962b099989c57",
+    "semantic_hash": "24103d9769e5f8c04cc962b099989c57"
+  },
+  "rust/crates/pbx-db/src/entities/call_block.rs": {
+    "mtime": 1795411017.0155447,
+    "ast_hash": "ca95511215837e18c156db45803e42ad",
+    "semantic_hash": "ca95511215837e18c156db45803e42ad"
+  },
+  "rust/crates/pbx-db/src/entities/call_broadcasts.rs": {
+    "mtime": 1793192218.9138863,
+    "ast_hash": "5921db78cc0b64ccd0ad50670543a269",
+    "semantic_hash": "5921db78cc0b64ccd0ad50670543a269"
+  },
+  "rust/crates/pbx-db/src/entities/call_center_agents.rs": {
+    "mtime": 1794828224.6276898,
+    "ast_hash": "fef8ded68fe87f6c0e6ec3df9c623d38",
+    "semantic_hash": "fef8ded68fe87f6c0e6ec3df9c623d38"
+  },
+  "rust/crates/pbx-db/src/entities/call_center_tiers.rs": {
+    "mtime": 1794828893.2011793,
+    "ast_hash": "f9d56eb3b978c311ff49b913867d87f1",
+    "semantic_hash": "f9d56eb3b978c311ff49b913867d87f1"
+  },
+  "rust/crates/pbx-db/src/entities/call_centers.rs": {
+    "mtime": 1794828224.6272912,
+    "ast_hash": "ae0fa9ed3db3b555f1b9e603e59dead1",
+    "semantic_hash": "ae0fa9ed3db3b555f1b9e603e59dead1"
+  },
+  "rust/crates/pbx-db/src/entities/call_flows.rs": {
+    "mtime": 1795411017.0137305,
+    "ast_hash": "d3b8fbe893caea2799f35af6103f12a7",
+    "semantic_hash": "d3b8fbe893caea2799f35af6103f12a7"
+  },
+  "rust/crates/pbx-db/src/entities/call_forwards.rs": {
+    "mtime": 1793192231.799972,
+    "ast_hash": "7b4e6caa04a17dfa69424ddfe3f979f2",
+    "semantic_hash": "7b4e6caa04a17dfa69424ddfe3f979f2"
+  },
+  "rust/crates/pbx-db/src/entities/call_recordings.rs": {
+    "mtime": 1793177234.2045875,
+    "ast_hash": "12f0c95da58edc2c38e1981daf1093b9",
+    "semantic_hash": "12f0c95da58edc2c38e1981daf1093b9"
+  },
+  "rust/crates/pbx-db/src/entities/cdr.rs": {
+    "mtime": 1794828400.4275832,
+    "ast_hash": "e2362fc058f3d025fd6b9e953ef6a978",
+    "semantic_hash": "e2362fc058f3d025fd6b9e953ef6a978"
+  },
+  "rust/crates/pbx-db/src/entities/cdr_archive.rs": {
+    "mtime": 1793214651.9148245,
+    "ast_hash": "ebef75d80c672c367425c77041a6f085",
+    "semantic_hash": "ebef75d80c672c367425c77041a6f085"
+  },
+  "rust/crates/pbx-db/src/entities/conference_centers.rs": {
+    "mtime": 1794828898.7157962,
+    "ast_hash": "3d393592c6926770d7a9760508a67089",
+    "semantic_hash": "3d393592c6926770d7a9760508a67089"
+  },
+  "rust/crates/pbx-db/src/entities/conference_control_details.rs": {
+    "mtime": 1794828888.3624914,
+    "ast_hash": "74caa71b13602cca9aaee44c9052dcdf",
+    "semantic_hash": "74caa71b13602cca9aaee44c9052dcdf"
+  },
+  "rust/crates/pbx-db/src/entities/conference_controls.rs": {
+    "mtime": 1793213808.2694356,
+    "ast_hash": "7fdaa9386359018a98a6245ccb872fe8",
+    "semantic_hash": "7fdaa9386359018a98a6245ccb872fe8"
+  },
+  "rust/crates/pbx-db/src/entities/conference_profile_params.rs": {
+    "mtime": 1794828888.3625557,
+    "ast_hash": "eb5eb49ca46822563ebf14b6b822904c",
+    "semantic_hash": "eb5eb49ca46822563ebf14b6b822904c"
+  },
+  "rust/crates/pbx-db/src/entities/conference_profiles.rs": {
+    "mtime": 1793213808.2694356,
+    "ast_hash": "8f35303c8684275a0d101465de904a72",
+    "semantic_hash": "8f35303c8684275a0d101465de904a72"
+  },
+  "rust/crates/pbx-db/src/entities/conference_room_users.rs": {
+    "mtime": 1794828453.699056,
+    "ast_hash": "d4c2ab976e54ab91964679253974af7e",
+    "semantic_hash": "d4c2ab976e54ab91964679253974af7e"
+  },
+  "rust/crates/pbx-db/src/entities/conference_rooms.rs": {
+    "mtime": 1794828224.630067,
+    "ast_hash": "ba80a7478d30d86fea405ff853af8509",
+    "semantic_hash": "ba80a7478d30d86fea405ff853af8509"
+  },
+  "rust/crates/pbx-db/src/entities/conference_session_details.rs": {
+    "mtime": 1794828898.718564,
+    "ast_hash": "63306baabc10b4d2783d97668ed18aa2",
+    "semantic_hash": "63306baabc10b4d2783d97668ed18aa2"
+  },
+  "rust/crates/pbx-db/src/entities/conference_sessions.rs": {
+    "mtime": 1794828898.7184463,
+    "ast_hash": "d272ade5bd759296bf4d26a276dcdcf3",
+    "semantic_hash": "d272ade5bd759296bf4d26a276dcdcf3"
+  },
+  "rust/crates/pbx-db/src/entities/conference_users.rs": {
+    "mtime": 1793206335.1854,
+    "ast_hash": "f5bd3ee60f60bcd4b0b09dc9e2af32e0",
+    "semantic_hash": "f5bd3ee60f60bcd4b0b09dc9e2af32e0"
+  },
+  "rust/crates/pbx-db/src/entities/conferences.rs": {
+    "mtime": 1795411017.0118914,
+    "ast_hash": "46eba233355fc95743635fd8c302ccda",
+    "semantic_hash": "46eba233355fc95743635fd8c302ccda"
+  },
+  "rust/crates/pbx-db/src/entities/contact_addresses.rs": {
+    "mtime": 1794868817.2791393,
+    "ast_hash": "9126cf65056ad4749a4088436ec64c23",
+    "semantic_hash": "9126cf65056ad4749a4088436ec64c23"
+  },
+  "rust/crates/pbx-db/src/entities/contact_attachments.rs": {
+    "mtime": 1794837261.2141883,
+    "ast_hash": "0c29293420db6f1b0c90a6cb14f641bc",
+    "semantic_hash": "0c29293420db6f1b0c90a6cb14f641bc"
+  },
+  "rust/crates/pbx-db/src/entities/contact_emails.rs": {
+    "mtime": 1793206043.1073618,
+    "ast_hash": "b5c381dddb2b99eab6c3b5d6ca4cf77b",
+    "semantic_hash": "b5c381dddb2b99eab6c3b5d6ca4cf77b"
+  },
+  "rust/crates/pbx-db/src/entities/contact_groups.rs": {
+    "mtime": 1794837261.2391634,
+    "ast_hash": "f17eb3dcd2814a9896a4b4ad65529aba",
+    "semantic_hash": "f17eb3dcd2814a9896a4b4ad65529aba"
+  },
+  "rust/crates/pbx-db/src/entities/contact_notes.rs": {
+    "mtime": 1793206047.282391,
+    "ast_hash": "d56d2dd2ee5847bd947aaff00529e5d1",
+    "semantic_hash": "d56d2dd2ee5847bd947aaff00529e5d1"
+  },
+  "rust/crates/pbx-db/src/entities/contact_phones.rs": {
+    "mtime": 1794868450.6507256,
+    "ast_hash": "68f60b466e1b705ace16259db7148bce",
+    "semantic_hash": "68f60b466e1b705ace16259db7148bce"
+  },
+  "rust/crates/pbx-db/src/entities/contact_relations.rs": {
+    "mtime": 1794837261.2411885,
+    "ast_hash": "b40ab54b27d235451377f97bc1fda64e",
+    "semantic_hash": "b40ab54b27d235451377f97bc1fda64e"
+  },
+  "rust/crates/pbx-db/src/entities/contact_settings.rs": {
+    "mtime": 1794837261.2411885,
+    "ast_hash": "c2892cc9961a4c11619af75d1487f9f9",
+    "semantic_hash": "c2892cc9961a4c11619af75d1487f9f9"
+  },
+  "rust/crates/pbx-db/src/entities/contact_times.rs": {
+    "mtime": 1794837261.2501886,
+    "ast_hash": "77958b802fcb715d4a3fc7c20eb6e08f",
+    "semantic_hash": "77958b802fcb715d4a3fc7c20eb6e08f"
+  },
+  "rust/crates/pbx-db/src/entities/contact_urls.rs": {
+    "mtime": 1794868804.8426392,
+    "ast_hash": "7e0ce685beb901a26cd32b40b93341db",
+    "semantic_hash": "7e0ce685beb901a26cd32b40b93341db"
+  },
+  "rust/crates/pbx-db/src/entities/contact_users.rs": {
+    "mtime": 1794837261.2512147,
+    "ast_hash": "ca031b017166251c7409b49f115752a4",
+    "semantic_hash": "ca031b017166251c7409b49f115752a4"
+  },
+  "rust/crates/pbx-db/src/entities/contacts.rs": {
+    "mtime": 1794869462.474545,
+    "ast_hash": "7f01c452ee701c788c394f526808ac30",
+    "semantic_hash": "7f01c452ee701c788c394f526808ac30"
+  },
+  "rust/crates/pbx-db/src/entities/countries.rs": {
+    "mtime": 1794837739.133536,
+    "ast_hash": "9c5dd0aabbcc207a9ca449dcbe3e1e79",
+    "semantic_hash": "9c5dd0aabbcc207a9ca449dcbe3e1e79"
+  },
+  "rust/crates/pbx-db/src/entities/dashboard_widget_groups.rs": {
+    "mtime": 1795418892.6814134,
+    "ast_hash": "219b80ebc1bedf35807a6ebef5ef2627",
+    "semantic_hash": "219b80ebc1bedf35807a6ebef5ef2627"
+  },
+  "rust/crates/pbx-db/src/entities/dashboard_widgets.rs": {
+    "mtime": 1794869909.8905222,
+    "ast_hash": "703c5412c4f26305463258a840b7807d",
+    "semantic_hash": "703c5412c4f26305463258a840b7807d"
+  },
+  "rust/crates/pbx-db/src/entities/dashboards.rs": {
+    "mtime": 1794869902.03947,
+    "ast_hash": "6659fde1eceb2ebe49060fbf6fbd290d",
+    "semantic_hash": "6659fde1eceb2ebe49060fbf6fbd290d"
+  },
+  "rust/crates/pbx-db/src/entities/database_transactions.rs": {
+    "mtime": 1794828453.699158,
+    "ast_hash": "ff62a740a334a4b92cc6fb23a2cc7bf2",
+    "semantic_hash": "ff62a740a334a4b92cc6fb23a2cc7bf2"
+  },
+  "rust/crates/pbx-db/src/entities/databases.rs": {
+    "mtime": 1794837739.1664515,
+    "ast_hash": "ce6ed2fd4402e2b432e0cb2526c6e20b",
+    "semantic_hash": "ce6ed2fd4402e2b432e0cb2526c6e20b"
+  },
+  "rust/crates/pbx-db/src/entities/default_settings.rs": {
+    "mtime": 1794862070.8310363,
+    "ast_hash": "eda83f4cc8baa548207565e66ffc3084",
+    "semantic_hash": "eda83f4cc8baa548207565e66ffc3084"
+  },
+  "rust/crates/pbx-db/src/entities/destinations.rs": {
+    "mtime": 1795411017.0091047,
+    "ast_hash": "390e3abf8a8badeb0986be51e5adb94f",
+    "semantic_hash": "390e3abf8a8badeb0986be51e5adb94f"
+  },
+  "rust/crates/pbx-db/src/entities/device_keys.rs": {
+    "mtime": 1793176276.221555,
+    "ast_hash": "8bdd40364098b4eeeddb58f893148427",
+    "semantic_hash": "8bdd40364098b4eeeddb58f893148427"
+  },
+  "rust/crates/pbx-db/src/entities/device_lines.rs": {
+    "mtime": 1793176272.4125316,
+    "ast_hash": "d836b00673537788b8b0a93fdbac0492",
+    "semantic_hash": "d836b00673537788b8b0a93fdbac0492"
+  },
+  "rust/crates/pbx-db/src/entities/device_profile_keys.rs": {
+    "mtime": 1793176276.222555,
+    "ast_hash": "41b67a2870fe2f1d5f8db81c7fb95272",
+    "semantic_hash": "41b67a2870fe2f1d5f8db81c7fb95272"
+  },
+  "rust/crates/pbx-db/src/entities/device_profile_settings.rs": {
+    "mtime": 1793176276.228555,
+    "ast_hash": "ed2f59d005ac8ac0736780a7236607bc",
+    "semantic_hash": "ed2f59d005ac8ac0736780a7236607bc"
+  },
+  "rust/crates/pbx-db/src/entities/device_profiles.rs": {
+    "mtime": 1793176276.221555,
+    "ast_hash": "8862194a38069ddf94b498657df88b46",
+    "semantic_hash": "8862194a38069ddf94b498657df88b46"
+  },
+  "rust/crates/pbx-db/src/entities/device_settings.rs": {
+    "mtime": 1793176276.2165549,
+    "ast_hash": "bb0fecb6460df625fd0698bdd5406d77",
+    "semantic_hash": "bb0fecb6460df625fd0698bdd5406d77"
+  },
+  "rust/crates/pbx-db/src/entities/device_vendor_function_groups.rs": {
+    "mtime": 1794828453.6992664,
+    "ast_hash": "14724bb24107cf49d4d8712201cec35a",
+    "semantic_hash": "14724bb24107cf49d4d8712201cec35a"
+  },
+  "rust/crates/pbx-db/src/entities/device_vendor_functions.rs": {
+    "mtime": 1794828453.6992302,
+    "ast_hash": "0f334ad83cc8b60f224c457970141a39",
+    "semantic_hash": "0f334ad83cc8b60f224c457970141a39"
+  },
+  "rust/crates/pbx-db/src/entities/device_vendors.rs": {
+    "mtime": 1794828453.6991978,
+    "ast_hash": "07cb9a17b2faff1459547de22300bb90",
+    "semantic_hash": "07cb9a17b2faff1459547de22300bb90"
+  },
+  "rust/crates/pbx-db/src/entities/devices.rs": {
+    "mtime": 1795411017.0109217,
+    "ast_hash": "9ebcf091ca2d29ddd7e024383fa89eca",
+    "semantic_hash": "9ebcf091ca2d29ddd7e024383fa89eca"
+  },
+  "rust/crates/pbx-db/src/entities/dialplan_details.rs": {
+    "mtime": 1793176266.3834946,
+    "ast_hash": "0faeba139494d6e50f047c593864106c",
+    "semantic_hash": "0faeba139494d6e50f047c593864106c"
+  },
+  "rust/crates/pbx-db/src/entities/dialplans.rs": {
+    "mtime": 1795411017.0195642,
+    "ast_hash": "c2e2f6fb9ffc20b843c48a3cb5c17060",
+    "semantic_hash": "c2e2f6fb9ffc20b843c48a3cb5c17060"
+  },
+  "rust/crates/pbx-db/src/entities/domain_apps.rs": {
+    "mtime": 1793180599.9194176,
+    "ast_hash": "952d76be8ee2badea9d374b44c13a544",
+    "semantic_hash": "952d76be8ee2badea9d374b44c13a544"
+  },
+  "rust/crates/pbx-db/src/entities/domain_plugins.rs": {
+    "mtime": 1793180599.9194176,
+    "ast_hash": "c1760efbef4212e16e195bac680446bc",
+    "semantic_hash": "c1760efbef4212e16e195bac680446bc"
+  },
+  "rust/crates/pbx-db/src/entities/domain_settings.rs": {
+    "mtime": 1793175460.5475576,
+    "ast_hash": "0bf34ba03c883d0c8be0ea3a61502d8a",
+    "semantic_hash": "0bf34ba03c883d0c8be0ea3a61502d8a"
+  },
+  "rust/crates/pbx-db/src/entities/domains.rs": {
+    "mtime": 1793176266.3614945,
+    "ast_hash": "8d427716b9ecbf5e8c2c5ad8dfaa36d1",
+    "semantic_hash": "8d427716b9ecbf5e8c2c5ad8dfaa36d1"
+  },
+  "rust/crates/pbx-db/src/entities/email_queue.rs": {
+    "mtime": 1794846645.6382055,
+    "ast_hash": "2be3abdfb0c1dcadc6afc6886893eadb",
+    "semantic_hash": "2be3abdfb0c1dcadc6afc6886893eadb"
+  },
+  "rust/crates/pbx-db/src/entities/email_queue_attachments.rs": {
+    "mtime": 1794828453.6992972,
+    "ast_hash": "2d5f14dc2686cf66f60758b796517416",
+    "semantic_hash": "2d5f14dc2686cf66f60758b796517416"
+  },
+  "rust/crates/pbx-db/src/entities/email_templates.rs": {
+    "mtime": 1794867059.2134492,
+    "ast_hash": "9b04ee7e46c5c55a04e36268a6ff80b6",
+    "semantic_hash": "9b04ee7e46c5c55a04e36268a6ff80b6"
+  },
+  "rust/crates/pbx-db/src/entities/emergency_logs.rs": {
+    "mtime": 1793192252.9231126,
+    "ast_hash": "c731f4b7d34057689f33015bf07f3360",
+    "semantic_hash": "c731f4b7d34057689f33015bf07f3360"
+  },
+  "rust/crates/pbx-db/src/entities/event_guard_logs.rs": {
+    "mtime": 1793192252.9321127,
+    "ast_hash": "0a99a3d1b6758255347d17f7dd62fbff",
+    "semantic_hash": "0a99a3d1b6758255347d17f7dd62fbff"
+  },
+  "rust/crates/pbx-db/src/entities/extension_settings.rs": {
+    "mtime": 1794826461.1330607,
+    "ast_hash": "8f9e97c13460b012daf573cfdaa5bf1e",
+    "semantic_hash": "8f9e97c13460b012daf573cfdaa5bf1e"
+  },
+  "rust/crates/pbx-db/src/entities/extension_users.rs": {
+    "mtime": 1794828453.6993291,
+    "ast_hash": "0ba339448955eb371bf449035c6ada3e",
+    "semantic_hash": "0ba339448955eb371bf449035c6ada3e"
+  },
+  "rust/crates/pbx-db/src/entities/extensions.rs": {
+    "mtime": 1794828907.6123,
+    "ast_hash": "97e3eed7407e395eaa0dfacf97dcdac4",
+    "semantic_hash": "97e3eed7407e395eaa0dfacf97dcdac4"
+  },
+  "rust/crates/pbx-db/src/entities/fax_files.rs": {
+    "mtime": 1794828234.7865303,
+    "ast_hash": "f20c29ea99df4638d373c7bf6c64a67c",
+    "semantic_hash": "f20c29ea99df4638d373c7bf6c64a67c"
+  },
+  "rust/crates/pbx-db/src/entities/fax_logs.rs": {
+    "mtime": 1794828234.7866373,
+    "ast_hash": "74e42a9d7a66736abe5a246a3c3e8c04",
+    "semantic_hash": "74e42a9d7a66736abe5a246a3c3e8c04"
+  },
+  "rust/crates/pbx-db/src/entities/fax_queue.rs": {
+    "mtime": 1794828234.7874444,
+    "ast_hash": "63d20628dd0eaf95c20380c334b9c247",
+    "semantic_hash": "63d20628dd0eaf95c20380c334b9c247"
+  },
+  "rust/crates/pbx-db/src/entities/fax_users.rs": {
+    "mtime": 1793206043.1073618,
+    "ast_hash": "1b1125d7bd5bccccb9ef9900947578f2",
+    "semantic_hash": "1b1125d7bd5bccccb9ef9900947578f2"
+  },
+  "rust/crates/pbx-db/src/entities/faxes.rs": {
+    "mtime": 1795411017.0126739,
+    "ast_hash": "5ecb3be512068c5ba37691cb29bde8f3",
+    "semantic_hash": "5ecb3be512068c5ba37691cb29bde8f3"
+  },
+  "rust/crates/pbx-db/src/entities/feature_codes.rs": {
+    "mtime": 1793192231.8089721,
+    "ast_hash": "0a10890f00cfdac02755dda3521d96d0",
+    "semantic_hash": "0a10890f00cfdac02755dda3521d96d0"
+  },
+  "rust/crates/pbx-db/src/entities/fifo.rs": {
+    "mtime": 1793192252.9111125,
+    "ast_hash": "b6181c8c8d186832e3ae6e591faa5865",
+    "semantic_hash": "b6181c8c8d186832e3ae6e591faa5865"
+  },
+  "rust/crates/pbx-db/src/entities/fifo_members.rs": {
+    "mtime": 1793192252.9111125,
+    "ast_hash": "7c6e8689c069194644149cd0e8fac528",
+    "semantic_hash": "7c6e8689c069194644149cd0e8fac528"
+  },
+  "rust/crates/pbx-db/src/entities/follow_me.rs": {
+    "mtime": 1793192219.0938876,
+    "ast_hash": "d9df5141e89c1c8199ffef3518799695",
+    "semantic_hash": "d9df5141e89c1c8199ffef3518799695"
+  },
+  "rust/crates/pbx-db/src/entities/follow_me_destinations.rs": {
+    "mtime": 1793192219.0948875,
+    "ast_hash": "4e052fd739c88c2c74fc2638c09f3148",
+    "semantic_hash": "4e052fd739c88c2c74fc2638c09f3148"
+  },
+  "rust/crates/pbx-db/src/entities/gateways.rs": {
+    "mtime": 1795410371.1752691,
+    "ast_hash": "762dca55a7b6556619ccaaab21be4f8b",
+    "semantic_hash": "762dca55a7b6556619ccaaab21be4f8b"
+  },
+  "rust/crates/pbx-db/src/entities/group_permissions.rs": {
+    "mtime": 1793177249.6675203,
+    "ast_hash": "e658d870836279a1d9d1c69987327d4b",
+    "semantic_hash": "e658d870836279a1d9d1c69987327d4b"
+  },
+  "rust/crates/pbx-db/src/entities/groups.rs": {
+    "mtime": 1793177241.2434685,
+    "ast_hash": "967453eabfd5304d6af287d0d2de0c12",
+    "semantic_hash": "967453eabfd5304d6af287d0d2de0c12"
+  },
+  "rust/crates/pbx-db/src/entities/ivr_menu_options.rs": {
+    "mtime": 1794828923.3833568,
+    "ast_hash": "51087a384041c868cbba24c0825aee39",
+    "semantic_hash": "51087a384041c868cbba24c0825aee39"
+  },
+  "rust/crates/pbx-db/src/entities/ivr_menus.rs": {
+    "mtime": 1795411017.0099142,
+    "ast_hash": "67ef0c1961a6d90a91733f40890a7129",
+    "semantic_hash": "67ef0c1961a6d90a91733f40890a7129"
+  },
+  "rust/crates/pbx-db/src/entities/languages.rs": {
+    "mtime": 1794837739.1329908,
+    "ast_hash": "71e45bac812897fbc97401426a5887ec",
+    "semantic_hash": "71e45bac812897fbc97401426a5887ec"
+  },
+  "rust/crates/pbx-db/src/entities/menu_item_groups.rs": {
+    "mtime": 1794837739.1559138,
+    "ast_hash": "592cdf974a0db473b689ae29b62afdd8",
+    "semantic_hash": "592cdf974a0db473b689ae29b62afdd8"
+  },
+  "rust/crates/pbx-db/src/entities/menu_items.rs": {
+    "mtime": 1794837739.1567237,
+    "ast_hash": "9e52b1e844246f3ae77515e46955c13b",
+    "semantic_hash": "9e52b1e844246f3ae77515e46955c13b"
+  },
+  "rust/crates/pbx-db/src/entities/menu_languages.rs": {
+    "mtime": 1794837739.1575363,
+    "ast_hash": "6c7cfa9e77bf2ef2f376c5505adf5bd6",
+    "semantic_hash": "6c7cfa9e77bf2ef2f376c5505adf5bd6"
+  },
+  "rust/crates/pbx-db/src/entities/menus.rs": {
+    "mtime": 1794837739.1479788,
+    "ast_hash": "29bb6d207d1584075a20a702da4af43f",
+    "semantic_hash": "29bb6d207d1584075a20a702da4af43f"
+  },
+  "rust/crates/pbx-db/src/entities/modules.rs": {
+    "mtime": 1794846645.6382055,
+    "ast_hash": "3a5492af611e842c572ffb7dd935fd54",
+    "semantic_hash": "3a5492af611e842c572ffb7dd935fd54"
+  },
+  "rust/crates/pbx-db/src/entities/music_on_hold.rs": {
+    "mtime": 1795411030.115611,
+    "ast_hash": "8a7a03d2d38ae86230f0ed19b64a395a",
+    "semantic_hash": "8a7a03d2d38ae86230f0ed19b64a395a"
+  },
+  "rust/crates/pbx-db/src/entities/notifications.rs": {
+    "mtime": 1794837739.1664515,
+    "ast_hash": "88e3433272717c499e5c0373751a7a88",
+    "semantic_hash": "88e3433272717c499e5c0373751a7a88"
+  },
+  "rust/crates/pbx-db/src/entities/number_translation_details.rs": {
+    "mtime": 1793192242.1010406,
+    "ast_hash": "0174d59b4037695e303c182e1765561d",
+    "semantic_hash": "0174d59b4037695e303c182e1765561d"
+  },
+  "rust/crates/pbx-db/src/entities/number_translations.rs": {
+    "mtime": 1793192242.0900407,
+    "ast_hash": "f18ecfe3414bc7c203f826c5951da5e7",
+    "semantic_hash": "f18ecfe3414bc7c203f826c5951da5e7"
+  },
+  "rust/crates/pbx-db/src/entities/permissions.rs": {
+    "mtime": 1793177247.2465053,
+    "ast_hash": "1ab1de75ecb95e48ee0649ee2ef6bd31",
+    "semantic_hash": "1ab1de75ecb95e48ee0649ee2ef6bd31"
+  },
+  "rust/crates/pbx-db/src/entities/phrase_details.rs": {
+    "mtime": 1793192231.8239722,
+    "ast_hash": "1af902210be0476f72c23f0c746b73ef",
+    "semantic_hash": "1af902210be0476f72c23f0c746b73ef"
+  },
+  "rust/crates/pbx-db/src/entities/phrases.rs": {
+    "mtime": 1795411017.014399,
+    "ast_hash": "0723695da5dfbac5f60a6886bf02ba19",
+    "semantic_hash": "0723695da5dfbac5f60a6886bf02ba19"
+  },
+  "rust/crates/pbx-db/src/entities/pin_numbers.rs": {
+    "mtime": 1793192242.0680404,
+    "ast_hash": "0606af5f75fc0940b8dd73fcf0746c5c",
+    "semantic_hash": "0606af5f75fc0940b8dd73fcf0746c5c"
+  },
+  "rust/crates/pbx-db/src/entities/recordings.rs": {
+    "mtime": 1794846645.6382055,
+    "ast_hash": "e45df87cc04e6ddae913e79941fcfb55",
+    "semantic_hash": "e45df87cc04e6ddae913e79941fcfb55"
+  },
+  "rust/crates/pbx-db/src/entities/refresh_tokens.rs": {
+    "mtime": 1795463653.1889129,
+    "ast_hash": "cf5edf630a01894bf9fd074af7c883a7",
+    "semantic_hash": "cf5edf630a01894bf9fd074af7c883a7"
+  },
+  "rust/crates/pbx-db/src/entities/remaining_record.rs": {
+    "mtime": 1793178042.6634464,
+    "ast_hash": "6f22658703d577d65279490408526cb1",
+    "semantic_hash": "6f22658703d577d65279490408526cb1"
+  },
+  "rust/crates/pbx-db/src/entities/ring_group_members.rs": {
+    "mtime": 1794828088.063727,
+    "ast_hash": "c7d75590b542619a2ca52fce8ca086c7",
+    "semantic_hash": "c7d75590b542619a2ca52fce8ca086c7"
+  },
+  "rust/crates/pbx-db/src/entities/ring_group_users.rs": {
+    "mtime": 1794828453.6993845,
+    "ast_hash": "10dd139528f1c5d23f1e5c9781ac8468",
+    "semantic_hash": "10dd139528f1c5d23f1e5c9781ac8468"
+  },
+  "rust/crates/pbx-db/src/entities/ring_groups.rs": {
+    "mtime": 1795417566.9629982,
+    "ast_hash": "3b2e8b034e5f4ecd52eb0d2d2942315e",
+    "semantic_hash": "3b2e8b034e5f4ecd52eb0d2d2942315e"
+  },
+  "rust/crates/pbx-db/src/entities/services.rs": {
+    "mtime": 1795385360.8762126,
+    "ast_hash": "cabe4ea59d1473293ad8d99e69957ac7",
+    "semantic_hash": "cabe4ea59d1473293ad8d99e69957ac7"
+  },
+  "rust/crates/pbx-db/src/entities/sip_profile_domains.rs": {
+    "mtime": 1793176272.4025316,
+    "ast_hash": "1bd15659a554b6d281bb13ee2f68f0e5",
+    "semantic_hash": "1bd15659a554b6d281bb13ee2f68f0e5"
+  },
+  "rust/crates/pbx-db/src/entities/sip_profile_settings.rs": {
+    "mtime": 1793176272.4085317,
+    "ast_hash": "794341871899171a152b3a0c254bb9f2",
+    "semantic_hash": "794341871899171a152b3a0c254bb9f2"
+  },
+  "rust/crates/pbx-db/src/entities/sip_profiles.rs": {
+    "mtime": 1793176272.3905315,
+    "ast_hash": "6266f1eb451fb392c27f09deb2bd57c9",
+    "semantic_hash": "6266f1eb451fb392c27f09deb2bd57c9"
+  },
+  "rust/crates/pbx-db/src/entities/sofia_global_settings.rs": {
+    "mtime": 1793175460.5475576,
+    "ast_hash": "8c4bfdb0eb17958ddd0486ebd4c67a79",
+    "semantic_hash": "8c4bfdb0eb17958ddd0486ebd4c67a79"
+  },
+  "rust/crates/pbx-db/src/entities/software.rs": {
+    "mtime": 1794837739.1665363,
+    "ast_hash": "bca7d3a200f78f6565bad73844c00338",
+    "semantic_hash": "bca7d3a200f78f6565bad73844c00338"
+  },
+  "rust/crates/pbx-db/src/entities/streams.rs": {
+    "mtime": 1795411017.0151834,
+    "ast_hash": "a5d18d23bd108317e56e4ccd02a748fb",
+    "semantic_hash": "a5d18d23bd108317e56e4ccd02a748fb"
+  },
+  "rust/crates/pbx-db/src/entities/time_conditions.rs": {
+    "mtime": 1795411017.0130973,
+    "ast_hash": "2eae0747d27cdfb9c874998abcc0f63f",
+    "semantic_hash": "2eae0747d27cdfb9c874998abcc0f63f"
+  },
+  "rust/crates/pbx-db/src/entities/user_groups.rs": {
+    "mtime": 1793177244.3544877,
+    "ast_hash": "c820f123a1c9db794f6757abd89e0fe6",
+    "semantic_hash": "c820f123a1c9db794f6757abd89e0fe6"
+  },
+  "rust/crates/pbx-db/src/entities/user_logs.rs": {
+    "mtime": 1794866453.4052896,
+    "ast_hash": "eec5b03c1e29f79fdd1b2b5ba949f375",
+    "semantic_hash": "eec5b03c1e29f79fdd1b2b5ba949f375"
+  },
+  "rust/crates/pbx-db/src/entities/user_settings.rs": {
+    "mtime": 1794862070.8310363,
+    "ast_hash": "6a1547e0e6bfda5e0e0badde74a478f4",
+    "semantic_hash": "6a1547e0e6bfda5e0e0badde74a478f4"
+  },
+  "rust/crates/pbx-db/src/entities/users.rs": {
+    "mtime": 1795417548.832784,
+    "ast_hash": "abc3317e165c272cc217a4cd40fc4c5e",
+    "semantic_hash": "abc3317e165c272cc217a4cd40fc4c5e"
+  },
+  "rust/crates/pbx-db/src/entities/vars.rs": {
+    "mtime": 1793175460.5485575,
+    "ast_hash": "c2300779af9c2ca4fab23bd131050454",
+    "semantic_hash": "c2300779af9c2ca4fab23bd131050454"
+  },
+  "rust/crates/pbx-db/src/entities/voicemail_destinations.rs": {
+    "mtime": 1794828453.6994112,
+    "ast_hash": "4833d0592976f530ccf74d9f7701ebf3",
+    "semantic_hash": "4833d0592976f530ccf74d9f7701ebf3"
+  },
+  "rust/crates/pbx-db/src/entities/voicemail_greetings.rs": {
+    "mtime": 1795461192.243622,
+    "ast_hash": "7c4a2d375ecff375986ed501a47d2970",
+    "semantic_hash": "7c4a2d375ecff375986ed501a47d2970"
+  },
+  "rust/crates/pbx-db/src/entities/voicemail_messages.rs": {
+    "mtime": 1795461192.2427685,
+    "ast_hash": "312dce63a39795a1031741633a8872e2",
+    "semantic_hash": "312dce63a39795a1031741633a8872e2"
+  },
+  "rust/crates/pbx-db/src/entities/voicemail_options.rs": {
+    "mtime": 1795461192.2431967,
+    "ast_hash": "861a804f136defc32c74238d598712ab",
+    "semantic_hash": "861a804f136defc32c74238d598712ab"
+  },
+  "rust/crates/pbx-db/src/entities/voicemails.rs": {
+    "mtime": 1795461192.241339,
+    "ast_hash": "04b58e537508ab14e92547fe91a061c4",
+    "semantic_hash": "04b58e537508ab14e92547fe91a061c4"
+  },
+  "rust/crates/pbx-db/src/entities/webrtc_settings.rs": {
+    "mtime": 1793192252.9111125,
+    "ast_hash": "63d8af12738bb501899555d1e63c3d6c",
+    "semantic_hash": "63d8af12738bb501899555d1e63c3d6c"
+  },
+  "rust/crates/pbx-db/src/entities/xml_cdr_extensions.rs": {
+    "mtime": 1794828453.699634,
+    "ast_hash": "7f7bc9a8621f9f866425d7ea67a013b8",
+    "semantic_hash": "7f7bc9a8621f9f866425d7ea67a013b8"
+  },
+  "rust/crates/pbx-db/src/entities/xml_cdr_flow.rs": {
+    "mtime": 1794828453.699747,
+    "ast_hash": "5c6c1ea791904f4b45f67b83f88fe305",
+    "semantic_hash": "5c6c1ea791904f4b45f67b83f88fe305"
+  },
+  "rust/crates/pbx-db/src/entities/xml_cdr_json.rs": {
+    "mtime": 1794828453.699708,
+    "ast_hash": "97ee197a37908698a1292151cbb80811",
+    "semantic_hash": "97ee197a37908698a1292151cbb80811"
+  },
+  "rust/crates/pbx-db/src/entities/xml_cdr_logs.rs": {
+    "mtime": 1794828453.6997771,
+    "ast_hash": "05b4c5304ed6eb8c21caa1ee48d0a416",
+    "semantic_hash": "05b4c5304ed6eb8c21caa1ee48d0a416"
+  },
+  "rust/crates/pbx-db/src/entities/xml_cdr_transcripts.rs": {
+    "mtime": 1794828453.6998065,
+    "ast_hash": "66f5b894980fefa2675334c9f65dca24",
+    "semantic_hash": "66f5b894980fefa2675334c9f65dca24"
+  },
+  "rust/crates/pbx-db/src/extensions.rs": {
+    "mtime": 1795424712.240195,
+    "ast_hash": "8c74c94abb4a8afb4eead2b79db04f3c",
+    "semantic_hash": "8c74c94abb4a8afb4eead2b79db04f3c"
+  },
+  "rust/crates/pbx-db/src/gateways.rs": {
+    "mtime": 1793176284.0156028,
+    "ast_hash": "ae660a959f08912bd1c09bdac76dface",
+    "semantic_hash": "ae660a959f08912bd1c09bdac76dface"
+  },
+  "rust/crates/pbx-db/src/lib.rs": {
+    "mtime": 1795463803.3930204,
+    "ast_hash": "f5e4786021f4feeee14f8984a35a1314",
+    "semantic_hash": "f5e4786021f4feeee14f8984a35a1314"
+  },
+  "rust/crates/pbx-db/src/migration.rs": {
+    "mtime": 1795463915.8068492,
+    "ast_hash": "4813963f579c5bd32c7f23c6413ed509",
+    "semantic_hash": "4813963f579c5bd32c7f23c6413ed509"
+  },
+  "rust/crates/pbx-db/src/pagination.rs": {
+    "mtime": 1793175460.5165575,
+    "ast_hash": "f416881bd90e57fdd5a7d2c63e79f0fc",
+    "semantic_hash": "f416881bd90e57fdd5a7d2c63e79f0fc"
+  },
+  "rust/crates/pbx-db/src/seeds.rs": {
+    "mtime": 1795420466.5929809,
+    "ast_hash": "e67f96a4bbfef95b4eab4b31262e9b81",
+    "semantic_hash": "e67f96a4bbfef95b4eab4b31262e9b81"
+  },
+  "rust/crates/pbx-db/src/seeds_data.rs": {
+    "mtime": 1793175835.9220634,
+    "ast_hash": "8f53637d9b9de2a035dd21962a0c2ea1",
+    "semantic_hash": "8f53637d9b9de2a035dd21962a0c2ea1"
+  },
+  "rust/crates/pbx-db/src/seeds_data_telephony.rs": {
+    "mtime": 1793176301.7321374,
+    "ast_hash": "a3ab70d7d629ccac50d74e76cb694592",
+    "semantic_hash": "a3ab70d7d629ccac50d74e76cb694592"
+  },
+  "rust/crates/pbx-db/src/seeds_reference.rs": {
+    "mtime": 1794837971.5776353,
+    "ast_hash": "217bb2c638533ad3176b83027afcafbf",
+    "semantic_hash": "217bb2c638533ad3176b83027afcafbf"
+  },
+  "rust/crates/pbx-db/src/tenant.rs": {
+    "mtime": 1793179664.5466924,
+    "ast_hash": "56e620a5a02fee52b6b19a7073a90ec8",
+    "semantic_hash": "56e620a5a02fee52b6b19a7073a90ec8"
+  },
+  "rust/crates/pbx-db/tests/backfill_test.rs": {
+    "mtime": 1793193085.0956655,
+    "ast_hash": "7c9038644d5eb492c3705431a476aac2",
+    "semantic_hash": "7c9038644d5eb492c3705431a476aac2"
+  },
+  "rust/crates/pbx-db/tests/php_parity_test.rs": {
+    "mtime": 1795461766.4230053,
+    "ast_hash": "a660776df26edeadee84482696d5927a",
+    "semantic_hash": "a660776df26edeadee84482696d5927a"
+  },
+  "rust/crates/pbx-db/tests/postgres_test.rs": {
+    "mtime": 1793180306.0476189,
+    "ast_hash": "b3a9f4eab77f8e5f2bf3c31e22e89b34",
+    "semantic_hash": "b3a9f4eab77f8e5f2bf3c31e22e89b34"
+  },
+  "rust/crates/pbx-db/tests/settings_test.rs": {
+    "mtime": 1795420466.625981,
+    "ast_hash": "b642a375e7288168a43f14a392cdcca2",
+    "semantic_hash": "b642a375e7288168a43f14a392cdcca2"
+  },
+  "rust/crates/pbx-db/tests/telephony_test.rs": {
+    "mtime": 1795424946.0352197,
+    "ast_hash": "6dca1c68c7bb2a38008f306303b76c9f",
+    "semantic_hash": "6dca1c68c7bb2a38008f306303b76c9f"
+  },
+  "rust/crates/pbx-fs/src/cache.rs": {
+    "mtime": 1794920463.1530697,
+    "ast_hash": "9ff43a539318d400f4912b6562672f5b",
+    "semantic_hash": "9ff43a539318d400f4912b6562672f5b"
+  },
+  "rust/crates/pbx-fs/src/config.rs": {
+    "mtime": 1795458200.332725,
+    "ast_hash": "deee5ddd7987a61e0e99211ab52f12bb",
+    "semantic_hash": "deee5ddd7987a61e0e99211ab52f12bb"
+  },
+  "rust/crates/pbx-fs/src/esl.rs": {
+    "mtime": 1795420466.7029817,
+    "ast_hash": "eb3ac6e0f14c38dfa0f79c84fb1fe4e4",
+    "semantic_hash": "eb3ac6e0f14c38dfa0f79c84fb1fe4e4"
+  },
+  "rust/crates/pbx-fs/src/lib.rs": {
+    "mtime": 1794920280.4102404,
+    "ast_hash": "f4dbfeb1fd65fdb96aadb51869f20f98",
+    "semantic_hash": "f4dbfeb1fd65fdb96aadb51869f20f98"
+  },
+  "rust/crates/pbx-fs/src/sofia.rs": {
+    "mtime": 1794920342.8559582,
+    "ast_hash": "cda0f7706ffdec44d482e8db0548151f",
+    "semantic_hash": "cda0f7706ffdec44d482e8db0548151f"
+  },
+  "rust/crates/pbx-fs/src/xml.rs": {
+    "mtime": 1795420466.719982,
+    "ast_hash": "d07751ee6d6180636170f10b85c2a29e",
+    "semantic_hash": "d07751ee6d6180636170f10b85c2a29e"
+  },
+  "rust/crates/pbx-fs/tests/config_test.rs": {
+    "mtime": 1795420466.7309818,
+    "ast_hash": "63a6a303418d235d87020dbfdf870200",
+    "semantic_hash": "63a6a303418d235d87020dbfdf870200"
+  },
+  "rust/crates/pbx-fs/tests/esl_body_test.rs": {
+    "mtime": 1793208129.945553,
+    "ast_hash": "76ffc07752d2ef90dfc633ac39ea7509",
+    "semantic_hash": "76ffc07752d2ef90dfc633ac39ea7509"
+  },
+  "rust/crates/pbx-fs/tests/esl_live_test.rs": {
+    "mtime": 1794837131.8772821,
+    "ast_hash": "00533eb5f00a1976f96b96b2fd4ab310",
+    "semantic_hash": "00533eb5f00a1976f96b96b2fd4ab310"
+  },
+  "rust/crates/pbx-fs/tests/xml_test.rs": {
+    "mtime": 1795420466.7399821,
+    "ast_hash": "7d714a27fa187f2a8895f5beb2bc68e4",
+    "semantic_hash": "7d714a27fa187f2a8895f5beb2bc68e4"
+  },
+  "rust/matrix_doc.py": {
+    "mtime": 1795419027.8366423,
+    "ast_hash": "61b51468077aee0cdcce469d87c484e2",
+    "semantic_hash": "61b51468077aee0cdcce469d87c484e2"
+  },
+  "rust/matrix_rows.py": {
+    "mtime": 1795418722.9778967,
+    "ast_hash": "a3d1141d55e9e8adcf1f28a4e56c8115",
+    "semantic_hash": "a3d1141d55e9e8adcf1f28a4e56c8115"
+  },
+  "rust/port_matrix.py": {
+    "mtime": 1795418357.95467,
+    "ast_hash": "b899eeca7024da6faef6a8f00559ddb5",
+    "semantic_hash": "b899eeca7024da6faef6a8f00559ddb5"
+  },
+  "rust/tests/contract_parity.sh": {
+    "mtime": 1793174297.4124198,
+    "ast_hash": "4432d813ddd67083bb931cabb5d1cded",
+    "semantic_hash": "4432d813ddd67083bb931cabb5d1cded"
+  },
+  "rust/tests/e2e_call.sh": {
+    "mtime": 1793178473.9571478,
+    "ast_hash": "23496148b54c5838f000459e9550bfce",
+    "semantic_hash": "23496148b54c5838f000459e9550bfce"
+  },
+  "rust/tests/expected/auth.json": {
+    "mtime": 1793174301.1734462,
+    "ast_hash": "8bc2a4d43af7c9065ef3d5723a9219f3",
+    "semantic_hash": "8bc2a4d43af7c9065ef3d5723a9219f3"
+  },
+  "scripts/check_alembic_models.py": {
+    "mtime": 1790353957.8896997,
+    "ast_hash": "60facefed9edaf6824bc98388378f13e",
+    "semantic_hash": "60facefed9edaf6824bc98388378f13e"
+  },
+  "scripts/dev-freeswitch.sh": {
+    "mtime": 1794854858.8192506,
+    "ast_hash": "ae61c3a699f8ee1d9a37da4624299cfd",
+    "semantic_hash": "ae61c3a699f8ee1d9a37da4624299cfd"
+  },
+  "scripts/dev-stack.sh": {
+    "mtime": 1794854869.7284906,
+    "ast_hash": "e4fda72aff46b4ee42135ff6ae72749a",
+    "semantic_hash": "e4fda72aff46b4ee42135ff6ae72749a"
+  },
+  "scripts/fs-lan-ip.sh": {
+    "mtime": 1790366546.1863425,
+    "ast_hash": "d920dee8bf35524cb3033000337c940b",
+    "semantic_hash": "d920dee8bf35524cb3033000337c940b"
+  },
+  "scripts/php_parity_all.py": {
+    "mtime": 1794856160.698642,
+    "ast_hash": "a9171e601f5f3e132e19a1682694f4d7",
+    "semantic_hash": "a9171e601f5f3e132e19a1682694f4d7"
+  },
+  "scripts/php_parity_audit.py": {
+    "mtime": 1794870106.0627809,
+    "ast_hash": "655315675d487f800038b59c16ee0f40",
+    "semantic_hash": "655315675d487f800038b59c16ee0f40"
+  },
+  "scripts/verify-ohngea.sh": {
+    "mtime": 1787997826.355494,
+    "ast_hash": "d7ee0674877995d0d4c3a3758cea3778",
+    "semantic_hash": "d7ee0674877995d0d4c3a3758cea3778"
+  },
+  "static/registerSW.js": {
+    "mtime": 1787997826.3557537,
+    "ast_hash": "1872c500de691dce40960bb85481de07",
+    "semantic_hash": "1872c500de691dce40960bb85481de07"
+  },
+  "static/sw.js": {
+    "mtime": 1787997826.3557537,
+    "ast_hash": "d0fd991be7e86c90524f658a38adaeb7",
+    "semantic_hash": "d0fd991be7e86c90524f658a38adaeb7"
+  },
+  "static/workbox-9c191d2f.js": {
+    "mtime": 1787997826.3557537,
+    "ast_hash": "7a1aa01199d2aa7e9b6ea21e69efb658",
+    "semantic_hash": "7a1aa01199d2aa7e9b6ea21e69efb658"
+  },
+  "tests/__init__.py": {
+    "mtime": 1787997826.3568726,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "tests/conftest.py": {
+    "mtime": 1790270168.1138415,
+    "ast_hash": "cc92260b232fa93686839e2aea3332ac",
+    "semantic_hash": "cc92260b232fa93686839e2aea3332ac"
+  },
+  "tests/e2e/seed.py": {
+    "mtime": 1790365771.9043818,
+    "ast_hash": "b279d7147d710e2cd8477c679078bac4",
+    "semantic_hash": "b279d7147d710e2cd8477c679078bac4"
+  },
+  "tests/e2e/verify.py": {
+    "mtime": 1793201288.2103152,
+    "ast_hash": "2a67c80dc29966da535d888577132b08",
+    "semantic_hash": "2a67c80dc29966da535d888577132b08"
+  },
+  "tests/test_app_registry.py": {
+    "mtime": 1787997826.357098,
+    "ast_hash": "6de92923026eff154b9127bb03da01c3",
+    "semantic_hash": "6de92923026eff154b9127bb03da01c3"
+  },
+  "tests/test_batch_c.py": {
+    "mtime": 1790188107.14262,
+    "ast_hash": "365376af386b64658d7bfe7563f9b099",
+    "semantic_hash": "365376af386b64658d7bfe7563f9b099"
+  },
+  "tests/test_batch_m.py": {
+    "mtime": 1790188107.14262,
+    "ast_hash": "8faaeb63906ab9f90a4e92a5455bbf3e",
+    "semantic_hash": "8faaeb63906ab9f90a4e92a5455bbf3e"
+  },
+  "tests/test_broadcast_notif.py": {
+    "mtime": 1790358971.007263,
+    "ast_hash": "e043d3c1c4dcb525647a447bcb7a3ff6",
+    "semantic_hash": "e043d3c1c4dcb525647a447bcb7a3ff6"
+  },
+  "tests/test_call_forward.py": {
+    "mtime": 1787997826.357098,
+    "ast_hash": "569beb5e17ac10d1000f5f821a6cbb37",
+    "semantic_hash": "569beb5e17ac10d1000f5f821a6cbb37"
+  },
+  "tests/test_cdr_parse.py": {
+    "mtime": 1787997826.357098,
+    "ast_hash": "e6be626b9395a5afa1e1a9d42ebd3855",
+    "semantic_hash": "e6be626b9395a5afa1e1a9d42ebd3855"
+  },
+  "tests/test_cdr_tz_regression.py": {
+    "mtime": 1793200928.8675838,
+    "ast_hash": "b26626e9386564c8175057ba193e2293",
+    "semantic_hash": "b26626e9386564c8175057ba193e2293"
+  },
+  "tests/test_config.py": {
+    "mtime": 1787997826.357098,
+    "ast_hash": "b78f0a4db127884d978717ab3607188d",
+    "semantic_hash": "b78f0a4db127884d978717ab3607188d"
+  },
+  "tests/test_contacts.py": {
+    "mtime": 1787997826.357098,
+    "ast_hash": "654c1b9aa2efe5e00a3b28815327c79d",
+    "semantic_hash": "654c1b9aa2efe5e00a3b28815327c79d"
+  },
+  "tests/test_device_lines.py": {
+    "mtime": 1790188107.14262,
+    "ast_hash": "e44ff8b2410dcd64b50ff56c004ceaef",
+    "semantic_hash": "e44ff8b2410dcd64b50ff56c004ceaef"
+  },
+  "tests/test_domain_apps.py": {
+    "mtime": 1787997826.357098,
+    "ast_hash": "dfa18a07991ab6a1609e728523e71093",
+    "semantic_hash": "dfa18a07991ab6a1609e728523e71093"
+  },
+  "tests/test_domain_seeding.py": {
+    "mtime": 1787997826.357098,
+    "ast_hash": "8705e6084cac1157dbbe69e4d76a5283",
+    "semantic_hash": "8705e6084cac1157dbbe69e4d76a5283"
+  },
+  "tests/test_e2e_overlay.py": {
+    "mtime": 1790366600.7487626,
+    "ast_hash": "c1cab921297129321e5668051126775d",
+    "semantic_hash": "c1cab921297129321e5668051126775d"
+  },
+  "tests/test_extension_full_parity.py": {
+    "mtime": 1787997826.357098,
+    "ast_hash": "520cf43f94c880fc6e625ac60b051a12",
+    "semantic_hash": "520cf43f94c880fc6e625ac60b051a12"
+  },
+  "tests/test_extensions_validation.py": {
+    "mtime": 1787997826.357098,
+    "ast_hash": "9e19f2883335d9c07905848b346cc0ba",
+    "semantic_hash": "9e19f2883335d9c07905848b346cc0ba"
+  },
+  "tests/test_gap6_workers_recordings.py": {
+    "mtime": 1787997826.357494,
+    "ast_hash": "a29a7e4986be65c6e56132f927046f67",
+    "semantic_hash": "a29a7e4986be65c6e56132f927046f67"
+  },
+  "tests/test_gateways_sofia_provision.py": {
+    "mtime": 1787997826.357494,
+    "ast_hash": "5a75b562d488eb9ff6d09e6e4cbe937d",
+    "semantic_hash": "5a75b562d488eb9ff6d09e6e4cbe937d"
+  },
+  "tests/test_groups_users_parity.py": {
+    "mtime": 1787997826.357494,
+    "ast_hash": "db0620d4726185b76c953d5060e141d2",
+    "semantic_hash": "db0620d4726185b76c953d5060e141d2"
+  },
+  "tests/test_health.py": {
+    "mtime": 1787997826.357494,
+    "ast_hash": "1889e5b535c409a6e85716fe8e5c0112",
+    "semantic_hash": "1889e5b535c409a6e85716fe8e5c0112"
+  },
+  "tests/test_live_actions.py": {
+    "mtime": 1790358155.3479671,
+    "ast_hash": "e4295612bdf95b4175dfb8617cc4c2ad",
+    "semantic_hash": "e4295612bdf95b4175dfb8617cc4c2ad"
+  },
+  "tests/test_media_upload_playback.py": {
+    "mtime": 1790358606.304448,
+    "ast_hash": "8b9b3a192d60985dff6f4e9baf2957d1",
+    "semantic_hash": "8b9b3a192d60985dff6f4e9baf2957d1"
+  },
+  "tests/test_mock_esl_state.py": {
+    "mtime": 1790358148.6539154,
+    "ast_hash": "123b65419cdea904133dc9ce8f36af07",
+    "semantic_hash": "123b65419cdea904133dc9ce8f36af07"
+  },
+  "tests/test_new_parity.py": {
+    "mtime": 1787997826.357494,
+    "ast_hash": "ee159461d046306ed8431638a13a1ccb",
+    "semantic_hash": "ee159461d046306ed8431638a13a1ccb"
+  },
+  "tests/test_ohngea_branding.py": {
+    "mtime": 1787997826.357494,
+    "ast_hash": "156dc06ee4bc6c24d94baac3ada7d6fb",
+    "semantic_hash": "156dc06ee4bc6c24d94baac3ada7d6fb"
+  },
+  "tests/test_outstanding_parity.py": {
+    "mtime": 1787997826.357494,
+    "ast_hash": "9c24331d852d56e22b1d26f755af65f8",
+    "semantic_hash": "9c24331d852d56e22b1d26f755af65f8"
+  },
+  "tests/test_pagination.py": {
+    "mtime": 1787997826.357494,
+    "ast_hash": "c52ddcd1381b392264320a84e0dbb6d6",
+    "semantic_hash": "c52ddcd1381b392264320a84e0dbb6d6"
+  },
+  "tests/test_plugins.py": {
+    "mtime": 1787997826.357494,
+    "ast_hash": "09f4b249fb23ded380f53e0576d79063",
+    "semantic_hash": "09f4b249fb23ded380f53e0576d79063"
+  },
+  "tests/test_provision_render.py": {
+    "mtime": 1787997826.357494,
+    "ast_hash": "475fc9dcb5951258059cef947d206b80",
+    "semantic_hash": "475fc9dcb5951258059cef947d206b80"
+  },
+  "tests/test_rls_mock.py": {
+    "mtime": 1787997826.357494,
+    "ast_hash": "35224aa4f1b0b8c6b2d1108da5da3e7a",
+    "semantic_hash": "35224aa4f1b0b8c6b2d1108da5da3e7a"
+  },
+  "tests/test_rls_new.py": {
+    "mtime": 1787997826.357494,
+    "ast_hash": "adc89d3459e427bde3db3c84488c3552",
+    "semantic_hash": "adc89d3459e427bde3db3c84488c3552"
+  },
+  "tests/test_seed_parity.py": {
+    "mtime": 1790759927.790604,
+    "ast_hash": "1427e6e4bd5bc74a2bc79b0298ec5e25",
+    "semantic_hash": "1427e6e4bd5bc74a2bc79b0298ec5e25"
+  },
+  "tests/test_settings_runtime.py": {
+    "mtime": 1790358279.3669243,
+    "ast_hash": "4bfdf82e9a6f995667a9f8ef601dce0f",
+    "semantic_hash": "4bfdf82e9a6f995667a9f8ef601dce0f"
+  },
+  "tests/test_sip_endpoint_modes.py": {
+    "mtime": 1790357874.6698005,
+    "ast_hash": "07c1b3a970d23da5d266bc241f7e1d8c",
+    "semantic_hash": "07c1b3a970d23da5d266bc241f7e1d8c"
+  },
+  "tests/test_system.py": {
+    "mtime": 1787997826.357494,
+    "ast_hash": "a84fd73c4af7027df19a4a1c8fd95867",
+    "semantic_hash": "a84fd73c4af7027df19a4a1c8fd95867"
+  },
+  "tests/test_tz_aware_defaults.py": {
+    "mtime": 1790363632.0187488,
+    "ast_hash": "0322ffa9ab409e6da95e3a3fb6b7cd9a",
+    "semantic_hash": "0322ffa9ab409e6da95e3a3fb6b7cd9a"
+  },
+  "tests/test_users_parity.py": {
+    "mtime": 1790270211.6851792,
+    "ast_hash": "42087da5f3ad83f54a9c0263d9da2c85",
+    "semantic_hash": "42087da5f3ad83f54a9c0263d9da2c85"
+  },
+  "tests/test_validation.py": {
+    "mtime": 1787997826.357494,
+    "ast_hash": "7a2b9e740a101f6b593df8b10f174599",
+    "semantic_hash": "7a2b9e740a101f6b593df8b10f174599"
+  },
+  "tests/test_webrtc_credentials.py": {
+    "mtime": 1790270075.6637952,
+    "ast_hash": "9c586d90f35642a812e26cb52a4ea216",
+    "semantic_hash": "9c586d90f35642a812e26cb52a4ea216"
+  },
+  "tests/test_webrtc_settings.py": {
+    "mtime": 1790270059.9604628,
+    "ast_hash": "7de68265aa35ef9df5ab5429492a1770",
+    "semantic_hash": "7de68265aa35ef9df5ab5429492a1770"
+  },
+  "README.md": {
+    "mtime": 1790359100.16026,
+    "ast_hash": "4691f5b86b194dd93e68ae68c40bd651",
+    "semantic_hash": "4691f5b86b194dd93e68ae68c40bd651"
+  },
+  "docker-compose.e2e.yml": {
+    "mtime": 1790357959.4764552,
+    "ast_hash": "ea4ef1ace73c5034c600a033611dc43d",
+    "semantic_hash": "ea4ef1ace73c5034c600a033611dc43d"
+  },
+  "docker-compose.fs-real.yml": {
+    "mtime": 1794839464.3410964,
+    "ast_hash": "bc83ab79312179687fbf9c02faab32bb",
+    "semantic_hash": "bc83ab79312179687fbf9c02faab32bb"
+  },
+  "docker-compose.yml": {
+    "mtime": 1790360041.138523,
+    "ast_hash": "e5734da3413b09802887c78d20ec1404",
+    "semantic_hash": "e5734da3413b09802887c78d20ec1404"
+  },
+  "docs/PORT_PARITY.md": {
+    "mtime": 1795419036.984449,
+    "ast_hash": "62087ce1b1d99a14f5f3ce57586eb34a",
+    "semantic_hash": "62087ce1b1d99a14f5f3ce57586eb34a"
+  },
+  "docs/api.md": {
+    "mtime": 1790358427.8900707,
+    "ast_hash": "6019c30f4163653e482fa65c095ee92f",
+    "semantic_hash": "6019c30f4163653e482fa65c095ee92f"
+  },
+  "docs/e2e-testing.md": {
+    "mtime": 1790358289.7580044,
+    "ast_hash": "eea612ba6babdd8496a24216c4a57b02",
+    "semantic_hash": "eea612ba6babdd8496a24216c4a57b02"
+  },
+  "docs/field-parity-rust.md": {
+    "mtime": 1794826875.974252,
+    "ast_hash": "e60ae560dc8769b0c4714a5d684289d0",
+    "semantic_hash": "e60ae560dc8769b0c4714a5d684289d0"
+  },
+  "docs/field-parity.md": {
+    "mtime": 1787997826.340981,
+    "ast_hash": "f47856f23fddadf43ecec0054ffbae74",
+    "semantic_hash": "f47856f23fddadf43ecec0054ffbae74"
+  },
+  "docs/freebsd.md": {
+    "mtime": 1790188107.138957,
+    "ast_hash": "08a1e2f0be48db1bf4fad70b5c12f174",
+    "semantic_hash": "08a1e2f0be48db1bf4fad70b5c12f174"
+  },
+  "docs/ops.md": {
+    "mtime": 1790359100.16026,
+    "ast_hash": "ebd03abd5559084e767ea8b9512f6954",
+    "semantic_hash": "ebd03abd5559084e767ea8b9512f6954"
+  },
+  "docs/php-parity-audit.md": {
+    "mtime": 1794840773.8338242,
+    "ast_hash": "07f37e85ed0716caf2f1d85c6ef40246",
+    "semantic_hash": "07f37e85ed0716caf2f1d85c6ef40246"
+  },
+  "docs/php-parity-audit.txt": {
+    "mtime": 1794870492.327908,
+    "ast_hash": "a4b2bf60bddb314d836290b71ee1fab9",
+    "semantic_hash": "a4b2bf60bddb314d836290b71ee1fab9"
+  },
+  "docs/php-parity-diff.txt": {
+    "mtime": 1794833905.4172888,
+    "ast_hash": "8e477d8c3a2c2592d5aac373cf271853",
+    "semantic_hash": "8e477d8c3a2c2592d5aac373cf271853"
+  },
+  "docs/php-schema-fields.txt": {
+    "mtime": 1794827739.1221867,
+    "ast_hash": "ad35c170ae6ea2558696a81d57537f00",
+    "semantic_hash": "ad35c170ae6ea2558696a81d57537f00"
+  },
+  "docs/plugins.md": {
+    "mtime": 1787997826.340981,
+    "ast_hash": "98b73f4346c9415e71aa7b35f4c60c21",
+    "semantic_hash": "98b73f4346c9415e71aa7b35f4c60c21"
+  },
+  "docs/superpowers/plans/2026-08-21-ohngea-modern-clone.md": {
+    "mtime": 1787997826.341494,
+    "ast_hash": "912b85ef4327887c05b3aeac9931fab5",
+    "semantic_hash": "912b85ef4327887c05b3aeac9931fab5"
+  },
+  "docs/superpowers/plans/2026-08-22-apps-unified-toggle.md": {
+    "mtime": 1787997826.341494,
+    "ast_hash": "3a111baef7240376c707186b4ac2133e",
+    "semantic_hash": "3a111baef7240376c707186b4ac2133e"
+  },
+  "docs/superpowers/plans/2026-08-22-extension-full-parity.md": {
+    "mtime": 1787997826.341494,
+    "ast_hash": "5d9c688df4b8d658cb630189260f8911",
+    "semantic_hash": "5d9c688df4b8d658cb630189260f8911"
+  },
+  "docs/superpowers/plans/2026-08-22-ui-overhaul.md": {
+    "mtime": 1787997826.341494,
+    "ast_hash": "583d2cc488a1b28288cc0e6c1563bd2c",
+    "semantic_hash": "583d2cc488a1b28288cc0e6c1563bd2c"
+  },
+  "docs/superpowers/plans/2026-08-22-webphone.md": {
+    "mtime": 1787997826.341494,
+    "ast_hash": "484dddc1b0b953cce96c4bfe61c9d1ff",
+    "semantic_hash": "484dddc1b0b953cce96c4bfe61c9d1ff"
+  },
+  "docs/superpowers/plans/2026-08-23-ohngea-rebrand.md": {
+    "mtime": 1787997826.342494,
+    "ast_hash": "1aeb7bf9c312e1792140eb4728c03901",
+    "semantic_hash": "1aeb7bf9c312e1792140eb4728c03901"
+  },
+  "docs/superpowers/plans/2026-08-23-webphone-ux-phase1.md": {
+    "mtime": 1787997826.342494,
+    "ast_hash": "936f96776a2d555cf8730b16b1ce64e4",
+    "semantic_hash": "936f96776a2d555cf8730b16b1ce64e4"
+  },
+  "docs/superpowers/plans/2026-09-23-finish-parity.md": {
+    "mtime": 1790188107.138957,
+    "ast_hash": "54bfcdc3d90d766521743364181d0954",
+    "semantic_hash": "54bfcdc3d90d766521743364181d0954"
+  },
+  "docs/superpowers/plans/2026-09-25-e2e-harness.md": {
+    "mtime": 1790356972.8308394,
+    "ast_hash": "69ef22b94f528ad32c1aed0122fcd71b",
+    "semantic_hash": "69ef22b94f528ad32c1aed0122fcd71b"
+  },
+  "docs/superpowers/plans/2026-09-30-seed-parity.md": {
+    "mtime": 1790759227.5890303,
+    "ast_hash": "146bc20e7c3b8f1bc99663645ac3a70d",
+    "semantic_hash": "146bc20e7c3b8f1bc99663645ac3a70d"
+  },
+  "docs/superpowers/plans/2026-10-28-rust-port/00-spec-rust-port.md": {
+    "mtime": 1793172971.7940876,
+    "ast_hash": "90c1eb4545d5d8e8e3dad9eaf8885940",
+    "semantic_hash": "90c1eb4545d5d8e8e3dad9eaf8885940"
+  },
+  "docs/superpowers/plans/2026-10-28-rust-port/01-master-plan.md": {
+    "mtime": 1793173024.470457,
+    "ast_hash": "2c889d33da4849c472133ed66ce8d478",
+    "semantic_hash": "2c889d33da4849c472133ed66ce8d478"
+  },
+  "docs/superpowers/plans/2026-11-16-rust-full-port.md": {
+    "mtime": 1794826101.3842552,
+    "ast_hash": "3691950611f22360ff30f187ea2ea7ed",
+    "semantic_hash": "3691950611f22360ff30f187ea2ea7ed"
+  },
+  "docs/superpowers/plans/2026-11-17-full-fs-parity-fix.md": {
+    "mtime": 1794903988.2478406,
+    "ast_hash": "06e71745430634c8b339ca551afb6599",
+    "semantic_hash": "06e71745430634c8b339ca551afb6599"
+  },
+  "docs/superpowers/plans/2026-11-23-fix-all-five.md": {
+    "mtime": 1795455160.0833123,
+    "ast_hash": "64f9c63e52afcd060b7e52d729d8ad40",
+    "semantic_hash": "64f9c63e52afcd060b7e52d729d8ad40"
+  },
+  "docs/superpowers/plans/2026-11-23-fs-refresh-live-fix.md": {
+    "mtime": 1795457110.1376908,
+    "ast_hash": "5cb5a8adf782cafefd7c4afa27a0bf29",
+    "semantic_hash": "5cb5a8adf782cafefd7c4afa27a0bf29"
+  },
+  "docs/superpowers/session-compact-2026-09-25.md": {
+    "mtime": 1790359916.8265636,
+    "ast_hash": "29d0cf6f3197d66ab8940afa23addad0",
+    "semantic_hash": "29d0cf6f3197d66ab8940afa23addad0"
+  },
+  "docs/superpowers/specs/2026-08-21-ohngea-modern-clone-design.md": {
+    "mtime": 1787997826.342494,
+    "ast_hash": "642cf9c6eecb61e8637fadc3e0f9bf58",
+    "semantic_hash": "642cf9c6eecb61e8637fadc3e0f9bf58"
+  },
+  "docs/superpowers/specs/2026-08-22-webphone-design.md": {
+    "mtime": 1787997826.3431485,
+    "ast_hash": "5ef683789035dcc7309cfc3019d5a732",
+    "semantic_hash": "5ef683789035dcc7309cfc3019d5a732"
+  },
+  "docs/superpowers/specs/2026-08-23-ohngea-rebrand-design.md": {
+    "mtime": 1787997826.3431485,
+    "ast_hash": "43eeed630f8c675217ccf0cc40854a52",
+    "semantic_hash": "43eeed630f8c675217ccf0cc40854a52"
+  },
+  "docs/superpowers/specs/2026-08-23-webphone-ux-phase1-design.md": {
+    "mtime": 1787997826.3431485,
+    "ast_hash": "838a50d521680b852e4d8fedd6d213a0",
+    "semantic_hash": "838a50d521680b852e4d8fedd6d213a0"
+  },
+  "docs/superpowers/specs/2026-09-25-e2e-harness-design.md": {
+    "mtime": 1790356753.5501468,
+    "ast_hash": "fad2bda2bdf4017e4248fea318631187",
+    "semantic_hash": "fad2bda2bdf4017e4248fea318631187"
+  },
+  "docs/superpowers/specs/2026-11-17-real-freeswitch-no-mock-design.md": {
+    "mtime": 1794918451.9154994,
+    "ast_hash": "3883bab12a878e8a551973942365ec35",
+    "semantic_hash": "3883bab12a878e8a551973942365ec35"
+  },
+  "docs/superpowers/task-5-report.md": {
+    "mtime": 1794924088.735454,
+    "ast_hash": "f3cb3e84b9e881579578dcdc5e27df85",
+    "semantic_hash": "f3cb3e84b9e881579578dcdc5e27df85"
+  },
+  "docs/superpowers/task-6-report.md": {
+    "mtime": 1794925186.900348,
+    "ast_hash": "347e63a96483a40bd6d8e1124ecfd706",
+    "semantic_hash": "347e63a96483a40bd6d8e1124ecfd706"
+  },
+  "docs/superpowers/task-7-report.md": {
+    "mtime": 1794925827.1493356,
+    "ast_hash": "5ae0b0b7ec7a946a4da466010949593f",
+    "semantic_hash": "5ae0b0b7ec7a946a4da466010949593f"
+  },
+  "freebsd/README.md": {
+    "mtime": 1790188107.138957,
+    "ast_hash": "92f994342303fcb43988afc8e34c2473",
+    "semantic_hash": "92f994342303fcb43988afc8e34c2473"
+  },
+  "freebsd/VALIDATION_REPORT.md": {
+    "mtime": 1790188107.139957,
+    "ast_hash": "d191e779bce2223f4033ee2ce5609893",
+    "semantic_hash": "d191e779bce2223f4033ee2ce5609893"
+  },
+  "frontend/index.html": {
+    "mtime": 1787997826.3431485,
+    "ast_hash": "824e5ee4e34299196f1facd177db50dc",
+    "semantic_hash": "824e5ee4e34299196f1facd177db50dc"
+  },
+  "rust/README.md": {
+    "mtime": 1795420453.766555,
+    "ast_hash": "1935dffb59d512336fb1833596c23b18",
+    "semantic_hash": "1935dffb59d512336fb1833596c23b18"
+  },
+  "rust/docker-compose.fs.yml": {
+    "mtime": 1795377945.13728,
+    "ast_hash": "d483adedbbdbc32bd8c89ecd79596ffb",
+    "semantic_hash": "d483adedbbdbc32bd8c89ecd79596ffb"
+  },
+  "rust/docker-compose.rust.yml": {
+    "mtime": 1793252214.8577266,
+    "ast_hash": "2a3f9ba1816f6fdf82d70cd5e0f1c856",
+    "semantic_hash": "2a3f9ba1816f6fdf82d70cd5e0f1c856"
+  },
+  "static/index.html": {
+    "mtime": 1787997826.355494,
+    "ast_hash": "5fd6996857919d2a8889c705df81846a",
+    "semantic_hash": "5fd6996857919d2a8889c705df81846a"
+  },
+  "frontend/public/favicon.svg": {
+    "mtime": 1787997826.344494,
+    "ast_hash": "81d82a70e6cc7bbc94cad1db2ff4c5ad",
+    "semantic_hash": "81d82a70e6cc7bbc94cad1db2ff4c5ad"
+  },
+  "frontend/public/icon-192.png": {
+    "mtime": 1787997826.3452272,
+    "ast_hash": "9bd6bc224c2c90c3e26979e3ec383056",
+    "semantic_hash": "9bd6bc224c2c90c3e26979e3ec383056"
+  },
+  "frontend/public/icon-512.png": {
+    "mtime": 1787997826.3452272,
+    "ast_hash": "e9e39b249907450504dc245fc1a9af09",
+    "semantic_hash": "e9e39b249907450504dc245fc1a9af09"
+  },
+  "frontend/public/logo.svg": {
+    "mtime": 1787997826.3452272,
+    "ast_hash": "951c20a252ebec611de772edb70ee52c",
+    "semantic_hash": "951c20a252ebec611de772edb70ee52c"
+  },
+  "frontend/src/assets/ohngea-logo.svg": {
+    "mtime": 1787997826.345494,
+    "ast_hash": "951c20a252ebec611de772edb70ee52c",
+    "semantic_hash": "951c20a252ebec611de772edb70ee52c"
+  }
+}

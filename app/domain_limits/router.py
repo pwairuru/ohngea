@@ -26,13 +26,21 @@ async def domain_limits(session: AsyncSession = Depends(get_session), user: User
         for s in settings_rows:
             if getattr(s,"category",None)=="limit" or "limit" in getattr(s,"subcategory","").lower():
                 limits[s.subcategory]=s.value
-    except: pass
+    except Exception as e:
+        import logging
+        logging.getLogger("app.domain_limits").warning("limits lookup failed: %s", e, exc_info=True)
     def limit_for(key, default=1000):
-        return int(limits.get(key, default)) if limits.get(key) else default
+        try:
+            return int(limits.get(key, default)) if limits.get(key) else default
+        except (ValueError, TypeError):
+            return default
     async def cnt(model):
         try:
             return (await session.execute(select(func.count()).select_from(model).where(model.domain_id==domain_id))).scalar_one()
-        except: return 0
+        except Exception as e:
+            import logging
+            logging.getLogger("app.domain_limits").warning("count failed for %s: %s", getattr(model, "__tablename__", model), e)
+            return 0
     ext_cnt=await cnt(Extension)
     dial_cnt=await cnt(Dialplan)
     gw_cnt=await cnt(Gateway)

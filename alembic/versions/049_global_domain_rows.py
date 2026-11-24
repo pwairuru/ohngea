@@ -42,7 +42,7 @@ def _exec(sql: str):
 
 def upgrade() -> None:
     for tbl in TABLES:
-        _exec(f"ALTER TABLE {tbl} ALTER COLUMN domain_id DROP NOT NULL;")
+        _exec(f"ALTER TABLE IF EXISTS {tbl} ALTER COLUMN domain_id DROP NOT NULL;")
         _exec(f"DROP POLICY IF EXISTS tenant_{tbl} ON {tbl};")
         _exec(
             f"""
@@ -56,7 +56,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     for tbl in TABLES:
         _exec(f"DELETE FROM {tbl} WHERE domain_id IS NULL;")
-        _exec(f"ALTER TABLE {tbl} ALTER COLUMN domain_id SET NOT NULL;")
+        _exec(f"ALTER TABLE IF EXISTS {tbl} ALTER COLUMN domain_id SET NOT NULL;")
         _exec(f"DROP POLICY IF EXISTS tenant_{tbl} ON {tbl};")
         _exec(
             f"""

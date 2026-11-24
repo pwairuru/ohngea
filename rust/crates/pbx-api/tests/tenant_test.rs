@@ -57,8 +57,7 @@ async fn req(
     let bytes = axum::body::to_bytes(res.into_body(), 1024 * 128)
         .await
         .unwrap();
-    let json: serde_json::Value =
-        serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
     (status, json)
 }
 
@@ -144,25 +143,21 @@ async fn valid_token_returns_envelope() {
 #[tokio::test]
 async fn task2_read_path_does_not_autocreate_domain() {
     let probe = uniq("probe");
-    let token = mint_token(
-        &uuid::Uuid::now_v7().to_string(),
-        &probe,
-        &["user_view"],
-    );
+    let token = mint_token(&uuid::Uuid::now_v7().to_string(), &probe, &["user_view"]);
     // Any tenant-scoped read (users list calls tenant_domain) must succeed
     // without a domain row.
-    let (s, _) = req(
-        "GET",
-        "/api/v1/users",
-        Some(&token),
-        serde_json::json!({}),
-    )
-    .await;
+    let (s, _) = req("GET", "/api/v1/users", Some(&token), serde_json::json!({})).await;
     assert_eq!(s, StatusCode::OK);
     // And no domains row may have been auto-inserted for the probe tenant:
     // a superadmin list must not contain it.
     let admin = login_token().await;
-    let (s, v) = req("GET", "/api/v1/domains", Some(&admin), serde_json::json!({})).await;
+    let (s, v) = req(
+        "GET",
+        "/api/v1/domains",
+        Some(&admin),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "superadmin list: {v}");
     assert!(
         !domain_names(&v).contains(&probe),
@@ -219,9 +214,18 @@ async fn task2_bootstrap_scoping_and_delete() {
     .await;
     assert_eq!(s, StatusCode::OK, "seeded admin login: {v}");
     let boss_token = v["access_token"].as_str().unwrap().to_owned();
-    let (s, v) = req("GET", "/api/v1/auth/me", Some(&boss_token), serde_json::json!({})).await;
+    let (s, v) = req(
+        "GET",
+        "/api/v1/auth/me",
+        Some(&boss_token),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "me: {v}");
-    assert_eq!(v.get("username").and_then(|u| u.as_str()), Some(boss.as_str()));
+    assert_eq!(
+        v.get("username").and_then(|u| u.as_str()),
+        Some(boss.as_str())
+    );
 
     // 3. isolation: second tenant via POST /domains; domain_view sees own only.
     let domain_b = format!("task2b-{suffix}");
@@ -234,10 +238,24 @@ async fn task2_bootstrap_scoping_and_delete() {
     .await;
     assert_eq!(s, StatusCode::CREATED, "create domain B: {v}");
     let domain_b_id = v["domain_id"].as_str().unwrap().to_owned();
-    let token_b = mint_token(&uuid::Uuid::now_v7().to_string(), &domain_b_id, &["domain_view"]);
-    let (s, v) = req("GET", "/api/v1/domains", Some(&token_b), serde_json::json!({})).await;
+    let token_b = mint_token(
+        &uuid::Uuid::now_v7().to_string(),
+        &domain_b_id,
+        &["domain_view"],
+    );
+    let (s, v) = req(
+        "GET",
+        "/api/v1/domains",
+        Some(&token_b),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "B list: {v}");
-    assert_eq!(domain_names(&v), vec![domain_b.clone()], "B must see only own domain: {v}");
+    assert_eq!(
+        domain_names(&v),
+        vec![domain_b.clone()],
+        "B must see only own domain: {v}"
+    );
     // cross-tenant get is hidden.
     let (s, _) = req(
         "GET",
@@ -253,10 +271,19 @@ async fn task2_bootstrap_scoping_and_delete() {
         &domain_b_id,
         &["domain_view", "domain_all"],
     );
-    let (s, v) = req("GET", "/api/v1/domains", Some(&token_all), serde_json::json!({})).await;
+    let (s, v) = req(
+        "GET",
+        "/api/v1/domains",
+        Some(&token_all),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "domain_all list: {v}");
     let names = domain_names(&v);
-    assert!(names.contains(&domain_a) && names.contains(&domain_b), "domain_all sees all: {v}");
+    assert!(
+        names.contains(&domain_a) && names.contains(&domain_b),
+        "domain_all sees all: {v}"
+    );
 
     // 4. delete with live tenant rows → 409 with blockers (never silent orphan).
     let (s, v) = req(

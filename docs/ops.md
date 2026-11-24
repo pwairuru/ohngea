@@ -5,9 +5,10 @@
 docker build -t ohngea-pbx:test .  # node:20 Vite 819kB -> /app/static + python:3.14-slim uvicorn
 docker compose up -d db valkey  # postgres:18-alpine 5434:5432 valkey:8-alpine 6379 VALKEY_URL+REDIS_URL compat healthchecks
 DATABASE_URL=postgresql+asyncpg://ohngea:ohngea@localhost:5434/ohngea uv run alembic upgrade head  # 018 head HASH 32 cdr/recordings + RLS FORCE + 40 views
-docker compose up -d api worker  # api 8000 health host 5434 mapped due to slow internet
-curl http://localhost:8000/health  # 200 {"status":"ok"}
-curl http://localhost:8000/api/v1  # _links 42 incl xml_cdr cdr logs domain_limits sip_status
+docker compose up -d --build  # api host 8010->container 8000 + frontend (nginx) host 8060->80 (ports from root .env)
+curl http://localhost:8060/health  # 200 {"status":"ok"} via frontend proxy
+curl http://localhost:8060/api/v1  # _links 42 incl xml_cdr cdr logs domain_limits sip_status
+curl http://localhost:8010/health  # direct to api container, same 200
 npm --prefix frontend run build # tsc && vite 819kB 13 precache 852KiB ; docker cp frontend/dist/. ohngea-api-1:/app/static/
 ```
 

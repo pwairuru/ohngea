@@ -22,23 +22,25 @@ export function Domains() {
   const [editing, setEditing] = React.useState<any | null>(null);
   const [name, setName] = React.useState("tenant-" + Math.floor(Math.random() * 1000) + ".example.com");
   const [enabled, setEnabled] = React.useState(true);
+  const [description, setDescription] = React.useState("");
 
   const columns: Column<any>[] = [
     { key: "domain_name", header: "Domain", className: "font-mono" },
+    { key: "description", header: "Description" },
     { key: "enabled", header: "Enabled", cell: (r) => <StatusBadge tone={r.enabled ? "ok" : "off"}>{r.enabled ? "active" : "disabled"}</StatusBadge> },
     { key: "created_at", header: "Created", className: "num", cell: (r) => r.created_at ? new Date(r.created_at).toLocaleDateString() : "-" },
   ];
 
-  const startCreate = () => { setEditing(null); setName("tenant-" + Math.floor(Math.random() * 1000) + ".example.com"); setEnabled(true); setOpen(true); };
-  const startEdit = (d: any) => { setEditing(d); setName(d.domain_name || ""); setEnabled(!!d.enabled); setOpen(true); };
+  const startCreate = () => { setEditing(null); setName("tenant-" + Math.floor(Math.random() * 1000) + ".example.com"); setEnabled(true); setDescription(""); setOpen(true); };
+  const startEdit = (d: any) => { setEditing(d); setName(d.domain_name || ""); setEnabled(!!d.enabled); setDescription(d.description ?? d.domain_description ?? ""); setOpen(true); };
 
   const saveFn = async () => {
     try {
       if (editing) {
-        await apiFetch(`/domains/${editing.domain_id}`, { method: "PATCH", body: JSON.stringify({ domain_name: name, enabled }) });
+        await apiFetch(`/domains/${editing.domain_id}`, { method: "PATCH", body: JSON.stringify({ domain_name: name, enabled, description }) });
         toast(`Domain ${name} updated`, { variant: "success" });
       } else {
-        await apiFetch("/domains", { method: "POST", body: JSON.stringify({ domain_name: name, enabled }) });
+        await apiFetch("/domains", { method: "POST", body: JSON.stringify({ domain_name: name, enabled, description }) });
         toast(`Domain ${name} created`, { variant: "success" });
       }
       setOpen(false); setEditing(null); reload();
@@ -83,6 +85,7 @@ export function Domains() {
       />
       <FormDialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }} title={editing ? "Edit Tenant" : "Add Tenant (Subscription)"} onSubmit={save} pending={saving} submitLabel={editing ? "Save" : "Create"}>
         <div><Label>Domain *</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="tenant.example.com" /></div>
+        <div><Label>Description</Label><Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" /></div>
         <div className="flex items-center gap-2"><input type="checkbox" id="domain-enabled" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="h-4 w-4" /><Label htmlFor="domain-enabled" className="cursor-pointer">{enabled ? "Enabled" : "Disabled"}</Label></div>
         <div className="text-xs text-muted-foreground">Will seed dialplans + superadmin, attach hash partition.</div>
       </FormDialog>

@@ -28,7 +28,7 @@ export function Dialplans() {
   const reload = () => setReloadKey((k) => k + 1);
   const [open, setOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<DialplanRow | null>(null);
-  const [form, setForm] = React.useState({ name: "", context: "", destination: "^1000$", action: "transfer", data: "1000 XML $${domain}", enabled: true });
+  const [form, setForm] = React.useState({ name: "", context: "", description: "", dialplan_number: "", dialplan_continue: false, dialplan_order: "", hostname: "", dialplan_destination: false, destination: "^1000$", action: "transfer", data: "1000 XML $${domain}", enabled: true });
 
   const columns: Column<DialplanRow>[] = [
     { key: "name", header: "Name", className: "font-mono" },
@@ -40,7 +40,7 @@ export function Dialplans() {
     },
   ];
 
-  const startCreate = () => { setEditing(null); setForm({ name: "", context: "", destination: "^1000$", action: "transfer", data: "1000 XML $${domain}", enabled: true }); setOpen(true); };
+  const startCreate = () => { setEditing(null); setForm({ name: "", context: "", description: "", dialplan_number: "", dialplan_continue: false, dialplan_order: "", hostname: "", dialplan_destination: false, destination: "^1000$", action: "transfer", data: "1000 XML $${domain}", enabled: true }); setOpen(true); };
   const startEdit = (d: DialplanRow) => {
     setEditing(d);
     const details = (d as any).details || [];
@@ -49,6 +49,12 @@ export function Dialplans() {
     setForm({
       name: d.name || "",
       context: d.context || "",
+      description: (d as any).description || "",
+      dialplan_number: (d as any).dialplan_number || "",
+      dialplan_continue: !!(d as any).dialplan_continue,
+      dialplan_order: (d as any).dialplan_order ?? "",
+      hostname: (d as any).hostname || "",
+      dialplan_destination: !!(d as any).dialplan_destination,
       destination: cond?.data || "^1000$",
       action: act?.type || "transfer",
       data: act?.data || "1000 XML $${domain}",
@@ -59,8 +65,17 @@ export function Dialplans() {
 
   const saveFn = async () => {
     try {
+      const optNum = (v: string | number) => (v === "" ? undefined : Number(v));
+      const extra = {
+        description: form.description || undefined,
+        dialplan_number: form.dialplan_number || undefined,
+        dialplan_continue: form.dialplan_continue,
+        dialplan_order: optNum(form.dialplan_order),
+        hostname: form.hostname || undefined,
+        dialplan_destination: form.dialplan_destination,
+      };
       if (editing) {
-        await apiFetch(`/dialplans/${editing.dialplan_uuid}`, { method: "PATCH", body: JSON.stringify({ name: form.name, context: form.context, enabled: form.enabled }) });
+        await apiFetch(`/dialplans/${editing.dialplan_uuid}`, { method: "PATCH", body: JSON.stringify({ name: form.name, context: form.context, enabled: form.enabled, ...extra }) });
         toast(`Dialplan ${form.name} updated`, { variant: "success" });
       } else {
         let domain = form.context;
@@ -71,7 +86,7 @@ export function Dialplans() {
             domain = d.domain_name;
           }
         }
-        await apiFetch("/dialplans", { method: "POST", body: JSON.stringify({ name: form.name, context: domain, enabled: form.enabled, details: [{ tag: "condition", type: "destination_number", data: form.destination }, { tag: "action", type: form.action, data: form.data }] }) });
+        await apiFetch("/dialplans", { method: "POST", body: JSON.stringify({ name: form.name, context: domain, enabled: form.enabled, ...extra, details: [{ tag: "condition", type: "destination_number", data: form.destination }, { tag: "action", type: form.action, data: form.data }] }) });
         toast(`Dialplan ${form.name} created`, { variant: "success" });
       }
       setOpen(false); setEditing(null); reload();
@@ -134,6 +149,16 @@ export function Dialplans() {
       <FormDialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }} title={editing ? "Edit Dialplan" : "Add Dialplan"} onSubmit={save} pending={saving} submitLabel={editing ? "Save" : "Create"}>
         <div><Label>Name *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="inbound-1000" /></div>
         <div><Label>Context</Label><Input value={form.context} onChange={(e) => setForm({ ...form, context: e.target.value })} placeholder="tenant.example.com" /></div>
+        <div className="grid grid-cols-2 gap-2">
+          <div><Label>Number</Label><Input value={String(form.dialplan_number)} onChange={(e) => setForm({ ...form, dialplan_number: e.target.value })} placeholder="1000" /></div>
+          <div><Label>Order</Label><Input type="number" value={String(form.dialplan_order)} onChange={(e) => setForm({ ...form, dialplan_order: e.target.value })} placeholder="100" /></div>
+        </div>
+        <div><Label>Description</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+        <div><Label>Hostname</Label><Input value={form.hostname} onChange={(e) => setForm({ ...form, hostname: e.target.value })} placeholder="fs1" /></div>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={form.dialplan_continue} onChange={(e) => setForm({ ...form, dialplan_continue: e.target.checked })} /> Continue</label>
+          <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={form.dialplan_destination} onChange={(e) => setForm({ ...form, dialplan_destination: e.target.checked })} /> Destination</label>
+        </div>
         {!editing && <>
           <div><Label>Destination regex</Label><Input value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} /></div>
           <div className="grid grid-cols-2 gap-2"><div><Label>Action</Label><Input value={form.action} onChange={(e) => setForm({ ...form, action: e.target.value })} /></div><div><Label>Data</Label><Input value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} /></div></div>

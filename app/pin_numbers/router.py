@@ -56,8 +56,9 @@ async def patch_pin(uid: UUID, payload: PinNumberUpdate, session: AsyncSession =
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(o)
     return _ser(o)
 @router.delete("/{uid}", status_code=204)
@@ -72,6 +73,7 @@ async def delete_pin(uid: UUID, session: AsyncSession = Depends(get_session), us
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     return Response(status_code=204)

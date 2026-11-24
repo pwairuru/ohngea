@@ -99,11 +99,7 @@ async fn patch_json(
     (status, json)
 }
 
-async fn get_json(
-    app: axum::Router,
-    token: &str,
-    path: &str,
-) -> (StatusCode, serde_json::Value) {
+async fn get_json(app: axum::Router, token: &str, path: &str) -> (StatusCode, serde_json::Value) {
     let res = app
         .oneshot(auth(Request::get(path).body(Body::empty()).unwrap(), token))
         .await
@@ -118,12 +114,10 @@ async fn get_json(
 
 async fn delete_req(app: axum::Router, token: &str, path: &str) -> StatusCode {
     let res = app
-        .oneshot(
-            auth(
-                Request::delete(path).body(Body::empty()).unwrap(),
-                token,
-            ),
-        )
+        .oneshot(auth(
+            Request::delete(path).body(Body::empty()).unwrap(),
+            token,
+        ))
         .await
         .unwrap();
     res.status()
@@ -194,18 +188,32 @@ async fn rg_fanout_mints_updates_deletes_dialplan() {
     )
     .await;
     assert_eq!(s, StatusCode::OK, "linked dialplan: {dp}");
-    assert_eq!(dp["app_uuid"].as_str().unwrap_or(""), RG_APP, "rg app_uuid: {dp}");
-    assert_eq!(dp["dialplan_order"].as_i64().unwrap_or(-1), 101, "rg order: {dp}");
+    assert_eq!(
+        dp["app_uuid"].as_str().unwrap_or(""),
+        RG_APP,
+        "rg app_uuid: {dp}"
+    );
+    assert_eq!(
+        dp["dialplan_order"].as_i64().unwrap_or(-1),
+        101,
+        "rg order: {dp}"
+    );
     assert_eq!(dp["dialplan_number"].as_str().unwrap_or(""), "6101");
     let det = dp["details"].as_array().cloned().unwrap_or_default();
     assert!(
-        det.iter().any(|d| d["data"].as_str().unwrap_or("").contains("app.lua ring_groups")),
+        det.iter().any(|d| d["data"]
+            .as_str()
+            .unwrap_or("")
+            .contains("app.lua ring_groups")),
         "rg lua glue missing: {dp}"
     );
 
     let xml = dialplan_xml(&token).await;
     assert!(xml.contains("6101"), "served dialplan must contain 6101");
-    assert!(xml.contains("app.lua ring_groups"), "served dialplan must contain lua glue");
+    assert!(
+        xml.contains("app.lua ring_groups"),
+        "served dialplan must contain lua glue"
+    );
 
     // update refreshes the linked row
     let (s, _) = patch_json(
@@ -227,7 +235,12 @@ async fn rg_fanout_mints_updates_deletes_dialplan() {
 
     // delete removes the linked row
     assert_eq!(
-        delete_req(pbx_api::test_app(), &token, &format!("/api/v1/ring_groups/{rg_id}")).await,
+        delete_req(
+            pbx_api::test_app(),
+            &token,
+            &format!("/api/v1/ring_groups/{rg_id}")
+        )
+        .await,
         StatusCode::NO_CONTENT
     );
     let (s, _) = get_json(
@@ -236,7 +249,11 @@ async fn rg_fanout_mints_updates_deletes_dialplan() {
         &format!("/api/v1/dialplans/{dp_id}"),
     )
     .await;
-    assert_eq!(s, StatusCode::NOT_FOUND, "dialplan must die with the ring group");
+    assert_eq!(
+        s,
+        StatusCode::NOT_FOUND,
+        "dialplan must die with the ring group"
+    );
 }
 
 // (2) IVR fan-out: lua ivr_menu.lua, order 101, extension update re-points.
@@ -260,7 +277,8 @@ async fn ivr_fanout_mints_updates_deletes_dialplan() {
     assert_eq!(dp["dialplan_order"].as_i64().unwrap_or(-1), 101);
     let det = dp["details"].as_array().cloned().unwrap_or_default();
     assert!(
-        det.iter().any(|d| d["data"].as_str().unwrap_or("").contains("ivr_menu.lua")),
+        det.iter()
+            .any(|d| d["data"].as_str().unwrap_or("").contains("ivr_menu.lua")),
         "ivr lua glue missing: {dp}"
     );
     let xml = dialplan_xml(&token).await;
@@ -276,11 +294,19 @@ async fn ivr_fanout_mints_updates_deletes_dialplan() {
     .await;
     assert_eq!(s, StatusCode::OK);
     let dp_new = dialplan_for_number(&token, "6202").await;
-    assert!(dp_new.is_object(), "ivr dialplan must follow extension 6202: {dp_new}");
+    assert!(
+        dp_new.is_object(),
+        "ivr dialplan must follow extension 6202: {dp_new}"
+    );
     assert_eq!(dp_new["dialplan_uuid"].as_str().unwrap_or(""), dp_id);
 
     assert_eq!(
-        delete_req(pbx_api::test_app(), &token, &format!("/api/v1/ivr_menus/{ivr_id}")).await,
+        delete_req(
+            pbx_api::test_app(),
+            &token,
+            &format!("/api/v1/ivr_menus/{ivr_id}")
+        )
+        .await,
         StatusCode::NO_CONTENT
     );
     let (s, _) = get_json(
@@ -313,15 +339,21 @@ async fn conference_fanout_mints_updates_deletes_dialplan() {
     assert!(dp.is_object(), "conference must mint dialplan 6301");
     let dp_id = dp["dialplan_uuid"].as_str().unwrap().to_string();
     assert_eq!(dp["app_uuid"].as_str().unwrap_or(""), CONF_APP);
-    assert_eq!(dp["dialplan_order"].as_i64().unwrap_or(-1), 333, "PHP conference order is 333: {dp}");
+    assert_eq!(
+        dp["dialplan_order"].as_i64().unwrap_or(-1),
+        333,
+        "PHP conference order is 333: {dp}"
+    );
     let det = dp["details"].as_array().cloned().unwrap_or_default();
-    let conf_action = det.iter().find(|d| {
-        d["tag"].as_str() == Some("action")
-            && d["type"].as_str() == Some("conference")
-    });
+    let conf_action = det
+        .iter()
+        .find(|d| d["tag"].as_str() == Some("action") && d["type"].as_str() == Some("conference"));
     assert!(conf_action.is_some(), "conference app action missing: {dp}");
     let data = conf_action.unwrap()["data"].as_str().unwrap_or("");
-    assert!(data.contains("6301@") && data.contains("@default"), "conference data ext@domain@profile: {data}");
+    assert!(
+        data.contains("6301@") && data.contains("@default"),
+        "conference data ext@domain@profile: {data}"
+    );
     let xml = dialplan_xml(&token).await;
     assert!(xml.contains("6301") && xml.contains("conference"));
 
@@ -337,7 +369,12 @@ async fn conference_fanout_mints_updates_deletes_dialplan() {
     assert!(dp_new.is_object(), "conference dialplan must follow 6302");
 
     assert_eq!(
-        delete_req(pbx_api::test_app(), &token, &format!("/api/v1/conferences/{conf_id}")).await,
+        delete_req(
+            pbx_api::test_app(),
+            &token,
+            &format!("/api/v1/conferences/{conf_id}")
+        )
+        .await,
         StatusCode::NO_CONTENT
     );
     let (s, _) = get_json(
@@ -346,7 +383,11 @@ async fn conference_fanout_mints_updates_deletes_dialplan() {
         &format!("/api/v1/dialplans/{dp_id}"),
     )
     .await;
-    assert_eq!(s, StatusCode::NOT_FOUND, "dialplan must die with the conference");
+    assert_eq!(
+        s,
+        StatusCode::NOT_FOUND,
+        "dialplan must die with the conference"
+    );
 }
 
 // (4) Call-center fan-out only: queue create mints order-230 callcenter
@@ -392,7 +433,12 @@ async fn callcenter_fanout_mints_and_deletes_dialplan() {
     assert!(xml.contains("6401") && xml.contains("callcenter"));
 
     assert_eq!(
-        delete_req(pbx_api::test_app(), &token, &format!("/api/v1/call_centers/{qid}")).await,
+        delete_req(
+            pbx_api::test_app(),
+            &token,
+            &format!("/api/v1/call_centers/{qid}")
+        )
+        .await,
         StatusCode::NO_CONTENT
     );
     let (s, _) = get_json(
@@ -424,7 +470,9 @@ async fn tones_lists_tone_category_vars() {
     let (s, b) = get_json(pbx_api::test_app(), &token, "/api/v1/tones").await;
     assert_eq!(s, StatusCode::OK, "list tones: {b}");
     let data = b["data"].as_array().cloned().unwrap_or_default();
-    let hit = data.iter().find(|t| t["name"].as_str() == Some("us-ring-6601"));
+    let hit = data
+        .iter()
+        .find(|t| t["name"].as_str() == Some("us-ring-6601"));
     assert!(hit.is_some(), "tones must include Tones-category var: {b}");
     let hit = hit.unwrap();
     assert_eq!(
@@ -462,7 +510,12 @@ async fn voicemail_crud_ok_with_invalidate() {
     assert_eq!(s, StatusCode::OK);
 
     assert_eq!(
-        delete_req(pbx_api::test_app(), &token, &format!("/api/v1/voicemails/{vm_id}")).await,
+        delete_req(
+            pbx_api::test_app(),
+            &token,
+            &format!("/api/v1/voicemails/{vm_id}")
+        )
+        .await,
         StatusCode::NO_CONTENT
     );
 }

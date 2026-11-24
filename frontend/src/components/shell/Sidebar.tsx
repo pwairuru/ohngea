@@ -2,7 +2,8 @@ import * as React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "../../lib/utils";
-import { primaryNav, advancedNav, type NavGroup } from "../../lib/navConfig";
+import { primaryNav, advancedNav, buildDynamicNav, type NavGroup } from "../../lib/navConfig";
+import { apiFetch } from "../../lib/api";
 
 function isActive(loc: { pathname: string }, to: string) {
   return to === "/" ? loc.pathname === "/" : loc.pathname.startsWith(to);
@@ -27,10 +28,10 @@ function NavLinkRow({ to, label, icon: Icon, active, rail, group }: { to: string
   );
 }
 
-function NavSection({ loc, rail, openGroups, toggleGroup }: { loc: { pathname: string }; rail: boolean; openGroups: string[]; toggleGroup: (g: string) => void }) {
+function NavSection({ loc, rail, openGroups, toggleGroup, groups }: { loc: { pathname: string }; rail: boolean; openGroups: string[]; toggleGroup: (g: string) => void; groups?: NavGroup[] }) {
   return (
     <>
-      {advancedNav.map((g: NavGroup) => {
+      {(groups ?? advancedNav).map((g: NavGroup) => {
         const open = rail || openGroups.includes(g.label);
         return (
           <div key={g.label}>
@@ -71,12 +72,21 @@ function safeSet(key: string, value: string) {
 
 export function Sidebar() {
   const loc = useLocation();
+  const [dynamicGroups, setDynamicGroups] = React.useState<NavGroup[] | null>(null);
+  React.useEffect(() => {
+    apiFetch("/menu_items?per_page=100")
+      .then((r: any) => {
+        const groups = buildDynamicNav(r?.data ?? []);
+        setDynamicGroups(groups.length > 0 ? groups : null);
+      })
+      .catch(() => setDynamicGroups(null));
+  }, []);
   const [rail, setRail] = React.useState(() => safeGet("nav-rail") === "1");
   const [openGroups, setOpenGroups] = React.useState<string[]>(() => {
     try {
-      return JSON.parse(safeGet("nav-open-groups") || '["Call Routing"]');
+      return JSON.parse(safeGet("nav-open-groups") || '[]');
     } catch {
-      return ["Call Routing"];
+      return [];
     }
   });
   const toggleRail = () => {
@@ -120,7 +130,7 @@ export function Sidebar() {
           </button>
         </div>
       )}
-      {!rail && <NavSection loc={loc} rail={rail} openGroups={openGroups} toggleGroup={toggleGroup} />}
+      {!rail && <NavSection loc={loc} rail={rail} openGroups={openGroups} toggleGroup={toggleGroup} groups={dynamicGroups ?? undefined} />}
       <div className="mt-auto pt-4 text-[11px] text-muted-foreground">
         {!rail ? (
           <div className="flex items-center gap-2 px-3 py-2">

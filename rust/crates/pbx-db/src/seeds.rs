@@ -11,8 +11,8 @@ use sea_orm::{
 use uuid::Uuid;
 
 use crate::entities::{
-    countries, default_settings, dialplan_details, dialplans, domain_settings, domains, groups,
-    group_permissions, languages, permissions, sip_profile_domains, sip_profile_settings,
+    countries, default_settings, dialplan_details, dialplans, domain_settings, domains,
+    group_permissions, groups, languages, permissions, sip_profile_domains, sip_profile_settings,
     sip_profiles, sofia_global_settings, user_groups, users, vars,
 };
 

@@ -57,8 +57,9 @@ async def create_profile(payload: dict, response: Response, session: AsyncSessio
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     try:
         from app.freeswitch.sofia_config import regenerate_sofia_conf
         await regenerate_sofia_conf(session)
@@ -96,8 +97,9 @@ async def patch_profile(sip_profile_uuid: UUID, payload: dict, session: AsyncSes
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     try:
         from app.freeswitch.sofia_config import regenerate_sofia_conf
         await regenerate_sofia_conf(session)
@@ -119,8 +121,9 @@ async def delete_profile(sip_profile_uuid: UUID, session: AsyncSession = Depends
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     try:
         from app.freeswitch.sofia_config import regenerate_sofia_conf
         await regenerate_sofia_conf(session)

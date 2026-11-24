@@ -14,6 +14,11 @@ use pbx_db::entities::{
     phrases, pin_numbers, streams,
 };
 
+fn propagate_moh() {
+    crate::fs_xml::invalidate_key("configuration:local_stream.conf");
+    crate::fs_xml::propagate_esl(&["reloadxml"]);
+}
+
 // ---- handlers: feature_codes ----
 fn ser_feature_code(r: &feature_codes::Model) -> Value {
     serde_json::json!({
@@ -240,13 +245,21 @@ async fn create_moh(
         .map(str::trim)
         .map(str::to_owned);
     let domain: Option<uuid::Uuid> = match posted_domain.as_deref() {
-        Some(v) if !v.is_empty() && crate::tenant::has_permission(&claims, "music_on_hold_domain") => {
+        Some(v)
+            if !v.is_empty() && crate::tenant::has_permission(&claims, "music_on_hold_domain") =>
+        {
             match v.parse::<uuid::Uuid>() {
                 Ok(id) => Some(id),
-                Err(_) => return unprocessable("domain_uuid must be a UUID or empty").into_response(),
+                Err(_) => {
+                    return unprocessable("domain_uuid must be a UUID or empty").into_response()
+                }
             }
         }
-        Some(v) if v.is_empty() && crate::tenant::has_permission(&claims, "music_on_hold_domain") => None,
+        Some(v)
+            if v.is_empty() && crate::tenant::has_permission(&claims, "music_on_hold_domain") =>
+        {
+            None
+        }
         _ => Some(tenant),
     };
     let now = crate::routing_db::now();
@@ -259,10 +272,24 @@ async fn create_moh(
         music_shuffle: Set(s(&payload, &["music_shuffle", "shuffle"])),
         music_channels: Set(Some(i(&payload, &["music_channels", "channels"], 1))),
         music_interval: Set(Some(i(&payload, &["music_interval", "interval"], 20))),
-        music_timer_name: Set(s(&payload, &["music_timer_name", "music_on_hold_timer_name", "timer_name"])),
-        music_chime_list: Set(s(&payload, &["music_chime_list", "music_on_hold_chime_list", "chime_list"])),
-        music_chime_freq: Set(s(&payload, &["music_chime_freq", "music_on_hold_chime_freq", "chime_freq"])),
-        music_chime_max: Set(payload.get("music_chime_max").or_else(|| payload.get("music_on_hold_chime_max")).or_else(|| payload.get("chime_max")).and_then(|v| v.as_i64()).map(|v| v as i32)),
+        music_timer_name: Set(s(
+            &payload,
+            &["music_timer_name", "music_on_hold_timer_name", "timer_name"],
+        )),
+        music_chime_list: Set(s(
+            &payload,
+            &["music_chime_list", "music_on_hold_chime_list", "chime_list"],
+        )),
+        music_chime_freq: Set(s(
+            &payload,
+            &["music_chime_freq", "music_on_hold_chime_freq", "chime_freq"],
+        )),
+        music_chime_max: Set(payload
+            .get("music_chime_max")
+            .or_else(|| payload.get("music_on_hold_chime_max"))
+            .or_else(|| payload.get("chime_max"))
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32)),
         enabled: Set(b(&payload, &["enabled"], true)),
         description: Set(s(&payload, &["description"])),
         created_at: Set(now),
@@ -270,7 +297,10 @@ async fn create_moh(
         ..Default::default()
     };
     match am.insert(db).await {
-        Ok(r) => (StatusCode::CREATED, Json(ser_moh(&r))).into_response(),
+        Ok(r) => {
+            propagate_moh();
+            (StatusCode::CREATED, Json(ser_moh(&r))).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
@@ -279,7 +309,8 @@ async fn create_moh(
     }
 }
 
-async fn list_moh(Extension(claims): Extension<Claims>,
+async fn list_moh(
+    Extension(claims): Extension<Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "music_on_hold_view") {
@@ -297,13 +328,15 @@ async fn list_moh(Extension(claims): Extension<Claims>,
     let domain = crate::routing_db::domain(&claims);
     let mut sel = music_on_hold::Entity::find();
     if !show_all {
-        sel = sel.filter(if crate::tenant::sees_domain_nulls(&claims, "music_on_hold_global") {
-            Condition::any()
-                .add(music_on_hold::Column::DomainId.eq(domain))
-                .add(music_on_hold::Column::DomainId.is_null())
-        } else {
-            Condition::any().add(music_on_hold::Column::DomainId.eq(domain))
-        });
+        sel = sel.filter(
+            if crate::tenant::sees_domain_nulls(&claims, "music_on_hold_global") {
+                Condition::any()
+                    .add(music_on_hold::Column::DomainId.eq(domain))
+                    .add(music_on_hold::Column::DomainId.is_null())
+            } else {
+                Condition::any().add(music_on_hold::Column::DomainId.eq(domain))
+            },
+        );
     }
     let rows = sel.all(&txn).await.unwrap_or_default();
     envelope(rows.iter().map(ser_moh).collect()).into_response()
@@ -324,9 +357,10 @@ async fn get_moh(
         .unwrap_or(None)
     {
         Some(r)
-        if r.domain_id == Some(domain)
-            || (r.domain_id.is_none()
-                && crate::tenant::sees_domain_nulls(&claims, "music_on_hold_global")) => {
+            if r.domain_id == Some(domain)
+                || (r.domain_id.is_none()
+                    && crate::tenant::sees_domain_nulls(&claims, "music_on_hold_global")) =>
+        {
             (StatusCode::OK, Json(ser_moh(&r))).into_response()
         }
         _ => (
@@ -372,7 +406,10 @@ async fn patch_moh(
     let mut am: music_on_hold::ActiveModel = r.into();
     // PHP `music_on_hold_domain` parity: perm holders may re-home the row (UUID string)
     // or globalize it (empty string); otherwise the domain is untouched.
-    if payload.get("domain_uuid").or_else(|| payload.get("domain_id")).is_some()
+    if payload
+        .get("domain_uuid")
+        .or_else(|| payload.get("domain_id"))
+        .is_some()
         && crate::tenant::sees_domain_nulls(&claims, "music_on_hold_domain")
     {
         let raw = payload
@@ -405,25 +442,56 @@ async fn patch_moh(
     if payload.get("enabled").is_some() {
         am.enabled = Set(b(&payload, &["enabled"], true));
     }
-    if let Some(v) = payload.get("music_rate").or_else(|| payload.get("rate")).and_then(|v| v.as_i64()) {
+    if let Some(v) = payload
+        .get("music_rate")
+        .or_else(|| payload.get("rate"))
+        .and_then(|v| v.as_i64())
+    {
         am.music_rate = Set(Some(v as i32));
     }
-    if let Some(v) = payload.get("music_channels").or_else(|| payload.get("channels")).and_then(|v| v.as_i64()) {
+    if let Some(v) = payload
+        .get("music_channels")
+        .or_else(|| payload.get("channels"))
+        .and_then(|v| v.as_i64())
+    {
         am.music_channels = Set(Some(v as i32));
     }
-    if let Some(v) = payload.get("music_interval").or_else(|| payload.get("interval")).and_then(|v| v.as_i64()) {
+    if let Some(v) = payload
+        .get("music_interval")
+        .or_else(|| payload.get("interval"))
+        .and_then(|v| v.as_i64())
+    {
         am.music_interval = Set(Some(v as i32));
     }
-    for key in ["music_timer_name", "music_chime_list", "music_chime_freq", "music_on_hold_timer_name", "music_on_hold_chime_list", "music_on_hold_chime_freq", "timer_name", "chime_list", "chime_freq"] {
+    for key in [
+        "music_timer_name",
+        "music_chime_list",
+        "music_chime_freq",
+        "music_on_hold_timer_name",
+        "music_on_hold_chime_list",
+        "music_on_hold_chime_freq",
+        "timer_name",
+        "chime_list",
+        "chime_freq",
+    ] {
         if let Some(v) = s(&payload, &[key]) {
             match key {
-                "music_timer_name" | "music_on_hold_timer_name" | "timer_name" => am.music_timer_name = Set(Some(v)),
-                "music_chime_list" | "music_on_hold_chime_list" | "chime_list" => am.music_chime_list = Set(Some(v)),
+                "music_timer_name" | "music_on_hold_timer_name" | "timer_name" => {
+                    am.music_timer_name = Set(Some(v))
+                }
+                "music_chime_list" | "music_on_hold_chime_list" | "chime_list" => {
+                    am.music_chime_list = Set(Some(v))
+                }
                 _ => am.music_chime_freq = Set(Some(v)),
             }
         }
     }
-    if let Some(v) = payload.get("music_chime_max").or_else(|| payload.get("music_on_hold_chime_max")).or_else(|| payload.get("chime_max")).and_then(|v| v.as_i64()) {
+    if let Some(v) = payload
+        .get("music_chime_max")
+        .or_else(|| payload.get("music_on_hold_chime_max"))
+        .or_else(|| payload.get("chime_max"))
+        .and_then(|v| v.as_i64())
+    {
         am.music_chime_max = Set(Some(v as i32));
     }
     if let Some(v) = s(&payload, &["music_shuffle", "shuffle"]) {
@@ -431,7 +499,10 @@ async fn patch_moh(
     }
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
-        Ok(r) => (StatusCode::OK, Json(ser_moh(&r))).into_response(),
+        Ok(r) => {
+            propagate_moh();
+            (StatusCode::OK, Json(ser_moh(&r))).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("update failed: {e}")})),
@@ -455,11 +526,13 @@ async fn delete_moh(
         .unwrap_or(None)
     {
         Some(r)
-        if r.domain_id == Some(domain)
-            || (r.domain_id.is_none()
-                && crate::tenant::sees_domain_nulls(&claims, "music_on_hold_domain")) => {
+            if r.domain_id == Some(domain)
+                || (r.domain_id.is_none()
+                    && crate::tenant::sees_domain_nulls(&claims, "music_on_hold_domain")) =>
+        {
             let am: music_on_hold::ActiveModel = r.into();
             let _ = am.delete(db).await;
+            propagate_moh();
             StatusCode::NO_CONTENT.into_response()
         }
         _ => (
@@ -541,7 +614,8 @@ async fn create_phrase(
     }
 }
 
-async fn list_phrases(Extension(claims): Extension<Claims>,
+async fn list_phrases(
+    Extension(claims): Extension<Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "phrase_view") {
@@ -1228,7 +1302,8 @@ async fn create_stream(
     }
 }
 
-async fn list_streams(Extension(claims): Extension<Claims>,
+async fn list_streams(
+    Extension(claims): Extension<Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "stream_view") {
@@ -1270,7 +1345,9 @@ async fn get_stream(
         .await
         .unwrap_or(None)
     {
-        Some(r) if r.domain_id == Some(domain) || r.domain_id.is_none() => (StatusCode::OK, Json(ser_stream(&r))).into_response(),
+        Some(r) if r.domain_id == Some(domain) || r.domain_id.is_none() => {
+            (StatusCode::OK, Json(ser_stream(&r))).into_response()
+        }
         _ => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),

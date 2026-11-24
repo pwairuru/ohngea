@@ -13,7 +13,9 @@
 //! back to a generic stub — full 31-vendor matrix is a later pass.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, Set,
+};
 
 // ---- models ----
 use pbx_db::entities::{device_lines, devices, domains};
@@ -135,8 +137,14 @@ async fn create_device(
     let id = uuid::Uuid::now_v7();
     let now = crate::routing_db::now();
     let am = devices::ActiveModel {
-        device_enabled_date: Set(payload.device_enabled_date.as_deref().and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok())),
-        device_user_uuid: Set(payload.device_user_uuid.as_deref().and_then(|s| s.parse::<uuid::Uuid>().ok())),
+        device_enabled_date: Set(payload
+            .device_enabled_date
+            .as_deref()
+            .and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok())),
+        device_user_uuid: Set(payload
+            .device_user_uuid
+            .as_deref()
+            .and_then(|s| s.parse::<uuid::Uuid>().ok())),
         device_uuid_alternate: Set(payload.device_uuid_alternate.clone()),
         device_provisioned_agent: Set(payload.device_provisioned_agent.clone()),
         device_uuid: Set(id),
@@ -147,7 +155,10 @@ async fn create_device(
         enabled: Set(true),
         domain_id: Set(Some(domain)),
         extension_uuid: Set(None),
-        device_profile_uuid: Set(payload.device_profile_uuid.as_deref().and_then(|s| s.parse::<uuid::Uuid>().ok())),
+        device_profile_uuid: Set(payload
+            .device_profile_uuid
+            .as_deref()
+            .and_then(|s| s.parse::<uuid::Uuid>().ok())),
         device_address: Set(Some(mac.clone())),
         device_label: Set(payload.label.clone()),
         device_vendor: Set(Some(vendor.clone())),
@@ -240,7 +251,12 @@ async fn list_devices(
         Err(_) => {
             return (
                 crate::paged_headers("/api/v1/devices", page, per_page, 0),
-                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+                Json(crate::paged_body(
+                    Vec::<serde_json::Value>::new(),
+                    0,
+                    page,
+                    per_page,
+                )),
             )
                 .into_response();
         }
@@ -336,7 +352,7 @@ async fn get_device(
         .filter(
             Condition::any()
                 .add(devices::Column::DomainId.eq(domain))
-                .add(devices::Column::DomainId.is_null())
+                .add(devices::Column::DomainId.is_null()),
         )
         .one(db)
         .await
@@ -348,11 +364,7 @@ async fn get_device(
                 .one(db)
                 .await
                 .unwrap_or(None);
-            (
-                StatusCode::OK,
-                Json(ser_device(&r, line.as_ref())),
-            )
-                .into_response()
+            (StatusCode::OK, Json(ser_device(&r, line.as_ref()))).into_response()
         }
         None => (
             StatusCode::NOT_FOUND,
@@ -485,14 +497,12 @@ async fn get_provision(
     // Resolve tenant domain name for context; fall back to stored sip domain.
     // Global devices have no tenant row: skip straight to the fallback.
     let domain_name = match dev.domain_id {
-        Some(did) => {
-            domains::Entity::find_by_id(did)
-                .one(db)
-                .await
-                .unwrap_or(None)
-                .map(|d| d.domain_name)
-                .unwrap_or_default()
-        }
+        Some(did) => domains::Entity::find_by_id(did)
+            .one(db)
+            .await
+            .unwrap_or(None)
+            .map(|d| d.domain_name)
+            .unwrap_or_default(),
         None => String::new(),
     };
     let domain = if sip_domain.is_empty() {
@@ -544,7 +554,7 @@ async fn patch_device(
         .filter(
             Condition::any()
                 .add(devices::Column::DomainId.eq(domain))
-                .add(devices::Column::DomainId.is_null())
+                .add(devices::Column::DomainId.is_null()),
         )
         .one(db)
         .await
@@ -649,11 +659,7 @@ async fn patch_device(
     }
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
-        Ok(r) => (
-            StatusCode::OK,
-            Json(ser_device(&r, None)),
-        )
-            .into_response(),
+        Ok(r) => (StatusCode::OK, Json(ser_device(&r, None))).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("update failed: {e}")})),
@@ -675,7 +681,7 @@ async fn delete_device(
         .filter(
             Condition::any()
                 .add(devices::Column::DomainId.eq(domain))
-                .add(devices::Column::DomainId.is_null())
+                .add(devices::Column::DomainId.is_null()),
         )
         .one(db)
         .await
@@ -731,7 +737,7 @@ async fn device_or_404(
         .filter(
             Condition::any()
                 .add(devices::Column::DomainId.eq(domain))
-                .add(devices::Column::DomainId.is_null())
+                .add(devices::Column::DomainId.is_null()),
         )
         .one(db)
         .await
@@ -1307,7 +1313,9 @@ async fn list_profiles(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["device_profile_view", "device_view"]) {
+    if let Some((s, j)) =
+        crate::tenant::deny_if_missing_any(&claims, &["device_profile_view", "device_view"])
+    {
         return (s, j).into_response();
     }
     let (per_page, _) = pq.normalized();
@@ -1319,7 +1327,12 @@ async fn list_profiles(
         Err(_) => {
             return (
                 crate::paged_headers("/api/v1/device_profiles", page, per_page, 0),
-                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+                Json(crate::paged_body(
+                    Vec::<serde_json::Value>::new(),
+                    0,
+                    page,
+                    per_page,
+                )),
             )
                 .into_response();
         }

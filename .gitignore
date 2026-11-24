@@ -90,6 +90,7 @@ jspm_packages/
 
 # Build outputs
 frontend/dist/
+frontend/dev-dist/
 frontend/build/
 dist/
 build/

@@ -7,13 +7,13 @@
 //! `sofia_status` parse, `registrations_raw`, `channels`, and an honest
 //! `fs_status.connected` flag.
 
+use crate::remaining_a::{envelope, s, tenant_domain};
 use axum::{http::StatusCode, response::IntoResponse, Extension, Json, Router};
 use pbx_fs::esl::{
     is_connected_body, parse_sofia_status, strip_esl_body, truncate_head, EsClient, RealEs,
 };
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use std::collections::HashMap;
-use crate::remaining_a::{envelope, s, tenant_domain};
 
 async fn logs_list(
     axum::extract::Query(q): axum::extract::Query<HashMap<String, String>>,
@@ -193,7 +193,8 @@ async fn create_user_log(
     }
 }
 
-async fn list_user_logs(Extension(claims): Extension<Claims>,
+async fn list_user_logs(
+    Extension(claims): Extension<Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "user_log_view") {
@@ -226,7 +227,11 @@ async fn get_user_log(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    match user_logs::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
+    match user_logs::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    {
         Some(r) if r.domain_id == Some(domain) => {
             (StatusCode::OK, Json(ser_user_log(&r))).into_response()
         }
@@ -247,7 +252,11 @@ async fn delete_user_log(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    match user_logs::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
+    match user_logs::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    {
         Some(r) if r.domain_id == Some(domain) => {
             let am: user_logs::ActiveModel = r.into();
             let _ = am.delete(db).await;

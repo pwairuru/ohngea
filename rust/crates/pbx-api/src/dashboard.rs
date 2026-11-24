@@ -7,8 +7,8 @@ use axum::{http::StatusCode, response::IntoResponse, Extension, Json, Router};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde_json::Value;
 
-use pbx_db::entities::{dashboard_widgets, dashboards};
 use pbx_core::auth::Claims;
+use pbx_db::entities::{dashboard_widget_groups, dashboard_widgets, dashboards};
 
 fn deny(c: &Claims, perm: &str) -> Option<(StatusCode, Json<Value>)> {
     crate::tenant::deny_if_missing(c, perm)
@@ -98,7 +98,8 @@ async fn create_dashboard(
     }
 }
 
-async fn list_dashboards(Extension(c): Extension<Claims>,
+async fn list_dashboards(
+    Extension(c): Extension<Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = deny(&c, "dashboard_view") {
@@ -255,6 +256,150 @@ async fn list_widgets(
     Json(serde_json::json!({"data": data, "total": data.len()})).into_response()
 }
 
+fn ser_widget_group(r: &pbx_db::entities::dashboard_widget_groups::Model) -> Value {
+    serde_json::json!({
+        "dashboard_widget_group_uuid": r.dashboard_widget_group_uuid,
+        "dashboard_uuid": r.dashboard_uuid,
+        "dashboard_widget_uuid": r.dashboard_widget_uuid,
+        "group_uuid": r.group_uuid,
+    })
+}
+
+/// Parent widget visible to the caller? Tenant-owned always; global
+/// (NULL-domain) widgets need `dashboard_domain` (dashboard list parity).
+async fn widget_visible(
+    db: &sea_orm::DatabaseConnection,
+    c: &Claims,
+    wid: &uuid::Uuid,
+    did: &uuid::Uuid,
+) -> bool {
+    use sea_orm::EntityTrait;
+    let domain = crate::routing_db::tenant_domain(db, c).await;
+    match pbx_db::entities::dashboard_widgets::Entity::find_by_id(*wid)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    {
+        Some(w)
+            if w.dashboard_uuid == Some(*did)
+                && (w.domain_id == Some(domain)
+                    || (w.domain_id.is_none()
+                        && crate::tenant::sees_domain_nulls(c, "dashboard_domain"))) =>
+        {
+            true
+        }
+        _ => false,
+    }
+}
+
+async fn list_widget_groups(
+    Extension(c): Extension<Claims>,
+    axum::extract::Path((id, wid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = deny(&c, "dashboard_widget_group_view") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    if !widget_visible(db, &c, &wid, &id).await {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    }
+    let rows = pbx_db::entities::dashboard_widget_groups::Entity::find()
+        .filter(
+            pbx_db::entities::dashboard_widget_groups::Column::DashboardWidgetUuid.eq(Some(wid)),
+        )
+        .all(db)
+        .await
+        .unwrap_or_default();
+    let data: Vec<Value> = rows.iter().map(ser_widget_group).collect();
+    Json(serde_json::json!({"data": data, "total": data.len()})).into_response()
+}
+
+async fn assign_widget_group(
+    Extension(c): Extension<Claims>,
+    axum::extract::Path((id, wid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
+    Json(payload): Json<Value>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = deny(&c, "dashboard_widget_group_add") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    if !widget_visible(db, &c, &wid, &id).await {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    }
+    let Some(g) = payload
+        .get("group_uuid")
+        .and_then(|v| v.as_str())
+        .and_then(|v| v.parse::<uuid::Uuid>().ok())
+    else {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({"detail": "group_uuid must be a UUID"})),
+        )
+            .into_response();
+    };
+    let am = pbx_db::entities::dashboard_widget_groups::ActiveModel {
+        dashboard_widget_group_uuid: Set(uuid::Uuid::now_v7()),
+        dashboard_uuid: Set(Some(id)),
+        dashboard_widget_uuid: Set(Some(wid)),
+        group_uuid: Set(Some(g)),
+        created_at: Set(crate::routing_db::now()),
+    };
+    match am.insert(db).await {
+        Ok(r) => (StatusCode::CREATED, Json(ser_widget_group(&r))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn unassign_widget_group(
+    Extension(c): Extension<Claims>,
+    axum::extract::Path((id, wid, gid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid, uuid::Uuid)>,
+) -> impl IntoResponse {
+    if let Some((s, j)) = deny(&c, "dashboard_widget_group_delete") {
+        return (s, j).into_response();
+    }
+    let db = crate::routing_db::conn().await;
+    if !widget_visible(db, &c, &wid, &id).await {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    }
+    let Some(row) = pbx_db::entities::dashboard_widget_groups::Entity::find_by_id(gid)
+        .one(db)
+        .await
+        .unwrap_or(None)
+        .filter(|r| r.dashboard_widget_uuid == Some(wid))
+    else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"detail": "not found"})),
+        )
+            .into_response();
+    };
+    let am: pbx_db::entities::dashboard_widget_groups::ActiveModel = row.into();
+    match am.delete(db).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
 pub fn dashboard_router() -> Router {
     Router::new()
         .route(
@@ -264,6 +409,14 @@ pub fn dashboard_router() -> Router {
         .route(
             "/api/v1/dashboards/{id}/widgets",
             axum::routing::post(create_widget).get(list_widgets),
+        )
+        .route(
+            "/api/v1/dashboards/{id}/widgets/{wid}/groups",
+            axum::routing::post(assign_widget_group).get(list_widget_groups),
+        )
+        .route(
+            "/api/v1/dashboards/{id}/widgets/{wid}/groups/{gid}",
+            axum::routing::delete(unassign_widget_group),
         )
         .layer(axum::middleware::from_fn(crate::require_tenant))
 }

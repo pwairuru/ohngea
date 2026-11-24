@@ -15,6 +15,7 @@ pub struct Model {
     pub user_setting_subcategory: Option<String>,
     pub user_setting_name: Option<String>,
     pub user_setting_value: Option<String>,
+    pub user_setting_order: Option<i32>,
     pub user_setting_enabled: bool,
     pub user_setting_description: Option<String>,
 }

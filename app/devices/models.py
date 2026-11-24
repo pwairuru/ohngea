@@ -36,8 +36,8 @@ class DeviceBase(SQLModel):
 class Device(DeviceBase, table=True):
     __tablename__ = "devices"
     device_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class DeviceLineBase(SQLModel):
@@ -64,7 +64,7 @@ class DeviceLineBase(SQLModel):
 class DeviceLine(DeviceLineBase, table=True):
     __tablename__ = "device_lines"
     device_line_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # --- device_settings ---
@@ -83,8 +83,8 @@ class DeviceSettingBase(SQLModel):
 class DeviceSetting(DeviceSettingBase, table=True):
     __tablename__ = "device_settings"
     device_setting_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # --- device_keys ---
@@ -108,8 +108,8 @@ class DeviceKeyBase(SQLModel):
 class DeviceKey(DeviceKeyBase, table=True):
     __tablename__ = "device_keys"
     device_key_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # --- device_profiles ---
@@ -123,8 +123,8 @@ class DeviceProfileBase(SQLModel):
 class DeviceProfile(DeviceProfileBase, table=True):
     __tablename__ = "device_profiles"
     device_profile_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # --- device_profile_keys ---
@@ -147,8 +147,8 @@ class DeviceProfileKeyBase(SQLModel):
 class DeviceProfileKey(DeviceProfileKeyBase, table=True):
     __tablename__ = "device_profile_keys"
     device_profile_key_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # --- device_profile_settings ---
@@ -164,5 +164,5 @@ class DeviceProfileSettingBase(SQLModel):
 class DeviceProfileSetting(DeviceProfileSettingBase, table=True):
     __tablename__ = "device_profile_settings"
     device_profile_setting_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -1,20 +1,32 @@
 import * as React from "react";
-import { DataTable } from "../components/DataTable";
-import type { Column } from "../components/types";
-import { PageHeader } from "../components/shell/PageHeader";
+import { apiFetch } from "../lib/api";
+import { LiveTable } from "../components/LiveTable";
+import { Button } from "../components/ui/button";
+import { toast, toastError } from "../lib/toast";
 
 export function Registrations() {
-  const columns: Column<any>[] = [
-    { key: "reg_user", header: "User", className: "num", cell: (r: any) => r.reg_user ?? r.user ?? r.sip_user ?? "—" },
-    { key: "realm", header: "Realm", cell: (r: any) => r.realm ?? r.domain ?? "—" },
-    { key: "network_ip", header: "Contact / IP", className: "font-mono text-xs", cell: (r: any) => <span className="font-mono text-xs break-all">{r.network_ip ?? r.contact ?? "—"}</span> },
-    { key: "status", header: "Status", cell: (r: any) => r.status ?? "Registered" },
-    { key: "expires", header: "Expires", cell: (r: any) => r.expires ?? "—" },
-  ];
+  const act = async (row: any, action: "unregister" | "reboot" | "provision", reload: () => void) => {
+    const id = row.sip_username ?? row.user ?? row.uid ?? row.id;
+    if (!id) return;
+    try {
+      await apiFetch(`/registrations/${encodeURIComponent(String(id))}/${action}`, { method: "POST" });
+      toast(`${action} sent to ${id}`, { variant: "success" });
+      reload();
+    } catch (err) { toastError(err); }
+  };
+
   return (
-    <>
-      <PageHeader title="Registrations" description="SIP registrations and contacts" />
-      <DataTable resource="/registrations" columns={columns} perPage={20} searchPlaceholder="Search registrations…" emptyTitle="No registrations" />
-    </>
+    <LiveTable
+      title="Registrations"
+      description="SIP registrations via ESL with device actions"
+      resource="/registrations"
+      rowActions={(row: any, reload: () => void) => (
+        <div className="flex justify-end gap-1">
+          <Button variant="ghost" size="sm" onClick={() => act(row, "provision", reload)}>Provision</Button>
+          <Button variant="ghost" size="sm" onClick={() => act(row, "reboot", reload)}>Reboot</Button>
+          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => act(row, "unregister", reload)}>Unregister</Button>
+        </div>
+      )}
+    />
   );
 }

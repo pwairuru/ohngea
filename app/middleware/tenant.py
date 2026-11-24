@@ -25,15 +25,14 @@ class TenantMiddleware(BaseHTTPMiddleware):
         # Skip health / docs / internal FS
         if request.url.path in ("/health", "/docs", "/openapi.json", "/redoc"):
             return await call_next(request)
-        # try extract domain_id from JWT without verifying (verify later in deps)
+        # Extract domain_id ONLY from verified JWT. Downstream get_current_user
+        # re-verifies and sets user._domain_id authoritatively.
         auth = request.headers.get("authorization", "")
         if auth.startswith("Bearer "):
             token = auth.removeprefix("Bearer ").strip()
             try:
-                import jwt
-                from app.config import settings
-
-                payload = jwt.decode(token, options={"verify_signature": False})
+                from app.auth.service import decode_token
+                payload = decode_token(token)
                 did = payload.get("domain_id")
                 if did:
                     try:
@@ -42,11 +41,6 @@ class TenantMiddleware(BaseHTTPMiddleware):
                         pass
             except Exception:
                 pass
-        # also allow X-Domain-Id header for superadmin
-        hdr = request.headers.get("x-domain-id")
-        if hdr:
-            try:
-                request.state.domain_id = UUID(hdr)
-            except Exception:
-                pass
+        # NOTE: X-Domain-Id is intentionally NOT trusted here. It is only
+        # honoured in authenticated deps after superadmin check.
         return await call_next(request)

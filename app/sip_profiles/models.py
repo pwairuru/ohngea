@@ -39,8 +39,8 @@ class SipProfileBase(SQLModel):
 class SipProfile(SipProfileBase, table=True):
     __tablename__ = "sip_profiles"
     sip_profile_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class SipProfileDomainBase(SQLModel):
@@ -54,8 +54,8 @@ class SipProfileDomainBase(SQLModel):
 class SipProfileDomain(SipProfileDomainBase, table=True):
     __tablename__ = "sip_profile_domains"
     sip_profile_domain_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class SipProfileSettingBase(SQLModel):
@@ -70,5 +70,5 @@ class SipProfileSettingBase(SQLModel):
 class SipProfileSetting(SipProfileSettingBase, table=True):
     __tablename__ = "sip_profile_settings"
     sip_profile_setting_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

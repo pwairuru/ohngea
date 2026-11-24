@@ -119,7 +119,22 @@ def send_email_queue_task(self, email_queue_uuid: str):
             obj.email_status = "sending"
             await session.commit()
             try:
-                res = _smtp_send(obj.email_to, obj.email_subject or "", obj.email_body or "", obj.email_from)
+                subject = obj.email_subject or ""
+                body = obj.email_body or ""
+                if not body and subject.startswith("template:"):
+                    try:
+                        from app.admin_settings.router import render_email_template
+
+                        rendered = await render_email_template(
+                            session, obj.domain_id, subject.split(":", 1)[1].strip(),
+                            {"to": obj.email_to, "from": obj.email_from},
+                        )
+                        if rendered:
+                            subject = rendered["subject"] or subject
+                            body = rendered["body"]
+                    except Exception:
+                        pass
+                res = _smtp_send(obj.email_to, subject, body, obj.email_from)
                 obj.email_status = "sent" if res.get("sent") else "failed"
                 obj.email_retry_count = (obj.email_retry_count or 0) + (0 if res.get("sent") else 1)
                 await session.commit()
@@ -133,7 +148,7 @@ def send_email_queue_task(self, email_queue_uuid: str):
     try:
         return asyncio.run(_run())
     except Exception as e:
-        return {"status": "error", "error": str(e)[:500]}
+        return {"status": "error", "error": "internal error"}
 
 
 @celery_app.task
@@ -161,7 +176,7 @@ def process_email_queue(batch: int = 20):
     try:
         return asyncio.run(_run())
     except Exception as e:
-        return {"error": str(e)[:500]}
+        return {"error": "internal error"}
 
 
 @celery_app.task
@@ -217,7 +232,7 @@ def fax_send_task(self, fax_queue_uuid: str):
     try:
         return asyncio.run(_run())
     except Exception as e:
-        return {"status": "error", "error": str(e)[:500]}
+        return {"status": "error", "error": "internal error"}
 
 
 async def _fax_via_esl(fax_queue_obj) -> tuple[bool, str]:
@@ -274,4 +289,4 @@ def process_fax_queue(batch: int = 10):
     try:
         return asyncio.run(_run())
     except Exception as e:
-        return {"error": str(e)[:500]}
+        return {"error": "internal error"}

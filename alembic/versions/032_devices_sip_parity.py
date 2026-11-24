@@ -313,7 +313,7 @@ def upgrade() -> None:
         op.execute("DROP VIEW IF EXISTS v_devices;")
         op.execute(
             """CREATE VIEW v_devices AS SELECT
-            device_uuid, domain_id AS domain_uuid, device_profile_uuid, device_address AS device_address, mac AS device_address,
+            device_uuid, domain_id AS domain_uuid, device_profile_uuid, device_address, mac AS device_mac_address,
             label AS device_label, vendor AS device_vendor, model AS device_model, device_firmware_version, device_template, device_location, device_serial_number, device_description, device_username, device_password, device_provisioned_date, device_provisioned_ip, device_provisioned_method,
             enabled AS device_enabled, extension_uuid AS device_extension_uuid,
             created_at AS insert_date, updated_at AS update_date FROM devices;"""
@@ -348,6 +348,11 @@ def upgrade() -> None:
     try:
         op.execute("DROP VIEW IF EXISTS v_device_profile_settings;")
         op.execute("CREATE VIEW v_device_profile_settings AS SELECT domain_id AS domain_uuid, device_profile_setting_uuid, device_profile_uuid, profile_setting_name, profile_setting_value, profile_setting_enabled, profile_setting_description, created_at AS insert_date, updated_at AS update_date FROM device_profile_settings;")
+    except Exception:
+        pass
+    # hostname parity column (model has it, table missed it)
+    try:
+        op.add_column("sip_profiles", sa.Column("hostname", sa.String(length=128), nullable=True))
     except Exception:
         pass
     try:

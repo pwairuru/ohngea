@@ -13,13 +13,10 @@ Source reference is the legacy system at `legacy/` (separate git clone, ignored,
 
 ## Quick start (Docker, recommended, no host venv)
 ```bash
-cp .env.example .env
-docker build -t ohngea-pbx:test .  # frontend vite build 635kB + pip wheels
-docker compose up -d db valkey
-docker compose run --rm api alembic upgrade head
-docker compose up -d api
-curl -f http://localhost:8000/health && curl -f http://localhost:8000/api/v1/health
-# frontend at http://localhost:8000/ (static) or npm run dev proxy
+cp .env.example .env  # sets API_PORT=8010 + FRONTEND_PORT=8060 (single source of truth for ports)
+docker compose up -d --build  # db, valkey, api (migrates on start), frontend (nginx), mailpit
+# UI at http://localhost:8060/ — API at http://localhost:8010/ (proxied as /api from the UI)
+curl -f http://localhost:8060/health && curl -f http://localhost:8060/api/v1/health
 # NOTE: PostgreSQL 18 upgrade from 16 needs: `docker compose down -v` (dev) or `pg_upgrade`/`pg_dumpall` (prod). See docs.
 ```
 
@@ -27,7 +24,7 @@ Local dev (if you have uv):
 ```bash
 uv sync --python 3.14
 uv run alembic upgrade head
-uv run uvicorn app.main:app --reload  # :8000
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload  # or: make dev (port = $API_PORT in root .env; 8000 clashes with bifrost-llm-proxy)
 cd frontend && npm install --legacy-peer-deps && npm run dev  # :5173 proxy /api
 ```
 

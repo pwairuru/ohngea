@@ -114,6 +114,32 @@ fn sandbox_enforces_fuel_and_timeout() {
     );
 }
 
+// ---- 5b. lookup wiring: caller-supplied db_get resolver is honored ----
+#[test]
+fn sandbox_db_get_custom_lookup() {
+    use std::sync::{Arc, Mutex};
+    let mut sb = PluginSandbox::new();
+    sb.register(&parse_example_manifest(), guest_wasm())
+        .expect("guest loads");
+    let seen = Arc::new(Mutex::new(Vec::<i64>::new()));
+    let seen_clone = seen.clone();
+    let out = sb
+        .call_plugin_with_lookup("example", "check_db", b"", move |key| {
+            seen_clone.lock().unwrap().push(key);
+            match key {
+                1 => 1,
+                999 => 0,
+                _ => 7,
+            }
+        })
+        .expect("guest allowlist shape still holds with custom lookup");
+    assert!(out.is_empty(), "check_db sets no output");
+    assert_eq!(
+        *seen.lock().unwrap(),
+        vec![1, 999],
+        "resolver must observe the guest's db_get keys in order"
+    );
+}
 // ---- 6. hook: GET /api/v1/example runs the guest via the sandbox ----
 #[tokio::test]
 async fn example_route_proves_sandbox_path() {

@@ -85,7 +85,7 @@ async fn get_json(
 }
 
 // (1) extensions CRUD: POST 1001 + 1002, password auto-gen when blank,
-// 2-7 digit reject 422, GET list returns {data,total}
+// PHP validation (non-empty only — no digit regex), GET list returns {data,total}
 #[tokio::test]
 async fn extensions_crud_with_autogen_password_and_validation() {
     let token = login_token().await;
@@ -113,20 +113,26 @@ async fn extensions_crud_with_autogen_password_and_validation() {
     .await;
     assert_eq!(s, StatusCode::CREATED, "create 1002: {b}");
 
-    // bad: not 2-7 digits
+    // PHP-legal values the old Python 2-7-digit rule wrongly rejected
+    for ext in ["1", "12345678", "*98"] {
+        let (s, b) = post_json(
+            pbx_api::test_app(),
+            &token,
+            "/api/v1/extensions",
+            serde_json::json!({"extension":ext,"domain":"example.com"}),
+        )
+        .await;
+        assert!(
+            s == StatusCode::CREATED || s == StatusCode::CONFLICT,
+            "php-legal {ext}: {b}"
+        );
+    }
+    // blank still 422 (PHP: empty($extension))
     let (s, _) = post_json(
         pbx_api::test_app(),
         &token,
         "/api/v1/extensions",
-        serde_json::json!({"extension":"1","domain":"example.com"}),
-    )
-    .await;
-    assert_eq!(s, StatusCode::UNPROCESSABLE_ENTITY);
-    let (s, _) = post_json(
-        pbx_api::test_app(),
-        &token,
-        "/api/v1/extensions",
-        serde_json::json!({"extension":"12345678","domain":"example.com"}),
+        serde_json::json!({"extension":"","domain":"example.com"}),
     )
     .await;
     assert_eq!(s, StatusCode::UNPROCESSABLE_ENTITY);
@@ -341,7 +347,9 @@ async fn fs_directory_per_user_enriched_vars_and_scoped() {
         }
     };
 
-    let xml = fetch("/api/internal/freeswitch/xml?section=directory&key_value=1091@dirtest.example.com").await;
+    let xml =
+        fetch("/api/internal/freeswitch/xml?section=directory&key_value=1091@dirtest.example.com")
+            .await;
     for needle in [
         "number-alias=\"a1091\"",
         "cidr=\"10.9.0.0/16\"",
@@ -360,7 +368,9 @@ async fn fs_directory_per_user_enriched_vars_and_scoped() {
         assert!(xml.contains(needle), "missing {needle}: {xml}");
     }
 
-    let xml = fetch("/api/internal/freeswitch/xml?section=directory&key_value=1092@dirtest.example.com").await;
+    let xml =
+        fetch("/api/internal/freeswitch/xml?section=directory&key_value=1092@dirtest.example.com")
+            .await;
     for needle in [
         "<param name=\"vm-password\" value=\"vm-1092\"/>",
         "<param name=\"vm-mailto\" value=\"ops@dirtest.example.com\"/>",
@@ -369,11 +379,10 @@ async fn fs_directory_per_user_enriched_vars_and_scoped() {
     }
 
     // Foreign domain must not serve this tenant's password.
-    let xml = fetch("/api/internal/freeswitch/xml?section=directory&key_value=1091@other.example.com").await;
-    assert!(
-        !xml.contains("pw-1091"),
-        "cross-domain leak: {xml}"
-    );
+    let xml =
+        fetch("/api/internal/freeswitch/xml?section=directory&key_value=1091@other.example.com")
+            .await;
+    assert!(!xml.contains("pw-1091"), "cross-domain leak: {xml}");
 }
 
 // RED: vars non-empty after boot-seed (seeds run at boot, not only in tests)
@@ -413,10 +422,7 @@ fn nanos() -> u128 {
 async fn get_xml(token: &str, path: &str) -> String {
     let app = pbx_api::test_app();
     let res = app
-        .oneshot(auth(
-            Request::get(path).body(Body::empty()).unwrap(),
-            token,
-        ))
+        .oneshot(auth(Request::get(path).body(Body::empty()).unwrap(), token))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK, "GET {path}");
@@ -457,13 +463,23 @@ async fn configuration_gateway_served_inside_sofia() {
         .expect("gateway_uuid in response")
         .to_string();
 
-    let xml = get_xml(&token, "/api/internal/freeswitch/xml?section=configuration&key_value=sofia.conf").await;
+    let xml = get_xml(
+        &token,
+        "/api/internal/freeswitch/xml?section=configuration&key_value=sofia.conf",
+    )
+    .await;
     assert!(
         xml.contains(&format!("<gateway name=\"{}\">", gid.to_lowercase())),
         "gateway element served: {xml}"
     );
-    assert!(xml.contains("<param name=\"username\" value=\"t5user\"/>"), "{xml}");
-    assert!(xml.contains(&format!("<profile name=\"{profile}\">")), "{xml}");
+    assert!(
+        xml.contains("<param name=\"username\" value=\"t5user\"/>"),
+        "{xml}"
+    );
+    assert!(
+        xml.contains(&format!("<profile name=\"{profile}\">")),
+        "{xml}"
+    );
 
     // DELETE -> per-key invalidate + killgw: gateway gone on next fetch.
     let app = pbx_api::test_app();
@@ -477,7 +493,11 @@ async fn configuration_gateway_served_inside_sofia() {
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::NO_CONTENT, "delete gateway");
-    let xml = get_xml(&token, "/api/internal/freeswitch/xml?section=configuration&key_value=sofia.conf").await;
+    let xml = get_xml(
+        &token,
+        "/api/internal/freeswitch/xml?section=configuration&key_value=sofia.conf",
+    )
+    .await;
     assert!(
         !xml.contains(&gid.to_lowercase()),
         "deleted gateway must vanish: {xml}"
@@ -509,9 +529,15 @@ async fn configuration_vars_served_from_rows() {
     .await;
     assert_eq!(s, StatusCode::CREATED, "seed provision var");
 
-    let xml = get_xml(&token, "/api/internal/freeswitch/xml?section=configuration&key_value=vars.xml").await;
+    let xml = get_xml(
+        &token,
+        "/api/internal/freeswitch/xml?section=configuration&key_value=vars.xml",
+    )
+    .await;
     assert!(
-        xml.contains(&format!("<X-PRE-PROCESS cmd=\"set\" data=\"{name}=t5val\" />")),
+        xml.contains(&format!(
+            "<X-PRE-PROCESS cmd=\"set\" data=\"{name}=t5val\" />"
+        )),
         "var served: {xml}"
     );
     assert!(
@@ -551,9 +577,19 @@ async fn configuration_callcenter_served_from_rows() {
     .await;
     assert_eq!(s, StatusCode::CREATED, "seed agent: {b}");
 
-    let xml = get_xml(&token, "/api/internal/freeswitch/xml?section=configuration&key_value=callcenter.conf").await;
-    assert!(xml.contains(&format!("<queue name=\"{queue}@")), "queue served: {xml}");
-    assert!(xml.contains(&format!("<agent name=\"{agent}@")), "agent served: {xml}");
+    let xml = get_xml(
+        &token,
+        "/api/internal/freeswitch/xml?section=configuration&key_value=callcenter.conf",
+    )
+    .await;
+    assert!(
+        xml.contains(&format!("<queue name=\"{queue}@")),
+        "queue served: {xml}"
+    );
+    assert!(
+        xml.contains(&format!("<agent name=\"{agent}@")),
+        "agent served: {xml}"
+    );
     assert!(
         xml.contains("contact=\"{call_timeout=45}user/1001@example.com\""),
         "agent contact timeout: {xml}"

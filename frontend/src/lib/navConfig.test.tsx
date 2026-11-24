@@ -7,9 +7,9 @@ describe("navConfig", () => {
   it("has exactly 6 primary items", () => {
     expect(primaryNav.map((i) => i.to)).toEqual(["/", "/extensions", "/dialplans", "/gateways", "/devices", "/cdr"]);
   });
-  it("has 5 advanced groups totalling 44 items", () => {
+  it("has 5 advanced groups totalling 66 items", () => {
     expect(advancedNav.map((g) => g.label)).toEqual(["Call Routing", "Applications", "Network", "Status", "System"]);
-    expect(advancedNav.reduce((n, g) => n + g.items.length, 0)).toBe(44);
+    expect(advancedNav.reduce((n, g) => n + g.items.length, 0)).toBe(66);
   });
   it("every route exists in App.tsx Routes", () => {
     const app = fs.readFileSync(path.resolve(__dirname, "../App.tsx"), "utf8");

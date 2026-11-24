@@ -107,7 +107,8 @@ async fn live_full_fs_parity_flow() {
             Request::post("/api/v1/extensions")
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    serde_json::json!({"extension":"1001","password":"1234","domain":"default"}).to_string(),
+                    serde_json::json!({"extension":"1001","password":"1234","domain":"default"})
+                        .to_string(),
                 ))
                 .unwrap(),
             &token,
@@ -126,7 +127,8 @@ async fn live_full_fs_parity_flow() {
             Request::post("/api/v1/extensions")
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    serde_json::json!({"extension":"1002","password":"1234","domain":"default"}).to_string(),
+                    serde_json::json!({"extension":"1002","password":"1234","domain":"default"})
+                        .to_string(),
                 ))
                 .unwrap(),
             &token,
@@ -145,7 +147,10 @@ async fn live_full_fs_parity_flow() {
     let res = pbx_api::test_app()
         .oneshot(
             Request::get("/api/internal/freeswitch/xml?section=directory&key_value=1001@default")
-                .header("authorization", basic_header().parse::<axum::http::HeaderValue>().unwrap())
+                .header(
+                    "authorization",
+                    basic_header().parse::<axum::http::HeaderValue>().unwrap(),
+                )
                 .body(Body::empty())
                 .unwrap(),
         )

@@ -13,6 +13,11 @@ pub struct Model {
     pub destination: String,
     pub delay: i32,
     pub timeout: i32,
+    // PHP v_ring_group_destinations parity
+    pub destination_number: Option<String>,
+    pub destination_enabled: Option<bool>,
+    pub destination_prompt: Option<String>,
+    pub destination_description: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

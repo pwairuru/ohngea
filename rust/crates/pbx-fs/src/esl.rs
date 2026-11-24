@@ -218,7 +218,12 @@ pub fn parse_show_channels_json(text: &str) -> Vec<MockChannel> {
                         if seen.insert(uuid.clone()) {
                             let from = find_json_string(
                                 obj,
-                                &["cid_num", "caller_id_number", "caller_caller_id_number", "from"],
+                                &[
+                                    "cid_num",
+                                    "caller_id_number",
+                                    "caller_caller_id_number",
+                                    "from",
+                                ],
                             )
                             .unwrap_or_default();
                             let to = find_json_string(
@@ -226,11 +231,9 @@ pub fn parse_show_channels_json(text: &str) -> Vec<MockChannel> {
                                 &["dest", "destination_number", "callee", "to"],
                             )
                             .unwrap_or_default();
-                            let state = find_json_string(
-                                obj,
-                                &["state", "callstate", "call_state"],
-                            )
-                            .unwrap_or_else(|| "ACTIVE".to_owned());
+                            let state =
+                                find_json_string(obj, &["state", "callstate", "call_state"])
+                                    .unwrap_or_else(|| "ACTIVE".to_owned());
                             out.push(MockChannel {
                                 uuid,
                                 from,
@@ -487,9 +490,12 @@ impl RealEs {
         // like `freeswitch-mock`); resolve via `ToSocketAddrs` instead.
         use std::net::ToSocketAddrs;
         let sock = addr.to_socket_addrs().ok()?.next()?;
-        let mut stream = TcpStream::connect_timeout(&sock, Duration::from_millis(300)).ok()?;
+        // Timeouts: connect 1s; read 2.5s — a live `originate` answers in
+        // ~660ms, and the old 500ms read window truncated it (known
+        // limitation; retries would double-originate, so wait once).
+        let mut stream = TcpStream::connect_timeout(&sock, Duration::from_millis(1000)).ok()?;
         stream
-            .set_read_timeout(Some(Duration::from_millis(500)))
+            .set_read_timeout(Some(Duration::from_millis(2500)))
             .ok()?;
         // Greeting banner is informational only; content discarded.
         let _banner = read_esl_packet(&mut stream);
@@ -509,12 +515,7 @@ impl RealEs {
     /// legacy legs otherwise. Live FS returns the real call UUID parsed
     /// from `+OK <uuid>` (so `uuid_kill` targets a real id); FS-down
     /// falls back to the mock transport with domain-qualified legs.
-    pub fn originate_with_domain(
-        &self,
-        from: &str,
-        to: &str,
-        domain: Option<&str>,
-    ) -> String {
+    pub fn originate_with_domain(&self, from: &str, to: &str, domain: Option<&str>) -> String {
         let cmd = originate_command(from, to, domain);
         if let Some(resp) = self.try_api(&cmd) {
             if resp.contains("+OK") {

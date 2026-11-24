@@ -10,7 +10,7 @@ from app.auth.models import User
 from app.freeswitch.esl_client import esl_client, parse_sofia_status
 
 router = APIRouter(prefix="/api/v1/logs", tags=["logs"])
-ALLOWED = ["/var/log/freeswitch/freeswitch.log", "/var/log/freeswitch.log", "/tmp/freeswitch.log", "freeswitch.log", "/app/freeswitch_conf/../freeswitch.log"]
+ALLOWED = ["/var/log/freeswitch/freeswitch.log", "/var/log/freeswitch.log", "/tmp/freeswitch.log"]
 
 
 class LogDownloadRequest(BaseModel):
@@ -61,23 +61,10 @@ async def view_logs(lines: int = Query(100, ge=1, le=1000), level: Optional[str]
                     content = txt.splitlines()[-lines:]
                     found = True
                     break
-                except:
+                except Exception:
                     pass
-    # Try reading via ESL system command if file not directly accessible
-    if not found:
-        try:
-            # Try to cat log via FS system api (if log file exists inside FS container)
-            for log_path in ["/var/log/freeswitch/freeswitch.log", "/usr/local/freeswitch/log/freeswitch.log"]:
-                raw = await esl_client.api(f"system cat {log_path} | tail -n {lines}")
-                if raw and "No such file" not in raw and "error" not in raw.lower():
-                    # raw contains Content-Length header, extract body
-                    if "\n\n" in raw:
-                        body = raw.split("\n\n", 1)[1]
-                        content = body.splitlines()[-lines:]
-                        found = True
-                        break
-        except Exception:
-            pass
+    # NOTE: removed ESL `system cat ...` path — FreeSWITCH `system` executes shell.
+    # File must be mounted into API container; otherwise fall back to ESL status/mock below.
 
     if not found:
         # Fallback: generate live mock based on current FS state
@@ -130,7 +117,7 @@ async def download_logs(payload: LogDownloadRequest, user: User = Depends(requir
     content_lines = result.get("lines", [])
     text = "\n".join(content_lines) + "\n"
     buf = io.BytesIO(text.encode("utf-8"))
-    filename = payload.filename or f"freeswitch-{datetime.datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.log"
+    filename = payload.filename or f"freeswitch-{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d-%H%M%S')}.log"
     # sanitize filename
     filename = Path(filename).name
     if not filename.endswith(".log"):

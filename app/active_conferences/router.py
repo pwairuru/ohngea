@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request, Response, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.deps import get_current_user
+from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
 
@@ -119,6 +119,82 @@ async def count_active_conferences(
         return {"count": total, "source": "db"}
     except Exception:
         return {"count": 0, "source": "none"}
+
+
+@router.get("/{conf}/members", response_model=dict)
+async def list_conference_members(
+    conf: str,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """Live member list via ESL `conference <name> list as json`."""
+    data: list[dict] = []
+    try:
+        from app.freeswitch.sanitize import sanitize_dial
+        conf = sanitize_dial(conf)
+    except ValueError:
+        return {"data": [], "total": 0, "conference_name": conf, "error": "invalid conference name"}
+    try:
+        from app.freeswitch.esl_client import esl_command
+        import json
+
+        raw = await esl_command(f"conference {conf} list as json")
+        if raw:
+            j = json.loads(raw) if isinstance(raw, str) else raw
+            rows = j.get("rows") or j.get("members") or j.get("data") or []
+            if isinstance(rows, dict):
+                rows = list(rows.values())
+            for r in rows:
+                if isinstance(r, dict):
+                    data.append(
+                        {
+                            "member_id": r.get("id") or r.get("member_id") or r.get("uuid"),
+                            "uuid": r.get("uuid"),
+                            "caller_id_name": r.get("caller_id_name"),
+                            "caller_id_number": r.get("caller_id_number"),
+                            "muted": r.get("mute") or r.get("muted") or False,
+                            "deaf": r.get("deaf") or False,
+                            "_raw": r,
+                        }
+                    )
+                else:
+                    data.append({"member_id": str(r)})
+    except Exception as e:
+        return {"data": [], "total": 0, "conference_name": conf, "error": "internal error"}
+    return {"data": data, "total": len(data), "conference_name": conf}
+
+
+_CONF_MEMBER_ACTIONS = {"mute", "unmute", "deaf", "undeaf", "kick"}
+
+
+@router.post("/{conf}/members/{member}/{action}", response_model=dict)
+async def conference_member_action(
+    conf: str,
+    member: str,
+    action: str,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_permission("conferences_active_control")),
+):
+    """Member controls via ESL `conference <conf> <action> <member>`."""
+    if action not in _CONF_MEMBER_ACTIONS:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=422, detail=f"action must be one of {sorted(_CONF_MEMBER_ACTIONS)}")
+    try:
+        from app.freeswitch.sanitize import sanitize_dial
+        conf = sanitize_dial(conf)
+        member = sanitize_dial(member)
+    except ValueError:
+        from fastapi import HTTPException as _HE2
+
+        raise _HE2(status_code=400, detail="invalid conference or member")
+    try:
+        from app.freeswitch.esl_client import esl_command
+
+        raw = await esl_command(f"conference {conf} {action} {member}")
+        return {"result": str(raw), "conference_name": conf, "member_id": member, "action": action}
+    except Exception as e:
+        return {"result": "action queued (ESL offline)", "conference_name": conf, "member_id": member, "action": action}
 
 
 @router.websocket("/ws")

@@ -23,13 +23,18 @@ struct RecordingCreate {
     file_path: Option<String>,
     #[serde(default, alias = "recording_filename")]
     recording_filename: Option<String>,
-    #[serde(default)] recording_voice: Option<String>,
-    #[serde(default)] recording_description: Option<String>,
+    #[serde(default)]
+    recording_voice: Option<String>,
+    #[serde(default)]
+    recording_description: Option<String>,
     #[serde(default, alias = "description")]
     description: Option<String>,
-    #[serde(default)] recording_speed: Option<String>,
-    #[serde(default)] recording_message: Option<String>,
-    #[serde(default)] recording_base64: Option<String>,
+    #[serde(default)]
+    recording_speed: Option<String>,
+    #[serde(default)]
+    recording_message: Option<String>,
+    #[serde(default)]
+    recording_base64: Option<String>,
 }
 
 // ---- handlers ----
@@ -37,7 +42,9 @@ async fn create_rec(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<RecordingCreate>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["recording_add", "call_recording_add"]) {
+    if let Some((s, j)) =
+        crate::tenant::deny_if_missing_any(&claims, &["recording_add", "call_recording_add"])
+    {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -67,7 +74,9 @@ async fn create_rec(
         file_path: Set(path.clone()),
         storage_backend: Set("s3".to_owned()),
         recording_voice: Set(payload.recording_voice.clone()),
-        recording_description: Set(payload.recording_description.or(payload.description.clone())),
+        recording_description: Set(payload
+            .recording_description
+            .or(payload.description.clone())),
         recording_speed: Set(payload.recording_speed.clone()),
         recording_message: Set(payload.recording_message.clone()),
         recording_base64: Set(payload.recording_base64.clone()),
@@ -91,10 +100,13 @@ async fn create_rec(
     }
 }
 
-async fn list_rec(Extension(claims): Extension<pbx_core::auth::Claims>,
+async fn list_rec(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["recording_view", "call_recording_view"]) {
+    if let Some((s, j)) =
+        crate::tenant::deny_if_missing_any(&claims, &["recording_view", "call_recording_view"])
+    {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -125,7 +137,9 @@ async fn presign_rec(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["recording_view", "call_recording_view"]) {
+    if let Some((s, j)) =
+        crate::tenant::deny_if_missing_any(&claims, &["recording_view", "call_recording_view"])
+    {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -187,7 +201,9 @@ async fn get_rec(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["recording_view", "call_recording_view"]) {
+    if let Some((s, j)) =
+        crate::tenant::deny_if_missing_any(&claims, &["recording_view", "call_recording_view"])
+    {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -206,7 +222,9 @@ async fn playback_rec(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["recording_view", "call_recording_view"]) {
+    if let Some((s, j)) =
+        crate::tenant::deny_if_missing_any(&claims, &["recording_view", "call_recording_view"])
+    {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -235,7 +253,9 @@ async fn patch_rec(
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     let payload = crate::alias::normalize(payload);
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["recording_edit", "call_recording_edit"]) {
+    if let Some((s, j)) =
+        crate::tenant::deny_if_missing_any(&claims, &["recording_edit", "call_recording_edit"])
+    {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -248,15 +268,31 @@ async fn patch_rec(
             .into_response();
     };
     let mut am: recordings::ActiveModel = r.into();
-    if let Some(v) = payload.get("name").or_else(|| payload.get("recording_name")).and_then(|v| v.as_str()) {
+    if let Some(v) = payload
+        .get("name")
+        .or_else(|| payload.get("recording_name"))
+        .and_then(|v| v.as_str())
+    {
         if !v.trim().is_empty() {
             am.name = Set(v.to_owned());
         }
     }
-    if let Some(v) = payload.get("file_path").or_else(|| payload.get("recording_filename")).and_then(|v| v.as_str()) {
+    if let Some(v) = payload
+        .get("file_path")
+        .or_else(|| payload.get("recording_filename"))
+        .and_then(|v| v.as_str())
+    {
         am.file_path = Set(v.to_owned());
     }
-    for key in ["recording_voice", "voice", "recording_speed", "recording_message", "recording_base64", "recording_description", "description"] {
+    for key in [
+        "recording_voice",
+        "voice",
+        "recording_speed",
+        "recording_message",
+        "recording_base64",
+        "recording_description",
+        "description",
+    ] {
         if let Some(v) = payload.get(key).and_then(|v| v.as_str()) {
             match key {
                 "recording_voice" | "voice" => am.recording_voice = Set(Some(v.to_owned())),
@@ -282,7 +318,9 @@ async fn delete_rec(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["recording_delete", "call_recording_delete"]) {
+    if let Some((s, j)) =
+        crate::tenant::deny_if_missing_any(&claims, &["recording_delete", "call_recording_delete"])
+    {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;

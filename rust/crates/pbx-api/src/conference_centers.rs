@@ -135,9 +135,18 @@ async fn create_center(
             .and_then(|v| v.as_str())
             .map(str::to_owned)),
         conference_center_enabled: Set(true),
-        dialplan_uuid: Set(payload.get("dialplan_uuid").and_then(|v| v.as_str()).map(str::to_owned)),
-        conference_center_pin_length: Set(payload.get("conference_center_pin_length").and_then(|v| v.as_i64()).map(|v| v as i32)),
-        conference_center_greeting: Set(payload.get("conference_center_greeting").and_then(|v| v.as_str()).map(str::to_owned)),
+        dialplan_uuid: Set(payload
+            .get("dialplan_uuid")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        conference_center_pin_length: Set(payload
+            .get("conference_center_pin_length")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32)),
+        conference_center_greeting: Set(payload
+            .get("conference_center_greeting")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
         created_at: Set(now),
         updated_at: Set(now),
     };
@@ -176,7 +185,12 @@ async fn list_centers(
         Err(_) => {
             return (
                 crate::paged_headers("/api/v1/conference_centers", page, per_page, 0),
-                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+                Json(crate::paged_body(
+                    Vec::<serde_json::Value>::new(),
+                    0,
+                    page,
+                    per_page,
+                )),
             )
                 .into_response();
         }
@@ -265,13 +279,22 @@ async fn patch_center(
         am.conference_center_enabled = Set(v);
     }
     if payload.get("dialplan_uuid").is_some() {
-        am.dialplan_uuid = Set(payload.get("dialplan_uuid").and_then(|v| v.as_str()).map(str::to_owned));
+        am.dialplan_uuid = Set(payload
+            .get("dialplan_uuid")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned));
     }
     if payload.get("conference_center_pin_length").is_some() {
-        am.conference_center_pin_length = Set(payload.get("conference_center_pin_length").and_then(|v| v.as_i64()).map(|v| v as i32));
+        am.conference_center_pin_length = Set(payload
+            .get("conference_center_pin_length")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32));
     }
     if payload.get("conference_center_greeting").is_some() {
-        am.conference_center_greeting = Set(payload.get("conference_center_greeting").and_then(|v| v.as_str()).map(str::to_owned));
+        am.conference_center_greeting = Set(payload
+            .get("conference_center_greeting")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned));
     }
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
@@ -440,23 +463,56 @@ async fn create_room(
             .get("enabled")
             .and_then(|v| v.as_bool())
             .unwrap_or(true)),
-        profile: Set(payload.get("profile").and_then(|v| v.as_str()).map(str::to_owned)),
-        moderator_pin: Set(payload.get("moderator_pin").and_then(|v| v.as_str()).map(str::to_owned)),
-        participant_pin: Set(payload.get("participant_pin").and_then(|v| v.as_str()).map(str::to_owned)),
-        start_datetime: Set(payload.get("start_datetime").and_then(|v| v.as_str()).and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok())),
-        stop_datetime: Set(payload.get("stop_datetime").and_then(|v| v.as_str()).and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok())),
+        profile: Set(payload
+            .get("profile")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        moderator_pin: Set(payload
+            .get("moderator_pin")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        participant_pin: Set(payload
+            .get("participant_pin")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        start_datetime: Set(payload
+            .get("start_datetime")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok())),
+        stop_datetime: Set(payload
+            .get("stop_datetime")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok())),
         wait_mod: Set(payload.get("wait_mod").and_then(|v| v.as_bool())),
         moderator_endconf: Set(payload.get("moderator_endconf").and_then(|v| v.as_bool())),
         announce_name: Set(payload.get("announce_name").and_then(|v| v.as_bool())),
         announce_count: Set(payload.get("announce_count").and_then(|v| v.as_bool())),
         announce_recording: Set(payload.get("announce_recording").and_then(|v| v.as_bool())),
-        sounds: Set(payload.get("sounds").and_then(|v| v.as_str()).map(str::to_owned)),
+        sounds: Set(payload
+            .get("sounds")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
         mute: Set(payload.get("mute").and_then(|v| v.as_bool())),
-        created: Set(payload.get("created").and_then(|v| v.as_str()).map(str::to_owned)),
-        created_by: Set(payload.get("created_by").and_then(|v| v.as_str()).map(str::to_owned)),
-        email_address: Set(payload.get("email_address").and_then(|v| v.as_str()).map(str::to_owned)),
-        account_code: Set(payload.get("account_code").and_then(|v| v.as_str()).map(str::to_owned)),
-        description: Set(payload.get("description").and_then(|v| v.as_str()).map(str::to_owned)),
+        created: Set(payload
+            .get("created")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        created_by: Set(payload
+            .get("created_by")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        email_address: Set(payload
+            .get("email_address")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        account_code: Set(payload
+            .get("account_code")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        description: Set(payload
+            .get("description")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
         created_at: Set(now),
         updated_at: Set(now),
     };
@@ -528,13 +584,36 @@ async fn patch_room(
     if let Some(v) = payload.get("enabled").and_then(|v| v.as_bool()) {
         am.enabled = Set(v);
     }
-    macro_rules! rstr { ($f:ident) => { if payload.get(stringify!($f)).is_some() { am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_str()).map(str::to_owned)); } }; }
-    macro_rules! rbool { ($f:ident) => { if payload.get(stringify!($f)).is_some() { am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_bool())); } }; }
-    rstr!(profile); rstr!(moderator_pin); rstr!(participant_pin);
-    rbool!(wait_mod); rbool!(moderator_endconf);
-    rbool!(announce_name); rbool!(announce_count); rbool!(announce_recording);
-    rstr!(sounds); rbool!(mute);
-    rstr!(email_address); rstr!(account_code); rstr!(description);
+    macro_rules! rstr {
+        ($f:ident) => {
+            if payload.get(stringify!($f)).is_some() {
+                am.$f = Set(payload
+                    .get(stringify!($f))
+                    .and_then(|v| v.as_str())
+                    .map(str::to_owned));
+            }
+        };
+    }
+    macro_rules! rbool {
+        ($f:ident) => {
+            if payload.get(stringify!($f)).is_some() {
+                am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_bool()));
+            }
+        };
+    }
+    rstr!(profile);
+    rstr!(moderator_pin);
+    rstr!(participant_pin);
+    rbool!(wait_mod);
+    rbool!(moderator_endconf);
+    rbool!(announce_name);
+    rbool!(announce_count);
+    rbool!(announce_recording);
+    rstr!(sounds);
+    rbool!(mute);
+    rstr!(email_address);
+    rstr!(account_code);
+    rstr!(description);
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
         Ok(r) => (StatusCode::OK, Json(ser_room(&r))).into_response(),

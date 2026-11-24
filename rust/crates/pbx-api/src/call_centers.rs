@@ -21,37 +21,68 @@ struct QueueCreate {
     queue_extension: Option<String>,
     #[serde(default = "default_strategy")]
     queue_strategy: String,
-    #[serde(default)] dialplan_uuid: Option<String>,
-    #[serde(default, alias = "queue_greeting")] greeting: Option<String>,
-    #[serde(default, alias = "queue_moh_sound")] moh_sound: Option<String>,
-    #[serde(default, alias = "queue_record_template")] record_template: Option<String>,
-    #[serde(default)] queue_record_enabled: Option<bool>,
-    #[serde(default, alias = "queue_language")] language: Option<String>,
-    #[serde(default, alias = "queue_dialect")] dialect: Option<String>,
-    #[serde(default, alias = "queue_voice")] voice: Option<String>,
-    #[serde(default)] queue_limit: Option<i32>,
-    #[serde(default)] time_base_score: Option<String>,
-    #[serde(default)] time_base_score_sec: Option<i32>,
-    #[serde(default, alias = "queue_max_wait_time")] max_wait_time: Option<i32>,
-    #[serde(default, alias = "queue_max_wait_time_with_no_agent")] max_wait_time_with_no_agent: Option<i32>,
-    #[serde(default, alias = "queue_max_wait_time_with_no_agent_time_reached")] max_wait_time_with_no_agent_time_reached: Option<i32>,
-    #[serde(default, alias = "queue_tier_rules_apply")] tier_rules_apply: Option<bool>,
-    #[serde(default, alias = "queue_tier_rule_wait_second")] tier_rule_wait_second: Option<i32>,
-    #[serde(default, alias = "queue_tier_rule_no_agent_no_wait")] tier_rule_no_agent_no_wait: Option<bool>,
-    #[serde(default, alias = "queue_timeout_action")] timeout_action: Option<String>,
-    #[serde(default, alias = "queue_discard_abandoned_after")] discard_abandoned_after: Option<i32>,
-    #[serde(default, alias = "queue_abandoned_resume_allowed")] abandoned_resume_allowed: Option<bool>,
-    #[serde(default, alias = "queue_tier_rule_wait_multiply_level")] tier_rule_wait_multiply_level: Option<bool>,
-    #[serde(default, alias = "queue_cid_prefix")] cid_prefix: Option<String>,
-    #[serde(default, alias = "queue_outbound_caller_id_name")] outbound_caller_id_name: Option<String>,
-    #[serde(default, alias = "queue_outbound_caller_id_number")] outbound_caller_id_number: Option<String>,
-    #[serde(default, alias = "queue_announce_position")] announce_position: Option<bool>,
-    #[serde(default, alias = "queue_announce_sound")] announce_sound: Option<String>,
-    #[serde(default, alias = "queue_announce_frequency")] announce_frequency: Option<i32>,
-    #[serde(default, alias = "queue_cc_exit_keys")] cc_exit_keys: Option<String>,
-    #[serde(default, alias = "queue_email_address")] email_address: Option<String>,
-    #[serde(default, alias = "queue_context")] context: Option<String>,
-    #[serde(default)] queue_description: Option<String>,
+    #[serde(default)]
+    dialplan_uuid: Option<String>,
+    #[serde(default, alias = "queue_greeting")]
+    greeting: Option<String>,
+    #[serde(default, alias = "queue_moh_sound")]
+    moh_sound: Option<String>,
+    #[serde(default, alias = "queue_record_template")]
+    record_template: Option<String>,
+    #[serde(default)]
+    queue_record_enabled: Option<bool>,
+    #[serde(default, alias = "queue_language")]
+    language: Option<String>,
+    #[serde(default, alias = "queue_dialect")]
+    dialect: Option<String>,
+    #[serde(default, alias = "queue_voice")]
+    voice: Option<String>,
+    #[serde(default)]
+    queue_limit: Option<i32>,
+    #[serde(default)]
+    time_base_score: Option<String>,
+    #[serde(default)]
+    time_base_score_sec: Option<i32>,
+    #[serde(default, alias = "queue_max_wait_time")]
+    max_wait_time: Option<i32>,
+    #[serde(default, alias = "queue_max_wait_time_with_no_agent")]
+    max_wait_time_with_no_agent: Option<i32>,
+    #[serde(default, alias = "queue_max_wait_time_with_no_agent_time_reached")]
+    max_wait_time_with_no_agent_time_reached: Option<i32>,
+    #[serde(default, alias = "queue_tier_rules_apply")]
+    tier_rules_apply: Option<bool>,
+    #[serde(default, alias = "queue_tier_rule_wait_second")]
+    tier_rule_wait_second: Option<i32>,
+    #[serde(default, alias = "queue_tier_rule_no_agent_no_wait")]
+    tier_rule_no_agent_no_wait: Option<bool>,
+    #[serde(default, alias = "queue_timeout_action")]
+    timeout_action: Option<String>,
+    #[serde(default, alias = "queue_discard_abandoned_after")]
+    discard_abandoned_after: Option<i32>,
+    #[serde(default, alias = "queue_abandoned_resume_allowed")]
+    abandoned_resume_allowed: Option<bool>,
+    #[serde(default, alias = "queue_tier_rule_wait_multiply_level")]
+    tier_rule_wait_multiply_level: Option<bool>,
+    #[serde(default, alias = "queue_cid_prefix")]
+    cid_prefix: Option<String>,
+    #[serde(default, alias = "queue_outbound_caller_id_name")]
+    outbound_caller_id_name: Option<String>,
+    #[serde(default, alias = "queue_outbound_caller_id_number")]
+    outbound_caller_id_number: Option<String>,
+    #[serde(default, alias = "queue_announce_position")]
+    announce_position: Option<bool>,
+    #[serde(default, alias = "queue_announce_sound")]
+    announce_sound: Option<String>,
+    #[serde(default, alias = "queue_announce_frequency")]
+    announce_frequency: Option<i32>,
+    #[serde(default, alias = "queue_cc_exit_keys")]
+    cc_exit_keys: Option<String>,
+    #[serde(default, alias = "queue_email_address")]
+    email_address: Option<String>,
+    #[serde(default, alias = "queue_context")]
+    context: Option<String>,
+    #[serde(default)]
+    queue_description: Option<String>,
 }
 
 fn default_strategy() -> String {
@@ -64,18 +95,30 @@ struct AgentCreate {
     queue_id: Option<String>,
     agent_name: String,
     agent_contact: String,
-    #[serde(default)] user_uuid: Option<String>,
-    #[serde(default)] agent_type: Option<String>,
-    #[serde(default)] agent_call_timeout: Option<i32>,
-    #[serde(default)] agent_id: Option<String>,
-    #[serde(default)] agent_password: Option<String>,
-    #[serde(default)] agent_logout: Option<String>,
-    #[serde(default)] agent_max_no_answer: Option<i32>,
-    #[serde(default)] agent_wrap_up_time: Option<i32>,
-    #[serde(default)] agent_reject_delay_time: Option<i32>,
-    #[serde(default)] agent_busy_delay_time: Option<i32>,
-    #[serde(default)] agent_no_answer_delay_time: Option<i32>,
-    #[serde(default)] agent_record: Option<bool>,
+    #[serde(default)]
+    user_uuid: Option<String>,
+    #[serde(default)]
+    agent_type: Option<String>,
+    #[serde(default)]
+    agent_call_timeout: Option<i32>,
+    #[serde(default)]
+    agent_id: Option<String>,
+    #[serde(default)]
+    agent_password: Option<String>,
+    #[serde(default)]
+    agent_logout: Option<String>,
+    #[serde(default)]
+    agent_max_no_answer: Option<i32>,
+    #[serde(default)]
+    agent_wrap_up_time: Option<i32>,
+    #[serde(default)]
+    agent_reject_delay_time: Option<i32>,
+    #[serde(default)]
+    agent_busy_delay_time: Option<i32>,
+    #[serde(default)]
+    agent_no_answer_delay_time: Option<i32>,
+    #[serde(default)]
+    agent_record: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -85,9 +128,12 @@ struct TierCreate {
     tier_level: i32,
     #[serde(default = "default_tier_position")]
     tier_position: i32,
-    #[serde(default)] call_center_queue_uuid: Option<String>,
-    #[serde(default)] call_center_agent_uuid: Option<String>,
-    #[serde(default)] queue_name: Option<String>,
+    #[serde(default)]
+    call_center_queue_uuid: Option<String>,
+    #[serde(default)]
+    call_center_agent_uuid: Option<String>,
+    #[serde(default)]
+    queue_name: Option<String>,
 }
 
 fn default_tier_level() -> i32 {
@@ -262,9 +308,7 @@ fn cc_spec(
     context: Option<String>,
     description: Option<String>,
 ) -> crate::ring_groups::AppDialplan {
-    use crate::ring_groups::{
-        fanout_action, AppDialplan, FanoutCondition, CC_APP_UUID,
-    };
+    use crate::ring_groups::{fanout_action, AppDialplan, FanoutCondition, CC_APP_UUID};
     let esc = |s: &str| {
         s.replace('&', "&amp;")
             .replace('<', "&lt;")
@@ -274,11 +318,7 @@ fn cc_spec(
     let non_empty = cc_non_empty;
     let (lang, dial, voi) = match (non_empty(language), non_empty(dialect), non_empty(voice)) {
         (None, None, None) => ("en", "us", "callie"),
-        (l, d, v) => (
-            l.unwrap_or(""),
-            d.unwrap_or(""),
-            v.unwrap_or(""),
-        ),
+        (l, d, v) => (l.unwrap_or(""), d.unwrap_or(""), v.unwrap_or("")),
     };
     let mut conditions: Vec<FanoutCondition> = Vec::new();
     let mut xml = format!(
@@ -313,11 +353,17 @@ fn cc_spec(
     group += 1;
     let mut actions = vec![
         fanout_action("answer", ""),
-        fanout_action("set", &format!("sound_prefix=$${{sounds_dir}}/{lang}/{dial}/{voi}")),
+        fanout_action(
+            "set",
+            &format!("sound_prefix=$${{sounds_dir}}/{lang}/{dial}/{voi}"),
+        ),
         fanout_action("set", &format!("call_center_queue_uuid={queue_uuid}")),
     ];
     if !queue_extension.trim().is_empty() {
-        actions.push(fanout_action("set", &format!("queue_extension={queue_extension}")));
+        actions.push(fanout_action(
+            "set",
+            &format!("queue_extension={queue_extension}"),
+        ));
     }
     actions.push(fanout_action(
         "set",
@@ -379,13 +425,18 @@ fn cc_spec(
     xml.push_str("\t\t<action application=\"set\" data=\"cc_export_vars=${cc_export_vars},call_center_queue_uuid,sip_h_Alert-Info,sound_prefix\"/>\n");
     xml.push_str("\t\t<action application=\"set\" data=\"hangup_after_bridge=true\"/>\n");
     if let Some(sec) = time_base_score_sec {
-        xml.push_str(&format!("\t\t<action application=\"set\" data=\"cc_base_score={sec}\"/>\n"));
+        xml.push_str(&format!(
+            "\t\t<action application=\"set\" data=\"cc_base_score={sec}\"/>\n"
+        ));
     }
     if let Some(g) = non_empty(greeting) {
         xml.push_str("\t\t<action application=\"sleep\" data=\"1000\"/>\n");
         let parts: Vec<&str> = g.splitn(2, ':').collect();
         if parts.len() == 1 {
-            xml.push_str(&format!("\t\t<action application=\"playback\" data=\"{}\"/>\n", esc(g)));
+            xml.push_str(&format!(
+                "\t\t<action application=\"playback\" data=\"{}\"/>\n",
+                esc(g)
+            ));
         } else if ["say", "tone_stream", "phrase"].contains(&parts[0]) {
             xml.push_str(&format!(
                 "\t\t<action application=\"{}\" data=\"{}\"/>\n",
@@ -444,7 +495,10 @@ async fn create_queue(
     let now = crate::routing_db::now();
     // PHP mints the dialplan row alongside the queue (only meaningful
     // with an extension; extension-less queues keep no linked row).
-    let ext = payload.queue_extension.clone().filter(|s| !s.trim().is_empty());
+    let ext = payload
+        .queue_extension
+        .clone()
+        .filter(|s| !s.trim().is_empty());
     let dp_id = ext.as_ref().map(|_| {
         crate::ring_groups::parse_dialplan_id(payload.dialplan_uuid.as_deref())
             .unwrap_or_else(crate::ring_groups::new_dialplan_id)
@@ -463,14 +517,17 @@ async fn create_queue(
             Some(false) => None,
             _ => payload.record_template.clone(),
         }),
-        language: Set(payload.language.clone()),        dialect: Set(payload.dialect.clone()),
+        language: Set(payload.language.clone()),
+        dialect: Set(payload.dialect.clone()),
         voice: Set(payload.voice.clone()),
         queue_limit: Set(payload.queue_limit),
         time_base_score: Set(payload.time_base_score.clone()),
         time_base_score_sec: Set(payload.time_base_score_sec),
         max_wait_time: Set(payload.max_wait_time),
         max_wait_time_with_no_agent: Set(payload.max_wait_time_with_no_agent),
-        max_wait_time_with_no_agent_time_reached: Set(payload.max_wait_time_with_no_agent_time_reached),
+        max_wait_time_with_no_agent_time_reached: Set(
+            payload.max_wait_time_with_no_agent_time_reached
+        ),
         tier_rules_apply: Set(payload.tier_rules_apply),
         tier_rule_wait_second: Set(payload.tier_rule_wait_second),
         tier_rule_no_agent_no_wait: Set(payload.tier_rule_no_agent_no_wait),
@@ -569,7 +626,12 @@ async fn list_queues(
         Err(_) => {
             return (
                 crate::paged_headers("/api/v1/call_centers", page, per_page, 0),
-                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+                Json(crate::paged_body(
+                    Vec::<serde_json::Value>::new(),
+                    0,
+                    page,
+                    per_page,
+                )),
             )
                 .into_response();
         }
@@ -633,9 +695,33 @@ async fn patch_queue(
             .into_response();
     };
     let mut am: call_centers::ActiveModel = r.into();
-    macro_rules! set_str { ($f:ident) => { if payload.get(stringify!($f)).is_some() { am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_str()).map(str::to_owned)); } }; }
-    macro_rules! set_int { ($f:ident) => { if payload.get(stringify!($f)).is_some() { am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_i64()).map(|v| v as i32)); } }; }
-    macro_rules! set_bool { ($f:ident) => { if payload.get(stringify!($f)).is_some() { am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_bool())); } }; }
+    macro_rules! set_str {
+        ($f:ident) => {
+            if payload.get(stringify!($f)).is_some() {
+                am.$f = Set(payload
+                    .get(stringify!($f))
+                    .and_then(|v| v.as_str())
+                    .map(str::to_owned));
+            }
+        };
+    }
+    macro_rules! set_int {
+        ($f:ident) => {
+            if payload.get(stringify!($f)).is_some() {
+                am.$f = Set(payload
+                    .get(stringify!($f))
+                    .and_then(|v| v.as_i64())
+                    .map(|v| v as i32));
+            }
+        };
+    }
+    macro_rules! set_bool {
+        ($f:ident) => {
+            if payload.get(stringify!($f)).is_some() {
+                am.$f = Set(payload.get(stringify!($f)).and_then(|v| v.as_bool()));
+            }
+        };
+    }
     if let Some(v) = payload.get("queue_name").and_then(|v| v.as_str()) {
         am.queue_name = Set(v.to_owned());
     }
@@ -645,24 +731,50 @@ async fn patch_queue(
     if let Some(v) = payload.get("queue_strategy").and_then(|v| v.as_str()) {
         am.queue_strategy = Set(v.to_owned());
     }
-    if payload.get("queue_enabled").is_some() { am.queue_enabled = Set(payload.get("queue_enabled").and_then(|v| v.as_bool()).unwrap_or(true)); }
-    set_str!(dialplan_uuid); set_str!(greeting); set_str!(moh_sound);
-    if payload.get("queue_record_enabled").and_then(|v| v.as_bool()) == Some(false) {
+    if payload.get("queue_enabled").is_some() {
+        am.queue_enabled = Set(payload
+            .get("queue_enabled")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true));
+    }
+    set_str!(dialplan_uuid);
+    set_str!(greeting);
+    set_str!(moh_sound);
+    if payload
+        .get("queue_record_enabled")
+        .and_then(|v| v.as_bool())
+        == Some(false)
+    {
         am.record_template = Set(None);
     } else {
         set_str!(record_template);
     }
-    set_str!(language); set_str!(dialect); set_str!(voice);
-    set_int!(queue_limit); set_str!(time_base_score); set_int!(time_base_score_sec);
-    set_int!(max_wait_time); set_int!(max_wait_time_with_no_agent);
+    set_str!(language);
+    set_str!(dialect);
+    set_str!(voice);
+    set_int!(queue_limit);
+    set_str!(time_base_score);
+    set_int!(time_base_score_sec);
+    set_int!(max_wait_time);
+    set_int!(max_wait_time_with_no_agent);
     set_int!(max_wait_time_with_no_agent_time_reached);
-    set_bool!(tier_rules_apply); set_int!(tier_rule_wait_second);
+    set_bool!(tier_rules_apply);
+    set_int!(tier_rule_wait_second);
     set_bool!(tier_rule_no_agent_no_wait);
-    set_str!(timeout_action); set_int!(discard_abandoned_after);
-    set_bool!(abandoned_resume_allowed); set_bool!(tier_rule_wait_multiply_level);
-    set_str!(cid_prefix); set_str!(outbound_caller_id_name); set_str!(outbound_caller_id_number);
-    set_bool!(announce_position); set_str!(announce_sound); set_int!(announce_frequency);
-    set_str!(cc_exit_keys); set_str!(email_address); set_str!(context); set_str!(queue_description);
+    set_str!(timeout_action);
+    set_int!(discard_abandoned_after);
+    set_bool!(abandoned_resume_allowed);
+    set_bool!(tier_rule_wait_multiply_level);
+    set_str!(cid_prefix);
+    set_str!(outbound_caller_id_name);
+    set_str!(outbound_caller_id_number);
+    set_bool!(announce_position);
+    set_str!(announce_sound);
+    set_int!(announce_frequency);
+    set_str!(cc_exit_keys);
+    set_str!(email_address);
+    set_str!(context);
+    set_str!(queue_description);
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
         Ok(r) => {
@@ -671,10 +783,8 @@ async fn patch_queue(
             let qext = r.queue_extension.clone().filter(|s| !s.trim().is_empty());
             match qext {
                 Some(qext) => {
-                    let dp = crate::ring_groups::parse_dialplan_id(
-                        r.dialplan_uuid.as_deref(),
-                    )
-                    .unwrap_or_else(crate::ring_groups::new_dialplan_id);
+                    let dp = crate::ring_groups::parse_dialplan_id(r.dialplan_uuid.as_deref())
+                        .unwrap_or_else(crate::ring_groups::new_dialplan_id);
                     let domain_name = crate::ring_groups::resolve_domain_name(
                         db,
                         domain,
@@ -1114,7 +1224,10 @@ async fn create_tier(
     }
     let id = crate::routing_db::new_uuid();
     let am = call_center_tiers::ActiveModel {
-        call_center_queue_uuid: Set(payload.call_center_queue_uuid.clone().or_else(|| Some(qid.clone()))),
+        call_center_queue_uuid: Set(payload
+            .call_center_queue_uuid
+            .clone()
+            .or_else(|| Some(qid.clone()))),
         call_center_agent_uuid: Set(payload.call_center_agent_uuid.clone()),
         queue_name: Set(payload.queue_name.clone()),
         call_center_tier_uuid: Set(id.clone()),

@@ -2,6 +2,8 @@
 
 Full REST, versioned via URL + `Accept: application/vnd.pbx.v1+json`, auto OpenAPI `GET /api/v1/openapi.json` Swagger `/docs`.
 
+> Base URL on this dev machine is `http://localhost:8010` (host `8000` is taken by bifrost-llm-proxy; container-internal port stays `8000`, so `http://api:8000` still applies inside docker networks). The host port is set once via `API_PORT` in root `.env` — compose, `make dev`, vite proxy, playwright and e2e scripts all follow it.
+
 ## Auth
 ```bash
 curl -X POST http://localhost:8000/auth/login \

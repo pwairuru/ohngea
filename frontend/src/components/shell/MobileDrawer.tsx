@@ -45,7 +45,7 @@ export function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => 
         </div>
         <div className="mt-4 flex-1 overflow-y-auto border-t pt-4">
           {advancedNav.map((g) => (
-            <details key={g.label} className="py-1" open={g.items.some((i) => isActive(loc.pathname, i.to))}>
+            <details key={g.label} className="py-1">
               <summary className="flex cursor-pointer list-none items-center justify-between rounded px-3 py-2.5 text-sm font-medium min-h-[44px]">
                 {g.label}
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />

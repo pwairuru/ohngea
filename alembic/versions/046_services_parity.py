@@ -45,7 +45,9 @@ def upgrade() -> None:
         "device_vendor_functions",
         "device_vendor_function_groups",
     ]:
-        _exec(f"ALTER TABLE {tbl} DISABLE ROW LEVEL SECURITY;")
+        # IF EXISTS: device_vendors*/modules have no alembic CREATE yet;
+        # a bare ALTER would abort the whole single-transaction upgrade.
+        _exec(f"ALTER TABLE IF EXISTS {tbl} DISABLE ROW LEVEL SECURITY;")
 
 
 def downgrade() -> None:

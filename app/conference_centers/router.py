@@ -52,8 +52,9 @@ async def patch_ep(uid:UUID, payload:ConferenceCenterUpdate, session:AsyncSessio
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(o)
     return _ser(o)
 @router.delete("/{uid}", status_code=204)
@@ -67,8 +68,9 @@ async def delete_ep(uid:UUID, session:AsyncSession=Depends(get_session), user:Us
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     return Response(status_code=204)
 
 # --- conference rooms child resources ---
@@ -147,8 +149,9 @@ async def create_room(center_uuid: UUID, payload: dict, response: Response, sess
     await session.refresh(obj)
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     response.headers["Location"] = f"/api/v1/conference_centers/{center_uuid}/rooms/{obj.conference_room_uuid}"
     return _room_ser(obj)
 
@@ -251,6 +254,18 @@ async def get_session_ep(center_uuid: UUID, session_uuid: UUID, session: AsyncSe
     if not o:
         raise HTTPException(status_code=404, detail="Conference session not found")
     return _session_ser(o)
+
+@router.delete("/{center_uuid}/sessions/{session_uuid}", status_code=204)
+async def delete_session_ep(center_uuid: UUID, session_uuid: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(require_permission("conference_session_delete"))):
+    domain_id = getattr(user, "_domain_id", user.domain_id)
+    await set_tenant(session, domain_id)
+    r = await session.execute(select(ConferenceSession).where(ConferenceSession.conference_session_uuid == session_uuid, ConferenceSession.domain_id == domain_id))
+    o = r.scalar_one_or_none()
+    if not o:
+        raise HTTPException(status_code=404, detail="Conference session not found")
+    await session.delete(o)
+    await session.commit()
+    return Response(status_code=204)
 
 # --- conference session details (nested under sessions) ---
 @router.get("/{center_uuid}/sessions/{session_uuid}/details", response_model=dict)

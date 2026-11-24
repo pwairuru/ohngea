@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 from sqlmodel import Field, SQLModel
@@ -17,5 +17,5 @@ class DatabaseTransactionBase(SQLModel):
 class DatabaseTransaction(DatabaseTransactionBase, table=True):
     __tablename__="database_transactions"
     database_transaction_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    transaction_date: datetime = Field(default_factory=lambda: datetime.utcnow())
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    transaction_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

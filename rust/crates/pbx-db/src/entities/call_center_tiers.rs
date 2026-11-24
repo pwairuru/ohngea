@@ -10,7 +10,10 @@ pub struct Model {
     pub call_center_tier_uuid: String,
     pub domain_id: Uuid,
     pub queue_id: String,
+    pub call_center_queue_uuid: Option<String>,
+    pub call_center_agent_uuid: Option<String>,
     pub agent_name: String,
+    pub queue_name: Option<String>,
     pub tier_level: i32,
     pub tier_position: i32,
 }

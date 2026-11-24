@@ -52,8 +52,7 @@ async fn req(
     let bytes = axum::body::to_bytes(res.into_body(), 1024 * 128)
         .await
         .unwrap();
-    let json: serde_json::Value =
-        serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
     (status, json)
 }
 
@@ -64,7 +63,10 @@ fn uniq(prefix: &str) -> String {
 #[tokio::test]
 async fn global_gateway_visibility_and_lifecycle() {
     // tenant A admin token via crafted claims (add+view+domain scope).
-    let a = token("gw-tenant-a", &["gateway_add", "gateway_view", "gateway_edit"]);
+    let a = token(
+        "gw-tenant-a",
+        &["gateway_add", "gateway_view", "gateway_edit"],
+    );
 
     // A creates a tenant-scoped gateway.
     let (s, v) = req(
@@ -79,7 +81,12 @@ async fn global_gateway_visibility_and_lifecycle() {
     // A creates a GLOBAL gateway (explicit null domain + gateway_domain).
     let a_dom = token(
         "gw-tenant-a",
-        &["gateway_add", "gateway_view", "gateway_edit", "gateway_domain"],
+        &[
+            "gateway_add",
+            "gateway_view",
+            "gateway_edit",
+            "gateway_domain",
+        ],
     );
     let gname = uniq("global");
     let (s, v) = req(
@@ -134,7 +141,13 @@ async fn global_gateway_visibility_and_lifecycle() {
 
     // Tenant B WITH gateway_domain: sees global, not A's tenant row.
     let b_dom = token("gw-tenant-b", &["gateway_view", "gateway_domain"]);
-    let (s, v) = req("GET", "/api/v1/gateways", Some(&b_dom), serde_json::json!({})).await;
+    let (s, v) = req(
+        "GET",
+        "/api/v1/gateways",
+        Some(&b_dom),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "B list with domain perm: {v}");
     let names: Vec<String> = v
         .get("data")
@@ -186,7 +199,11 @@ async fn global_gateway_visibility_and_lifecycle() {
         serde_json::json!({}),
     )
     .await;
-    assert_eq!(s, StatusCode::NOT_FOUND, "global delete w/o domain perm 404");
+    assert_eq!(
+        s,
+        StatusCode::NOT_FOUND,
+        "global delete w/o domain perm 404"
+    );
 
     // Owner tenant can still delete its own global row.
     let a_del = token("gw-tenant-a", &["gateway_delete", "gateway_domain"]);

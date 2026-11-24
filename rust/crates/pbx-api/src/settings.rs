@@ -158,7 +158,8 @@ async fn list_default_settings(
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "default_setting_view") {
         return (s, j).into_response();
     }
-    let (per_page, _) = crate::PageQuery { show: None,
+    let (per_page, _) = crate::PageQuery {
+        show: None,
         page: pq.page,
         per_page: pq.per_page,
     }
@@ -420,7 +421,10 @@ async fn create_domain_setting(
         subcategory: Set(subcategory),
         key: Set(key),
         value: Set(value),
-        enabled: Set(payload.enabled.or(payload.domain_setting_enabled).unwrap_or(true)),
+        enabled: Set(payload
+            .enabled
+            .or(payload.domain_setting_enabled)
+            .unwrap_or(true)),
         created_at: Set(crate::routing_db::now()),
     };
     match am.insert(db).await {
@@ -440,7 +444,8 @@ async fn list_domain_settings(
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "domain_setting_view") {
         return (s, j).into_response();
     }
-    let (per_page, _) = crate::PageQuery { show: None,
+    let (per_page, _) = crate::PageQuery {
+        show: None,
         page: pq.page,
         per_page: pq.per_page,
     }
@@ -453,7 +458,12 @@ async fn list_domain_settings(
         Err(_) => {
             return (
                 crate::paged_headers("/api/v1/domain_settings", page, per_page, 0),
-                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+                Json(crate::paged_body(
+                    Vec::<serde_json::Value>::new(),
+                    0,
+                    page,
+                    per_page,
+                )),
             )
                 .into_response();
         }
@@ -498,7 +508,12 @@ async fn get_domain_setting(
     }
     let db = crate::routing_db::conn().await;
     let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
-    match domain_settings::Entity::find_by_id(id).one(db).await.unwrap_or(None).filter(|r| r.domain_id == domain_id) {
+    match domain_settings::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+        .filter(|r| r.domain_id == domain_id)
+    {
         Some(r) => (StatusCode::OK, Json(dser(&r))).into_response(),
         None => (
             StatusCode::NOT_FOUND,
@@ -518,7 +533,11 @@ async fn patch_domain_setting(
     }
     let db = crate::routing_db::conn().await;
     let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
-    let Some(row) = domain_settings::Entity::find_by_id(id).one(db).await.unwrap_or(None).filter(|r| r.domain_id == domain_id)
+    let Some(row) = domain_settings::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+        .filter(|r| r.domain_id == domain_id)
     else {
         return (
             StatusCode::NOT_FOUND,
@@ -527,19 +546,40 @@ async fn patch_domain_setting(
             .into_response();
     };
     let mut am: domain_settings::ActiveModel = row.into();
-    if let Some(v) = payload.get("value").or_else(|| payload.get("domain_setting_value")).and_then(|v| v.as_str()) {
+    if let Some(v) = payload
+        .get("value")
+        .or_else(|| payload.get("domain_setting_value"))
+        .and_then(|v| v.as_str())
+    {
         am.value = Set(v.to_owned());
     }
-    if let Some(v) = payload.get("enabled").or_else(|| payload.get("domain_setting_enabled")).and_then(|v| v.as_bool()) {
+    if let Some(v) = payload
+        .get("enabled")
+        .or_else(|| payload.get("domain_setting_enabled"))
+        .and_then(|v| v.as_bool())
+    {
         am.enabled = Set(v);
     }
-    if let Some(v) = payload.get("category").or_else(|| payload.get("domain_setting_category")).and_then(|v| v.as_str()) {
+    if let Some(v) = payload
+        .get("category")
+        .or_else(|| payload.get("domain_setting_category"))
+        .and_then(|v| v.as_str())
+    {
         am.category = Set(v.to_owned());
     }
-    if let Some(v) = payload.get("subcategory").or_else(|| payload.get("domain_setting_subcategory")).and_then(|v| v.as_str()) {
+    if let Some(v) = payload
+        .get("subcategory")
+        .or_else(|| payload.get("domain_setting_subcategory"))
+        .and_then(|v| v.as_str())
+    {
         am.subcategory = Set(v.to_owned());
     }
-    if let Some(v) = payload.get("name").or_else(|| payload.get("key")).or_else(|| payload.get("domain_setting_name")).and_then(|v| v.as_str()) {
+    if let Some(v) = payload
+        .get("name")
+        .or_else(|| payload.get("key"))
+        .or_else(|| payload.get("domain_setting_name"))
+        .and_then(|v| v.as_str())
+    {
         am.key = Set(v.to_owned());
     }
     match am.update(db).await {
@@ -561,7 +601,11 @@ async fn delete_domain_setting(
     }
     let db = crate::routing_db::conn().await;
     let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
-    let Some(row) = domain_settings::Entity::find_by_id(id).one(db).await.unwrap_or(None).filter(|r| r.domain_id == domain_id)
+    let Some(row) = domain_settings::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+        .filter(|r| r.domain_id == domain_id)
     else {
         return (
             StatusCode::NOT_FOUND,

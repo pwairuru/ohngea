@@ -1,0 +1,57 @@
+#!/bin/sh
+# PROVIDE: ohngea
+# REQUIRE: NETWORKING postgresql valkey
+# BEFORE: nginx
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name=ohngea
+rcvar=ohngea_enable
+
+load_rc_config $name
+
+: ${ohngea_enable:=NO}
+: ${ohngea_user:=ohngea}
+: ${ohngea_group:=ohngea}
+: ${ohngea_dir:=%%WWWDIR%%}
+: ${ohngea_env_file:=%%ETCDIR%%/ohngea.env}
+: ${ohngea_config:=%%ETCDIR%%/gunicorn.conf.py}
+: ${ohngea_host:=127.0.0.1}
+: ${ohngea_port:=8000}
+: ${ohngea_workers:=2}
+: ${ohngea_pidfile:=/var/run/ohngea.pid}
+: ${ohngea_venv:=%%WWWDIR%%/.venv}
+
+pidfile=${ohngea_pidfile}
+command="%%WWWDIR%%/.venv/bin/gunicorn"
+command_args="-c ${ohngea_config} app.main:app --bind ${ohngea_host}:${ohngea_port} --pid ${ohngea_pidfile} --daemon --access-logfile - --error-logfile -"
+
+# env file
+if [ -f "${ohngea_env_file}" ]; then
+    ohngea_env_file_arg="--env-file ${ohngea_env_file}"
+    # load env for daemon
+    set -a
+    . "${ohngea_env_file}"
+    set +a
+fi
+
+# ensure pidfile dir writable
+ohngea_precmd() {
+    install -d -o ${ohngea_user} -g ${ohngea_group} -m 755 /var/run
+    if [ ! -d "${ohngea_dir}" ]; then
+        echo "ohngea_dir ${ohngea_dir} not found"
+        return 1
+    fi
+    # ensure gunicorn config exists, fallback to bundled
+    if [ ! -f "${ohngea_config}" ] && [ -f "${ohngea_dir}/gunicorn.conf.py" ]; then
+        ohngea_config="${ohngea_dir}/gunicorn.conf.py"
+    fi
+}
+
+start_precmd=ohngea_precmd
+stop_postcmd="rm -f ${ohngea_pidfile}"
+
+required_files="${ohngea_env_file} ${ohngea_dir}/app/main.py"
+
+run_rc_command "$1"

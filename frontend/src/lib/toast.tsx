@@ -45,7 +45,22 @@ export function toast(title: string, opts: { description?: string; variant?: Toa
 
 export function toastError(err: unknown) {
   const msg = err instanceof Error ? err.message : String(err);
-  return toast(msg.slice(0, 160), { variant: "error" });
+  // Try to surface backend 422 validation details without truncating to unreadable
+  let title = msg.length > 500 ? msg.slice(0, 500) + "…" : msg;
+  try {
+    // ApiError body is often JSON: {"detail":[{"loc":[...],"msg":"..."}]}
+    const m = msg.match(/(\{.*\})/s);
+    if (m) {
+      const j = JSON.parse(m[1]);
+      const det = (j as any).detail;
+      if (Array.isArray(det)) {
+        title = det.map((d: any) => `${(d.loc || []).join(".")}: ${d.msg}`).join("; ").slice(0, 500);
+      } else if (typeof det === "string") {
+        title = det.slice(0, 500);
+      }
+    }
+  } catch { /* keep raw */ }
+  return toast(title, { variant: "error" });
 }
 
 export function Toaster() {
@@ -57,7 +72,7 @@ export function Toaster() {
         <div
           key={t.id}
           data-testid="toast"
-          role="status"
+          role={t.variant === "error" ? "alert" : "status"}
           className={cn(
             "relative rounded-md border bg-popover text-popover-foreground shadow-lg p-3 pr-8 max-md:max-w-none sm:max-w-sm",
             t.variant === "error" && "border-destructive/60",

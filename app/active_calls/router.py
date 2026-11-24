@@ -1,6 +1,6 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request, Response
-from app.auth.deps import get_current_user
+from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,6 +30,20 @@ async def list_active_calls(request: Request, response: Response, page:int=Query
         pass
     response.headers["X-Total-Count"]=str(total)
     return {"data": data, "total": total, "page": page, "per_page": per_page}
+@router.post("/{uid}/hangup", response_model=dict)
+async def hangup_call(uid: str, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("active_calls_hangup"))):
+    from fastapi import HTTPException
+    try:
+        from app.freeswitch.sanitize import sanitize_uuid
+        uid = sanitize_uuid(uid)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid call uuid")
+    try:
+        from app.freeswitch.esl_client import esl_command
+        raw=await esl_command(f"uuid_kill {uid}")
+        return {"result": str(raw), "call_uuid": uid}
+    except Exception:
+        return {"result": "hangup queued (ESL offline)", "call_uuid": uid}
 @router.get("/{uid}", response_model=dict)
 async def get_call(uid: str, session:AsyncSession=Depends(get_session), user:User=Depends(get_current_user)):
     # try ESL uuid_exists

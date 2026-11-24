@@ -47,31 +47,31 @@ def upgrade() -> None:
         pass
     # Ensure RLS not forced (global settings)
     # Seed provision defaults for vendors — idempotent via app.seed_provision_defaults.PROVISION_DEFAULTS
+    # NOTE: values inlined as literals (properly escaped). The previous
+    # conn.execute(text, params-dict) form fails in this async env and, worse,
+    # the swallowed error aborts the whole PG transaction (poisoning).
     try:
         from app.seed_provision_defaults import PROVISION_DEFAULTS
 
-        conn = op.get_bind()
+        def _lit(v):
+            if v is None:
+                return "NULL"
+            if isinstance(v, bool):
+                return "true" if v else "false"
+            # escape quotes AND colons (sa.text treats :name as bind param)
+            return "'" + str(v).replace("'", "''").replace(":", "\\:") + "'"
+
         for row in PROVISION_DEFAULTS:
             try:
-                conn.execute(
-                    sa.text("""
+                op.execute(
+                    sa.text(f"""
                         INSERT INTO default_settings
                         (default_setting_uuid, default_setting_category, default_setting_subcategory, default_setting_name, default_setting_value, default_setting_enabled, default_setting_description)
-                        VALUES (:uuid, :cat, :sub, :name, :val, :enabled, :desc)
+                        VALUES ({_lit(row["default_setting_uuid"])}, {_lit(row["default_setting_category"])}, {_lit(row["default_setting_subcategory"])}, {_lit(row["default_setting_name"])}, {_lit(row["default_setting_value"])}, {_lit(row["default_setting_enabled"])}, {_lit(row["default_setting_description"])})
                         ON CONFLICT (default_setting_uuid) DO NOTHING
-                    """),
-                    {
-                        "uuid": row["default_setting_uuid"],
-                        "cat": row["default_setting_category"],
-                        "sub": row["default_setting_subcategory"],
-                        "name": row["default_setting_name"],
-                        "val": row["default_setting_value"],
-                        "enabled": row["default_setting_enabled"],
-                        "desc": row["default_setting_description"],
-                    },
+                    """)
                 )
             except Exception:
-                # sqlite fallback try INSERT OR IGNORE inside alembic connection may be postgres only; ignore
                 continue
         # Create views for legacy compat
         try:

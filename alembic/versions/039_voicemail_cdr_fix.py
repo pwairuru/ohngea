@@ -20,10 +20,15 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def _add(table, column):
+    # NOTE: ADD COLUMN IF NOT EXISTS — a plain wrapped add poisons the whole
+    # PG transaction on duplicate even when the Python exception is swallowed.
     try:
-        op.add_column(table, column)
+        op.add_column(table, column, if_not_exists=True)
     except Exception:
-        pass
+        try:
+            op.add_column(table, column)
+        except Exception:
+            pass
 
 def _rls(tbl: str):
     try:
@@ -229,15 +234,16 @@ def upgrade() -> None:
             sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
             sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
             sa.PrimaryKeyConstraint("default_setting_uuid"),
+            if_not_exists=True,
         )
     except Exception:
         pass
     try:
-        op.create_index("ix_default_settings_category", "default_settings", ["default_setting_category"])
+        op.create_index("ix_default_settings_category", "default_settings", ["default_setting_category"], if_not_exists=True)
     except Exception:
         pass
     try:
-        op.create_index("ix_default_settings_subcategory", "default_settings", ["default_setting_subcategory"])
+        op.create_index("ix_default_settings_subcategory", "default_settings", ["default_setting_subcategory"], if_not_exists=True)
     except Exception:
         pass
     # ensure time_condition perms complete (including legacy extra 4)
@@ -292,14 +298,24 @@ def upgrade() -> None:
         ("c73fa4f6-aed5-49a3-8726-4c1d94847302", "time_conditions", "extension_range", "text", "800-899", "Set the suggested extension range(s) for time conditions", 0),
     ]
     try:
-        conn = op.get_bind()
+        # order column may not exist on older shapes; IF NOT EXISTS never errors (no txn poison)
+        op.execute("ALTER TABLE default_settings ADD COLUMN IF NOT EXISTS default_setting_order INTEGER;")
+        def _lit(v):
+            if v is None:
+                return "NULL"
+            if isinstance(v, bool):
+                return "true" if v else "false"
+            # escape quotes AND colons (sa.text treats :name as bind param)
+            return "'" + str(v).replace("'", "''").replace(":", "\\:") + "'"
         for uuid_, cat, sub, name, val, desc, ord_ in presets:
             try:
-                conn.execute(sa.text("""
-                    INSERT INTO default_settings (default_setting_uuid, default_setting_category, default_setting_subcategory, default_setting_name, default_setting_value, default_setting_enabled, default_setting_description, default_setting_order)
-                    VALUES (:uuid, :cat, :sub, :name, :val, true, :desc, :ord)
-                    ON CONFLICT (default_setting_uuid) DO NOTHING
-                """), {"uuid": uuid_, "cat": cat, "sub": sub, "name": name, "val": val, "desc": desc, "ord": ord_})
+                op.execute(
+                    sa.text(f"""
+                        INSERT INTO default_settings (default_setting_uuid, default_setting_category, default_setting_subcategory, default_setting_name, default_setting_value, default_setting_enabled, default_setting_description, default_setting_order)
+                        VALUES ({_lit(uuid_)}, {_lit(cat)}, {_lit(sub)}, {_lit(name)}, {_lit(val)}, true, {_lit(desc)}, {int(ord_)})
+                        ON CONFLICT (default_setting_uuid) DO NOTHING
+                    """)
+                )
             except Exception:
                 continue
         # ensure view

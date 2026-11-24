@@ -1,0 +1,65 @@
+# PHP parity audit (generated: python3 scripts/php_parity_audit.py)
+# PHP ground truth: fusionpbx/**/ *_edit.php name='...' inputs (+ v_* schema for columns).
+# React: fieldConfigs T()/C()/name:/form./set(/key: keys + custom route form keys.
+# API: struct fields, payload.get/s()/b()/b_opt()/i()/put(, for-key loops, alias layer.
+# Names normalized: alias.rs pairs + prefix strip + SEM map + RELATED cross-page map.
+# Documented non-gaps: see NOISE in scripts/php_parity_audit.py.
+# Whole-goal: 76 app areas + core areas; form-backed subset strictly 0-miss.
+# Non-form areas (vendor templates, status pages, no v_ tables) disposition below.
+
+access_controls: php=3 react-miss=0 api-miss=0
+bridges: php=6 react-miss=0 api-miss=0
+call_block: php=7 react-miss=0 api-miss=0
+call_broadcast: php=12 react-miss=0 api-miss=0
+call_centers: php=38 react-miss=0 api-miss=0
+call_flows: php=10 react-miss=0 api-miss=0
+call_forward: php=13 react-miss=0 api-miss=0
+conference_centers: php=23 react-miss=0 api-miss=0
+conference_controls: php=6 react-miss=0 api-miss=0
+conference_profiles: php=7 react-miss=0 api-miss=0
+conferences: php=11 react-miss=0 api-miss=0
+contacts: php=67 react-miss=0 api-miss=0
+dashboard: php=31 react-miss=0 api-miss=0
+database_transactions: php=3 react-miss=0 api-miss=0
+databases: php=9 react-miss=0 api-miss=0
+default_settings: php=7 react-miss=0 api-miss=0
+destinations: php=21 react-miss=0 api-miss=0
+devices: php=18 react-miss=0 api-miss=0
+dialplans: php=9 react-miss=0 api-miss=0
+domain_settings: php=7 react-miss=0 api-miss=0
+domains: php=3 react-miss=0 api-miss=0
+email_queue: php=9 react-miss=0 api-miss=0
+email_templates: php=8 react-miss=0 api-miss=0
+event_guard: php=6 react-miss=0 api-miss=0
+extension_settings: php=5 react-miss=0 api-miss=0
+extensions: php=47 react-miss=0 api-miss=0
+fax: php=12 react-miss=0 api-miss=0
+fax_queue: php=15 react-miss=0 api-miss=0
+fifo: php=10 react-miss=0 api-miss=0
+gateways: php=32 react-miss=0 api-miss=0
+groups: php=4 react-miss=0 api-miss=0
+ivr_menus: php=19 react-miss=0 api-miss=0
+menu: php=9 react-miss=0 api-miss=0
+modules: php=6 react-miss=0 api-miss=0
+music_on_hold: php=10 react-miss=0 api-miss=0
+notifications: php=7 react-miss=0 api-miss=0
+number_translations: php=3 react-miss=0 api-miss=0
+phrases: php=7 react-miss=0 api-miss=0
+pin_numbers: php=4 react-miss=0 api-miss=0
+recordings: php=6 react-miss=0 api-miss=0
+ring_groups: php=22 react-miss=0 api-miss=0
+services: php=4 react-miss=0 api-miss=0
+sip_profiles: php=4 react-miss=0 api-miss=0
+sofia_global_settings: php=4 react-miss=0 api-miss=0
+streams: php=4 react-miss=0 api-miss=0
+time_conditions: php=7 react-miss=0 api-miss=0
+user_logs: php=5 react-miss=0 api-miss=0
+user_settings: php=7 react-miss=0 api-miss=0
+users: php=13 react-miss=0 api-miss=0
+vars: php=7 react-miss=0 api-miss=0
+voicemail_greetings: php=6 react-miss=0 api-miss=0
+voicemails: php=19 react-miss=0 api-miss=0
+
+whole-goal: app areas=76 core areas=21 form-backed=52 strict-miss=0
+non-form app areas (no *_edit.php, templates/status/pages): aastra, active_calls, active_conferences, algo, avaya, azure, basic_operator_panel, call_center_active, call_recordings, calls_active, cisco, click_to_call, conferences_active, dialplan_inbound, dialplan_outbound, domain_limits, emergency, fanvil, feature_codes, fifo_list, flyingvoice, follow_me, grandstream, htek, log_viewer, operator_panel, poly, polycom, provision, registrations, sip_status, snom, swissvoice, switch, system, tones, xml_cdr, yealink
+core areas: authentication, contacts, dashboard, databases, default_settings, domain_settings, domains, email_templates, events, groups, install, menu, notifications, permissions, services, software, upgrade, user_logs, user_settings, users, websockets

@@ -63,7 +63,10 @@ pub struct GatewayInput {
 }
 
 fn gateway_param(out: &mut String, name: &str, value: &str) {
-    out.push_str(&format!("      <param name=\"{name}\" value=\"{}\"/>\n", esc(value)));
+    out.push_str(&format!(
+        "      <param name=\"{name}\" value=\"{}\"/>\n",
+        esc(value)
+    ));
 }
 
 /// Bare `<gateway>` element (shared by the file writer and the sofia
@@ -73,7 +76,10 @@ fn gateway_param(out: &mut String, name: &str, value: &str) {
 /// `ping-min`/`ping-max`/`contact-in-ping` are a documented superset of the
 /// PHP file list (Lua `sofia.conf.lua` serves them inline).
 pub fn gateway_element(g: &GatewayInput) -> String {
-    let mut out = format!("    <gateway name=\"{}\">\n", esc(&g.gateway_uuid.to_lowercase()));
+    let mut out = format!(
+        "    <gateway name=\"{}\">\n",
+        esc(&g.gateway_uuid.to_lowercase())
+    );
     if let Some(v) = non_empty(&g.username) {
         gateway_param(&mut out, "username", v);
     }
@@ -183,13 +189,19 @@ pub fn build_vars_xml(vars: &[VarInput], hostname: &str) -> String {
         .filter(|v| {
             v.enabled
                 && v.category != "Provision"
-                && v.hostname.as_deref().is_none_or(|h| h.is_empty() || h == hostname)
+                && v.hostname
+                    .as_deref()
+                    .is_none_or(|h| h.is_empty() || h == hostname)
         })
         .collect();
     rows.sort_by(|a, b| {
         a.category
             .cmp(&b.category)
-            .then(a.order.unwrap_or(i32::MAX).cmp(&b.order.unwrap_or(i32::MAX)))
+            .then(
+                a.order
+                    .unwrap_or(i32::MAX)
+                    .cmp(&b.order.unwrap_or(i32::MAX)),
+            )
             .then(a.name.cmp(&b.name))
     });
     let mut out = String::new();
@@ -314,7 +326,12 @@ fn decorate_contact(contact: &str, call_timeout: i32) -> String {
             contact.to_owned()
         } else {
             let pos = contact.rfind('}').unwrap_or(contact.len());
-            format!("{},call_timeout={}{}", &contact[..pos], call_timeout, &contact[pos..])
+            format!(
+                "{},call_timeout={}{}",
+                &contact[..pos],
+                call_timeout,
+                &contact[pos..]
+            )
         }
     } else if contact.contains("call_timeout") {
         let pos = contact.rfind('}').unwrap_or(contact.len());
@@ -332,7 +349,10 @@ fn decorate_contact(contact: &str, call_timeout: i32) -> String {
 }
 
 fn cc_param(out: &mut String, name: &str, value: &str) {
-    out.push_str(&format!("            <param name=\"{name}\" value=\"{}\"/>\n", esc(value)));
+    out.push_str(&format!(
+        "            <param name=\"{name}\" value=\"{}\"/>\n",
+        esc(value)
+    ));
 }
 
 fn opt_str(v: &Option<String>) -> &str {
@@ -365,7 +385,10 @@ pub fn build_callcenter_xml(
     );
     for (q, domain) in queues {
         let name = q.name.replace(' ', "_");
-        out.push_str(&format!("                        <queue name=\"{name}@{}\">\n", esc(domain)));
+        out.push_str(&format!(
+            "                        <queue name=\"{name}@{}\">\n",
+            esc(domain)
+        ));
         cc_param(&mut out, "strategy", &q.strategy);
         cc_param(&mut out, "moh-sound", &moh_sound(q.moh_sound.as_deref()));
         if let Some(rt) = non_empty(&q.record_template) {
@@ -373,14 +396,22 @@ pub fn build_callcenter_xml(
         }
         cc_param(&mut out, "time-base-score", opt_str(&q.time_base_score));
         cc_param(&mut out, "max-wait-time", &opt_int(q.max_wait_time));
-        cc_param(&mut out, "max-wait-time-with-no-agent", &opt_int(q.max_wait_time_with_no_agent));
+        cc_param(
+            &mut out,
+            "max-wait-time-with-no-agent",
+            &opt_int(q.max_wait_time_with_no_agent),
+        );
         cc_param(
             &mut out,
             "max-wait-time-with-no-agent-time-reached",
             &opt_int(q.max_wait_time_with_no_agent_time_reached),
         );
         cc_param(&mut out, "tier-rules-apply", opt_bool(q.tier_rules_apply));
-        cc_param(&mut out, "tier-rule-wait-second", &opt_int(q.tier_rule_wait_second));
+        cc_param(
+            &mut out,
+            "tier-rule-wait-second",
+            &opt_int(q.tier_rule_wait_second),
+        );
         cc_param(
             &mut out,
             "tier-rule-wait-multiply-level",
@@ -391,10 +422,22 @@ pub fn build_callcenter_xml(
             "tier-rule-no-agent-no-wait",
             opt_bool(q.tier_rule_no_agent_no_wait),
         );
-        cc_param(&mut out, "discard-abandoned-after", &opt_int(q.discard_abandoned_after));
-        cc_param(&mut out, "abandoned-resume-allowed", opt_bool(q.abandoned_resume_allowed));
+        cc_param(
+            &mut out,
+            "discard-abandoned-after",
+            &opt_int(q.discard_abandoned_after),
+        );
+        cc_param(
+            &mut out,
+            "abandoned-resume-allowed",
+            opt_bool(q.abandoned_resume_allowed),
+        );
         cc_param(&mut out, "announce-sound", opt_str(&q.announce_sound));
-        cc_param(&mut out, "announce-frequency", &opt_int(q.announce_frequency));
+        cc_param(
+            &mut out,
+            "announce-frequency",
+            &opt_int(q.announce_frequency),
+        );
         out.push_str("                        </queue>\n");
     }
     out.push_str("                    </queues>\n                    <agents>\n");
@@ -554,7 +597,10 @@ pub fn build_conference_xml(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<document type=\"freeswitch/xml\">\n    <section name=\"configuration\">\n        <configuration name=\"conference.conf\" description=\"Audio Conference\">\n            <caller-controls>\n",
     );
     for c in controls {
-        out.push_str(&format!("                <group name=\"{}\">\n", esc(&c.name)));
+        out.push_str(&format!(
+            "                <group name=\"{}\">\n",
+            esc(&c.name)
+        ));
         for (digits, action, data) in &c.details {
             out.push_str(&format!(
                 "                    <control digits=\"{}\" action=\"{}\" data=\"{}\"/>\n",
@@ -567,13 +613,22 @@ pub fn build_conference_xml(
     }
     out.push_str("            </caller-controls>\n            <profiles>\n");
     for p in profiles {
-        out.push_str(&format!("                <profile name=\"{}\">\n", esc(&p.name)));
+        out.push_str(&format!(
+            "                <profile name=\"{}\">\n",
+            esc(&p.name)
+        ));
         for (name, value) in &p.params {
-            out.push_str(&format!("                    <param name=\"{}\" value=\"{}\"/>\n", esc(name), esc(value)));
+            out.push_str(&format!(
+                "                    <param name=\"{}\" value=\"{}\"/>\n",
+                esc(name),
+                esc(value)
+            ));
         }
         out.push_str("                </profile>\n");
     }
-    out.push_str("            </profiles>\n        </configuration>\n    </section>\n</document>\n");
+    out.push_str(
+        "            </profiles>\n        </configuration>\n    </section>\n</document>\n",
+    );
     out
 }
 
@@ -611,25 +666,94 @@ pub fn build_local_stream_xml(streams: &[LocalStreamInput]) -> String {
             esc(&s.uuid),
             esc(&s.path)
         ));
-        out.push_str(&format!("            <param name=\"rate\" value=\"{rate}\"/>\n"));
+        out.push_str(&format!(
+            "            <param name=\"rate\" value=\"{rate}\"/>\n"
+        ));
         out.push_str(&format!(
             "            <param name=\"shuffle\" value=\"{}\"/>\n",
             esc(opt_str(&s.shuffle))
         ));
         out.push_str("            <param name=\"channels\" value=\"1\"/>\n");
         out.push_str("            <param name=\"interval\" value=\"20\"/>\n");
-        out.push_str(&format!("            <param name=\"timer-name\" value=\"{timer}\"/>\n",));
+        out.push_str(&format!(
+            "            <param name=\"timer-name\" value=\"{timer}\"/>\n",
+        ));
         if let Some(v) = non_empty(&s.chime_list) {
-            out.push_str(&format!("            <param name=\"chime-list\" value=\"{}\"/>\n", esc(v)));
+            out.push_str(&format!(
+                "            <param name=\"chime-list\" value=\"{}\"/>\n",
+                esc(v)
+            ));
         }
         if let Some(v) = non_empty(&s.chime_freq) {
-            out.push_str(&format!("            <param name=\"chime-freq\" value=\"{}\"/>\n", esc(v)));
+            out.push_str(&format!(
+                "            <param name=\"chime-freq\" value=\"{}\"/>\n",
+                esc(v)
+            ));
         }
         if let Some(v) = non_empty(&s.chime_max) {
-            out.push_str(&format!("            <param name=\"chime-max\" value=\"{}\"/>\n", esc(v)));
+            out.push_str(&format!(
+                "            <param name=\"chime-max\" value=\"{}\"/>\n",
+                esc(v)
+            ));
         }
         out.push_str("        </directory>\n");
     }
     out.push_str("        </configuration>\n    </section>\n</document>\n");
+    out
+}
+
+/// One ACL list with its nodes (Python `build_acl_xml` parity).
+#[derive(Clone, Debug, Default)]
+pub struct AclInput {
+    pub name: String,
+    pub default: String,
+    pub nodes: Vec<AclNodeInput>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct AclNodeInput {
+    pub node_type: String,
+    pub cidr: String,
+}
+
+/// `acl.conf` document from access_control rows (Lua `acl.conf.lua` parity).
+#[must_use]
+pub fn build_acl_xml(acls: &[(AclInput, String)]) -> String {
+    let mut out = String::from(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<document type=\"freeswitch/xml\">\n    <section name=\"configuration\">\n        <configuration name=\"acl.conf\" description=\"Access Controls\">\n            <network-lists>\n",
+    );
+    for (acl, _domain) in acls {
+        let def = if acl.default.is_empty() {
+            "deny"
+        } else {
+            &acl.default
+        };
+        out.push_str(&format!(
+            "                <list name=\"{}\" default=\"{}\">\n",
+            esc(&acl.name),
+            esc(def)
+        ));
+        for n in &acl.nodes {
+            let t = if n.node_type.is_empty() {
+                "allow"
+            } else {
+                &n.node_type
+            };
+            let cidr = if n.cidr.is_empty() {
+                "0.0.0.0/0"
+            } else {
+                &n.cidr
+            };
+            out.push_str(&format!(
+                "                    <node type=\"{}\" cidr=\"{}\"/>\n",
+                esc(t),
+                esc(cidr)
+            ));
+        }
+        out.push_str("                </list>\n");
+    }
+    out.push_str(
+        "            </network-lists>\n        </configuration>\n    </section>\n</document>\n",
+    );
     out
 }

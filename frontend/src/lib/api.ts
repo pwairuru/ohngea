@@ -26,11 +26,20 @@ export async function apiFetch(path: string, opts: RequestInit = {}) {
     ...(authHeaders() as Record<string, string>),
     ...((opts.headers as Record<string, string>) || {}),
   };
-  const res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
+  const res = await fetch(`${API_BASE}${path}`, { credentials: "include", ...opts, headers });
+  if (res.status === 401) {
+    try {
+      localStorage.removeItem("token");
+    } catch { /* noop */ }
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      const next = encodeURIComponent(window.location.pathname + window.location.search);
+      window.location.href = `/login?next=${next}`;
+    }
+    const txt = await res.text();
+    throw new ApiError(res.status, txt);
+  }
   if (!res.ok) {
     const txt = await res.text();
-    // Do not redirect here — let callers/UI handle 401 (e.g., RequireAuth, toast, or explicit navigation).
-    // Previously this did window.location.href = "/login?next=..."; removed to avoid side effect in data layer.
     throw new ApiError(res.status, txt);
   }
   // handle 204
@@ -41,21 +50,15 @@ export async function apiFetch(path: string, opts: RequestInit = {}) {
 }
 
 export async function login(username: string, password: string, domain: string) {
-  // try versioned then fallback
-  const res = await fetch("/auth/login", {
+  // Canonical versioned endpoint only — /auth/* 307-redirects to /api/v1/auth/*
+  // credentials:include so httpOnly `access_token` cookie is stored; token also
+  // returned for Bearer compat (kept in localStorage by caller).
+  const res = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password, domain }),
   });
-  if (!res.ok) {
-    // try /api/v1/auth/login
-    const r2 = await fetch("/api/v1/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password, domain }),
-    });
-    if (!r2.ok) throw new Error("login failed");
-    return r2.json();
-  }
+  if (!res.ok) throw new Error("login failed");
   return res.json();
 }

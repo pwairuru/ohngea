@@ -1,0 +1,44 @@
+#!/bin/sh
+# ohngea-url — show Ohngea URL like FreePBX
+# Usage: ohngea-url
+
+IP=$(ifconfig em0 2>&1 | grep "inet " | awk '{print $2}' | head -1)
+if [ -z "$IP" ]; then
+    IP=$(ifconfig 2>&1 | grep "inet " | grep -v "127.0.0.1" | awk '{print $2}' | head -1)
+fi
+if [ -z "$IP" ]; then IP="localhost"; fi
+
+# Check if first-boot done
+if [ -f /var/db/ohngea/url.txt ]; then
+    cat /var/db/ohngea/url.txt 2>&1 | head -5
+    URL=$(cat /var/db/ohngea/url.txt 2>&1 | awk '{print $1}' | head -1)
+else
+    URL="http://${IP}/"
+fi
+
+# Also check service status
+echo "Ohngea PBX"
+echo " URL: http://${IP}/"
+echo " API: http://${IP}/api/v1/health"
+echo " Docs: http://${IP}/docs"
+if [ -f /var/db/ohngea/url.txt ]; then
+    echo " Credentials: $(cat /var/db/ohngea/url.txt 2>&1 | cut -d' ' -f2-)"
+else
+    echo " Credentials: admin / ohngea (default, change via ohngea-setup)"
+fi
+echo ""
+echo " Services:"
+for svc in postgresql valkey nginx freeswitch ohngea ohngea_worker ohngea_beat; do
+    if service ${svc} status 2>&1 | grep -q "is running"; then
+        echo "  $svc: running"
+    else
+        echo "  $svc: stopped (service $svc status)"
+    fi
+done
+
+# Check if ohngea responding
+if fetch -o - http://127.0.0.1:8000/health 2>&1 | grep -q "ok"; then
+    echo " API: OK"
+else
+    echo " API: not responding (check service ohngea status, /var/log/ohngea.log)"
+fi

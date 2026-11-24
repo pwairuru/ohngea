@@ -72,8 +72,9 @@ async def patch_nt(uid:UUID, payload:NumberTranslationUpdate, session:AsyncSessi
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(o)
     return _ser(o)
 @router.delete("/{uid}", status_code=204)
@@ -87,8 +88,9 @@ async def delete_nt(uid:UUID, session:AsyncSession=Depends(get_session), user:Us
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     return Response(status_code=204)
 
 # --- child: number_translation_details ---
@@ -118,8 +120,9 @@ async def create_detail(number_translation_uuid: UUID, payload: NumberTranslatio
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(obj)
     response.headers["Location"]=f"/api/v1/number_translations/{number_translation_uuid}/details/{obj.number_translation_detail_uuid}"
     return _detail_ser(obj)
@@ -161,8 +164,9 @@ async def patch_detail(number_translation_uuid: UUID, detail_uuid: UUID, payload
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(o)
     return _detail_ser(o)
 
@@ -179,6 +183,7 @@ async def delete_detail(number_translation_uuid: UUID, detail_uuid: UUID, sessio
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     return Response(status_code=204)

@@ -100,7 +100,12 @@ async fn list_groups(
         Err(_) => {
             return (
                 crate::paged_headers("/api/v1/groups", page, per_page, 0),
-                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+                Json(crate::paged_body(
+                    Vec::<serde_json::Value>::new(),
+                    0,
+                    page,
+                    per_page,
+                )),
             )
                 .into_response();
         }

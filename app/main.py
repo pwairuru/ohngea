@@ -8,33 +8,52 @@ from pathlib import Path
 from app.middleware.tenant import TenantMiddleware
 from app.middleware.audit import AuditMiddleware
 from app.middleware.app_gate import AppGateMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
+from app.config import settings
+from app.db import dispose_engine
+
+from contextlib import asynccontextmanager
+
+def _cors_origins() -> list[str]:
+    raw = (settings.cors_origins or "").strip()
+    if not raw or raw == "*":
+        return ["http://localhost:3000", "http://localhost:5173"]
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    try:
+        await dispose_engine()
+    except Exception:
+        pass
+
+_docs_url = "/docs" if settings.env.lower() not in ("prod", "production") else None
+_redoc_url = "/redoc" if settings.env.lower() not in ("prod", "production") else None
+_openapi_url = "/api/v1/openapi.json" if settings.env.lower() not in ("prod", "production") else None
 
 app = FastAPI(
     title="Ohngea PBX",
     version="1.0.0",
-    openapi_url="/api/v1/openapi.json",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    openapi_url=_openapi_url,
+    docs_url=_docs_url,
+    redoc_url=_redoc_url,
+    lifespan=lifespan,
 )
 
 # Middleware — order matters: added first = inner (closest to endpoint).
-# Desired outer->inner: CORS -> Audit -> AppGate -> Tenant
+# Desired outer->inner: CORS -> RateLimit -> Audit -> AppGate -> Tenant
 app.add_middleware(TenantMiddleware)
 app.add_middleware(AppGateMiddleware)
 app.add_middleware(AuditMiddleware)
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins(),
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-def add_app_gate_middleware():
-    """Idempotent helper to ensure AppGateMiddleware is registered (for tests/docs)."""
-    # already added above; kept for explicit API per spec
-    pass
 
 
 @app.get("/health", tags=["health"])
@@ -180,14 +199,20 @@ def include_routers():
     from app.users.router import router as users_router
     from app.groups.router import router as groups_router
     from app.contacts.router import router as contacts_router
-    from app.webrtc_settings.router import router as webrtc_settings_router
+    from app.webrtc_settings.router import router as webrtc_settings_router, legacy_router as webrtc_legacy_router
     from app.webrtc.credentials_router import router as webrtc_credentials_router
     from app.system.router import router as system_router
     from app.call_recordings.router import router as call_recordings_router
+    from app.admin_settings.router import router as admin_settings_router
 
-    app.include_router(auth_router)
-    # also mount auth at /api/v1/auth for versioned consistency
     app.include_router(auth_router, prefix="/api/v1")
+    # legacy /auth/* -> 307 redirect to /api/v1/auth/* for compat
+    from fastapi.responses import RedirectResponse as _RR
+
+    @app.api_route("/auth/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], include_in_schema=False)
+    async def _legacy_auth_redirect(path: str, request: Request):
+        qs = f"?{request.url.query}" if request.url.query else ""
+        return _RR(url=f"/api/v1/auth/{path}{qs}", status_code=307)
     app.include_router(domains_router)
     app.include_router(extensions_router)
     app.include_router(dialplans_router)
@@ -253,14 +278,17 @@ def include_routers():
     app.include_router(groups_router)
     app.include_router(contacts_router)
     app.include_router(webrtc_settings_router)
+    app.include_router(webrtc_legacy_router)
     app.include_router(webrtc_credentials_router)
     app.include_router(call_recordings_router)
+    app.include_router(admin_settings_router)
 
     # dynamic plugin routers — discover via registry
     try:
-        from pathlib import Path
         import importlib.util
+        import logging
 
+        _plog = logging.getLogger("app.plugins")
         from app.plugins.registry import load_plugins
 
         plugins = load_plugins("plugins")
@@ -272,8 +300,8 @@ def include_routers():
                     from plugins.example.router import router as example_router
 
                     app.include_router(example_router)
-                except Exception:
-                    pass
+                except Exception as e:
+                    _plog.warning("example plugin load failed: %s", e, exc_info=True)
                 continue
             if name in ("ring_groups", "time_conditions", "voicemail", "voicemails", "conferences", "fax", "call_flows", "music_on_hold", "recordings"):
                 # core routers already mounted — skip mock plugin routers
@@ -286,9 +314,10 @@ def include_routers():
                     if hasattr(mod, "router"):
                         app.include_router(mod.router)
             except Exception as e:
-                print(f"plugin {name} load failed: {e}")
+                _plog.warning("plugin %s load failed: %s", name, e, exc_info=True)
     except Exception as e:
-        print(f"plugin discovery failed: {e}")
+        import logging as _lg
+        _lg.getLogger("app.plugins").error("plugin discovery failed: %s", e, exc_info=True)
 
 
 include_routers()
@@ -330,11 +359,6 @@ if static_root:
     assets_dir = static_root / "assets"
     if assets_dir.exists():
         app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
-    # also serve root static files (manifest, sw.js, etc.) individually
-    for fname in ["manifest.webmanifest", "registerSW.js", "sw.js", "workbox-*.js", "favicon.ico"]:
-        # we handle via fallback — mount root for direct files
-        pass
-    app.mount("/static-assets", StaticFiles(directory=str(static_root)), name="static-root")
 
     from fastapi.responses import FileResponse
 
@@ -343,10 +367,14 @@ if static_root:
         # let api/docs/health pass through — they already matched earlier, so 404 here means not found api
         if full_path.startswith("api/") or full_path.startswith("health") or full_path.startswith("docs") or full_path.startswith("redoc") or full_path.startswith("openapi"):
             return JSONResponse(status_code=404, content={"detail": "Not found"})
-        # serve static files directly if they exist (manifest, sw.js, etc.)
-        maybe_file = static_root / full_path
-        if maybe_file.is_file():
-            return FileResponse(maybe_file)
+        # serve static files directly if they exist — with containment check
+        try:
+            maybe_file = (static_root / full_path).resolve()
+            root_resolved = static_root.resolve()
+            if maybe_file.is_file() and maybe_file.is_relative_to(root_resolved):
+                return FileResponse(maybe_file)
+        except Exception:
+            pass
         # otherwise SPA — serve index.html
         index = static_root / "index.html"
         if index.exists():

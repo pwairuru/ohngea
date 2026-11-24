@@ -1,55 +1,6 @@
-import * as React from "react";
-import { apiFetch } from "../lib/api";
-import { DataTable } from "../components/DataTable";
-import type { Column } from "../components/types";
-import { PageHeader } from "../components/shell/PageHeader";
-import { Button } from "../components/ui/button";
-import { Label } from "../components/ui/label";
-import { Input } from "../components/ui/input";
-import { FormDialog } from "../components/FormDialog";
-import { toast, toastError } from "../lib/toast";
-import { useAsyncAction } from "../lib/useAsyncAction";
-import { Users } from "lucide-react";
+import { FullCrudPage } from "../components/FullCrudPage";
+import { CRUD_CONFIGS } from "../lib/fieldConfigs";
 
 export function RingGroups() {
-  const [reloadKey, setReloadKey] = React.useState(0);
-  const reload = () => setReloadKey((k) => k + 1);
-  const [open, setOpen] = React.useState(false);
-  const [form,setForm]=React.useState({ name:"rg1", extension:"2001", description:"" });
-  const columns: Column<any>[] = [
-    { key: "name", header: "Name", className: "num", cell: (r: any) => r.name || r.music_name || "—" },
-    { key: "extension", header: "Extension", cell: (r:any) => (r as any).extension || "—" }
-  ];
-  const createFn = async () => {
-    try {
-      await apiFetch("/ring_groups", { method: "POST", body: JSON.stringify(form) });
-      toast("Ring group created", { variant: "success" });
-      setOpen(false);
-      reload();
-    } catch (err) {
-      toastError(err);
-    }
-  };
-  const { run: create, pending } = useAsyncAction(createFn);
-  return (
-    <>
-      <PageHeader title="Ring Groups" description="Hunt groups for incoming calls" actions={<Button onClick={() => setOpen(true)}>Add Ring Groups</Button>} />
-      <DataTable
-        resource="/ring_groups"
-        columns={columns}
-        reloadKey={reloadKey}
-        perPage={20}
-        searchPlaceholder="Search ring groups…"
-        emptyTitle="No ring groups"
-        emptyDescription="Create your first ring groups entry"
-        emptyIcon={Users}
-        emptyAction={<Button onClick={() => setOpen(true)}><Users className="h-4 w-4" /> Add Ring Groups</Button>}
-      />
-      <FormDialog open={open} onOpenChange={setOpen} title="Add Ring Groups" onSubmit={create} pending={pending} submitLabel="Create" pendingLabel="Creating…">
-        <div><Label>Name *</Label><Input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="rg1" /></div>
-        <div><Label>Extension</Label><Input value={form.extension} onChange={e=>setForm({...form,extension:e.target.value})} placeholder="2001" /></div>
-        <div><Label>Description</Label><Input value={form.description} onChange={e=>setForm({...form,description:e.target.value})} /></div>
-      </FormDialog>
-    </>
-  );
+  return <FullCrudPage config={CRUD_CONFIGS.ring_groups} />;
 }

@@ -1,20 +1,29 @@
-import * as React from "react";
-import { DataTable } from "../components/DataTable";
-import type { Column } from "../components/types";
-import { PageHeader } from "../components/shell/PageHeader";
+import { apiFetch } from "../lib/api";
+import { LiveTable } from "../components/LiveTable";
+import { Button } from "../components/ui/button";
+import { toast, toastError } from "../lib/toast";
 
 export function ActiveCalls() {
-  const columns: Column<any>[] = [
-    { key: "call_uuid", header: "Call UUID", className: "font-mono text-xs", cell: (r: any) => <span className="font-mono text-xs break-all">{r.call_uuid ?? r.uuid ?? "—"}</span> },
-    { key: "direction", header: "Dir", cell: (r: any) => r.direction ?? "—" },
-    { key: "cid_num", header: "Caller", className: "num", cell: (r: any) => r.cid_num ?? r.caller_id_number ?? "—" },
-    { key: "dest", header: "Destination", className: "num", cell: (r: any) => r.dest ?? r.destination_number ?? "—" },
-    { key: "state", header: "State", cell: (r: any) => r.state ?? r.callstate ?? "—" },
-  ];
+  const hangup = async (row: any, reload: () => void) => {
+    const uid = row.call_uuid ?? row.uuid ?? row.id;
+    if (!uid || !confirm(`Hangup call ${uid}?`)) return;
+    try {
+      await apiFetch(`/active_calls/${encodeURIComponent(String(uid))}/hangup`, { method: "POST" });
+      toast("Hangup sent", { variant: "success" });
+      reload();
+    } catch (err) { toastError(err); }
+  };
+
   return (
-    <>
-      <PageHeader title="Active Calls" description="Live active channels and bridged calls" />
-      <DataTable resource="/active_calls" columns={columns} perPage={20} searchPlaceholder="Search active calls…" emptyTitle="No active calls" />
-    </>
+    <LiveTable
+      title="Active Calls"
+      description="Live switch channels via ESL"
+      resource="/active_calls"
+      rowActions={(row: any, reload: () => void) => (
+        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => hangup(row, reload)}>
+          Hangup
+        </Button>
+      )}
+    />
   );
 }

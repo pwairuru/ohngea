@@ -23,7 +23,7 @@ def _exec(sql: str):
 
 
 def upgrade() -> None:
-    _exec("ALTER TABLE gateways ALTER COLUMN domain_id DROP NOT NULL;")
+    _exec("ALTER TABLE IF EXISTS gateways ALTER COLUMN domain_id DROP NOT NULL;")
     _exec("DROP POLICY IF EXISTS tenant_gateways ON gateways;")
     _exec(
         """
@@ -36,7 +36,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     _exec("DELETE FROM gateways WHERE domain_id IS NULL;")
-    _exec("ALTER TABLE gateways ALTER COLUMN domain_id SET NOT NULL;")
+    _exec("ALTER TABLE IF EXISTS gateways ALTER COLUMN domain_id SET NOT NULL;")
     _exec("DROP POLICY IF EXISTS tenant_gateways ON gateways;")
     _exec(
         """

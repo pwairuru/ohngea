@@ -87,28 +87,52 @@ fn gateway_renders_all_params_in_php_order() {
     let mut last = 0;
     for name in order {
         let needle = format!("<param name=\"{name}\"");
-        let pos = xml.find(&needle).unwrap_or_else(|| panic!("missing {name}: {xml}"));
+        let pos = xml
+            .find(&needle)
+            .unwrap_or_else(|| panic!("missing {name}: {xml}"));
         assert!(pos >= last, "param {name} out of PHP order: {xml}");
         last = pos;
     }
     // register-transport switch value passes through
-    assert!(xml.contains("<param name=\"register-transport\" value=\"tls\"/>"), "{xml}");
-    assert!(xml.contains("<param name=\"supress-cng\" value=\"true\"/>"), "{xml}");
-    assert!(xml.contains("<param name=\"caller-id-in-from\" value=\"true\"/>"), "{xml}");
-    assert!(xml.contains("<param name=\"extension-in-contact\" value=\"true\"/>"), "{xml}");
+    assert!(
+        xml.contains("<param name=\"register-transport\" value=\"tls\"/>"),
+        "{xml}"
+    );
+    assert!(
+        xml.contains("<param name=\"supress-cng\" value=\"true\"/>"),
+        "{xml}"
+    );
+    assert!(
+        xml.contains("<param name=\"caller-id-in-from\" value=\"true\"/>"),
+        "{xml}"
+    );
+    assert!(
+        xml.contains("<param name=\"extension-in-contact\" value=\"true\"/>"),
+        "{xml}"
+    );
     // distinct-to false renders (PHP !empty("false") is true)
-    assert!(xml.contains("<param name=\"distinct-to\" value=\"false\"/>"), "{xml}");
+    assert!(
+        xml.contains("<param name=\"distinct-to\" value=\"false\"/>"),
+        "{xml}"
+    );
 }
 
 #[test]
 fn gateway_register_transport_switch() {
-    for (inp, want) in [("udp", "udp"), ("tcp", "tcp"), ("tls", "tls"), ("sctp", "sctp")] {
+    for (inp, want) in [
+        ("udp", "udp"),
+        ("tcp", "tcp"),
+        ("tls", "tls"),
+        ("sctp", "sctp"),
+    ] {
         let mut g = GatewayInput::default();
         g.gateway_uuid = "11111111-1111-1111-1111-111111111111".to_owned();
         g.register_transport = Some(inp.to_owned());
         let xml = build_gateway_xml(&g);
         assert!(
-            xml.contains(&format!("<param name=\"register-transport\" value=\"{want}\"/>")),
+            xml.contains(&format!(
+                "<param name=\"register-transport\" value=\"{want}\"/>"
+            )),
             "transport {inp}: {xml}"
         );
     }
@@ -130,9 +154,15 @@ fn gateway_omits_empty_params() {
         "supress-cng",
         "extension-in-contact",
     ] {
-        assert!(!xml.contains(&format!("<param name=\"{absent}\"")), "must omit {absent}: {xml}");
+        assert!(
+            !xml.contains(&format!("<param name=\"{absent}\"")),
+            "must omit {absent}: {xml}"
+        );
     }
-    assert!(xml.contains("<param name=\"register\" value=\"false\"/>"), "{xml}");
+    assert!(
+        xml.contains("<param name=\"register\" value=\"false\"/>"),
+        "{xml}"
+    );
 }
 
 // ---- vars (switch.php:277-338) ----
@@ -159,15 +189,27 @@ fn vars_hostname_scoped_provision_excluded_exec_set_mapped() {
         var("Exec-Set", "dynvar", "cmd", None, None),
     ];
     let xml = build_vars_xml(&rows, "myhost");
-    assert!(xml.contains("<X-PRE-PROCESS cmd=\"set\" data=\"domain=example.com\" />"), "{xml}");
-    assert!(xml.contains("<X-PRE-PROCESS cmd=\"set\" data=\"hostvar=h1\" />"), "{xml}");
-    assert!(!xml.contains("othervar"), "foreign hostname excluded: {xml}");
+    assert!(
+        xml.contains("<X-PRE-PROCESS cmd=\"set\" data=\"domain=example.com\" />"),
+        "{xml}"
+    );
+    assert!(
+        xml.contains("<X-PRE-PROCESS cmd=\"set\" data=\"hostvar=h1\" />"),
+        "{xml}"
+    );
+    assert!(
+        !xml.contains("othervar"),
+        "foreign hostname excluded: {xml}"
+    );
     assert!(!xml.contains("provvar"), "Provision excluded: {xml}");
     assert!(
         xml.contains("<X-PRE-PROCESS cmd=\"exec-set\" data=\"dynvar=cmd\" />"),
         "Exec-Set maps to exec-set: {xml}"
     );
-    assert!(xml.contains("<!-- General -->") && xml.contains("<!-- Exec-Set -->"), "{xml}");
+    assert!(
+        xml.contains("<!-- General -->") && xml.contains("<!-- Exec-Set -->"),
+        "{xml}"
+    );
 }
 
 #[test]
@@ -211,8 +253,14 @@ fn callcenter_queue_at_domain_with_tone_stream() {
         ..queue("ignored")
     };
     let xml = build_callcenter_xml(&[(q, "example.com".to_owned())], &[], &[]);
-    assert!(xml.contains("<queue name=\"sales_queue@example.com\">"), "{xml}");
-    assert!(xml.contains("<param name=\"strategy\" value=\"longest-idle-agent\"/>"), "{xml}");
+    assert!(
+        xml.contains("<queue name=\"sales_queue@example.com\">"),
+        "{xml}"
+    );
+    assert!(
+        xml.contains("<param name=\"strategy\" value=\"longest-idle-agent\"/>"),
+        "{xml}"
+    );
     assert!(
         xml.contains("<param name=\"moh-sound\" value=\"tone_stream://${us-ring};loops=-1\"/>"),
         "tone_stream: {xml}"
@@ -223,11 +271,17 @@ fn callcenter_queue_at_domain_with_tone_stream() {
 #[test]
 fn callcenter_moh_defaults_and_passthrough() {
     let xml = build_callcenter_xml(&[(queue("q1"), "d.example".to_owned())], &[], &[]);
-    assert!(xml.contains("<param name=\"moh-sound\" value=\"local_stream://default\"/>"), "{xml}");
+    assert!(
+        xml.contains("<param name=\"moh-sound\" value=\"local_stream://default\"/>"),
+        "{xml}"
+    );
     let mut q = queue("q2");
     q.moh_sound = Some("local_stream://moh".to_owned());
     let xml = build_callcenter_xml(&[(q, "d.example".to_owned())], &[], &[]);
-    assert!(xml.contains("<param name=\"moh-sound\" value=\"local_stream://moh\"/>"), "{xml}");
+    assert!(
+        xml.contains("<param name=\"moh-sound\" value=\"local_stream://moh\"/>"),
+        "{xml}"
+    );
 }
 
 #[test]
@@ -294,11 +348,20 @@ fn ivr_menu_attrs_entries_and_direct_dial() {
         description: None,
     }];
     let xml = build_ivr_xml(&[(&menu, opts.as_slice())]);
-    assert!(xml.contains("<menu name=\"ivr-uuid-1\" description=\"main\""), "{xml}");
+    assert!(
+        xml.contains("<menu name=\"ivr-uuid-1\" description=\"main\""),
+        "{xml}"
+    );
     assert!(xml.contains("greet-long=\"welcome.wav\""), "{xml}");
-    assert!(xml.contains("<entry action=\"menu-exec-app\" digits=\"1\""), "{xml}");
+    assert!(
+        xml.contains("<entry action=\"menu-exec-app\" digits=\"1\""),
+        "{xml}"
+    );
     assert!(xml.contains("transfer 1001 XML example.com"), "{xml}");
-    assert!(xml.contains("transfer $1 XML example.com"), "direct dial: {xml}");
+    assert!(
+        xml.contains("transfer $1 XML example.com"),
+        "direct dial: {xml}"
+    );
     assert!(xml.contains("name=\"ivr.conf\""), "{xml}");
 }
 
@@ -316,9 +379,15 @@ fn conference_profiles_and_controls() {
     }];
     let xml = build_conference_xml(&profiles, &controls);
     assert!(xml.contains("<profile name=\"default\">"), "{xml}");
-    assert!(xml.contains("<param name=\"max-members\" value=\"50\"/>"), "{xml}");
+    assert!(
+        xml.contains("<param name=\"max-members\" value=\"50\"/>"),
+        "{xml}"
+    );
     assert!(xml.contains("<group name=\"default\">"), "{xml}");
-    assert!(xml.contains("<control digits=\"1\" action=\"mute\" data=\"toggle\"/>"), "{xml}");
+    assert!(
+        xml.contains("<control digits=\"1\" action=\"mute\" data=\"toggle\"/>"),
+        "{xml}"
+    );
     assert!(xml.contains("name=\"conference.conf\""), "{xml}");
 }
 
@@ -338,10 +407,22 @@ fn local_stream_directory_shape() {
         chime_max: None,
     };
     let xml = build_local_stream_xml(&[s]);
-    assert!(xml.contains("<directory name=\"example.com/moh\" uuid=\"ls-uuid-1\" path=\"/srv/moh\">"), "{xml}");
-    assert!(xml.contains("<param name=\"rate\" value=\"48000\"/>"), "default rate: {xml}");
-    assert!(xml.contains("<param name=\"channels\" value=\"1\"/>"), "{xml}");
-    assert!(xml.contains("<param name=\"interval\" value=\"20\"/>"), "{xml}");
+    assert!(
+        xml.contains("<directory name=\"example.com/moh\" uuid=\"ls-uuid-1\" path=\"/srv/moh\">"),
+        "{xml}"
+    );
+    assert!(
+        xml.contains("<param name=\"rate\" value=\"48000\"/>"),
+        "default rate: {xml}"
+    );
+    assert!(
+        xml.contains("<param name=\"channels\" value=\"1\"/>"),
+        "{xml}"
+    );
+    assert!(
+        xml.contains("<param name=\"interval\" value=\"20\"/>"),
+        "{xml}"
+    );
     assert!(xml.contains("name=\"local_stream.conf\""), "{xml}");
 }
 
@@ -357,22 +438,33 @@ fn sofia_full_embeds_gateways_settings_domains_globals() {
     let p = pbx_fs::sofia::SofiaProfileInput {
         name: "external".to_owned(),
         settings: vec![("auth-calls".to_owned(), "true".to_owned())],
-        domains: vec![("example.com".to_owned(), "true".to_owned(), "true".to_owned())],
+        domains: vec![(
+            "example.com".to_owned(),
+            "true".to_owned(),
+            "true".to_owned(),
+        )],
         gateways: vec![g],
         ..Default::default()
     };
-    let xml = pbx_fs::sofia::build_sofia_xml_with_globals(
-        &[p],
-        &[("debug".to_owned(), "0".to_owned())],
-    );
+    let xml =
+        pbx_fs::sofia::build_sofia_xml_with_globals(&[p], &[("debug".to_owned(), "0".to_owned())]);
     assert!(xml.contains("<global_settings>"), "{xml}");
     assert!(xml.contains("<param name=\"debug\" value=\"0\"/>"), "{xml}");
     assert!(xml.contains("<profile name=\"external\">"), "{xml}");
-    assert!(xml.contains("<gateway name=\"33333333-3333-3333-3333-333333333333\">"), "{xml}");
-    assert!(xml.contains("<param name=\"username\" value=\"u\"/>"), "{xml}");
+    assert!(
+        xml.contains("<gateway name=\"33333333-3333-3333-3333-333333333333\">"),
+        "{xml}"
+    );
+    assert!(
+        xml.contains("<param name=\"username\" value=\"u\"/>"),
+        "{xml}"
+    );
     assert!(
         xml.contains("<domain name=\"example.com\" alias=\"true\" parse=\"true\"/>"),
         "{xml}"
     );
-    assert!(xml.contains("<param name=\"auth-calls\" value=\"true\"/>"), "{xml}");
+    assert!(
+        xml.contains("<param name=\"auth-calls\" value=\"true\"/>"),
+        "{xml}"
+    );
 }

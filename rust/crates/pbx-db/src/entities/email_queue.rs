@@ -19,6 +19,12 @@ pub struct Model {
     pub email_retry_count: i32,
     pub email_attempts: i32,
     pub email_error: Option<String>,
+    pub hostname: Option<String>,
+    pub email_action_before: Option<String>,
+    pub email_action_after: Option<String>,
+    pub email_uuid: Option<String>,
+    pub email_transcription: Option<String>,
+    pub email_response: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 

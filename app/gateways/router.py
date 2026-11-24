@@ -25,6 +25,24 @@ async def _sofia_rescan(profile: str | None):
 router = APIRouter(prefix="/api/v1/gateways", tags=["gateways"])
 
 
+async def _serialize_gateway(g, mask_secret: bool = True):
+    d = {c.name: getattr(g, c.name) for c in g.__table__.columns}
+    # convert UUIDs to str
+    for k in ["gateway_uuid","domain_id"]:
+        if k in d and d[k] is not None:
+            d[k] = str(d[k])
+    # datetime isoformat
+    for k in ["created_at","updated_at"]:
+        if k in d and d[k] is not None:
+            try:
+                d[k] = d[k].isoformat()
+            except Exception:
+                pass
+    if mask_secret and "password" in d and d["password"]:
+        d["password"] = "***"
+    return d
+
+
 @router.get("", dependencies=[Depends(require_permission("gateway_view"))])
 async def list_gateways(response: Response, page: int = Query(1, ge=1), per_page: int = Query(20, ge=1, le=100), session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     domain_id = getattr(user, "_domain_id", user.domain_id)
@@ -34,18 +52,7 @@ async def list_gateways(response: Response, page: int = Query(1, ge=1), per_page
     rows = r.scalars().all()
     data = []
     for g in rows:
-        d = {c.name: getattr(g, c.name) for c in g.__table__.columns}
-        # convert UUIDs to str
-        for k in ["gateway_uuid","domain_id"]:
-            if k in d and d[k] is not None:
-                d[k] = str(d[k])
-        # datetime isoformat
-        for k in ["created_at","updated_at"]:
-            if k in d and d[k] is not None:
-                try:
-                    d[k] = d[k].isoformat()
-                except Exception:
-                    pass
+        d = await _serialize_gateway(g, mask_secret=True)
         d["_links"] = {"self": {"href": f"/api/v1/gateways/{g.gateway_uuid}"}}
         data.append(d)
     response.headers["X-Total-Count"] = str(total)
@@ -77,19 +84,15 @@ async def create_gateway(payload: dict, response: Response, session: AsyncSessio
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     # ESL sofia rescan for profile (legacy: sofia profile external rescan)
     await _sofia_rescan(getattr(gw, "profile", None) or data.get("profile") or "external")
     await session.refresh(gw)
     response.headers["Location"] = f"/api/v1/gateways/{gw.gateway_uuid}"
-    # return full
-    d = {c.name: getattr(gw, c.name) for c in gw.__table__.columns}
-    for k in ["gateway_uuid","domain_id"]:
-        d[k] = str(d[k])
-    for k in ["created_at","updated_at"]:
-        if d[k]:
-            d[k] = d[k].isoformat()
+    # return masked
+    d = await _serialize_gateway(gw, mask_secret=True)
     d["_links"] = {"self": {"href": f"/api/v1/gateways/{gw.gateway_uuid}"}}
     return d
 
@@ -102,12 +105,7 @@ async def get_gateway(gateway_uuid: UUID, session: AsyncSession = Depends(get_se
     g = r.scalar_one_or_none()
     if not g:
         raise HTTPException(status_code=404, detail="Gateway not found")
-    d = {c.name: getattr(g, c.name) for c in g.__table__.columns}
-    for k in ["gateway_uuid","domain_id"]:
-        d[k] = str(d[k])
-    for k in ["created_at","updated_at"]:
-        if d[k]:
-            d[k] = d[k].isoformat()
+    d = await _serialize_gateway(g, mask_secret=True)
     d["_links"] = {"self": {"href": f"/api/v1/gateways/{g.gateway_uuid}"}}
     return d
 
@@ -132,16 +130,12 @@ async def patch_gateway(gateway_uuid: UUID, payload: dict, session: AsyncSession
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await _sofia_rescan(getattr(g, "profile", None) or "external")
     await session.refresh(g)
-    d = {c.name: getattr(g, c.name) for c in g.__table__.columns}
-    for k in ["gateway_uuid","domain_id"]:
-        d[k] = str(d[k])
-    for k in ["created_at","updated_at"]:
-        if d[k]:
-            d[k] = d[k].isoformat()
+    d = await _serialize_gateway(g, mask_secret=True)
     d["_links"] = {"self": {"href": f"/api/v1/gateways/{g.gateway_uuid}"}}
     return d
 
@@ -160,7 +154,8 @@ async def delete_gateway(gateway_uuid: UUID, session: AsyncSession = Depends(get
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await _sofia_rescan(_profile or "external")
     return Response(status_code=204)

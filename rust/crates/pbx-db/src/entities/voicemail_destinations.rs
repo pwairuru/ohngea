@@ -1,0 +1,14 @@
+use sea_orm::entity::prelude::*;
+use uuid::Uuid;
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[sea_orm(table_name = "voicemail_destinations")]
+pub struct Model {
+    #[sea_orm(primary_key, auto_increment = false)]
+    pub voicemail_destination_uuid: String,
+    pub domain_id: Uuid,
+    pub voicemail_uuid: String,
+    pub voicemail_uuid_copy: Option<String>,
+}
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {}
+impl ActiveModelBehavior for ActiveModel {}

@@ -410,11 +410,19 @@ def upgrade() -> None:
     ]
     for uuid, cat, sub, name, val, desc in defaults:
         try:
-            op.execute(sa.text("""
+            # NOTE: literals inlined (escaped) — op.execute(text, params-dict)
+            # fails in this async env and poisons the whole PG txn when swallowed.
+            def _lit(v):
+                if v is None:
+                    return "NULL"
+                if isinstance(v, bool):
+                    return "true" if v else "false"
+                return "'" + str(v).replace("'", "''").replace(":", "\\:") + "'"
+            op.execute(sa.text(f"""
                 INSERT INTO default_settings (default_setting_uuid, default_setting_category, default_setting_subcategory, default_setting_name, default_setting_value, default_setting_enabled, default_setting_description)
-                VALUES (:uuid, :cat, :sub, :name, :val, true, :desc)
+                VALUES ({_lit(uuid)}, {_lit(cat)}, {_lit(sub)}, {_lit(name)}, {_lit(val)}, true, {_lit(desc)})
                 ON CONFLICT (default_setting_uuid) DO NOTHING
-            """), {"uuid": uuid, "cat": cat, "sub": sub, "name": name, "val": val, "desc": desc})
+            """))
         except Exception:
             pass
 

@@ -15,16 +15,9 @@ import logging
 
 logger = logging.getLogger("mock_esl")
 
-STATUS = """Content-Type: api/response
-Content-Length: 54
+STATUS_BODY = "UP 0 years, 10 days, 2 hours, 5 minutes, 30 seconds\n"
 
-UP 0 years, 10 days, 2 hours, 5 minutes, 30 seconds
-"""
-
-SOFIA_STATUS = """Content-Type: api/response
-Content-Length: 320
-
-Name                Type                                           Data      State
+SOFIA_BODY = """Name                Type                                           Data      State
 =================================================================================================
                    internal           profile  sip:mod_sofia@172.19.0.3:5060 RUNNING (0)
                    external           profile  sip:mod_sofia@172.19.0.3:5080 RUNNING (0)
@@ -320,7 +313,7 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
             txt = hdr.decode(errors="ignore").lower()
             logger.info(f"cmd {hdr!r}")
             if "api sofia status" in txt:
-                writer.write(SOFIA_STATUS.encode())
+                writer.write(_build_api_response(SOFIA_BODY))
                 await writer.drain()
             elif "sofia xmlstatus" in txt and "reg" in txt:
                 writer.write(_build_api_response(_SOFIA_XMLSTATUS_REG_BODY))
@@ -338,7 +331,7 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
                 writer.write(_build_api_response(_REGISTRATIONS_JSON_BODY))
                 await writer.drain()
             elif "api status" in txt:
-                writer.write(STATUS.encode())
+                writer.write(_build_api_response(STATUS_BODY))
                 await writer.drain()
             elif "originate" in txt:
                 try:
@@ -373,8 +366,7 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
                 writer.write(_build_api_response(body))
                 await writer.drain()
             elif "api" in txt:
-                body = "Content-Type: api/response\nContent-Length: 8\n\n+OK mock\n"
-                writer.write(body.encode())
+                writer.write(_build_api_response("+OK mock\n"))
                 await writer.drain()
             else:
                 logger.warning(f"unknown cmd {txt}")

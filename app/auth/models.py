@@ -18,8 +18,8 @@ class User(UserBase, table=True):
     user_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
     password_hash: str = Field(max_length=255)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     # parity: legacy v_users - contacts FK deferred to avoid circular create
     contact_uuid: Optional[UUID] = Field(default=None, index=True)
     user_status: Optional[str] = Field(default=None, max_length=64)  # Available, On Break, etc
@@ -36,8 +36,8 @@ class Group(SQLModel, table=True):
     description: Optional[str] = Field(default=None)
     group_level: int = Field(default=10, index=True)  # 10..90 step 10, legacy group_level
     group_protected: bool = Field(default=False)  # legacy group_protected
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class UserGroup(SQLModel, table=True):

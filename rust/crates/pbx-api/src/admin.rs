@@ -93,6 +93,14 @@ async fn get_domain_limits(Extension(claims): Extension<Claims>) -> impl IntoRes
 }
 
 // ---- extension_settings CRUD ----
+fn propagate_dir() {
+    crate::fs_xml::invalidate_prefix("directory:");
+    crate::fs_xml::propagate_esl(&["reloadxml"]);
+}
+fn propagate_sofia_conf() {
+    crate::fs_xml::invalidate_key("configuration:sofia.conf");
+    crate::fs_xml::propagate_esl(&["reloadxml"]);
+}
 fn ser_ext_setting(r: &extension_settings::Model) -> Value {
     serde_json::json!({
         "extension_setting_uuid": r.extension_setting_uuid,
@@ -148,7 +156,10 @@ async fn create_ext_setting(
         updated_at: Set(now),
     };
     match am.insert(db).await {
-        Ok(r) => (StatusCode::CREATED, Json(ser_ext_setting(&r))).into_response(),
+        Ok(r) => {
+            propagate_dir();
+            (StatusCode::CREATED, Json(ser_ext_setting(&r))).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
@@ -256,7 +267,10 @@ async fn patch_ext_setting(
     }
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
-        Ok(r) => (StatusCode::OK, Json(ser_ext_setting(&r))).into_response(),
+        Ok(r) => {
+            propagate_dir();
+            (StatusCode::OK, Json(ser_ext_setting(&r))).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("update failed: {e}")})),
@@ -282,6 +296,7 @@ async fn delete_ext_setting(
         Some(r) if r.domain_id == domain => {
             let am: extension_settings::ActiveModel = r.into();
             let _ = am.delete(db).await;
+            propagate_dir();
             StatusCode::NO_CONTENT.into_response()
         }
         _ => (
@@ -334,7 +349,10 @@ async fn create_sofia(
         updated_at: Set(now),
     };
     match am.insert(db).await {
-        Ok(r) => (StatusCode::CREATED, Json(ser_sofia(&r))).into_response(),
+        Ok(r) => {
+            propagate_sofia_conf();
+            (StatusCode::CREATED, Json(ser_sofia(&r))).into_response()
+        }
         Err(e) => {
             let msg = e.to_string();
             if msg.contains("UNIQUE") || msg.contains("unique") || msg.contains("duplicate") {
@@ -424,7 +442,10 @@ async fn patch_sofia(
     }
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
-        Ok(r) => (StatusCode::OK, Json(ser_sofia(&r))).into_response(),
+        Ok(r) => {
+            propagate_sofia_conf();
+            (StatusCode::OK, Json(ser_sofia(&r))).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("update failed: {e}")})),
@@ -449,6 +470,7 @@ async fn delete_sofia(
         Some(r) => {
             let am: sofia_global_settings::ActiveModel = r.into();
             let _ = am.delete(db).await;
+            propagate_sofia_conf();
             StatusCode::NO_CONTENT.into_response()
         }
         None => (

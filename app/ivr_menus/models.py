@@ -46,8 +46,8 @@ class IvrMenuBase(SQLModel):
 class IvrMenu(IvrMenuBase, table=True):
     __tablename__ = "ivr_menus"
     ivr_menu_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class IvrMenuOption(SQLModel, table=True):

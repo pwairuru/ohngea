@@ -47,15 +47,34 @@ async def _get_domain_setting(session: AsyncSession, domain_id: UUID, category: 
             row2 = r2.scalar_one_or_none()
             if row2:
                 return row2.value
+        # fall back to global default_settings (legacy default → domain override chain)
+        try:
+            from app.admin_settings.models import DefaultSetting
+
+            for var in variants:
+                r3 = await session.execute(select(DefaultSetting).where(DefaultSetting.default_setting_category == category, DefaultSetting.default_setting_name == var))
+                row3 = r3.scalar_one_or_none()
+                if row3 and row3.default_setting_enabled:
+                    return row3.default_setting_value
+        except Exception:
+            pass
     except SQLAlchemyError as e:
         logger.warning(f"_get_domain_setting failed {category}/{subcategory} for {domain_id}: {e}")
         pass
     return default
 
 def _is_valid_email(email: str) -> bool:
-    if not email:
+    if not email or not isinstance(email, str):
         return False
-    return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email))
+    email = email.strip().lower()
+    if len(email) > 254 or email.count("@") != 1:
+        return False
+    try:
+        from email_validator import validate_email
+        validate_email(email, check_deliverability=False)
+        return True
+    except Exception:
+        return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email))
 
 def _validate_password_strength(password: str, length_req=12, need_number=True, need_lower=True, need_upper=True, need_special=False):
     errors = []
@@ -276,7 +295,7 @@ async def bulk_users(payload: dict, session: AsyncSession=Depends(get_session), 
     for uid_str in uuids:
         try:
             uid = UUID(str(uid_str))
-        except:
+        except Exception:
             results.append({"user_uuid": str(uid_str), "error": "invalid uuid"})
             continue
         r = await session.execute(select(User).where(User.user_uuid==uid))
@@ -348,7 +367,7 @@ async def bulk_users(payload: dict, session: AsyncSession=Depends(get_session), 
             results.append({"user_uuid": str(uid_str), "error": "Invalid action"})
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except:
+    except Exception:
         pass
     return {"data": results, "total": len(results)}
 
@@ -391,7 +410,7 @@ async def import_users_endpoint(
                             data = await v.read()
                             csv_text = data.decode("utf-8", errors="ignore")
                             break
-                        except:
+                        except Exception:
                             continue
         except Exception as e:
             raise HTTPException(status_code=422, detail=f"Failed to parse multipart: {e}")
@@ -399,7 +418,7 @@ async def import_users_endpoint(
         # JSON body
         try:
             payload = await request.json()
-        except:
+        except Exception:
             payload = {}
         if isinstance(payload, dict):
             csv_text = payload.get("csv") or payload.get("data") or payload.get("content")
@@ -423,7 +442,7 @@ async def import_users_endpoint(
                 await session.commit()
                 try:
                     await invalidate_fs_cache_for_session(session, domain_id)
-                except:
+                except Exception:
                     pass
                 return {"imported": imported, "errors": errors, "data": created, "total": imported}
         # if csv_text still None, try raw body as csv
@@ -435,7 +454,7 @@ async def import_users_endpoint(
                     # heuristic: if not containing comma or newline, treat as not csv
                     if "," not in csv_text and "\n" not in csv_text:
                         csv_text = None
-            except:
+            except Exception:
                 pass
     if not csv_text:
         raise HTTPException(status_code=422, detail="CSV content required: provide JSON {'csv': 'username,password,email\\n...'} or multipart file")
@@ -443,7 +462,7 @@ async def import_users_endpoint(
     result = await import_users_from_csv(session, domain_id, csv_text)
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except:
+    except Exception:
         pass
     return result
 
@@ -484,7 +503,7 @@ async def create_user(payload: dict, response: Response, session: AsyncSession=D
     target_domain = payload.get("domain_uuid") or payload.get("domain_id") or str(domain_id)
     try:
         target_domain_uuid = UUID(str(target_domain))
-    except:
+    except Exception:
         raise HTTPException(status_code=422, detail="Invalid domain_uuid")
     if str(target_domain_uuid)!=str(domain_id) and not ("*" in perms or "user_domain" in perms or "user_all" in perms):
         raise HTTPException(status_code=403, detail="Missing permission: user_domain")
@@ -524,7 +543,7 @@ async def create_user(payload: dict, response: Response, session: AsyncSession=D
     pw_len_val = await _get_domain_setting(session, target_domain_uuid, "users", "password_length", default="12")
     try:
         pw_len = int(pw_len_val) if pw_len_val is not None else 12
-    except:
+    except Exception:
         pw_len = 12
     pw_number = await _get_domain_setting(session, target_domain_uuid, "users", "password_number", default="true")
     pw_lower = await _get_domain_setting(session, target_domain_uuid, "users", "password_lowercase", default="true")
@@ -556,7 +575,7 @@ async def create_user(payload: dict, response: Response, session: AsyncSession=D
                 raise HTTPException(status_code=409, detail=f"Maximum users {lim} reached")
         except HTTPException:
             raise
-        except:
+        except Exception:
             pass
     email = payload.get("user_email") or payload.get("email")
     if email and not _is_valid_email(email):
@@ -568,7 +587,7 @@ async def create_user(payload: dict, response: Response, session: AsyncSession=D
     if contact_uuid:
         try:
             u.contact_uuid = UUID(str(contact_uuid))
-        except:
+        except Exception:
             pass
     else:
         # create contact if fields present and contact_add permitted
@@ -644,12 +663,12 @@ async def create_user(payload: dict, response: Response, session: AsyncSession=D
                             continue
                         ug = UserGroup(user_uuid=u.user_uuid, group_uuid=g_uuid, domain_id=target_domain_uuid, group_name=grp.name)
                         session.add(ug)
-                except: continue
+                except Exception: continue
     await session.commit()
     await session.refresh(u)
     try:
         await invalidate_fs_cache_for_session(session, target_domain_uuid)
-    except:
+    except Exception:
         pass
     response.headers["Location"] = f"/api/v1/users/{u.user_uuid}"
     enriched = await enrich_user(session, u)
@@ -736,7 +755,7 @@ async def patch_user(user_uuid: UUID, payload: dict, session: AsyncSession=Depen
         pw_len_val = await _get_domain_setting(session, u.domain_id, "users", "password_length", default="12")
         try:
             pw_len = int(pw_len_val) if pw_len_val is not None else 12
-        except:
+        except Exception:
             pw_len = 12
         pw_number = await _get_domain_setting(session, u.domain_id, "users", "password_number", default="true")
         pw_lower = await _get_domain_setting(session, u.domain_id, "users", "password_lowercase", default="true")
@@ -781,7 +800,7 @@ async def patch_user(user_uuid: UUID, payload: dict, session: AsyncSession=Depen
                 u.contact_uuid = UUID(str(payload["contact_uuid"]))
             else:
                 u.contact_uuid = None
-        except:
+        except Exception:
             raise HTTPException(status_code=422, detail="Invalid contact_uuid")
     # contact organization/name/email linkage update parity
     contact_fields = {}
@@ -893,12 +912,12 @@ async def patch_user(user_uuid: UUID, payload: dict, session: AsyncSession=Depen
                     session.add(ug)
         except HTTPException:
             raise
-        except:
+        except Exception:
             pass
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, u.domain_id)
-    except:
+    except Exception:
         pass
     await session.refresh(u)
     enriched = await enrich_user(session, u)
@@ -932,7 +951,7 @@ async def delete_user(user_uuid: UUID, session: AsyncSession=Depends(get_session
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, u.domain_id)
-    except:
+    except Exception:
         pass
     return Response(status_code=204)
 
@@ -951,10 +970,11 @@ async def get_user_settings(user_uuid: UUID, session: AsyncSession=Depends(get_s
 
 @router.put("/{user_uuid}/settings", response_model=dict)
 async def put_user_settings(user_uuid: UUID, payload: dict, session: AsyncSession=Depends(get_session), current: User=Depends(get_current_user)):
+    is_self = str(getattr(current, "user_uuid", "")) == str(user_uuid)
     perms = getattr(current, "_perms", None)
     if perms is None:
         perms = await get_user_permissions(session, current)
-    if not ("*" in perms or "user_setting_view" in perms or "user_edit" in perms):
+    if not is_self and not ("*" in perms or "user_setting_view" in perms or "user_edit" in perms):
         raise HTTPException(status_code=403, detail="Missing permission")
     domain_id = getattr(current, "_domain_id", current.domain_id)
     await set_tenant(session, domain_id)

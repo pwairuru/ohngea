@@ -34,9 +34,19 @@ async def list_dialplans(
     if page * per_page < total:
         response.headers["Link"] = f'</api/v1/dialplans?page={page+1}&per_page={per_page}>; rel="next"'
     data = []
-    for d in items:
-        det = await session.execute(select(DialplanDetail).where(DialplanDetail.dialplan_uuid == d.dialplan_uuid).order_by(DialplanDetail.dialplan_detail_group, DialplanDetail.order))
-        details = [{"tag": x.tag, "type": x.type, "data": x.data, "order": x.order, "dialplan_detail_break": x.dialplan_detail_break, "dialplan_detail_inline": x.dialplan_detail_inline, "dialplan_detail_group": x.dialplan_detail_group, "detail_enabled": x.detail_enabled} for x in det.scalars().all()]
+    if items:
+        # Batch fetch details (fix N+1: was 1 query per dialplan)
+        ids = [d.dialplan_uuid for d in items]
+        det_r = await session.execute(
+            select(DialplanDetail)
+            .where(DialplanDetail.dialplan_uuid.in_(ids))
+            .order_by(DialplanDetail.dialplan_detail_group, DialplanDetail.order)
+        )
+        by_parent: dict = {}
+        for x in det_r.scalars().all():
+            by_parent.setdefault(str(x.dialplan_uuid), []).append(x)
+        for d in items:
+            details = [{"tag": x.tag, "type": x.type, "data": x.data, "order": x.order, "dialplan_detail_break": x.dialplan_detail_break, "dialplan_detail_inline": x.dialplan_detail_inline, "dialplan_detail_group": x.dialplan_detail_group, "detail_enabled": x.detail_enabled} for x in by_parent.get(str(d.dialplan_uuid), [])]
         data.append({"dialplan_uuid": str(d.dialplan_uuid), "name": d.name, "context": d.context, "enabled": d.enabled, "dialplan_number": d.dialplan_number, "dialplan_destination": d.dialplan_destination, "dialplan_continue": d.dialplan_continue, "dialplan_order": d.dialplan_order, "dialplan_xml": d.dialplan_xml, "details": details, "_links": {"self": {"href": f"/api/v1/dialplans/{d.dialplan_uuid}"}}})
     return {"data": data, "total": total, "page": page, "per_page": per_page}
 
@@ -90,8 +100,9 @@ async def create_dialplan(
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(d)
     response.headers["Location"] = f"/api/v1/dialplans/{d.dialplan_uuid}"
     # fetch details for return
@@ -162,8 +173,9 @@ async def patch_dialplan(dialplan_uuid: UUID, payload: dict, session: AsyncSessi
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(d)
     return {"dialplan_uuid": str(d.dialplan_uuid), "name": d.name, "context": d.context, "enabled": d.enabled}
 
@@ -180,6 +192,7 @@ async def delete_dialplan(dialplan_uuid: UUID, session: AsyncSession = Depends(g
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     return Response(status_code=204)

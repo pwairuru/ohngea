@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 from sqlmodel import Field, SQLModel
@@ -11,8 +11,8 @@ class ConferenceProfileBase(SQLModel):
 class ConferenceProfile(ConferenceProfileBase, table=True):
     __tablename__="conference_profiles"
     conference_profile_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 class ConferenceProfileParamBase(SQLModel):
     conference_profile_uuid: UUID = Field(foreign_key="conference_profiles.conference_profile_uuid", ondelete="CASCADE")
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
@@ -23,4 +23,4 @@ class ConferenceProfileParamBase(SQLModel):
 class ConferenceProfileParam(ConferenceProfileParamBase, table=True):
     __tablename__="conference_profile_params"
     conference_profile_param_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -9,10 +9,7 @@
 //! `uuid_kill <fs-uuid>` for real ids and the mock transport for `call-…` ids.
 
 use axum::{
-    http::StatusCode,
-    response::IntoResponse,
-    routing::post,
-    Extension as AxExtension, Json, Router,
+    http::StatusCode, response::IntoResponse, routing::post, Extension as AxExtension, Json, Router,
 };
 use pbx_fs::esl::{EsClient, RealEs};
 use serde::Deserialize;
@@ -51,7 +48,11 @@ async fn originate(
             Json(serde_json::json!({"detail": "from/to required"})),
         );
     }
-    let explicit = payload.domain.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let explicit = payload
+        .domain
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
     let domain = match explicit {
         Some(d) => Some(d.to_owned()),
         None => {
@@ -59,11 +60,8 @@ async fn originate(
             (!name.trim().is_empty()).then_some(name)
         }
     };
-    let call_id = client().originate_with_domain(
-        payload.from.trim(),
-        payload.to.trim(),
-        domain.as_deref(),
-    );
+    let call_id =
+        client().originate_with_domain(payload.from.trim(), payload.to.trim(), domain.as_deref());
     (
         StatusCode::CREATED,
         Json(serde_json::json!({"call_id": call_id, "from": payload.from, "to": payload.to})),

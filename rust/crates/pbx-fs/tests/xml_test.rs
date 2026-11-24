@@ -91,7 +91,10 @@ fn enriched_user() -> pbx_fs::xml::DirectoryUser {
 #[test]
 fn directory_enriched_user_attrs_alias_cidr() {
     let out = pbx_fs::xml::build_directory_xml_users("example.com", &[enriched_user()]);
-    assert!(out.contains("number-alias=\"1001-alias\""), "alias attr: {out}");
+    assert!(
+        out.contains("number-alias=\"1001-alias\""),
+        "alias attr: {out}"
+    );
     assert!(out.contains("cidr=\"10.0.0.0/8\""), "cidr attr: {out}");
 }
 

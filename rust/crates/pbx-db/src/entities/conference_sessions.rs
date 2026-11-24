@@ -13,6 +13,10 @@ pub struct Model {
     pub conference_center_uuid: Option<String>,
     pub conference_room_uuid: Option<String>,
     pub profile: Option<String>,
+    pub meeting_uuid: Option<String>,
+    pub recording: Option<String>,
+    pub start_epoch: Option<i64>,
+    pub end_epoch: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

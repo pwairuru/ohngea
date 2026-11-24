@@ -15,6 +15,7 @@ branch_labels = None
 depends_on = None
 
 from alembic import op
+import sqlalchemy as sa
 
 
 def _exec(sql: str):
@@ -26,9 +27,9 @@ def _exec(sql: str):
 
 def upgrade() -> None:
     tables = op.get_bind().execute(
-        "SELECT tablename FROM pg_policies "
+        sa.text("SELECT tablename FROM pg_policies "
         "WHERE schemaname = 'public' AND policyname LIKE 'tenant\\_%' "
-        "AND policyname NOT LIKE 'tenant\\_all\\_%'"
+        "AND policyname NOT LIKE 'tenant\\_all\\_%'")
     ).fetchall()
     for (tbl,) in tables:
         _exec(f"DROP POLICY IF EXISTS tenant_all_{tbl} ON {tbl};")
@@ -40,8 +41,8 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     tables = op.get_bind().execute(
-        "SELECT tablename FROM pg_policies "
-        "WHERE schemaname = 'public' AND policyname LIKE 'tenant\\_all\\_%'"
+        sa.text("SELECT tablename FROM pg_policies "
+        "WHERE schemaname = 'public' AND policyname LIKE 'tenant\\_all\\_%'")
     ).fetchall()
     for (tbl,) in tables:
         _exec(f"DROP POLICY IF EXISTS tenant_all_{tbl} ON {tbl};")

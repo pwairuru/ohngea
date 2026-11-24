@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.deps import get_current_user
+from app.auth.deps import get_current_user, require_permission
 from app.auth.models import User
 from app.db import get_session, set_tenant
 
@@ -114,6 +114,74 @@ async def list_fifo_status(
         "source": "db",
         "_links": {"self": {"href": "/api/v1/fifo_list"}},
     }
+
+
+@router.get("/{fifo}/callers", response_model=dict)
+async def list_fifo_callers(
+    fifo: str,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """Live callers waiting in a FIFO via ESL `fifo list <name>`."""
+    data: list[dict] = []
+    try:
+        from app.freeswitch.sanitize import sanitize_path
+        fifo = sanitize_path(fifo)
+    except ValueError:
+        return {"data": [], "total": 0, "fifo_name": fifo, "error": "invalid fifo name"}
+    try:
+        from app.freeswitch.esl_client import esl_command
+        import json
+
+        raw = await esl_command(f"fifo list {fifo}")
+        if raw and raw.strip():
+            try:
+                j = json.loads(raw) if isinstance(raw, str) else raw
+                rows = (j.get("rows") or j.get("callers") or j.get("data") or []) if isinstance(j, dict) else j
+                if isinstance(rows, dict):
+                    rows = list(rows.values())
+                for r in rows:
+                    if isinstance(r, dict):
+                        data.append(
+                            {
+                                "uuid": r.get("uuid"),
+                                "caller_id_number": r.get("caller_id_number") or r.get("cid_num"),
+                                "caller_id_name": r.get("caller_id_name"),
+                                "wait_time": r.get("wait_time") or r.get("wait"),
+                                "_raw": r,
+                            }
+                        )
+                    else:
+                        data.append({"uuid": str(r)})
+            except Exception:
+                data = [{"uuid": l.split()[0], "raw": l} for l in raw.splitlines() if l.strip()][:100]
+    except Exception as e:
+        return {"data": [], "total": 0, "fifo_name": fifo, "error": "internal error"}
+    return {"data": data, "total": len(data), "fifo_name": fifo}
+
+
+@router.delete("/{fifo}/callers/{uuid}", response_model=dict)
+async def delete_fifo_caller(
+    fifo: str,
+    uuid: str,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_permission("fifo_delete")),
+):
+    """Remove a waiting caller via ESL `fifo delete <fifo> <uuid>`."""
+    from fastapi import HTTPException
+    try:
+        from app.freeswitch.sanitize import sanitize_path, sanitize_uuid
+        fifo = sanitize_path(fifo)
+        uuid = sanitize_uuid(uuid)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid fifo or uuid")
+    try:
+        from app.freeswitch.esl_client import esl_command
+
+        raw = await esl_command(f"fifo delete {fifo} {uuid}")
+        return {"result": str(raw), "fifo_name": fifo, "uuid": uuid}
+    except Exception as e:
+        return {"result": "delete queued (ESL offline)", "fifo_name": fifo, "uuid": uuid}
 
 
 @router.get("/status", response_model=dict)

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -35,5 +35,5 @@ class WebRTCSettingsBase(SQLModel):
 class WebRTCSettings(WebRTCSettingsBase, table=True):
     __tablename__ = "webrtc_settings"
     domain_id: UUID = Field(foreign_key="domains.domain_id", primary_key=True, ondelete="CASCADE")
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

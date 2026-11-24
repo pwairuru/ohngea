@@ -1,0 +1,44 @@
+#!/bin/sh
+# PROVIDE: ohngea_worker
+# REQUIRE: NETWORKING postgresql valkey ohngea
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name=ohngea_worker
+rcvar=ohngea_worker_enable
+
+load_rc_config $name
+
+: ${ohngea_worker_enable:=NO}
+: ${ohngea_worker_user:=ohngea}
+: ${ohngea_worker_group:=ohngea}
+: ${ohngea_worker_dir:=%%WWWDIR%%}
+: ${ohngea_worker_env_file:=%%ETCDIR%%/ohngea.env}
+: ${ohngea_worker_pidfile:=/var/run/ohngea_worker.pid}
+: ${ohngea_worker_logfile:=/var/log/ohngea_worker.log}
+: ${ohngea_worker_concurrency:=2}
+
+pidfile=${ohngea_worker_pidfile}
+command="%%WWWDIR%%/.venv/bin/celery"
+command_args="-A app.workers.celery_app worker --loglevel=info --concurrency=${ohngea_worker_concurrency} --pidfile=${ohngea_worker_pidfile} --logfile=${ohngea_worker_logfile}"
+
+ohngea_worker_precmd() {
+    install -d -o ${ohngea_worker_user} -g ${ohngea_worker_group} -m 755 /var/run /var/log
+    touch ${ohngea_worker_logfile} && chown ${ohngea_worker_user}:${ohngea_worker_group} ${ohngea_worker_logfile}
+    if [ -f "${ohngea_worker_env_file}" ]; then
+        set -a
+        . "${ohngea_worker_env_file}"
+        set +a
+    fi
+    cd "${ohngea_worker_dir}" || return 1
+}
+
+start_precmd=ohngea_worker_precmd
+
+# daemonize via celery --detach? Use rc.subr daemon
+# Use daemon wrapper for proper pid handling
+command="/usr/sbin/daemon"
+command_args="-p ${ohngea_worker_pidfile} -u ${ohngea_worker_user} %%WWWDIR%%/.venv/bin/celery -A app.workers.celery_app worker --loglevel=info --concurrency=${ohngea_worker_concurrency}"
+
+run_rc_command "$1"

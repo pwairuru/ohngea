@@ -3,11 +3,18 @@
 //! Order: models → schemas → handlers → xml.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Extension, Json, Router};
-use sea_orm::{ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, Set,
+};
 use serde::{Deserialize, Serialize};
 
 // ---- models ----
 use pbx_db::entities::{ivr_menu_options, ivr_menus};
+
+fn propagate_ivr() {
+    crate::fs_xml::invalidate_prefix("configuration:ivr.conf");
+    crate::fs_xml::propagate_esl(&["reloadxml"]);
+}
 
 // ---- schemas ----
 #[derive(Debug, Deserialize)]
@@ -134,7 +141,9 @@ async fn create_ivr(
                 }
             }
         }
-        Some(v) if v.is_empty() && crate::tenant::has_permission(&claims, "ivr_menu_domain") => None,
+        Some(v) if v.is_empty() && crate::tenant::has_permission(&claims, "ivr_menu_domain") => {
+            None
+        }
         _ => Some(tenant),
     };
     let id = crate::routing_db::new_uuid();
@@ -224,8 +233,7 @@ async fn create_ivr(
             ivr_enabled,
             ivr_description,
         );
-        if let Err(e) = crate::ring_groups::sync_app_dialplan(db, domain, dp_id, &spec).await
-        {
+        if let Err(e) = crate::ring_groups::sync_app_dialplan(db, domain, dp_id, &spec).await {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"detail": e})),
@@ -233,7 +241,7 @@ async fn create_ivr(
                 .into_response();
         }
     } else {
-        crate::fs_xml::invalidate_cache();
+        propagate_ivr();
     }
     (
         StatusCode::CREATED,
@@ -263,7 +271,12 @@ async fn list_ivr(
         Err(_) => {
             return (
                 crate::paged_headers("/api/v1/ivr_menus", page, per_page, 0),
-                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+                Json(crate::paged_body(
+                    Vec::<serde_json::Value>::new(),
+                    0,
+                    page,
+                    per_page,
+                )),
             )
                 .into_response();
         }
@@ -339,7 +352,7 @@ async fn ivr_or_404(
         .filter(
             Condition::any()
                 .add(ivr_menus::Column::DomainId.eq(domain))
-                .add(ivr_menus::Column::DomainId.is_null())
+                .add(ivr_menus::Column::DomainId.is_null()),
         )
         .one(db)
         .await
@@ -367,7 +380,10 @@ async fn patch_ivr(
     let mut am: ivr_menus::ActiveModel = r.into();
     // PHP `ivr_menu_domain` parity: perm holders may re-home the row
     // (UUID string) or globalize it (empty string); otherwise untouched.
-    if payload.get("domain_uuid").or_else(|| payload.get("domain_id")).is_some()
+    if payload
+        .get("domain_uuid")
+        .or_else(|| payload.get("domain_id"))
+        .is_some()
         && crate::tenant::sees_domain_nulls(&claims, "ivr_menu_domain")
     {
         let raw = payload
@@ -481,14 +497,13 @@ async fn patch_ivr(
                         .into_response();
                 }
             } else {
-                crate::fs_xml::invalidate_cache();
+                propagate_ivr();
             }
             if r.dialplan_uuid.is_none() {
                 use sea_orm::{ActiveModelTrait, EntityTrait};
-                if let Ok(Some(row)) =
-                    ivr_menus::Entity::find_by_id(r.ivr_menu_uuid.clone())
-                        .one(db)
-                        .await
+                if let Ok(Some(row)) = ivr_menus::Entity::find_by_id(r.ivr_menu_uuid.clone())
+                    .one(db)
+                    .await
                 {
                     let mut fix: ivr_menus::ActiveModel = row.into();
                     fix.dialplan_uuid = Set(Some(dp_id.to_string()));
@@ -548,7 +563,7 @@ async fn delete_ivr(
             if let Some(dp) = dp_link {
                 crate::ring_groups::delete_app_dialplan(db, domain, dp).await;
             } else {
-                crate::fs_xml::invalidate_cache();
+                propagate_ivr();
             }
             StatusCode::NO_CONTENT.into_response()
         }
@@ -719,20 +734,29 @@ async fn create_option(
             .get("option_order")
             .and_then(|v| v.as_i64())
             .unwrap_or(0) as i32),
-        ivr_menu_id: Set(payload.get("ivr_menu_id").and_then(|v| v.as_str()).map(str::to_owned)),
-        ivr_menu_option_enabled: Set(payload.get("ivr_menu_option_enabled").and_then(|v| v.as_bool()).or(Some(true))),
+        ivr_menu_id: Set(payload
+            .get("ivr_menu_id")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)),
+        ivr_menu_option_enabled: Set(payload
+            .get("ivr_menu_option_enabled")
+            .and_then(|v| v.as_bool())
+            .or(Some(true))),
     };
     match am.insert(db).await {
-        Ok(_) => (
-            StatusCode::CREATED,
-            Json(serde_json::json!({
-                "option_uuid": oid,
-                "ivr_menu_uuid": id,
-                "digits": digits,
-                "action": action,
-            })),
-        )
-            .into_response(),
+        Ok(_) => {
+            propagate_ivr();
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({
+                    "option_uuid": oid,
+                    "ivr_menu_uuid": id,
+                    "digits": digits,
+                    "action": action,
+                })),
+            )
+                .into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
@@ -773,13 +797,21 @@ async fn patch_option(
             .map(str::to_owned));
     }
     if payload.get("ivr_menu_id").is_some() {
-        am.ivr_menu_id = Set(payload.get("ivr_menu_id").and_then(|v| v.as_str()).map(str::to_owned));
+        am.ivr_menu_id = Set(payload
+            .get("ivr_menu_id")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned));
     }
     if payload.get("ivr_menu_option_enabled").is_some() {
-        am.ivr_menu_option_enabled = Set(payload.get("ivr_menu_option_enabled").and_then(|v| v.as_bool()));
+        am.ivr_menu_option_enabled = Set(payload
+            .get("ivr_menu_option_enabled")
+            .and_then(|v| v.as_bool()));
     }
     match am.update(db).await {
-        Ok(r) => (StatusCode::OK, Json(ser_opt(&r))).into_response(),
+        Ok(r) => {
+            propagate_ivr();
+            (StatusCode::OK, Json(ser_opt(&r))).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("update failed: {e}")})),
@@ -806,7 +838,10 @@ async fn delete_option(
     };
     let am: ivr_menu_options::ActiveModel = r.into();
     match am.delete(db).await {
-        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Ok(_) => {
+            propagate_ivr();
+            StatusCode::NO_CONTENT.into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
@@ -827,7 +862,7 @@ async fn get_ivr(
         .filter(
             Condition::any()
                 .add(ivr_menus::Column::DomainId.eq(domain))
-                .add(ivr_menus::Column::DomainId.is_null())
+                .add(ivr_menus::Column::DomainId.is_null()),
         )
         .one(db)
         .await

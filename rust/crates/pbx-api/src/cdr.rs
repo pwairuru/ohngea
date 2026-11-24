@@ -265,10 +265,7 @@ async fn store_row_ext(
         Ok(t) => t,
         Err(_) => return crate::routing_db::new_uuid(),
     };
-    if pbx_db::set_tenant(&txn, &domain.to_string())
-        .await
-        .is_err()
-    {
+    if pbx_db::set_tenant(&txn, &domain.to_string()).await.is_err() {
         return crate::routing_db::new_uuid();
     }
     let id = crate::routing_db::new_uuid();
@@ -347,7 +344,10 @@ async fn import_domain(claims: &pbx_core::auth::Claims, text: &str) -> uuid::Uui
     // owning the dialplan context it routed through (mirrors the dialplan
     // XML context-owner fallback). Never drop a CDR: nil domain last resort.
     // Global dialplans attribute to the caller's tenant.
-    if let Some(ctx) = find_tag(text, "context").map(|s| s.trim().to_owned()).filter(|s| !s.is_empty()) {
+    if let Some(ctx) = find_tag(text, "context")
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty())
+    {
         if let Ok(Some(row)) = pbx_db::entities::dialplans::Entity::find()
             .filter(pbx_db::entities::dialplans::Column::Context.eq(ctx))
             .filter(pbx_db::entities::dialplans::Column::Enabled.eq(true))
@@ -499,7 +499,20 @@ async fn list_cdr(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(pq): axum::extract::Query<crate::PageQuery>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["cdr_view", "xml_cdr_view", "xml_cdr_search", "xml_cdr_answered", "xml_cdr_extension_view", "xml_cdr_flow_view", "xml_cdr_json_view", "xml_cdr_log_view", "xml_cdr_transcript_view"]) {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(
+        &claims,
+        &[
+            "cdr_view",
+            "xml_cdr_view",
+            "xml_cdr_search",
+            "xml_cdr_answered",
+            "xml_cdr_extension_view",
+            "xml_cdr_flow_view",
+            "xml_cdr_json_view",
+            "xml_cdr_log_view",
+            "xml_cdr_transcript_view",
+        ],
+    ) {
         return (s, j).into_response();
     }
     let (per_page, _) = pq.normalized();
@@ -511,7 +524,12 @@ async fn list_cdr(
         Err(_) => {
             return (
                 crate::paged_headers("/api/v1/cdr", page, per_page, 0),
-                Json(crate::paged_body(Vec::<serde_json::Value>::new(), 0, page, per_page)),
+                Json(crate::paged_body(
+                    Vec::<serde_json::Value>::new(),
+                    0,
+                    page,
+                    per_page,
+                )),
             )
                 .into_response();
         }
@@ -597,7 +615,20 @@ async fn get_cdr(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(cdr_uuid): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["cdr_view", "xml_cdr_view", "xml_cdr_search", "xml_cdr_answered", "xml_cdr_extension_view", "xml_cdr_flow_view", "xml_cdr_json_view", "xml_cdr_log_view", "xml_cdr_transcript_view"]) {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(
+        &claims,
+        &[
+            "cdr_view",
+            "xml_cdr_view",
+            "xml_cdr_search",
+            "xml_cdr_answered",
+            "xml_cdr_extension_view",
+            "xml_cdr_flow_view",
+            "xml_cdr_json_view",
+            "xml_cdr_log_view",
+            "xml_cdr_transcript_view",
+        ],
+    ) {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -641,7 +672,20 @@ async fn get_cdr(
 }
 
 async fn stats_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["cdr_view", "xml_cdr_view", "xml_cdr_search", "xml_cdr_answered", "xml_cdr_extension_view", "xml_cdr_flow_view", "xml_cdr_json_view", "xml_cdr_log_view", "xml_cdr_transcript_view"]) {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(
+        &claims,
+        &[
+            "cdr_view",
+            "xml_cdr_view",
+            "xml_cdr_search",
+            "xml_cdr_answered",
+            "xml_cdr_extension_view",
+            "xml_cdr_flow_view",
+            "xml_cdr_json_view",
+            "xml_cdr_log_view",
+            "xml_cdr_transcript_view",
+        ],
+    ) {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -777,7 +821,20 @@ fn row_to_export(r: &cdr::Model) -> CdrExportRow {
 /// GET /api/v1/cdr/export — CSV dump (PHP `xml_cdr_export.php` parity,
 /// capped at 20k rows). Permission: `cdr_view`. Tenant-scoped.
 async fn export_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["cdr_view", "xml_cdr_view", "xml_cdr_search", "xml_cdr_answered", "xml_cdr_extension_view", "xml_cdr_flow_view", "xml_cdr_json_view", "xml_cdr_log_view", "xml_cdr_transcript_view"]) {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(
+        &claims,
+        &[
+            "cdr_view",
+            "xml_cdr_view",
+            "xml_cdr_search",
+            "xml_cdr_answered",
+            "xml_cdr_extension_view",
+            "xml_cdr_flow_view",
+            "xml_cdr_json_view",
+            "xml_cdr_log_view",
+            "xml_cdr_transcript_view",
+        ],
+    ) {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -803,7 +860,20 @@ async fn export_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> imp
 async fn extension_summary_ep(
     Extension(claims): Extension<pbx_core::auth::Claims>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["cdr_view", "xml_cdr_view", "xml_cdr_search", "xml_cdr_answered", "xml_cdr_extension_view", "xml_cdr_flow_view", "xml_cdr_json_view", "xml_cdr_log_view", "xml_cdr_transcript_view"]) {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(
+        &claims,
+        &[
+            "cdr_view",
+            "xml_cdr_view",
+            "xml_cdr_search",
+            "xml_cdr_answered",
+            "xml_cdr_extension_view",
+            "xml_cdr_flow_view",
+            "xml_cdr_json_view",
+            "xml_cdr_log_view",
+            "xml_cdr_transcript_view",
+        ],
+    ) {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -823,7 +893,20 @@ async fn extension_summary_ep(
 /// GET /api/v1/cdr/statistics — total/answered/missed + averages +
 /// by_hangup (PHP `xml_cdr_statistics*.php` parity). Permission: `cdr_view`.
 async fn statistics_cdr(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["cdr_view", "xml_cdr_view", "xml_cdr_search", "xml_cdr_answered", "xml_cdr_extension_view", "xml_cdr_flow_view", "xml_cdr_json_view", "xml_cdr_log_view", "xml_cdr_transcript_view"]) {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(
+        &claims,
+        &[
+            "cdr_view",
+            "xml_cdr_view",
+            "xml_cdr_search",
+            "xml_cdr_answered",
+            "xml_cdr_extension_view",
+            "xml_cdr_flow_view",
+            "xml_cdr_json_view",
+            "xml_cdr_log_view",
+            "xml_cdr_transcript_view",
+        ],
+    ) {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;

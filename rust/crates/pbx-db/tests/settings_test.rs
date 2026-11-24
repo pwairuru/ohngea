@@ -243,3 +243,56 @@ async fn set_tenant_executes_set_local_statement() {
         "must emit SET LOCAL app.domain_uuid, got {log:?}"
     );
 }
+
+// TOCTOU race (vars_nonempty_after_boot_seed flake): concurrent
+// seed_domains/seed_on_boot must both succeed (idempotent upsert),
+// never surface a UNIQUE violation.
+#[tokio::test]
+async fn concurrent_seed_domains_is_idempotent() {
+    let db = connect_sqlite_memory().await.unwrap();
+    create_schema(&db).await.unwrap();
+    let domain_id = Uuid::now_v7();
+    let mut set = tokio::task::JoinSet::new();
+    for _ in 0..8 {
+        let db = db.clone();
+        set.spawn(
+            async move { pbx_db::seeds::seed_domains(&db, domain_id, "race.example.com").await },
+        );
+    }
+    let mut total = 0u64;
+    while let Some(r) = set.join_next().await {
+        total += r.unwrap().expect("concurrent seed_domains must not error");
+    }
+    assert_eq!(
+        total, 1,
+        "exactly one concurrent insert must win, got {total}"
+    );
+}
+
+#[tokio::test]
+async fn concurrent_seed_on_boot_leaves_vars_nonempty() {
+    use pbx_db::entities::vars::{self, Entity as Vars};
+    let db = connect_sqlite_memory().await.unwrap();
+    create_schema(&db).await.unwrap();
+    let domain_id = Uuid::now_v7();
+    let mut set = tokio::task::JoinSet::new();
+    for _ in 0..8 {
+        let db = db.clone();
+        set.spawn(
+            async move { pbx_db::seeds::seed_on_boot(&db, domain_id, "race.example.com").await },
+        );
+    }
+    while let Some(r) = set.join_next().await {
+        r.unwrap().expect("concurrent seed_on_boot must not error");
+    }
+    let n = Vars::find()
+        .filter(vars::Column::DomainId.eq(domain_id))
+        .all(&db)
+        .await
+        .unwrap()
+        .len();
+    assert_eq!(
+        n, 68,
+        "vars must be fully seeded after concurrent boot, got {n}"
+    );
+}

@@ -31,20 +31,34 @@ pub struct Dialplan {
 
 #[derive(Debug, Deserialize)]
 struct DialplanCreate {
-    #[serde(default)] name: Option<String>,
-    #[serde(default)] context: Option<String>,
-    #[serde(default)] domain: Option<String>,
-    #[serde(default)] domain_id: Option<String>,
-    #[serde(default)] enabled: Option<bool>,
-    #[serde(default)] description: Option<String>,
-    #[serde(default)] dialplan_continue: Option<bool>,
-    #[serde(default)] dialplan_order: Option<i32>,
-    #[serde(default)] hostname: Option<String>,
-    #[serde(default)] app_uuid: Option<String>,
-    #[serde(default)] dialplan_number: Option<String>,
-    #[serde(default)] dialplan_destination: Option<bool>,
-    #[serde(default)] dialplan_xml: Option<String>,
-    #[serde(default)] details: Option<Vec<serde_json::Value>>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    context: Option<String>,
+    #[serde(default)]
+    domain: Option<String>,
+    #[serde(default)]
+    domain_id: Option<String>,
+    #[serde(default)]
+    enabled: Option<bool>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    dialplan_continue: Option<bool>,
+    #[serde(default)]
+    dialplan_order: Option<i32>,
+    #[serde(default)]
+    hostname: Option<String>,
+    #[serde(default)]
+    app_uuid: Option<String>,
+    #[serde(default)]
+    dialplan_number: Option<String>,
+    #[serde(default)]
+    dialplan_destination: Option<bool>,
+    #[serde(default)]
+    dialplan_xml: Option<String>,
+    #[serde(default)]
+    details: Option<Vec<serde_json::Value>>,
 }
 
 fn ser_detail(r: &pbx_db::entities::dialplan_details::Model) -> serde_json::Value {
@@ -111,7 +125,13 @@ pub(crate) async fn sync_tc_dialplan(
         .unwrap_or(None)
         .is_some();
     if exists {
-        let mut am_u: pbx_db::entities::dialplans::ActiveModel = pbx_db::entities::dialplans::Entity::find_by_id(id).one(db).await.unwrap_or(None).unwrap().into();
+        let mut am_u: pbx_db::entities::dialplans::ActiveModel =
+            pbx_db::entities::dialplans::Entity::find_by_id(id)
+                .one(db)
+                .await
+                .unwrap_or(None)
+                .unwrap()
+                .into();
         am_u.name = Set(name.to_owned());
         am_u.context = Set(ctx.clone());
         am_u.enabled = Set(enabled);
@@ -160,15 +180,39 @@ async fn insert_details_txn<C>(
         let am = pbx_db::entities::dialplan_details::ActiveModel {
             detail_uuid: Set(uuid::Uuid::now_v7()),
             dialplan_uuid: Set(dialplan_id),
-            tag: Set(s("tag").or_else(|| s("dialplan_detail_tag")).unwrap_or_else(|| "condition".to_owned())),
-            detail_type: Set(s("type").or_else(|| s("dialplan_detail_type")).unwrap_or_default()),
-            data: Set(s("data").or_else(|| s("dialplan_detail_data")).unwrap_or_default()),
-            order: Set(det.get("order").or_else(|| det.get("dialplan_detail_order")).and_then(|v| v.as_i64()).map(|n| n as i32).unwrap_or(idx as i32)),
-            domain_id: Set(det.get("domain_id").and_then(|v| v.as_str()).and_then(|x| x.parse::<uuid::Uuid>().ok()).or(domain_id)),
+            tag: Set(s("tag")
+                .or_else(|| s("dialplan_detail_tag"))
+                .unwrap_or_else(|| "condition".to_owned())),
+            detail_type: Set(s("type")
+                .or_else(|| s("dialplan_detail_type"))
+                .unwrap_or_default()),
+            data: Set(s("data")
+                .or_else(|| s("dialplan_detail_data"))
+                .unwrap_or_default()),
+            order: Set(det
+                .get("order")
+                .or_else(|| det.get("dialplan_detail_order"))
+                .and_then(|v| v.as_i64())
+                .map(|n| n as i32)
+                .unwrap_or(idx as i32)),
+            domain_id: Set(det
+                .get("domain_id")
+                .and_then(|v| v.as_str())
+                .and_then(|x| x.parse::<uuid::Uuid>().ok())
+                .or(domain_id)),
             dialplan_detail_break: Set(s("dialplan_detail_break").or_else(|| s("break"))),
             dialplan_detail_inline: Set(s("dialplan_detail_inline").or_else(|| s("inline"))),
-            dialplan_detail_group: Set(det.get("dialplan_detail_group").or_else(|| det.get("group")).and_then(|v| v.as_i64()).map(|n| n as i32).or(Some((idx / 10) as i32))),
-            detail_enabled: Set(det.get("detail_enabled").or_else(|| det.get("dialplan_detail_enabled")).and_then(|v| v.as_bool()).or(Some(true))),
+            dialplan_detail_group: Set(det
+                .get("dialplan_detail_group")
+                .or_else(|| det.get("group"))
+                .and_then(|v| v.as_i64())
+                .map(|n| n as i32)
+                .or(Some((idx / 10) as i32))),
+            detail_enabled: Set(det
+                .get("detail_enabled")
+                .or_else(|| det.get("dialplan_detail_enabled"))
+                .and_then(|v| v.as_bool())
+                .or(Some(true))),
             created_at: Set(crate::routing_db::now()),
             updated_at: Set(crate::routing_db::now()),
         };
@@ -182,7 +226,10 @@ pub(crate) async fn delete_tc_dialplan(db: &sea_orm::DatabaseConnection, id: uui
         .filter(pbx_db::entities::dialplan_details::Column::DialplanUuid.eq(id))
         .exec(db)
         .await;
-    if let Ok(Some(row)) = pbx_db::entities::dialplans::Entity::find_by_id(id).one(db).await {
+    if let Ok(Some(row)) = pbx_db::entities::dialplans::Entity::find_by_id(id)
+        .one(db)
+        .await
+    {
         let am: pbx_db::entities::dialplans::ActiveModel = row.into();
         use sea_orm::ActiveModelTrait;
         let _ = am.delete(db).await;
@@ -230,8 +277,14 @@ async fn details_for(
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
     let rows = pbx_db::entities::dialplan_details::Entity::find()
         .filter(pbx_db::entities::dialplan_details::Column::DialplanUuid.eq(dialplan_id))
-        .order_by(pbx_db::entities::dialplan_details::Column::DialplanDetailGroup, sea_orm::Order::Asc)
-        .order_by(pbx_db::entities::dialplan_details::Column::Order, sea_orm::Order::Asc)
+        .order_by(
+            pbx_db::entities::dialplan_details::Column::DialplanDetailGroup,
+            sea_orm::Order::Asc,
+        )
+        .order_by(
+            pbx_db::entities::dialplan_details::Column::Order,
+            sea_orm::Order::Asc,
+        )
         .all(txn)
         .await
         .unwrap_or_default();
@@ -250,7 +303,10 @@ async fn create_dialplan(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     Json(payload): Json<DialplanCreate>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["dialplan_add", "inbound_route_add", "outbound_route_add"]) {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(
+        &claims,
+        &["dialplan_add", "inbound_route_add", "outbound_route_add"],
+    ) {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -269,7 +325,9 @@ async fn create_dialplan(
                 }
             }
         }
-        Some(v) if v.is_empty() && crate::tenant::has_permission(&claims, "dialplan_domain") => None,
+        Some(v) if v.is_empty() && crate::tenant::has_permission(&claims, "dialplan_domain") => {
+            None
+        }
         _ => Some(tenant_id),
     };
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
@@ -297,7 +355,12 @@ async fn create_dialplan(
         description: Set(payload.description.clone()),
         dialplan_continue: Set(payload.dialplan_continue.unwrap_or(false)),
         dialplan_order: Set(payload.dialplan_order),
-        hostname: Set(Some(payload.hostname.clone().unwrap_or_else(|| domain_str.clone()))),
+        hostname: Set(Some(
+            payload
+                .hostname
+                .clone()
+                .unwrap_or_else(|| domain_str.clone()),
+        )),
         app_uuid: Set(payload.app_uuid.clone()),
         dialplan_number: Set(payload.dialplan_number.clone()),
         dialplan_destination: Set(payload.dialplan_destination),
@@ -347,7 +410,10 @@ async fn list_dialplans(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["dialplan_view", "inbound_route_view", "outbound_route_view"]) {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(
+        &claims,
+        &["dialplan_view", "inbound_route_view", "outbound_route_view"],
+    ) {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -362,31 +428,39 @@ async fn list_dialplans(
     let domain_id = crate::routing_db::domain(&claims);
     let mut sel = pbx_db::entities::dialplans::Entity::find();
     if !show_all {
-        sel = sel.filter(if crate::tenant::sees_domain_nulls(&claims, "dialplan_global") {
-            Condition::any()
-                .add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
-                .add(pbx_db::entities::dialplans::Column::DomainId.is_null())
-        } else {
-            Condition::any().add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
-        });
+        sel = sel.filter(
+            if crate::tenant::sees_domain_nulls(&claims, "dialplan_global") {
+                Condition::any()
+                    .add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
+                    .add(pbx_db::entities::dialplans::Column::DomainId.is_null())
+            } else {
+                Condition::any().add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
+            },
+        );
     }
     let rows = sel.all(&txn).await.unwrap_or_default();
     // Batch details (Python parity: one query, grouped per dialplan).
     let mut dsel = pbx_db::entities::dialplan_details::Entity::find();
     if !show_all {
-        dsel = dsel.filter(if crate::tenant::sees_domain_nulls(&claims, "dialplan_global") {
-            Condition::any()
-                .add(pbx_db::entities::dialplan_details::Column::DomainId.eq(domain_id))
-                .add(pbx_db::entities::dialplan_details::Column::DomainId.is_null())
-        } else {
-            Condition::any().add(pbx_db::entities::dialplan_details::Column::DomainId.eq(domain_id))
-        });
+        dsel = dsel.filter(
+            if crate::tenant::sees_domain_nulls(&claims, "dialplan_global") {
+                Condition::any()
+                    .add(pbx_db::entities::dialplan_details::Column::DomainId.eq(domain_id))
+                    .add(pbx_db::entities::dialplan_details::Column::DomainId.is_null())
+            } else {
+                Condition::any()
+                    .add(pbx_db::entities::dialplan_details::Column::DomainId.eq(domain_id))
+            },
+        );
     }
     let all_det = dsel.all(&txn).await.unwrap_or_default();
     use std::collections::HashMap;
     let mut by_parent: HashMap<uuid::Uuid, Vec<serde_json::Value>> = HashMap::new();
     for d in &all_det {
-        by_parent.entry(d.dialplan_uuid).or_default().push(ser_detail(d));
+        by_parent
+            .entry(d.dialplan_uuid)
+            .or_default()
+            .push(ser_detail(d));
     }
     let _ = txn.commit().await;
     let items: Vec<Dialplan> = rows
@@ -404,7 +478,10 @@ async fn get_dialplan(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["dialplan_view", "inbound_route_view", "outbound_route_view"]) {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(
+        &claims,
+        &["dialplan_view", "inbound_route_view", "outbound_route_view"],
+    ) {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
@@ -428,11 +505,15 @@ async fn get_dialplan(
     };
     let row = pbx_db::entities::dialplans::Entity::find()
         .filter(pbx_db::entities::dialplans::Column::DialplanUuid.eq(uid))
-        .filter(if crate::tenant::sees_domain_nulls(&claims, "dialplan_global") {
-            Condition::any().add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id)).add(pbx_db::entities::dialplans::Column::DomainId.is_null())
-        } else {
-            Condition::any().add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
-        })
+        .filter(
+            if crate::tenant::sees_domain_nulls(&claims, "dialplan_global") {
+                Condition::any()
+                    .add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
+                    .add(pbx_db::entities::dialplans::Column::DomainId.is_null())
+            } else {
+                Condition::any().add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
+            },
+        )
         .one(&txn)
         .await
         .unwrap_or(None);
@@ -441,7 +522,11 @@ async fn get_dialplan(
     match row {
         Some(r) => (
             StatusCode::OK,
-            Json(serde_json::json!(row_to_dialplan(&r, &claims.domain_id, det))),
+            Json(serde_json::json!(row_to_dialplan(
+                &r,
+                &claims.domain_id,
+                det
+            ))),
         )
             .into_response(),
         None => (
@@ -472,7 +557,10 @@ async fn patch_dialplan(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["dialplan_edit", "inbound_route_edit", "outbound_route_edit"]) {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(
+        &claims,
+        &["dialplan_edit", "inbound_route_edit", "outbound_route_edit"],
+    ) {
         return (s, j).into_response();
     }
     use sea_orm::ActiveModelTrait;
@@ -497,11 +585,15 @@ async fn patch_dialplan(
     };
     let row = pbx_db::entities::dialplans::Entity::find()
         .filter(pbx_db::entities::dialplans::Column::DialplanUuid.eq(uid))
-        .filter(if crate::tenant::sees_domain_nulls(&claims, "dialplan_domain") {
-            Condition::any().add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id)).add(pbx_db::entities::dialplans::Column::DomainId.is_null())
-        } else {
-            Condition::any().add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
-        })
+        .filter(
+            if crate::tenant::sees_domain_nulls(&claims, "dialplan_domain") {
+                Condition::any()
+                    .add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
+                    .add(pbx_db::entities::dialplans::Column::DomainId.is_null())
+            } else {
+                Condition::any().add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
+            },
+        )
         .one(&txn)
         .await
         .unwrap_or(None);
@@ -515,7 +607,10 @@ async fn patch_dialplan(
     let mut am: pbx_db::entities::dialplans::ActiveModel = r.into();
     // PHP `dialplan_domain` parity: perm holders may re-home the row
     // (UUID string) or globalize it (empty string); otherwise untouched.
-    if payload.get("domain_uuid").or_else(|| payload.get("domain_id")).is_some()
+    if payload
+        .get("domain_uuid")
+        .or_else(|| payload.get("domain_id"))
+        .is_some()
         && crate::tenant::sees_domain_nulls(&claims, "dialplan_domain")
     {
         let raw = payload
@@ -595,7 +690,10 @@ async fn patch_dialplan(
             if let Some(details) = replace_details {
                 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
                 let _ = pbx_db::entities::dialplan_details::Entity::delete_many()
-                    .filter(pbx_db::entities::dialplan_details::Column::DialplanUuid.eq(r.dialplan_uuid))
+                    .filter(
+                        pbx_db::entities::dialplan_details::Column::DialplanUuid
+                            .eq(r.dialplan_uuid),
+                    )
                     .exec(&txn)
                     .await;
                 let did = r.dialplan_uuid;
@@ -606,7 +704,11 @@ async fn patch_dialplan(
             propagate_dialplan();
             (
                 StatusCode::OK,
-                Json(serde_json::json!(row_to_dialplan(&r, &claims.domain_id, det))),
+                Json(serde_json::json!(row_to_dialplan(
+                    &r,
+                    &claims.domain_id,
+                    det
+                ))),
             )
                 .into_response()
         }
@@ -622,7 +724,14 @@ async fn delete_dialplan(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    if let Some((s, j)) = crate::tenant::deny_if_missing_any(&claims, &["dialplan_delete", "inbound_route_delete", "outbound_route_delete"]) {
+    if let Some((s, j)) = crate::tenant::deny_if_missing_any(
+        &claims,
+        &[
+            "dialplan_delete",
+            "inbound_route_delete",
+            "outbound_route_delete",
+        ],
+    ) {
         return (s, j).into_response();
     }
     use sea_orm::ActiveModelTrait;
@@ -647,11 +756,15 @@ async fn delete_dialplan(
     };
     let row = pbx_db::entities::dialplans::Entity::find()
         .filter(pbx_db::entities::dialplans::Column::DialplanUuid.eq(uid))
-        .filter(if crate::tenant::sees_domain_nulls(&claims, "dialplan_domain") {
-            Condition::any().add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id)).add(pbx_db::entities::dialplans::Column::DomainId.is_null())
-        } else {
-            Condition::any().add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
-        })
+        .filter(
+            if crate::tenant::sees_domain_nulls(&claims, "dialplan_domain") {
+                Condition::any()
+                    .add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
+                    .add(pbx_db::entities::dialplans::Column::DomainId.is_null())
+            } else {
+                Condition::any().add(pbx_db::entities::dialplans::Column::DomainId.eq(domain_id))
+            },
+        )
         .one(&txn)
         .await
         .unwrap_or(None);

@@ -49,8 +49,7 @@ async fn req(
     let bytes = axum::body::to_bytes(res.into_body(), 1024 * 256)
         .await
         .unwrap();
-    let json: serde_json::Value =
-        serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
     (status, json)
 }
 
@@ -174,7 +173,13 @@ async fn global_rows_visible_unconditionally() {
 
     // A foreign tenant with only base view perms sees every global row.
     let b = token("global-reader", &["destination_view"]);
-    let (s, v) = req("GET", "/api/v1/destinations", Some(&b), serde_json::json!({})).await;
+    let (s, v) = req(
+        "GET",
+        "/api/v1/destinations",
+        Some(&b),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK);
     assert!(
         names_of(&v, "destination_number").contains(&g_dest),
@@ -208,7 +213,13 @@ async fn global_rows_visible_unconditionally() {
     );
 
     let b = token("global-reader", &["conference_view"]);
-    let (s, v) = req("GET", "/api/v1/conferences", Some(&b), serde_json::json!({})).await;
+    let (s, v) = req(
+        "GET",
+        "/api/v1/conferences",
+        Some(&b),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "conferences list: {v}");
 
     let b = token("global-reader", &["fax_view"]);
@@ -216,7 +227,13 @@ async fn global_rows_visible_unconditionally() {
     assert_eq!(s, StatusCode::OK, "fax list: {v}");
 
     let b = token("global-reader", &["time_condition_view"]);
-    let (s, v) = req("GET", "/api/v1/time_conditions", Some(&b), serde_json::json!({})).await;
+    let (s, v) = req(
+        "GET",
+        "/api/v1/time_conditions",
+        Some(&b),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK);
     assert!(
         names_of(&v, "name").contains(&g_tc),
@@ -249,7 +266,10 @@ fn rand_byte() -> u8 {
 #[tokio::test]
 async fn gated_tables_need_domain_perm_for_globals() {
     // call_block: global via API with the perm; visible only with the perm.
-    let a = token("cb-tenant-a", &["call_block_add", "call_block_domain", "call_block_view"]);
+    let a = token(
+        "cb-tenant-a",
+        &["call_block_add", "call_block_domain", "call_block_view"],
+    );
     let blk = uniq("999");
     let (s, v) = req(
         "POST",
@@ -268,7 +288,13 @@ async fn gated_tables_need_domain_perm_for_globals() {
         "hidden without perm: {v}"
     );
     let b_dom = token("cb-tenant-b", &["call_block_view", "call_block_domain"]);
-    let (s, v) = req("GET", "/api/v1/call_block", Some(&b_dom), serde_json::json!({})).await;
+    let (s, v) = req(
+        "GET",
+        "/api/v1/call_block",
+        Some(&b_dom),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK);
     assert!(
         names_of(&v, "call_block_number").contains(&blk),
@@ -276,7 +302,10 @@ async fn gated_tables_need_domain_perm_for_globals() {
     );
 
     // dialplans: same pattern via dialplan_domain / dialplan_global.
-    let a = token("dp-tenant-a", &["dialplan_add", "dialplan_domain", "dialplan_view"]);
+    let a = token(
+        "dp-tenant-a",
+        &["dialplan_add", "dialplan_domain", "dialplan_view"],
+    );
     let dpname = uniq("dpglobal");
     let (s, v) = req(
         "POST",
@@ -298,9 +327,18 @@ async fn gated_tables_need_domain_perm_for_globals() {
                 .collect()
         })
         .unwrap_or_default();
-    assert!(!got.contains(&dpname), "global dialplan hidden w/o perm: {got:?}");
+    assert!(
+        !got.contains(&dpname),
+        "global dialplan hidden w/o perm: {got:?}"
+    );
     let b_all = token("dp-tenant-b", &["dialplan_view", "dialplan_global"]);
-    let (s, v) = req("GET", "/api/v1/dialplans", Some(&b_all), serde_json::json!({})).await;
+    let (s, v) = req(
+        "GET",
+        "/api/v1/dialplans",
+        Some(&b_all),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK);
     let got: Vec<String> = v
         .get("data")
@@ -311,10 +349,20 @@ async fn gated_tables_need_domain_perm_for_globals() {
                 .collect()
         })
         .unwrap_or_default();
-    assert!(got.contains(&dpname), "global dialplan visible with perm: {got:?}");
+    assert!(
+        got.contains(&dpname),
+        "global dialplan visible with perm: {got:?}"
+    );
 
     // music_on_hold: same pattern.
-    let a = token("moh-tenant-a", &["music_on_hold_add", "music_on_hold_domain", "music_on_hold_view"]);
+    let a = token(
+        "moh-tenant-a",
+        &[
+            "music_on_hold_add",
+            "music_on_hold_domain",
+            "music_on_hold_view",
+        ],
+    );
     let mohname = uniq("mohglobal");
     let (s, v) = req(
         "POST",
@@ -325,29 +373,60 @@ async fn gated_tables_need_domain_perm_for_globals() {
     .await;
     assert_eq!(s, StatusCode::CREATED, "global moh: {v}");
     let b = token("moh-tenant-b", &["music_on_hold_view"]);
-    let (s, v) = req("GET", "/api/v1/music_on_hold", Some(&b), serde_json::json!({})).await;
+    let (s, v) = req(
+        "GET",
+        "/api/v1/music_on_hold",
+        Some(&b),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "moh list w/o perm: {v}");
     let got: Vec<String> = v
         .get("data")
         .and_then(|d| d.as_array())
         .map(|a| {
             a.iter()
-                .filter_map(|r| r.get("music_name").or_else(|| r.get("name"))?.as_str().map(str::to_owned))
+                .filter_map(|r| {
+                    r.get("music_name")
+                        .or_else(|| r.get("name"))?
+                        .as_str()
+                        .map(str::to_owned)
+                })
                 .collect()
         })
         .unwrap_or_default();
-    assert!(!got.contains(&mohname), "global moh hidden w/o perm: {got:?}");
-    let b_dom = token("moh-tenant-b", &["music_on_hold_view", "music_on_hold_global"]);
-    let (s, v) = req("GET", "/api/v1/music_on_hold", Some(&b_dom), serde_json::json!({})).await;
+    assert!(
+        !got.contains(&mohname),
+        "global moh hidden w/o perm: {got:?}"
+    );
+    let b_dom = token(
+        "moh-tenant-b",
+        &["music_on_hold_view", "music_on_hold_global"],
+    );
+    let (s, v) = req(
+        "GET",
+        "/api/v1/music_on_hold",
+        Some(&b_dom),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "moh list with perm: {v}");
     let got: Vec<String> = v
         .get("data")
         .and_then(|d| d.as_array())
         .map(|a| {
             a.iter()
-                .filter_map(|r| r.get("music_name").or_else(|| r.get("name"))?.as_str().map(str::to_owned))
+                .filter_map(|r| {
+                    r.get("music_name")
+                        .or_else(|| r.get("name"))?
+                        .as_str()
+                        .map(str::to_owned)
+                })
                 .collect()
         })
         .unwrap_or_default();
-    assert!(got.contains(&mohname), "global moh visible with perm: {got:?}");
+    assert!(
+        got.contains(&mohname),
+        "global moh visible with perm: {got:?}"
+    );
 }

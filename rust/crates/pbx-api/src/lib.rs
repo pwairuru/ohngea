@@ -4,6 +4,7 @@ pub mod alias;
 mod analytics;
 mod auth;
 mod backup;
+pub mod banner;
 mod call_centers;
 mod calls;
 mod cdr;

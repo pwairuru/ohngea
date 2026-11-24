@@ -44,33 +44,27 @@ def _default_enabled_map() -> dict[str, bool]:
 
 
 def _extract_domain_id(request: Request) -> UUID | None:
-    # 1. already set by TenantMiddleware
+    # 1. already set by TenantMiddleware (verified JWT only)
     did = getattr(request.state, "domain_id", None)
     if did is not None:
         try:
             return did if isinstance(did, UUID) else UUID(str(did))
         except Exception:
             pass
-    # 2. JWT Bearer
+    # 2. Verified JWT Bearer
     auth = request.headers.get("authorization", "")
     if auth.startswith("Bearer "):
         token = auth.removeprefix("Bearer ").strip()
         try:
-            import jwt
-
-            payload = jwt.decode(token, options={"verify_signature": False})
+            from app.auth.service import decode_token
+            payload = decode_token(token)
             raw = payload.get("domain_id")
             if raw:
                 return UUID(str(raw))
         except Exception:
             pass
-    # 3. X-Domain-Id header (superadmin)
-    hdr = request.headers.get("x-domain-id")
-    if hdr:
-        try:
-            return UUID(hdr)
-        except Exception:
-            pass
+    # 3. X-Domain-Id NOT trusted without verified superadmin — skip here.
+    # Downstream require_app_enabled() uses authenticated user domain.
     return None
 
 
@@ -152,9 +146,13 @@ class AppGateMiddleware(BaseHTTPMiddleware):
                     enabled = await _check_enabled(session)
                     if enabled is False:
                         return JSONResponse(status_code=403, content={"detail": f"App {app_name} is disabled for this domain"})
-        except Exception:
-            # on DB error, fail open to avoid blocking; downstream may handle
-            return await call_next(request)
+        except Exception as e:
+            import logging
+            logging.getLogger("app.gate").error("AppGate DB check failed for %s: %s", app_name, e, exc_info=True)
+            # Fail-closed for gated apps: deny on DB error to avoid bypass.
+            # Health/always-enabled already returned above, so safe to 503 here.
+            from fastapi.responses import JSONResponse as _JR
+            return _JR(status_code=503, content={"detail": "App gate unavailable"})
 
         return await call_next(request)
 

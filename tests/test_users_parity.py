@@ -145,18 +145,8 @@ async def test_users_list_level_filter_and_show_all(client, test_db, domain, oth
     assert high_name not in usernames
     # admin with * sees all in domain
     from tests.conftest import _make_user as _mu
-    # use existing auth_headers from admin (we need to get one via fixture? We'll create new admin)
-    from app.domains.models import Domain as Dom
-    # instead use high user token with *? Create admin via helper
-    admin_tok = None
-    async with test_db() as s:
-        # create admin with *
-        from app.auth.models import User as U
-        from app.auth.service import create_token, hash_password
-        adm = U(username=f"adm-{uuid4().hex[:4]}", domain_id=domain.domain_id, password_hash=hash_password("p"), enabled=True)
-        s.add(adm)
-        await s.commit()
-        admin_tok = create_token(adm, permissions=["*"])
+    # use helper so DB group with "*" exists (token claims alone are not trusted)
+    _, admin_tok = await _mu(test_db, domain, f"adm-{uuid4().hex[:4]}", ["*"])
     headers_admin = {"Authorization": f"Bearer {admin_tok}"}
     r2 = await client.get("/api/v1/users", headers=headers_admin)
     assert any(u["username"] == high_name for u in r2.json()["data"])

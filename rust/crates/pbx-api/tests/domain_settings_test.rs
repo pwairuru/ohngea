@@ -57,8 +57,7 @@ async fn req(
     let bytes = axum::body::to_bytes(res.into_body(), 1024 * 128)
         .await
         .unwrap();
-    let json: serde_json::Value =
-        serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
     (status, json)
 }
 

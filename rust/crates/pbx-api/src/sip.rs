@@ -50,10 +50,7 @@ fn propagate_profile(name: &str) {
     crate::fs_xml::propagate_esl(&["reloadxml", &format!("sofia profile {name} rescan")]);
 }
 
-async fn profile_name_of<C: sea_orm::ConnectionTrait>(
-    db: &C,
-    puid: &uuid::Uuid,
-) -> Option<String> {
+async fn profile_name_of<C: sea_orm::ConnectionTrait>(db: &C, puid: &uuid::Uuid) -> Option<String> {
     pbx_db::entities::sip_profiles::Entity::find_by_id(*puid)
         .one(db)
         .await
@@ -277,7 +274,26 @@ async fn patch_profile(
     if let Some(v) = patch.get("enabled").and_then(|v| v.as_bool()) {
         am.enabled = Set(v);
     }
-    for key in ["sip_ip", "ext_sip_ip", "ext_rtp_ip", "realm", "context", "challenge_realm", "wss_binding", "tls_cert_path", "tls_key_path", "rtp_ip", "rtp_port_range", "hold_music", "apply_inbound_acl", "local_network_acl", "record_path", "record_template", "description", "hostname"] {
+    for key in [
+        "sip_ip",
+        "ext_sip_ip",
+        "ext_rtp_ip",
+        "realm",
+        "context",
+        "challenge_realm",
+        "wss_binding",
+        "tls_cert_path",
+        "tls_key_path",
+        "rtp_ip",
+        "rtp_port_range",
+        "hold_music",
+        "apply_inbound_acl",
+        "local_network_acl",
+        "record_path",
+        "record_template",
+        "description",
+        "hostname",
+    ] {
         if let Some(v) = patch.get(key).and_then(|v| v.as_str()) {
             match key {
                 "sip_ip" => am.sip_ip = Set(Some(v.to_owned())),

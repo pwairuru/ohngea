@@ -620,7 +620,7 @@ async def put_group_permissions_ep(group_uuid: UUID, payload: GroupPermissionUpd
                             # resolve name to uuid if needed
                             try:
                                 assigned_uuids_from_items.append(UUID(str(key)))
-                            except:
+                            except Exception:
                                 # name case
                                 rtmp = await session.execute(select(Permission).where(Permission.name == str(key)))
                                 perm_obj = rtmp.scalar_one_or_none()
@@ -654,7 +654,7 @@ async def put_group_permissions_ep(group_uuid: UUID, payload: GroupPermissionUpd
         if "permission_uuids" in extra and isinstance(extra["permission_uuids"], list):
             try:
                 perm_uuids = [UUID(str(x)) for x in extra["permission_uuids"]]
-            except:
+            except Exception:
                 pass
         elif "permission_names" in extra and isinstance(extra["permission_names"], list):
             names = extra["permission_names"]

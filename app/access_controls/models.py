@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 from sqlmodel import Field, SQLModel
@@ -11,8 +11,8 @@ class AccessControlBase(SQLModel):
 class AccessControl(AccessControlBase, table=True):
     __tablename__="access_controls"
     access_control_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 class AccessControlNodeBase(SQLModel):
     access_control_uuid: UUID = Field(foreign_key="access_controls.access_control_uuid", ondelete="CASCADE")
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
@@ -22,5 +22,5 @@ class AccessControlNodeBase(SQLModel):
 class AccessControlNode(AccessControlNodeBase, table=True):
     __tablename__="access_control_nodes"
     access_control_node_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -53,8 +53,9 @@ async def patch_fifo(uid:UUID, payload:FifoUpdate, session:AsyncSession=Depends(
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(o)
     return _ser(o)
 @router.delete("/{uid}", status_code=204)
@@ -68,8 +69,9 @@ async def delete_fifo(uid:UUID, session:AsyncSession=Depends(get_session), user:
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     return Response(status_code=204)
 
 def _member_links(fifo_uuid: UUID, member_uuid: UUID):

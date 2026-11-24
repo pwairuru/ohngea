@@ -20,9 +20,16 @@ _client = None
 
 def _mock_presigned(bucket: str, key: str, ttl: int = 3600) -> str:
     # Deterministic placeholder: /<bucket>/<key>?expires=<ttl>&signature=mock
-    # includes expiry ts for realistic testing
-    exp = int(time.time()) + ttl
-    sig = hmac.new(b"mock-secret", f"{bucket}/{key}/{exp}".encode(), hashlib.sha256).hexdigest()[:16]
+    # includes expiry ts for realistic testing. Uses random per-process secret
+    # so signatures are not predictable across restarts.
+    import os
+    import secrets
+    exp = int(time.time()) + min(ttl, 3600)
+    _secret = os.environ.get("MOCK_S3_SECRET") or getattr(_mock_presigned, "_secret", None)
+    if _secret is None:
+        _secret = secrets.token_hex(16)
+        setattr(_mock_presigned, "_secret", _secret)
+    sig = hmac.new(_secret.encode(), f"{bucket}/{key}/{exp}".encode(), hashlib.sha256).hexdigest()[:16]
     # Use S3 endpoint if set else mock host
     base = (settings.s3_endpoint or "http://mock-s3.local").rstrip("/")
     return f"{base}/{bucket}/{quote(key, safe='/')}?expires={exp}&signature={sig}&mock=1"

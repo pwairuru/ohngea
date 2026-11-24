@@ -1,6 +1,5 @@
-//! `fax_files` — app/fax/models.py (core columns).
+//! `fax_files` — PHP v_fax_files parity.
 
-use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 
@@ -11,9 +10,17 @@ pub struct Model {
     pub fax_file_uuid: String,
     pub domain_id: Uuid,
     pub fax_uuid: String,
-    pub file_name: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub fax_mode: Option<String>,
+    pub fax_recipient: Option<String>,
+    pub fax_destination: Option<String>,
+    pub fax_file_type: Option<String>,
+    pub fax_file_path: Option<String>,
+    pub fax_caller_id_name: Option<String>,
+    pub fax_caller_id_number: Option<String>,
+    pub fax_date: Option<String>,
+    pub fax_epoch: Option<i64>,
+    pub fax_base64: Option<String>,
+    pub read_date: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

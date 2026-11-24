@@ -57,8 +57,9 @@ async def patch_ep(uid:UUID, payload:AccessControlUpdate, session:AsyncSession=D
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(acl)
     _, nodes=await get_with_nodes(session,acl.access_control_uuid,domain_id)
     return _ser(acl, nodes)
@@ -72,8 +73,34 @@ async def delete_ep(uid:UUID, session:AsyncSession=Depends(get_session), user:Us
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
+    return Response(status_code=204)
+
+
+def _node_to_dict(n: AccessControlNode) -> dict:
+    return {
+        "access_control_node_uuid": str(n.access_control_node_uuid),
+        "access_control_uuid": str(n.access_control_uuid),
+        "domain_id": str(n.domain_id),
+        "node_type": n.node_type,
+        "node_cidr": n.node_cidr,
+        "node_description": n.node_description,
+    }
+
+
+@router.delete("/{uid}/nodes/{node_uuid}", status_code=204)
+async def delete_node(uid:UUID, node_uuid:UUID, session:AsyncSession=Depends(get_session), user:User=Depends(require_permission("access_control_delete"))):
+    domain_id=getattr(user,"_domain_id", user.domain_id)
+    await set_tenant(session,domain_id)
+    acl,_=await get_with_nodes(session,uid,domain_id)
+    if not acl: raise HTTPException(status_code=404, detail="Access control not found")
+    r = await session.execute(select(AccessControlNode).where(AccessControlNode.access_control_node_uuid==node_uuid, AccessControlNode.access_control_uuid==uid))
+    obj = r.scalar_one_or_none()
+    if not obj: raise HTTPException(status_code=404, detail="Node not found")
+    await session.delete(obj)
+    await session.commit()
     return Response(status_code=204)
 
 # --- nodes sub-resource ---
@@ -103,8 +130,9 @@ async def create_node(uid: UUID, payload: dict, response: Response, session: Asy
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(node)
     response.headers["Location"] = f"/api/v1/access_controls/{uid}/nodes/{node.access_control_node_uuid}"
     return {"access_control_node_uuid": str(node.access_control_node_uuid), "access_control_uuid": str(node.access_control_uuid), "node_type": node.node_type, "node_cidr": node.node_cidr, "node_description": node.node_description, "created_at": node.created_at.isoformat() if node.created_at else None, "updated_at": node.updated_at.isoformat() if getattr(node, "updated_at", None) else None, "_links": {"self": {"href": f"/api/v1/access_controls/{uid}/nodes/{node.access_control_node_uuid}"}, "collection": {"href": f"/api/v1/access_controls/{uid}/nodes"}}}

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 from sqlmodel import Field, SQLModel
@@ -42,8 +42,8 @@ class CallCenterBase(SQLModel):
 class CallCenter(CallCenterBase, table=True):
     __tablename__="call_centers"
     call_center_queue_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 class CallCenterAgentBase(SQLModel):
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
     call_center_queue_uuid: UUID = Field(foreign_key="call_centers.call_center_queue_uuid", index=True, ondelete="CASCADE")
@@ -65,8 +65,8 @@ class CallCenterAgentBase(SQLModel):
 class CallCenterAgent(CallCenterAgentBase, table=True):
     __tablename__="call_center_agents"
     call_center_agent_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 class CallCenterTierBase(SQLModel):
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
     call_center_queue_uuid: UUID = Field(foreign_key="call_centers.call_center_queue_uuid", index=True, ondelete="CASCADE")
@@ -78,5 +78,5 @@ class CallCenterTierBase(SQLModel):
 class CallCenterTier(CallCenterTierBase, table=True):
     __tablename__="call_center_tiers"
     call_center_tier_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

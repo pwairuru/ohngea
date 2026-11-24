@@ -1,0 +1,9 @@
+<!-- Ohngea xml_curl — copy to /usr/local/etc/freeswitch/autoload_configs/xml_curl.conf.xml -->
+<configuration name="xml_curl.conf" description="cURL XML Gateway">
+  <bindings>
+    <binding name="ohngea">
+      <param name="gateway-url" value="http://127.0.0.1:8000/api/internal/freeswitch/xml" bindings="directory|dialplan|configuration"/>
+      <param name="gateway-credentials" value="freeswitch:ClueCon"/>
+    </binding>
+  </bindings>
+</configuration>

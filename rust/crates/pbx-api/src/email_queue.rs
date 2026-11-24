@@ -367,19 +367,34 @@ async fn patch_email(
         am.email_subject = Set(Some(v.to_owned()));
     }
     if payload.get("hostname").is_some() {
-        am.hostname = Set(payload.get("hostname").and_then(|v| v.as_str()).map(str::to_owned));
+        am.hostname = Set(payload
+            .get("hostname")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned));
     }
     if payload.get("email_action_before").is_some() {
-        am.email_action_before = Set(payload.get("email_action_before").and_then(|v| v.as_str()).map(str::to_owned));
+        am.email_action_before = Set(payload
+            .get("email_action_before")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned));
     }
     if payload.get("email_action_after").is_some() {
-        am.email_action_after = Set(payload.get("email_action_after").and_then(|v| v.as_str()).map(str::to_owned));
+        am.email_action_after = Set(payload
+            .get("email_action_after")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned));
     }
     if payload.get("email_transcription").is_some() {
-        am.email_transcription = Set(payload.get("email_transcription").and_then(|v| v.as_str()).map(str::to_owned));
+        am.email_transcription = Set(payload
+            .get("email_transcription")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned));
     }
     if payload.get("email_response").is_some() {
-        am.email_response = Set(payload.get("email_response").and_then(|v| v.as_str()).map(str::to_owned));
+        am.email_response = Set(payload
+            .get("email_response")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned));
     }
     if let Some(v) = payload.get("email_retry_count").and_then(|v| v.as_i64()) {
         am.email_retry_count = Set(v as i32);
@@ -642,7 +657,11 @@ async fn create_template(
         template_subject: Set(tpl_str(&payload, &["template_subject", "subject"])),
         template_body: Set(tpl_str(&payload, &["template_body", "body"])),
         template_type: Set(tpl_str(&payload, &["template_type", "type"])),
-        template_enabled: Set(payload.get("template_enabled").or_else(|| payload.get("enabled")).and_then(|v| v.as_bool()).unwrap_or(true)),
+        template_enabled: Set(payload
+            .get("template_enabled")
+            .or_else(|| payload.get("enabled"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true)),
         template_description: Set(tpl_str(&payload, &["template_description", "description"])),
         created_at: Set(now),
         updated_at: Set(now),
@@ -657,7 +676,8 @@ async fn create_template(
     }
 }
 
-async fn list_templates(Extension(claims): Extension<pbx_core::auth::Claims>,
+async fn list_templates(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "email_template_view") {
@@ -691,8 +711,14 @@ async fn get_template(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    match email_templates::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
-        Some(r) if r.domain_id == Some(domain) => (StatusCode::OK, Json(ser_template(&r))).into_response(),
+    match email_templates::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    {
+        Some(r) if r.domain_id == Some(domain) => {
+            (StatusCode::OK, Json(ser_template(&r))).into_response()
+        }
         _ => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -711,7 +737,11 @@ async fn patch_template(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    let Some(r) = email_templates::Entity::find_by_id(id).one(db).await.unwrap_or(None) else {
+    let Some(r) = email_templates::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    else {
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -730,19 +760,38 @@ async fn patch_template(
         am.template_name = Set(v);
     }
     for (keys, slot) in [
-        (&["template_language", "language"][..], &mut am.template_language),
-        (&["template_category", "category"][..], &mut am.template_category),
-        (&["template_subcategory", "subcategory"][..], &mut am.template_subcategory),
-        (&["template_subject", "subject"][..], &mut am.template_subject),
+        (
+            &["template_language", "language"][..],
+            &mut am.template_language,
+        ),
+        (
+            &["template_category", "category"][..],
+            &mut am.template_category,
+        ),
+        (
+            &["template_subcategory", "subcategory"][..],
+            &mut am.template_subcategory,
+        ),
+        (
+            &["template_subject", "subject"][..],
+            &mut am.template_subject,
+        ),
         (&["template_body", "body"][..], &mut am.template_body),
         (&["template_type", "type"][..], &mut am.template_type),
-        (&["template_description", "description"][..], &mut am.template_description),
+        (
+            &["template_description", "description"][..],
+            &mut am.template_description,
+        ),
     ] {
         if let Some(v) = tpl_str(&payload, keys) {
             *slot = Set(Some(v));
         }
     }
-    if let Some(v) = payload.get("template_enabled").or_else(|| payload.get("enabled")).and_then(|v| v.as_bool()) {
+    if let Some(v) = payload
+        .get("template_enabled")
+        .or_else(|| payload.get("enabled"))
+        .and_then(|v| v.as_bool())
+    {
         am.template_enabled = Set(v);
     }
     match am.update(db).await {
@@ -764,7 +813,11 @@ async fn delete_template(
     }
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);
-    match email_templates::Entity::find_by_id(id).one(db).await.unwrap_or(None) {
+    match email_templates::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .unwrap_or(None)
+    {
         Some(r) if r.domain_id == Some(domain) => {
             let am: email_templates::ActiveModel = r.into();
             match am.delete(db).await {

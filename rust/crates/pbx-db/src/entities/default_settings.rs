@@ -14,6 +14,7 @@ pub struct Model {
     pub default_setting_subcategory: String,
     pub default_setting_name: String,
     pub default_setting_value: Option<String>,
+    pub default_setting_order: Option<i32>,
     pub default_setting_enabled: bool,
     pub default_setting_description: Option<String>,
     pub created_at: DateTime<Utc>,

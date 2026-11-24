@@ -1,0 +1,16 @@
+Ohngea PBX — Modern PBX for teams.
+
+Speak. Connect. Ohngea. Clean-room successor to legacy PBX concepts:
+FastAPI + SQLModel + pydantic-xml + PostgreSQL 18 (HASH partitioning
+domain_id 32 + RLS FORCE) + React Vite + Tailwind shadcn + FreeSWITCH
+mod_xml_curl. Full REST /api/v1, mobile PWA, per-tenant plugins.
+
+Features:
+- Multi-tenant RLS tenant isolation via JWT domain_id
+- Extensions, dialplans, gateways, SIP profiles, IVR, devices,
+  CDR analytics, recordings (S3), voicemail, conferences, fax,
+  ring groups, time conditions, contacts
+- FreeSWITCH via mod_xml_curl + ESL
+- Valkey cache/broker, Celery workers
+
+WWW: https://github.com/ohngea/ohngea

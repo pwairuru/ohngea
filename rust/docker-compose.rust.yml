@@ -1,11 +1,14 @@
 # Rust parity service overlay (Task 5 contract harness).
 # Usage: docker compose -f docker-compose.yml -f rust/docker-compose.rust.yml up -d rust-api
-# Build context ./rust uses rust/Dockerfile (multi-stage rust:1.80 -> debian-slim, EXPOSE 8000).
+# Build context is the repo ROOT with rust/Dockerfile (provision
+# include_str! needs root templates/; multi-stage rust -> debian-slim).
 # 16k header tolerance: axum 0.8 serve has no max_buf_size hook — enforce at
 # edge proxy with `large_client_header_buffers 4 16k;` (see pbx-api MAX_HEADER_BYTES).
 services:
   rust-api:
-    build: ./rust
+    build:
+      context: ..
+      dockerfile: rust/Dockerfile
     ports: ["8000:8000"]
     environment:
       # Parity with main stack (docker-compose.yml api/worker).

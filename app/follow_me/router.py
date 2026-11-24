@@ -93,8 +93,9 @@ async def patch_fm(fm_uuid: UUID, payload: FollowMeUpdate, session: AsyncSession
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     await session.refresh(fm)
     _, dests = await get_follow_me_with_dests(session, fm.follow_me_uuid, domain_id)
     return _serialize(fm, dests)
@@ -111,6 +112,7 @@ async def delete_fm(fm_uuid: UUID, session: AsyncSession = Depends(get_session),
     await session.commit()
     try:
         await invalidate_fs_cache_for_session(session, domain_id)
-    except Exception:
-        pass
+    except Exception as _e:
+        import logging as _lg
+        _lg.getLogger("app.cache").warning("invalidate failed: %s", _e, exc_info=True)
     return Response(status_code=204)

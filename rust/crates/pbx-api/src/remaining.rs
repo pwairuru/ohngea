@@ -43,9 +43,7 @@ fn esl() -> RealEs {
 // query). Minimal read surface: PHP ships no tone CRUD pages, so only
 // `GET /api/v1/tones` exists. Shape mirrors the destinations mapping:
 // `{uuid, name, destination, description}`.
-async fn list_tones(
-    Extension(claims): Extension<pbx_core::auth::Claims>,
-) -> impl IntoResponse {
+async fn list_tones(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "tone_destinations") {
         return (s, j).into_response();
@@ -55,10 +53,7 @@ async fn list_tones(
     let rows = pbx_db::entities::vars::Entity::find()
         .filter(pbx_db::entities::vars::Column::DomainId.eq(domain))
         .filter(pbx_db::entities::vars::Column::VarCategory.eq("Tones".to_owned()))
-        .order_by(
-            pbx_db::entities::vars::Column::VarName,
-            sea_orm::Order::Asc,
-        )
+        .order_by(pbx_db::entities::vars::Column::VarName, sea_orm::Order::Asc)
         .all(db)
         .await
         .unwrap_or_default();
@@ -521,7 +516,9 @@ async fn log_viewer() -> impl IntoResponse {
     Json(serde_json::json!({"data": [], "total": 0}))
 }
 
-async fn database_transactions(Extension(claims): Extension<pbx_core::auth::Claims>) -> impl IntoResponse {
+async fn database_transactions(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
+) -> impl IntoResponse {
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     let db = crate::routing_db::conn().await;
     let domain = crate::routing_db::domain(&claims);

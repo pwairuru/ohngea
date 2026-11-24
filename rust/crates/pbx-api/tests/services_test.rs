@@ -57,8 +57,7 @@ async fn req(
     let bytes = axum::body::to_bytes(res.into_body(), 1024 * 128)
         .await
         .unwrap();
-    let json: serde_json::Value =
-        serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
     (status, json)
 }
 
@@ -109,7 +108,13 @@ async fn services_crud_roundtrip() {
     );
 
     // list contains it
-    let (s, v) = req("GET", "/api/v1/services", Some(&admin), serde_json::json!({})).await;
+    let (s, v) = req(
+        "GET",
+        "/api/v1/services",
+        Some(&admin),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "list services: {v}");
     let names: Vec<String> = v
         .get("data")
@@ -159,13 +164,7 @@ async fn services_crud_roundtrip() {
 #[tokio::test]
 async fn services_require_auth_and_permission() {
     // no token -> 401
-    let (s, _) = req(
-        "GET",
-        "/api/v1/services",
-        None,
-        serde_json::json!({}),
-    )
-    .await;
+    let (s, _) = req("GET", "/api/v1/services", None, serde_json::json!({})).await;
     assert_eq!(s, StatusCode::UNAUTHORIZED);
 
     // token without service_view -> 403

@@ -1,44 +1,106 @@
 import * as React from "react";
 import { apiFetch } from "../lib/api";
-import { DataTable } from "../components/DataTable";
-import type { Column } from "../components/types";
-import { PageHeader } from "../components/shell/PageHeader";
+import { FullCrudPage } from "../components/FullCrudPage";
+import { CRUD_CONFIGS } from "../lib/fieldConfigs";
 import { Button } from "../components/ui/button";
-import { Label } from "../components/ui/label";
 import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import { FormDialog } from "../components/FormDialog";
 import { toast, toastError } from "../lib/toast";
 import { useAsyncAction } from "../lib/useAsyncAction";
 
 export function Fax() {
-  const [open, setOpen] = React.useState(false);
-  const [form,setForm]=React.useState({ fax_name: "fax1", fax_extension: "4001" });
+  const [sendRow, setSendRow] = React.useState<any | null>(null);
+  const [number, setNumber] = React.useState("");
   const [reloadKey, setReloadKey] = React.useState(0);
-  const reload = () => setReloadKey((k) => k + 1);
+  const [uploadRow, setUploadRow] = React.useState<any | null>(null);
+  const [fileName, setFileName] = React.useState("");
+  const [fileB64, setFileB64] = React.useState("");
 
-  const { run: create, pending } = useAsyncAction(async () => {
+  const { run: send, pending } = useAsyncAction(async () => {
     try {
-      await apiFetch("/fax", { method: "POST", body: JSON.stringify(form) });
-      toast("Fax created", { variant: "success" });
-      setOpen(false);
-      reload();
-    } catch (err) {
-      toastError(err);
-    }
+      const res: any = await apiFetch(`/fax/${sendRow.fax_uuid}/send`, {
+        method: "POST",
+        body: JSON.stringify({ fax_number: number }),
+      });
+      toast(`Fax queued to ${number}`, { variant: "success" });
+      setSendRow(null);
+      setNumber("");
+      setReloadKey((k) => k + 1);
+    } catch (err) { toastError(err); }
   });
 
-  const columns: Column<any>[] = [
-    { key: "fax_name", header: "Name", className: "num", cell: (r: any) => r["fax_name"] ?? r["fax_extension"] ?? r.name ?? JSON.stringify(r).slice(0,60) },
-    { key: "fax_extension", header: "Extension", cell: (r:any) => (r as any).fax_extension || (r as any)["fax_extension"] || "—" }
-  ];
+  const { run: upload, pending: uploading } = useAsyncAction(async () => {
+    try {
+      await apiFetch(`/fax/${uploadRow.fax_uuid}/files`, {
+        method: "POST",
+        body: JSON.stringify({ file_name: fileName || "document.tiff", file_base64: fileB64 }),
+      });
+      toast("File uploaded", { variant: "success" });
+      setUploadRow(null);
+      setFileName("");
+      setFileB64("");
+      setReloadKey((k) => k + 1);
+    } catch (err) { toastError(err); }
+  });
+
+  const pickFile = (f: File | undefined) => {
+    if (!f) return;
+    setFileName(f.name);
+    const r = new FileReader();
+    r.onload = () => {
+      const s = String(r.result ?? "");
+      setFileB64(s.includes(",") ? s.split(",")[1] : s);
+    };
+    r.readAsDataURL(f);
+  };
 
   return (
     <>
-      <PageHeader title="Fax" description="Fax extensions and delivery settings" actions={<Button onClick={() => setOpen(true)}>Add Fax</Button>} />
-      <DataTable resource="/fax" columns={columns} perPage={20} reloadKey={reloadKey} searchPlaceholder="Search fax…" emptyTitle="No fax" emptyDescription="Create via Add button" />
-      <FormDialog open={open} onOpenChange={setOpen} title="Add Fax" onSubmit={create} pending={pending} submitLabel="Create" pendingLabel="Creating…">
-        <div><Label>Fax Name *</Label><Input value={form.fax_name} onChange={e=>setForm({...form,fax_name:e.target.value})} placeholder="fax1" /></div>
-        <div><Label>Extension</Label><Input value={form.fax_extension} onChange={e=>setForm({...form,fax_extension:e.target.value})} placeholder="4001" /></div>
+      <div key={reloadKey}>
+        <FullCrudPage
+          config={CRUD_CONFIGS.fax}
+          extraRowActions={(row: any) => (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setSendRow(row); setNumber(""); }}
+              >
+                Send
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setUploadRow(row); setFileName(""); setFileB64(""); }}
+              >
+                Upload
+              </Button>
+            </>
+          )}
+        />
+      </div>
+      <FormDialog
+        open={!!sendRow}
+        onOpenChange={(v) => { if (!v) setSendRow(null); }}
+        title={`Send fax ${sendRow?.fax_extension ?? ""}`}
+        onSubmit={send}
+        pending={pending}
+        submitLabel="Queue Send"
+      >
+        <div><Label>Destination number *</Label><Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="15551234567" /></div>
+      </FormDialog>
+      <FormDialog
+        open={!!uploadRow}
+        onOpenChange={(v) => { if (!v) setUploadRow(null); }}
+        title={`Upload file ${uploadRow?.fax_extension ?? ""}`}
+        onSubmit={upload}
+        pending={uploading}
+        submitLabel="Upload"
+        disabled={!fileB64}
+      >
+        <div><Label>File *</Label><Input type="file" accept=".tiff,.tif,.pdf" onChange={(e) => pickFile(e.target.files?.[0])} /></div>
+        {fileName && <div className="text-xs text-muted-foreground">{fileName} ready</div>}
       </FormDialog>
     </>
   );

@@ -56,7 +56,13 @@ async def click_to_call_originate(
     dest = payload.number or payload.dest or payload.destination
     if not dest:
         raise HTTPException(status_code=400, detail="destination/number required")
-    context = payload.context or "default"
+    from app.freeswitch.sanitize import sanitize_dial
+    try:
+        src = sanitize_dial(str(src))
+        dest = sanitize_dial(str(dest))
+        context = sanitize_dial(str(payload.context or "default"))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid dial string")
 
     # Try via operator_panel logic first, then direct ESL
     try:

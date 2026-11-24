@@ -1,0 +1,7 @@
+PHP tables: 81, Rust entities: 105, mapped: 81
+
+PHP TABLES WITH NO RUST ENTITY (0):
+
+FIELD GAPS:
+
+TOTAL MISSING FIELDS: 0

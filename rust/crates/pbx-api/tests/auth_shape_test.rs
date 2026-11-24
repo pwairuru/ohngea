@@ -268,7 +268,13 @@ async fn login_token_carries_db_permissions_not_hardcoded_admin() {
     .await;
     assert_eq!(s, StatusCode::CREATED, "create group: {v}");
     let gid = v["group_uuid"].as_str().expect("group_uuid").to_owned();
-    let (s, _) = authed("GET", "/api/v1/permissions", Some(&admin), serde_json::json!({})).await;
+    let (s, _) = authed(
+        "GET",
+        "/api/v1/permissions",
+        Some(&admin),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK);
     let (s, v) = authed(
         "PUT",
@@ -319,7 +325,13 @@ async fn login_token_carries_db_permissions_not_hardcoded_admin() {
     .await;
     assert_eq!(s, StatusCode::OK, "login2: {v}");
     let t2 = v["access_token"].as_str().expect("token").to_owned();
-    let (s, _) = authed("GET", "/api/v1/extensions", Some(&t2), serde_json::json!({})).await;
+    let (s, _) = authed(
+        "GET",
+        "/api/v1/extensions",
+        Some(&t2),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::FORBIDDEN, "no-perm user must be forbidden");
 }
 
@@ -331,7 +343,13 @@ async fn admin_claim_does_not_bypass_permission() {
         "crafted",
         &["admin".to_string()],
     );
-    let (s, _) = authed("GET", "/api/v1/extensions", Some(&crafted), serde_json::json!({})).await;
+    let (s, _) = authed(
+        "GET",
+        "/api/v1/extensions",
+        Some(&crafted),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::FORBIDDEN, "admin must not bypass");
 }
 
@@ -350,7 +368,13 @@ async fn me_and_refresh_reload_disabled_user() {
     .await;
     assert_eq!(s, StatusCode::OK, "login: {v}");
     let token = v["access_token"].as_str().expect("token").to_owned();
-    let (s, _) = authed("GET", "/api/v1/auth/me", Some(&token), serde_json::json!({})).await;
+    let (s, _) = authed(
+        "GET",
+        "/api/v1/auth/me",
+        Some(&token),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK);
     // disable via stub admin.
     let (s, v) = authed(
@@ -361,8 +385,24 @@ async fn me_and_refresh_reload_disabled_user() {
     )
     .await;
     assert_eq!(s, StatusCode::OK, "disable: {v}");
-    let (s, _) = authed("GET", "/api/v1/auth/me", Some(&token), serde_json::json!({})).await;
+    let (s, _) = authed(
+        "GET",
+        "/api/v1/auth/me",
+        Some(&token),
+        serde_json::json!({}),
+    )
+    .await;
     assert_eq!(s, StatusCode::UNAUTHORIZED, "disabled user me must be 401");
-    let (s, _) = authed("POST", "/api/v1/auth/refresh", Some(&token), serde_json::json!({})).await;
-    assert_eq!(s, StatusCode::UNAUTHORIZED, "disabled user refresh must be 401");
+    let (s, _) = authed(
+        "POST",
+        "/api/v1/auth/refresh",
+        Some(&token),
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(
+        s,
+        StatusCode::UNAUTHORIZED,
+        "disabled user refresh must be 401"
+    );
 }

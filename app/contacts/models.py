@@ -33,7 +33,7 @@ class ContactBase(SQLModel):
 class Contact(ContactBase, table=True):
     __tablename__ = "contacts"
     contact_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # --- child tables ---
@@ -57,7 +57,7 @@ class ContactAddressBase(SQLModel):
 class ContactAddress(ContactAddressBase, table=True):
     __tablename__ = "contact_addresses"
     contact_address_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ContactPhoneBase(SQLModel):
@@ -74,7 +74,7 @@ class ContactPhoneBase(SQLModel):
 class ContactPhone(ContactPhoneBase, table=True):
     __tablename__ = "contact_phones"
     contact_phone_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ContactEmailBase(SQLModel):
@@ -89,7 +89,7 @@ class ContactEmailBase(SQLModel):
 class ContactEmail(ContactEmailBase, table=True):
     __tablename__ = "contact_emails"
     contact_email_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ContactUrlBase(SQLModel):
@@ -105,7 +105,7 @@ class ContactUrlBase(SQLModel):
 class ContactUrl(ContactUrlBase, table=True):
     __tablename__ = "contact_urls"
     contact_url_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ContactNoteBase(SQLModel):
@@ -117,7 +117,7 @@ class ContactNoteBase(SQLModel):
 class ContactNote(ContactNoteBase, table=True):
     __tablename__ = "contact_notes"
     contact_note_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ContactGroupBase(SQLModel):
@@ -129,7 +129,7 @@ class ContactGroupBase(SQLModel):
 class ContactGroup(ContactGroupBase, table=True):
     __tablename__ = "contact_groups"
     contact_group_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ContactUserBase(SQLModel):
@@ -141,7 +141,7 @@ class ContactUserBase(SQLModel):
 class ContactUser(ContactUserBase, table=True):
     __tablename__ = "contact_users"
     contact_user_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ContactSettingBase(SQLModel):
@@ -159,7 +159,7 @@ class ContactSettingBase(SQLModel):
 class ContactSetting(ContactSettingBase, table=True):
     __tablename__ = "contact_settings"
     contact_setting_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ContactRelationBase(SQLModel):
@@ -172,7 +172,7 @@ class ContactRelationBase(SQLModel):
 class ContactRelation(ContactRelationBase, table=True):
     __tablename__ = "contact_relations"
     contact_relation_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ContactTimeBase(SQLModel):
@@ -187,7 +187,7 @@ class ContactTimeBase(SQLModel):
 class ContactTime(ContactTimeBase, table=True):
     __tablename__ = "contact_times"
     contact_time_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ContactAttachmentBase(SQLModel):
@@ -202,4 +202,4 @@ class ContactAttachmentBase(SQLModel):
 class ContactAttachment(ContactAttachmentBase, table=True):
     __tablename__ = "contact_attachments"
     contact_attachment_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

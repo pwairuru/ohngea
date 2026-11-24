@@ -1,11 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 from sqlmodel import Field, SQLModel
 from app.db import uuid7
 class EmailQueueBase(SQLModel):
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
-    email_date: datetime = Field(default_factory=lambda: datetime.utcnow())
+    email_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     email_from: str = Field(max_length=512)
     email_to: str = Field(max_length=512)
     email_subject: Optional[str]=Field(default=None, max_length=512)
@@ -17,7 +17,7 @@ class EmailQueueBase(SQLModel):
 class EmailQueue(EmailQueueBase, table=True):
     __tablename__="email_queue"
     email_queue_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class EmailQueueAttachmentBase(SQLModel):
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
@@ -32,4 +32,4 @@ class EmailQueueAttachmentBase(SQLModel):
 class EmailQueueAttachment(EmailQueueAttachmentBase, table=True):
     __tablename__ = "email_queue_attachments"
     email_queue_attachment_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

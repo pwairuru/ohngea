@@ -16,6 +16,10 @@ use pbx_db::entities::{
 };
 
 // ---- handlers: access_controls (+ nodes child) ----
+fn propagate_acl() {
+    crate::fs_xml::invalidate_key("configuration:acl.conf");
+    crate::fs_xml::propagate_esl(&["reloadxml"]);
+}
 fn ser_acl(r: &access_controls::Model) -> Value {
     serde_json::json!({
         "access_control_uuid": r.access_control_uuid,
@@ -67,7 +71,10 @@ async fn create_acl(
         updated_at: Set(now),
     };
     match am.insert(db).await {
-        Ok(r) => (StatusCode::CREATED, Json(ser_acl(&r))).into_response(),
+        Ok(r) => {
+            propagate_acl();
+            (StatusCode::CREATED, Json(ser_acl(&r))).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
@@ -151,7 +158,10 @@ async fn patch_acl(
     }
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
-        Ok(r) => (StatusCode::OK, Json(ser_acl(&r))).into_response(),
+        Ok(r) => {
+            propagate_acl();
+            (StatusCode::OK, Json(ser_acl(&r))).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("update failed: {e}")})),
@@ -173,7 +183,10 @@ async fn delete_acl(
         Some(r) => {
             let am: access_controls::ActiveModel = r.into();
             let _ = am.delete(db).await;
-            StatusCode::NO_CONTENT.into_response()
+            {
+                propagate_acl();
+                StatusCode::NO_CONTENT.into_response()
+            }
         }
         None => (
             StatusCode::NOT_FOUND,
@@ -218,7 +231,10 @@ async fn create_acl_node(
         updated_at: Set(now),
     };
     match am.insert(db).await {
-        Ok(n) => (StatusCode::CREATED, Json(ser_acl_node(&n))).into_response(),
+        Ok(n) => {
+            propagate_acl();
+            (StatusCode::CREATED, Json(ser_acl_node(&n))).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
@@ -276,7 +292,10 @@ async fn delete_acl_node(
         Some(n) => {
             let am: access_control_nodes::ActiveModel = n.into();
             let _ = am.delete(db).await;
-            StatusCode::NO_CONTENT.into_response()
+            {
+                propagate_acl();
+                StatusCode::NO_CONTENT.into_response()
+            }
         }
         None => (
             StatusCode::NOT_FOUND,
@@ -371,7 +390,11 @@ async fn create_fifo(
         fifo_exit_key: Set(s(&payload, &["fifo_exit_key", "exit_key"])),
         fifo_exit_action: Set(s(&payload, &["fifo_exit_action", "exit_action"])),
         fifo_music: Set(s(&payload, &["fifo_music", "music"])),
-        fifo_order: Set(payload.get("fifo_order").or_else(|| payload.get("order")).and_then(|v| v.as_i64()).map(|v| v as i32)),
+        fifo_order: Set(payload
+            .get("fifo_order")
+            .or_else(|| payload.get("order"))
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32)),
         fifo_caller_id_name: Set(s(&payload, &["fifo_caller_id_name"])),
         fifo_caller_id_number: Set(s(&payload, &["fifo_caller_id_number"])),
         created_at: Set(now),
@@ -388,7 +411,8 @@ async fn create_fifo(
     }
 }
 
-async fn list_fifo(Extension(claims): Extension<Claims>,
+async fn list_fifo(
+    Extension(claims): Extension<Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "fifo_view") {
@@ -478,13 +502,35 @@ async fn patch_fifo(
     {
         am.fifo_enabled = Set(b(&payload, &["fifo_enabled", "enabled"], true));
     }
-    for key in ["dialplan_uuid", "fifo_agent_queue", "agent_queue", "fifo_agent_status", "agent_status", "fifo_timeout_seconds", "timeout_seconds", "fifo_exit_key", "exit_key", "fifo_exit_action", "exit_action", "fifo_music", "music", "fifo_strategy", "strategy", "fifo_description", "description", "fifo_caller_id_name", "fifo_caller_id_number"] {
+    for key in [
+        "dialplan_uuid",
+        "fifo_agent_queue",
+        "agent_queue",
+        "fifo_agent_status",
+        "agent_status",
+        "fifo_timeout_seconds",
+        "timeout_seconds",
+        "fifo_exit_key",
+        "exit_key",
+        "fifo_exit_action",
+        "exit_action",
+        "fifo_music",
+        "music",
+        "fifo_strategy",
+        "strategy",
+        "fifo_description",
+        "description",
+        "fifo_caller_id_name",
+        "fifo_caller_id_number",
+    ] {
         if let Some(v) = s(&payload, &[key]) {
             match key {
                 "dialplan_uuid" => am.dialplan_uuid = Set(Some(v)),
                 "fifo_agent_queue" | "agent_queue" => am.fifo_agent_queue = Set(Some(v)),
                 "fifo_agent_status" | "agent_status" => am.fifo_agent_status = Set(Some(v)),
-                "fifo_timeout_seconds" | "timeout_seconds" => am.fifo_timeout_seconds = Set(Some(v)),
+                "fifo_timeout_seconds" | "timeout_seconds" => {
+                    am.fifo_timeout_seconds = Set(Some(v))
+                }
                 "fifo_exit_key" | "exit_key" => am.fifo_exit_key = Set(Some(v)),
                 "fifo_exit_action" | "exit_action" => am.fifo_exit_action = Set(Some(v)),
                 "fifo_music" | "music" => am.fifo_music = Set(Some(v)),
@@ -495,7 +541,11 @@ async fn patch_fifo(
             }
         }
     }
-    if let Some(v) = payload.get("fifo_order").or_else(|| payload.get("order")).and_then(|v| v.as_i64()) {
+    if let Some(v) = payload
+        .get("fifo_order")
+        .or_else(|| payload.get("order"))
+        .and_then(|v| v.as_i64())
+    {
         am.fifo_order = Set(Some(v as i32));
     }
     am.updated_at = Set(crate::routing_db::now());
@@ -1007,14 +1057,16 @@ async fn create_emergency(
     }
 }
 
-async fn list_emergency(Extension(claims): Extension<Claims>,
+async fn list_emergency(
+    Extension(claims): Extension<Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "emergency_logs_view") {
         return (s, j).into_response();
     }
     let db = crate::routing_db::conn().await;
-    let show_all = crate::tenant::wants_all(&claims, show_q.show.as_deref(), "emergency_logs_view_all");
+    let show_all =
+        crate::tenant::wants_all(&claims, show_q.show.as_deref(), "emergency_logs_view_all");
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
         Err(_) => return envelope(vec![]).into_response(),

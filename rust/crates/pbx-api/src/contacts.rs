@@ -11,8 +11,8 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryF
 // ---- models ----
 use pbx_db::entities::{
     contact_addresses, contact_attachments, contact_emails, contact_groups, contact_notes,
-    contact_phones, contact_relations, contact_settings, contact_times, contact_urls, contact_users,
-    contacts,
+    contact_phones, contact_relations, contact_settings, contact_times, contact_urls,
+    contact_users, contacts,
 };
 
 // ---- schemas ----
@@ -133,7 +133,8 @@ async fn create_contact(
     }
 }
 
-async fn list_contacts(Extension(claims): Extension<pbx_core::auth::Claims>,
+async fn list_contacts(
+    Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Query(show_q): axum::extract::Query<crate::ShowQuery>,
 ) -> impl IntoResponse {
     if let Some((s, j)) = crate::tenant::deny_if_missing(&claims, "contact_view") {
@@ -377,42 +378,54 @@ async fn list_link_child(
             let rows = contact_attachments::Entity::find()
                 .filter(contact_attachments::Column::ContactUuid.eq(id))
                 .filter(contact_attachments::Column::DomainId.eq(domain))
-                .all(db).await.unwrap_or_default();
+                .all(db)
+                .await
+                .unwrap_or_default();
             rows.into_iter().map(|r| serde_json::json!({"contact_attachment_uuid": r.contact_attachment_uuid, "contact_uuid": r.contact_uuid, "attachment_filename": r.attachment_filename, "attachment_primary": r.attachment_primary, "attachment_description": r.attachment_description})).collect()
         }
         "groups" => {
             let rows = contact_groups::Entity::find()
                 .filter(contact_groups::Column::ContactUuid.eq(id))
                 .filter(contact_groups::Column::DomainId.eq(domain))
-                .all(db).await.unwrap_or_default();
+                .all(db)
+                .await
+                .unwrap_or_default();
             rows.into_iter().map(|r| serde_json::json!({"contact_group_uuid": r.contact_group_uuid, "contact_uuid": r.contact_uuid, "group_uuid": r.group_uuid})).collect()
         }
         "relations" => {
             let rows = contact_relations::Entity::find()
                 .filter(contact_relations::Column::ContactUuid.eq(id))
                 .filter(contact_relations::Column::DomainId.eq(domain))
-                .all(db).await.unwrap_or_default();
+                .all(db)
+                .await
+                .unwrap_or_default();
             rows.into_iter().map(|r| serde_json::json!({"contact_relation_uuid": r.contact_relation_uuid, "contact_uuid": r.contact_uuid, "relation_label": r.relation_label, "relation_label_custom": r.relation_label, "relation_contact_uuid": r.relation_contact_uuid, "relation_reciprocal": false, "relation_reciprocal_label": null, "relation_reciprocal_label_custom": null})).collect()
         }
         "settings" => {
             let rows = contact_settings::Entity::find()
                 .filter(contact_settings::Column::ContactUuid.eq(id))
                 .filter(contact_settings::Column::DomainId.eq(domain))
-                .all(db).await.unwrap_or_default();
+                .all(db)
+                .await
+                .unwrap_or_default();
             rows.into_iter().map(|r| serde_json::json!({"contact_setting_uuid": r.contact_setting_uuid, "contact_uuid": r.contact_uuid, "contact_setting_category": r.contact_setting_category, "contact_setting_name": r.contact_setting_name, "contact_setting_value": r.contact_setting_value, "contact_setting_enabled": r.contact_setting_enabled})).collect()
         }
         "times" => {
             let rows = contact_times::Entity::find()
                 .filter(contact_times::Column::ContactUuid.eq(id))
                 .filter(contact_times::Column::DomainId.eq(domain))
-                .all(db).await.unwrap_or_default();
+                .all(db)
+                .await
+                .unwrap_or_default();
             rows.into_iter().map(|r| serde_json::json!({"contact_time_uuid": r.contact_time_uuid, "contact_uuid": r.contact_uuid, "user_uuid": r.user_uuid, "time_start": r.time_start, "time_stop": r.time_stop, "time_description": r.time_description})).collect()
         }
         "users" => {
             let rows = contact_users::Entity::find()
                 .filter(contact_users::Column::ContactUuid.eq(id))
                 .filter(contact_users::Column::DomainId.eq(domain))
-                .all(db).await.unwrap_or_default();
+                .all(db)
+                .await
+                .unwrap_or_default();
             rows.into_iter().map(|r| serde_json::json!({"contact_user_uuid": r.contact_user_uuid, "contact_uuid": r.contact_uuid, "user_uuid": r.user_uuid})).collect()
         }
         _ => {
@@ -425,9 +438,18 @@ async fn list_link_child(
     };
     let total = data.len() as u64;
     let start = ((page.saturating_sub(1)) * per_page) as usize;
-    let page_data: Vec<serde_json::Value> = data.into_iter().skip(start).take(per_page as usize).collect();
+    let page_data: Vec<serde_json::Value> = data
+        .into_iter()
+        .skip(start)
+        .take(per_page as usize)
+        .collect();
     (
-        crate::paged_headers(&format!("/api/v1/contacts/{id}/{name}"), page, per_page, total),
+        crate::paged_headers(
+            &format!("/api/v1/contacts/{id}/{name}"),
+            page,
+            per_page,
+            total,
+        ),
         Json(crate::paged_body(page_data, total, page, per_page)),
     )
         .into_response()
@@ -459,7 +481,9 @@ async fn create_link_child(
                 contact_attachment_uuid: Set(cid),
                 domain_id: Set(domain),
                 contact_uuid: Set(id),
-                attachment_primary: Set(payload.get("attachment_primary").and_then(|v| v.as_bool())),
+                attachment_primary: Set(payload
+                    .get("attachment_primary")
+                    .and_then(|v| v.as_bool())),
                 attachment_filename: Set(link_opt_str(&payload, "attachment_filename")),
                 attachment_content: Set(link_opt_str(&payload, "attachment_content")),
                 attachment_description: Set(link_opt_str(&payload, "attachment_description")),
@@ -499,8 +523,15 @@ async fn create_link_child(
             match am.insert(db).await {
                 Ok(_) => {
                     // PHP reciprocal parity: optionally create inverse row.
-                    let recip = payload.get("relation_reciprocal").and_then(|v| v.as_bool()).unwrap_or(false)
-                        || payload.get("relation_reciprocal").and_then(|v| v.as_str()).map(|s| s == "true" || s == "1").unwrap_or(false);
+                    let recip = payload
+                        .get("relation_reciprocal")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                        || payload
+                            .get("relation_reciprocal")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s == "true" || s == "1")
+                            .unwrap_or(false);
                     if recip {
                         if let Some(other) = link_opt_uuid(&payload, "relation_contact_uuid") {
                             let rlabel = link_opt_str(&payload, "relation_reciprocal_label_custom")
@@ -518,7 +549,9 @@ async fn create_link_child(
                             let _ = ram.insert(db).await;
                         }
                     }
-                    Ok(serde_json::json!({"contact_relation_uuid": cid, "relation_reciprocal": payload.get("relation_reciprocal"), "relation_reciprocal_label": payload.get("relation_reciprocal_label"), "relation_reciprocal_label_custom": payload.get("relation_reciprocal_label_custom")}))
+                    Ok(
+                        serde_json::json!({"contact_relation_uuid": cid, "relation_reciprocal": payload.get("relation_reciprocal"), "relation_reciprocal_label": payload.get("relation_reciprocal_label"), "relation_reciprocal_label_custom": payload.get("relation_reciprocal_label_custom")}),
+                    )
                 }
                 Err(e) => Err(format!("insert failed: {e}")),
             }
@@ -530,12 +563,23 @@ async fn create_link_child(
                 contact_uuid: Set(id),
                 domain_id: Set(domain),
                 contact_setting_category: Set(link_opt_str(&payload, "contact_setting_category")),
-                contact_setting_subcategory: Set(link_opt_str(&payload, "contact_setting_subcategory")),
+                contact_setting_subcategory: Set(link_opt_str(
+                    &payload,
+                    "contact_setting_subcategory",
+                )),
                 contact_setting_name: Set(link_opt_str(&payload, "contact_setting_name")),
                 contact_setting_value: Set(link_opt_str(&payload, "contact_setting_value")),
-                contact_setting_order: Set(payload.get("contact_setting_order").and_then(|v| v.as_i64()).map(|n| n as i32)),
-                contact_setting_enabled: Set(payload.get("contact_setting_enabled").and_then(|v| v.as_bool())),
-                contact_setting_description: Set(link_opt_str(&payload, "contact_setting_description")),
+                contact_setting_order: Set(payload
+                    .get("contact_setting_order")
+                    .and_then(|v| v.as_i64())
+                    .map(|n| n as i32)),
+                contact_setting_enabled: Set(payload
+                    .get("contact_setting_enabled")
+                    .and_then(|v| v.as_bool())),
+                contact_setting_description: Set(link_opt_str(
+                    &payload,
+                    "contact_setting_description",
+                )),
                 created_at: Set(now),
             };
             match am.insert(db).await {

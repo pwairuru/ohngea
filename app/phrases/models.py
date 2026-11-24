@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 from sqlmodel import Field, SQLModel
@@ -12,8 +12,8 @@ class PhraseBase(SQLModel):
 class Phrase(PhraseBase, table=True):
     __tablename__ = "phrases"
     phrase_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 class PhraseDetailBase(SQLModel):
     domain_id: UUID = Field(foreign_key="domains.domain_id", index=True, ondelete="CASCADE")
     phrase_uuid: UUID = Field(foreign_key="phrases.phrase_uuid", index=True, ondelete="CASCADE")
@@ -28,4 +28,4 @@ class PhraseDetailBase(SQLModel):
 class PhraseDetail(PhraseDetailBase, table=True):
     __tablename__ = "phrase_details"
     phrase_detail_uuid: UUID = Field(default_factory=uuid7, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
