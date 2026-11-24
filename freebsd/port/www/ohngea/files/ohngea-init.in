@@ -74,7 +74,8 @@ ohngea_init_start() {
     done
 
     # 4) bootstrap: POST once when status says so; 201 + 409 both ok.
-    if fetch -o - http://127.0.0.1:8000/api/v1/domains/bootstrap/status 2>&1 | grep -q '"needs_setup":true'; then
+    BOOTSTRAP_OK=1
+    if fetch -o - http://127.0.0.1:8000/api/v1/domains/bootstrap/status 2>&1 | grep -q '"needs_setup"[[:space:]]*:[[:space:]]*true'; then
         echo "Bootstrapping domain ${ohngea_init_domain} admin ${ohngea_init_admin}..."
         BODY=$(printf '{"domain_name":"%s","admin_username":"%s","admin_password":"%s"}' \
             "$(json_escape "${ohngea_init_domain}")" \
@@ -84,7 +85,7 @@ ohngea_init_start() {
         echo "bootstrap: ${RESP}"
         case "${RESP}" in
             *" 201 "*|*" 409 "*) echo "bootstrap ok" ;;
-            *) echo "bootstrap failed: ${RESP}" >&2 ;;
+            *) echo "bootstrap failed: ${RESP}" >&2; BOOTSTRAP_OK=0 ;;
         esac
     else
         echo "Domain already bootstrapped, skipping"
@@ -157,6 +158,10 @@ ohngea_init_start() {
     echo ""
 
     mkdir -p /var/db/ohngea
+    if [ "${BOOTSTRAP_OK}" != "1" ]; then
+        echo "ohngea_init: bootstrap failed, skipping url.txt/sentinel so a rerun retries" >&2
+        return 1
+    fi
     echo "Ohngea PBX ready at ${URL} (admin/${ohngea_init_password})" > /etc/motd.ohngea 2>&1 | head -5
     cat /etc/motd.ohngea >> /etc/motd 2>&1 | head -5
     echo "${URL} admin ${ohngea_init_password}" > /var/db/ohngea/url.txt
