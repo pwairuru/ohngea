@@ -1,8 +1,0 @@
-name = "conference_controls"
-version = "1.0.0"
-license = "MIT"
-description = "Conference controls"
-category = "conferencing"
-enabled_by_default = false
-depends_on = ["conference_profiles"]
-routes = ["/conference_controls"]

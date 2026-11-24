@@ -1,8 +1,0 @@
-name = "fax"
-version = "1.0.0"
-license = "MIT"
-description = "Fax"
-category = "messaging"
-enabled_by_default = false
-depends_on = []
-routes = ["/fax"]

@@ -1,8 +1,0 @@
-name = "number_translations"
-version = "1.0.0"
-license = "MIT"
-description = "Number translations"
-category = "routing"
-enabled_by_default = false
-depends_on = []
-routes = ["/number_translations"]

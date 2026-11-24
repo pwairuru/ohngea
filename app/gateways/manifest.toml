@@ -1,8 +1,0 @@
-name = "gateways"
-version = "1.0.0"
-license = "MIT"
-description = "SIP gateways"
-category = "core"
-enabled_by_default = true
-depends_on = []
-routes = ["/gateways"]

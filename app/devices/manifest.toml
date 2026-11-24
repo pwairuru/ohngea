@@ -1,8 +1,0 @@
-name = "devices"
-version = "1.0.0"
-license = "MIT"
-description = "Device provisioning"
-category = "core"
-enabled_by_default = true
-depends_on = []
-routes = ["/devices"]

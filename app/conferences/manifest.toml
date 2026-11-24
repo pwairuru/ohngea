@@ -1,8 +1,0 @@
-name = "conferences"
-version = "1.0.0"
-license = "MIT"
-description = "Conferences"
-category = "conferencing"
-enabled_by_default = false
-depends_on = ["conference_profiles"]
-routes = ["/conferences"]

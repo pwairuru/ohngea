@@ -1,8 +1,0 @@
-name = "extensions"
-version = "1.0.0"
-license = "MIT"
-description = "Extensions and endpoints"
-category = "core"
-enabled_by_default = true
-depends_on = []
-routes = ["/extensions"]

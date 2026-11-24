@@ -1,8 +1,0 @@
-name = "recordings"
-version = "1.0.0"
-license = "MIT"
-description = "Ohngea PBX recordings plugin — per-tenant toggleable"
-routes = ["/recordings"]
-permissions = ["recordings_view", "recordings_edit"]
-category = "advanced"
-icon = "phone"

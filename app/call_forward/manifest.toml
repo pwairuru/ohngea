@@ -1,8 +1,0 @@
-name = "call_forward"
-version = "1.0.0"
-license = "MIT"
-description = "Call Forward per-extension unconditional forwarding"
-category = "routing"
-enabled_by_default = true
-depends_on = []
-routes = ["/call_forward"]

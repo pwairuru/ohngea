@@ -1,8 +1,0 @@
-name = "bridges"
-version = "1.0.0"
-license = "MIT"
-description = "Bridges"
-category = "media"
-enabled_by_default = false
-depends_on = []
-routes = ["/bridges"]

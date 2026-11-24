@@ -1,8 +1,0 @@
-name = "contacts"
-version = "1.0.0"
-license = "MIT"
-description = "Ohngea PBX contacts plugin — per-tenant toggleable"
-routes = ["/contacts"]
-permissions = ["contacts_view", "contacts_edit"]
-category = "advanced"
-icon = "phone"

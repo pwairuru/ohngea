@@ -1,8 +1,0 @@
-name = "conferences"
-version = "1.0.0"
-license = "MIT"
-description = "Ohngea PBX conferences plugin — per-tenant toggleable"
-routes = ["/conferences"]
-permissions = ["conferences_view", "conferences_edit"]
-category = "advanced"
-icon = "phone"

@@ -1,8 +1,0 @@
-name = "call_centers"
-version = "1.0.0"
-license = "MIT"
-description = "Call centers"
-category = "queueing"
-enabled_by_default = false
-depends_on = ["fifo"]
-routes = ["/call_centers"]

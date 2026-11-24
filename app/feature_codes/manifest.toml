@@ -1,8 +1,0 @@
-name = "feature_codes"
-version = "1.0.0"
-license = "MIT"
-description = "Feature codes"
-category = "system"
-enabled_by_default = false
-depends_on = []
-routes = ["/feature_codes"]

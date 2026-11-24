@@ -1,1 +1,0 @@
-"""Ohngea PBX application package."""
