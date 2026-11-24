@@ -8,6 +8,7 @@ use pbx_api::build_app;
 
 #[tokio::main]
 async fn main() {
+    let _log_guards = pbx_api::logging::init();
     // Production gate: release binaries refuse to boot on a missing or
     // well-known JWT_SECRET. Debug keeps the test-secret fallback.
     #[cfg(not(debug_assertions))]
@@ -37,6 +38,13 @@ async fn main() {
         build_mode: build_mode(),
     };
     println!("{}", render_banner(&info));
+    tracing::info!(
+        version = info.version,
+        port,
+        db = info.database_kind,
+        mode = info.build_mode,
+        "pbx-api boot"
+    );
     let app = build_app();
     let listener = tokio::net::TcpListener::bind(format!("{bind_addr}:{port}"))
         .await
