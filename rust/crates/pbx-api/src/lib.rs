@@ -26,6 +26,7 @@ mod gateways;
 mod groups;
 mod health;
 mod ivr_menus;
+pub mod logging;
 mod logs;
 mod menus;
 mod missing_tables;

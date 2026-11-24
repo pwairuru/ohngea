@@ -1,0 +1,8 @@
+name = "call_center"
+version = "1.0.0"
+license = "MIT"
+description = "Ohngea PBX call_center plugin — per-tenant toggleable"
+routes = ["/call_center"]
+permissions = ["call_center_view", "call_center_edit"]
+category = "advanced"
+icon = "phone"

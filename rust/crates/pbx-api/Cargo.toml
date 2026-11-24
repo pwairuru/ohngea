@@ -12,6 +12,12 @@ axum = "0.8"
 tokio = { version = "1.54", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-opentelemetry = { version = "0.34", optional = true }
+opentelemetry = { version = "0.33", default-features = false, features = ["trace"], optional = true }
+opentelemetry_sdk = { version = "0.33", default-features = false, features = ["trace"], optional = true }
 toml = "0.8"
 tower = "0.5"
 sea-orm = { version = "2.0.4", features = ["sqlx-sqlite", "sqlx-postgres", "runtime-tokio-rustls", "macros", "with-chrono", "with-uuid", "with-json"] }
@@ -27,3 +33,8 @@ extism = "1.41.0"
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 wat = "1.262.0"
+
+[features]
+# OTel OLP layer slot (spec non-goal: no exporter wired yet). Off by default,
+# zero cost when off: the optional deps below are not even built.
+otel = ["dep:tracing-opentelemetry", "dep:opentelemetry", "dep:opentelemetry_sdk"]

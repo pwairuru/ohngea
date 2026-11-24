@@ -1,0 +1,8 @@
+name = "time_conditions"
+version = "1.0.0"
+license = "MIT"
+description = "Ohngea PBX time_conditions plugin — per-tenant toggleable"
+routes = ["/time_conditions"]
+permissions = ["time_conditions_view", "time_conditions_edit"]
+category = "advanced"
+icon = "phone"
