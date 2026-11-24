@@ -185,10 +185,9 @@ Desktop.ini
 
 # =============================================================================
 # Project-specific
-# =============================================================================
-# Legacy reference clone — keep on disk, not tracked
-fusionpbx/
-.superpowers/brainstorm/
+# ============================================================================
+# Legacy PHP reference clone lives one directory up (../fusionpbx-php),
+# not in this repo. See AGENTS.md.
 
 # Local overrides / secrets
 *.pem

@@ -1,15 +1,15 @@
 # Ohngea PBX
 
-Speak. Connect. Ohngea. Modern PBX for teams. Clean-room successor to legacy PBX concepts built with FastAPI, SQLModel, PostgreSQL (HASH partitioning and RLS), React Vite, Tailwind, and FreeSWITCH `mod_xml_curl`. It exposes a full REST API at `/api/v1`, a mobile PWA, and per-tenant plugins.
+Speak. Connect. Ohngea. Modern PBX for teams. Clean-room successor to legacy PBX concepts built with Rust (Axum + SeaORM), PostgreSQL (HASH partitioning and RLS), React Vite, Tailwind, and FreeSWITCH `mod_xml_curl`. It exposes a full REST API at `/api/v1`, a mobile PWA, and per-tenant plugins.
 
-Source reference is the legacy system at `legacy/` (separate git clone, ignored, read-only).
+Legacy PHP reference is a separate checkout at `../fusionpbx-php/` (read-only, not in this repo).
 
 ## Stack
-- Control uses Python 3.14, FastAPI, SQLModel, asyncpg, Alembic, pydantic-xml, lxml, Jinja2, PyJWT, bcrypt, uuid6, Valkey, and Celery.
+- Control is Rust: Axum router (`rust/crates/pbx-api`), SeaORM entities (`pbx-db`), JWT auth (`pbx-core`), FreeSWITCH XML/ESL (`pbx-fs`), Extism plugin sandbox.
 - DB is PostgreSQL 18 with `PARTITION BY HASH (domain_id)` into 32 partitions, RLS `USING (domain_id = current_setting('app.domain_uuid')::uuid)` with `SET LOCAL` per request, and local indexes on `(domain_id, start_stamp DESC)`.
 - Media is FreeSWITCH via `mod_xml_curl` at `GET /api/internal/freeswitch/xml?section=directory|dialplan` plus ESL `sofia rescan`.
 - Frontend is React 19 with Vite, Tailwind, shadcn/ui Radix, TanStack Table and Query, Recharts, Lucide, and sip.js 0.21 (lazy WebPhone over WSS), dark mode via `class`, CSS vars like `--primary`, per-tenant `GET /domains/{id}/theme`, and PWA via `vite-plugin-pwa`.
-- Ops is `gunicorn -k uvicorn.workers.UvicornWorker` in a Docker multi-stage build (`node:20-alpine` and `python:3.14-slim`) with `docker-compose` services `db`, `valkey`, `api`, and `worker`.
+- Ops is a Docker multi-stage build (cargo chef + `node:20-alpine`) with `docker-compose` services `db`, `valkey`, `api`, and `worker`.
 
 ## Quick start (Docker, recommended, no host venv)
 ```bash
@@ -20,11 +20,9 @@ curl -f http://localhost:8060/health && curl -f http://localhost:8060/api/v1/hea
 # NOTE: PostgreSQL 18 upgrade from 16 needs: `docker compose down -v` (dev) or `pg_upgrade`/`pg_dumpall` (prod). See docs.
 ```
 
-Local dev (if you have uv):
+Local dev:
 ```bash
-uv sync --python 3.14
-uv run alembic upgrade head
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload  # or: make dev (port = $API_PORT in root .env; 8000 clashes with bifrost-llm-proxy)
+cd rust && cargo run -p pbx-api  # :8000 (sqlite fallback when DATABASE_URL unset; JWT_SECRET dev default in debug)
 cd frontend && npm install --legacy-peer-deps && npm run dev  # :5173 proxy /api
 ```
 
@@ -41,16 +39,11 @@ Base `/api/v1`, `Accept: application/vnd.pbx.v1+json`, `Content-Type: json`, JWT
 RDS is a single Postgres cluster. `TenantMiddleware` extracts `domain_id` from the JWT and `get_session` runs `SET LOCAL app.domain_uuid`, so RLS isolates tenants. `cdr` is hash partitioned into 32, so `EXPLAIN` prunes to a single partition. `domain_plugins` toggles per tenant.
 
 ## Plugins: 9 included (all MIT)
-`plugins/{call_center,fax,voicemail,conferences,ring_groups,time_conditions,contacts,recordings,example}` each `manifest.toml` `license=MIT` + `router.py` `APIRouter(prefix="/api/v1/<name>")` + lazy `frontend/src/plugins/<name>/App.tsx`. Registry `app/plugins/registry.py` validates allowlist `MIT/Apache/BSD/MPL/CDDL/ISC/PostgreSQL`, rejects `GPL`. List `GET /api/v1/plugins`, toggle `PUT /api/v1/domains/{id}/plugins/{name}?enabled=true`.
+`plugins/` registry: each plugin ships `manifest.toml` `license=MIT` + Rust router + lazy `frontend/src/plugins/<name>/App.tsx`. Registry validates allowlist `MIT/Apache/BSD/MPL/CDDL/ISC/PostgreSQL`, rejects `GPL`. List `GET /api/v1/plugins`, toggle `PUT /api/v1/domains/{id}/plugins/{name}?enabled=true`.
 
-Create plugin:
+Create plugin (Rust Extism sandbox + lazy frontend):
 ```bash
-mkdir plugins/my && cat > plugins/my/manifest.toml <<'EOF'
-name="my"
-license="MIT"
-routes=["/my"]
-EOF
-# add plugins/my/router.py + frontend/src/plugins/my/App.tsx
+# add rust/crates/pbx-api/src/plugins_<name>.rs + frontend/src/plugins/<name>/App.tsx
 ```
 
 ## Import legacy
@@ -67,8 +60,8 @@ ohngea-import --legacy-url postgresql://user:pass@host/legacy --dry-run
 
 ## Tests
 ```bash
-docker compose run --rm api pytest -v  # includes test_plugins license gate, test_health
-cd frontend && npx playwright test --headed  # per AGENTS.md
+cd rust && cargo test -p pbx-api -p pbx-core -p pbx-db -p pbx-fs  # backend suites
+cd frontend && npx playwright test --headed
 npx playwright test --project="iPhone 14" --project="Pixel 7"
 ```
 
@@ -77,5 +70,5 @@ Every dep is MIT, Apache, BSD, MPL, or CDDL, with no GPL or AGPL. FreeSWITCH is 
 
 ## Migration from pre-rebrand
 Dev DB renamed `fusionpbx` → `ohngea`. For existing installs:
-`docker compose down -v && docker compose up -d db valkey && alembic upgrade head`
+`docker compose down -v && docker compose up -d db valkey` (Rust `migrate_on_boot` migrates + seeds on start).
 Or `pg_dumpall | sed s/fusionpbx/ohngea/g | psql`.
