@@ -1,0 +1,7 @@
+<!-- Ohngea xml_cdr — copy to /usr/local/etc/freeswitch/autoload_configs/xml_cdr.conf.xml -->
+<configuration name="xml_cdr.conf" description="Post CDRs to Ohngea">
+  <settings>
+    <param name="url" value="http://freeswitch:ClueCon@127.0.0.1:8000/api/v1/cdr/import"/>
+    <param name="leg" value="both"/>
+  </settings>
+</configuration>

@@ -28,7 +28,7 @@ else
 fi
 echo ""
 echo " Services:"
-for svc in postgresql valkey nginx freeswitch ohngea ohngea_worker ohngea_beat; do
+for svc in postgresql nginx freeswitch ohngea; do
     if service ${svc} status 2>&1 | grep -q "is running"; then
         echo "  $svc: running"
     else

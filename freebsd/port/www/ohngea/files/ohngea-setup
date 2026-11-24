@@ -4,23 +4,21 @@
 
 set -eu
 
-WWWDIR=${WWWDIR:-/usr/local/www/ohngea}
 ETCDIR=${ETCDIR:-/usr/local/etc/ohngea}
 ENV_FILE=${ENV_FILE:-${ETCDIR}/ohngea.env}
-VENV=${WWWDIR}/.venv
 
 usage() {
     cat <<EOF
 Usage: ohngea-setup <command>
 
 Commands:
-  init        Interactive first-time setup (db, env, migrate)
-  migrate     Run alembic upgrade head
+  init        Enable + run first-boot init (delegates to service ohngea_init)
+  migrate     Note on migrate-on-boot (pbx-api migrates at startup)
   gen-secret  Generate JWT secret
   check       Health check services
   help        Show this
 
-WWWDIR=${WWWDIR} ETCDIR=${ETCDIR}
+ETCDIR=${ETCDIR}
 EOF
     exit 0
 }
@@ -30,51 +28,24 @@ gen_secret() {
 }
 
 migrate() {
-    if [ ! -f "${ENV_FILE}" ]; then
-        echo "ENV_FILE ${ENV_FILE} not found — copy from ${ETCDIR}/ohngea.env.sample" >&2
-        exit 1
-    fi
-    set -a
-    . "${ENV_FILE}"
-    set +a
-    sudo -u ohngea "${VENV}/bin/alembic" -c "${WWWDIR}/alembic.ini" upgrade head
+    echo "pbx-api migrates on boot (SeaORM Migrator up) — no manual step needed."
+    echo "To apply pending migrations, restart: service ohngea restart"
 }
 
 init() {
     echo "== Ohngea PBX init =="
-    if [ ! -f "${ENV_FILE}" ]; then
-        echo "Creating ${ENV_FILE} from sample..."
-        cp "${ETCDIR}/ohngea.env.sample" "${ENV_FILE}"
-        chmod 640 "${ENV_FILE}"
-        chown ohngea:ohngea "${ENV_FILE}"
-        # gen secret
-        SECRET=$(gen_secret)
-        if grep -q "dev-secret-change" "${ENV_FILE}"; then
-            sed -i '' "s/dev-secret-change/${SECRET}/" "${ENV_FILE}" 2>/dev/null || sed -i "s/dev-secret-change/${SECRET}/" "${ENV_FILE}"
-            echo "Generated JWT_SECRET"
-        fi
-        echo "Edit ${ENV_FILE} then rerun: ohngea-setup migrate"
-        echo "DATABASE_URL should be postgresql+asyncpg://ohngea:ohngea@localhost:5432/ohngea"
-        ${EDITOR:-vi} "${ENV_FILE}" || true
-    fi
-    echo "Ensure postgresql and valkey running: service postgresql status; service valkey status"
-    read -p "Run migrate now? [y/N] " ans
-    case "$ans" in
-        y|Y) migrate ;;
-        *) echo "Skip migrate, run manually: ohngea-setup migrate" ;;
-    esac
-    echo "Enable services: sysrc ohngea_enable=YES ohngea_worker_enable=YES ohngea_beat_enable=YES"
-    echo "Start: service ohngea start; service ohngea_worker start; service ohngea_beat start"
+    sysrc ohngea_enable=YES ohngea_init_enable=YES
+    service ohngea_init start
+    echo "When init finishes, your URL is shown via: ohngea-url"
 }
 
 check() {
     echo "== Ohngea check =="
-    for svc in postgresql valkey nginx freeswitch ohngea ohngea_worker ohngea_beat; do
+    for svc in postgresql nginx freeswitch ohngea; do
         service $svc status || echo "$svc not running"
     done
-    curl -f http://127.0.0.1:8000/health && echo "API health ok" || echo "API health FAIL"
-    curl -f http://127.0.0.1:8000/api/v1/health && echo "API v1 ok" || echo "API v1 FAIL"
-    sudo -u ohngea psql "${DATABASE_URL:-postgresql://ohngea:ohngea@localhost:5432/ohngea}" -c "SELECT count(*) FROM extensions;" 2>&1 | head -5 || true
+    fetch -o - http://127.0.0.1:8000/health && echo "API health ok" || echo "API health FAIL"
+    fetch -o - http://127.0.0.1:8000/api/v1/health && echo "API v1 ok" || echo "API v1 FAIL"
 }
 
 cmd=${1:-help}

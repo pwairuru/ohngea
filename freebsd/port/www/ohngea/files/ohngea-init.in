@@ -1,6 +1,6 @@
 #!/bin/sh
 # PROVIDE: ohngea_init
-# REQUIRE: NETWORKING postgresql valkey
+# REQUIRE: NETWORKING postgresql
 # BEFORE: ohngea nginx
 # KEYWORD: shutdown firstboot
 
@@ -17,12 +17,15 @@ load_rc_config $name
 : ${ohngea_init_domain:=pbx.local}
 : ${ohngea_init_admin:=admin}
 : ${ohngea_init_password:=ohngea}
-: ${ohngea_dir:=%%WWWDIR%%}
 : ${ohngea_env_file:=%%ETCDIR%%/ohngea.env}
-: ${ohngea_venv:=%%WWWDIR%%/.venv}
+
+# Minimal JSON string escaping for the bootstrap POST body.
+json_escape() {
+    printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
 
 ohngea_init_start() {
-    # Only run once — check sentinel
+    # Idempotence: never rerun once done — keeps the existing JWT_SECRET.
     if [ -f /var/db/ohngea/.init_done ]; then
         echo "ohngea_init: already done, skipping"
         return 0
@@ -30,110 +33,80 @@ ohngea_init_start() {
 
     echo "== Ohngea first-boot init =="
 
-    # 1) Ensure postgres data exists
+    # 1) postgres: initdb only when datadir missing, then start + wait.
     if [ ! -d /var/db/postgres/data18/base ]; then
         echo "Initializing PostgreSQL 18..."
         service postgresql initdb 2>&1 | tail -20
     fi
     service postgresql start 2>&1 | tail -20
-    sleep 2
-    # Wait for postgres
     for i in 1 2 3 4 5 6 7 8 9 10; do
         if pg_isready -h 127.0.0.1 -U postgres 2>&1 | grep -q "accepting"; then break; fi
         sleep 1
     done
 
-    # Create ohngea user/db if not exists
-    if ! psql -U postgres -lqt 2>&1 | cut -d \| -f1 | grep -qw ohngea; then
-        echo "Creating ohngea DB user..."
-        psql -U postgres -c "CREATE USER ohngea WITH PASSWORD 'ohngea';" 2>&1 | tail -5
-        psql -U postgres -c "CREATE DATABASE ohngea OWNER ohngea;" 2>&1 | tail -5
-        psql -U postgres -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;" ohngea 2>&1 | tail -5
+    # role/db only when missing.
+    if ! psql -U postgres -h 127.0.0.1 -lqt 2>&1 | cut -d \| -f1 | grep -qw ohngea; then
+        echo "Creating ohngea DB role..."
+        psql -U postgres -h 127.0.0.1 -c "CREATE USER ohngea WITH PASSWORD 'ohngea';" 2>&1 | tail -5
+        psql -U postgres -h 127.0.0.1 -c "CREATE DATABASE ohngea OWNER ohngea;" 2>&1 | tail -5
+        psql -U postgres -h 127.0.0.1 -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;" ohngea 2>&1 | tail -5
     fi
 
-    # 2) Start valkey
-    service valkey start 2>&1 | tail -5
-    sleep 1
-
-    # 3) Ensure env
+    # 2) env: create from sample only when missing; never rewrite an
+    # existing file (stale sentinel keeps old JWT_SECRET by design).
     if [ ! -f "${ohngea_env_file}" ]; then
         echo "Creating ${ohngea_env_file}..."
-        mkdir -p $(dirname ${ohngea_env_file})
-        cp %%ETCDIR%%/ohngea.env.sample ${ohngea_env_file}
-        # Generate JWT secret
+        mkdir -p "$(dirname "${ohngea_env_file}")"
+        cp %%ETCDIR%%/ohngea.env.sample "${ohngea_env_file}"
         SECRET=$(openssl rand -hex 32)
         # FreeBSD sed -i ''
-        sed -i '' "s/dev-secret-change/${SECRET}/" ${ohngea_env_file} 2>/dev/null || sed -i "s/dev-secret-change/${SECRET}/" ${ohngea_env_file}
-        chmod 640 ${ohngea_env_file}
-        chown ohngea:ohngea ${ohngea_env_file}
+        sed -i '' "s/dev-secret-change/${SECRET}/" "${ohngea_env_file}" 2>/dev/null || sed -i "s/dev-secret-change/${SECRET}/" "${ohngea_env_file}"
+        chmod 640 "${ohngea_env_file}"
+        chown ohngea:ohngea "${ohngea_env_file}"
     fi
 
-    # Ensure symlink for app
-    if [ ! -f ${ohngea_dir}/.env ] && [ -f ${ohngea_env_file} ]; then
-        ln -sf ${ohngea_env_file} ${ohngea_dir}/.env
-        chown -h ohngea:ohngea ${ohngea_dir}/.env 2>&1 | head -5
-    fi
-
-    # 4) Run alembic
-    echo "Running alembic upgrade head..."
-    set -a
-    . ${ohngea_env_file}
-    set +a
-    # Ensure DB URL uses ohngea user
-    sudo -u ohngea ${ohngea_venv}/bin/alembic -c ${ohngea_dir}/alembic.ini upgrade head 2>&1 | tail -30
-
-    # 5) Start ohngea temporarily for bootstrap
-    echo "Starting ohngea for bootstrap..."
+    # 3) pbx-api migrates on boot — start it, then poll /health.
+    echo "Starting ohngea (migrates on boot)..."
     service ohngea start 2>&1 | tail -20
-    sleep 3
-    # Wait for health
-    for i in 1 2 3 4 5 6 7 8 9 10; do
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
         if fetch -o - http://127.0.0.1:8000/health 2>&1 | grep -q "ok"; then break; fi
-        sleep 1
+        sleep 2
     done
 
-    # 6) Bootstrap domain if needed
-    NEEDS_SETUP=$(fetch -o - http://127.0.0.1:8000/api/v1/domains/bootstrap/status 2>&1 | grep -o '"needs_setup":[^,]*' | cut -d: -f2)
-    echo "bootstrap status needs_setup=$NEEDS_SETUP"
-    # Simple check via curl-like: try bootstrap, if 409 then already done
-    if [ "$NEEDS_SETUP" = "true" ] || fetch -o - http://127.0.0.1:8000/api/v1/domains/bootstrap/status 2>&1 | grep -q "true"; then
+    # 4) bootstrap: POST once when status says so; 201 + 409 both ok.
+    if fetch -o - http://127.0.0.1:8000/api/v1/domains/bootstrap/status 2>&1 | grep -q '"needs_setup":true'; then
         echo "Bootstrapping domain ${ohngea_init_domain} admin ${ohngea_init_admin}..."
-        # Use python to call API (no curl dependency)
-        ${ohngea_venv}/bin/python3 <<PYEOF 2>&1 | tail -30
-import httpx, sys
-try:
-    c = httpx.Client(base_url="http://127.0.0.1:8000", timeout=10)
-    r = c.post("/api/v1/domains/bootstrap", json={"domain_name": "${ohngea_init_domain}", "admin_username": "${ohngea_init_admin}", "admin_password": "${ohngea_init_password}"})
-    print(f"bootstrap {r.status_code} {r.text[:500]}")
-    if r.status_code in (201, 409):
-        print("bootstrap ok")
-    else:
-        sys.exit(1)
-except Exception as e:
-    print(f"bootstrap failed: {e}")
-    sys.exit(1)
-PYEOF
+        BODY=$(printf '{"domain_name":"%s","admin_username":"%s","admin_password":"%s"}' \
+            "$(json_escape "${ohngea_init_domain}")" \
+            "$(json_escape "${ohngea_init_admin}")" \
+            "$(json_escape "${ohngea_init_password}")")
+        RESP=$(printf 'POST /api/v1/domains/bootstrap HTTP/1.0\r\nHost: 127.0.0.1:8000\r\nContent-Type: application/json\r\nContent-Length: %s\r\nConnection: close\r\n\r\n%s' "${#BODY}" "${BODY}" | nc -w 10 127.0.0.1 8000 2>&1 | head -1)
+        echo "bootstrap: ${RESP}"
+        case "${RESP}" in
+            *" 201 "*|*" 409 "*) echo "bootstrap ok" ;;
+            *) echo "bootstrap failed: ${RESP}" >&2 ;;
+        esac
     else
         echo "Domain already bootstrapped, skipping"
     fi
 
-    # 7) Ensure freeswitch xml_curl config
-    # Sample is at %%ETCDIR%%/freeswitch/xml_curl.conf.xml.sample (port) -> target /usr/local/etc/freeswitch/...
+    # 5) freeswitch samples: install only when target missing.
     if [ -f %%ETCDIR%%/freeswitch/xml_curl.conf.xml.sample ]; then
         if [ ! -f /usr/local/etc/freeswitch/autoload_configs/xml_curl.conf.xml ]; then
             mkdir -p /usr/local/etc/freeswitch/autoload_configs
             cp %%ETCDIR%%/freeswitch/xml_curl.conf.xml.sample /usr/local/etc/freeswitch/autoload_configs/xml_curl.conf.xml
             echo "Installed freeswitch xml_curl.conf.xml"
         fi
-    elif [ -f %%PREFIX%%/etc/freeswitch/autoload_configs/xml_curl.conf.xml.sample ]; then
-        if [ ! -f /usr/local/etc/freeswitch/autoload_configs/xml_curl.conf.xml ]; then
+    fi
+    if [ -f %%ETCDIR%%/freeswitch/xml_cdr.conf.xml.sample ]; then
+        if [ ! -f /usr/local/etc/freeswitch/autoload_configs/xml_cdr.conf.xml ]; then
             mkdir -p /usr/local/etc/freeswitch/autoload_configs
-            cp %%PREFIX%%/etc/freeswitch/autoload_configs/xml_curl.conf.xml.sample /usr/local/etc/freeswitch/autoload_configs/xml_curl.conf.xml
+            cp %%ETCDIR%%/freeswitch/xml_cdr.conf.xml.sample /usr/local/etc/freeswitch/autoload_configs/xml_cdr.conf.xml
+            echo "Installed freeswitch xml_cdr.conf.xml"
         fi
     fi
 
-    # 8) Ensure nginx configs (turnkey like FreePBX)
-    # Main nginx.conf — provide turnkey if missing
+    # 6) nginx turnkey: install only when target missing.
     if [ ! -f /usr/local/etc/nginx/nginx.conf ]; then
         if [ -f %%ETCDIR%%/nginx/nginx.conf.sample ]; then
             mkdir -p /usr/local/etc/nginx
@@ -141,7 +114,6 @@ PYEOF
             echo "Installed nginx.conf turnkey"
         fi
     fi
-    # Vhost ohngea.conf
     if [ -f %%ETCDIR%%/nginx/ohngea.conf.sample ]; then
         if [ ! -f /usr/local/etc/nginx/ohngea.conf ]; then
             cp %%ETCDIR%%/nginx/ohngea.conf.sample /usr/local/etc/nginx/ohngea.conf
@@ -149,9 +121,7 @@ PYEOF
         fi
         # Ensure nginx.conf includes ohngea.conf inside http block
         if [ -f /usr/local/etc/nginx/nginx.conf ] && ! grep -q "ohngea.conf" /usr/local/etc/nginx/nginx.conf 2>&1; then
-            # Insert before last } of http block if possible, else append
             if grep -q "http {" /usr/local/etc/nginx/nginx.conf 2>&1; then
-                # Use ed to insert include before closing } of http
                 cp /usr/local/etc/nginx/nginx.conf /tmp/nginx.conf.bak
                 awk 'BEGIN{p=0} /http *\{/ {p=1} p && /^\}/ && !done {print "    include /usr/local/etc/nginx/ohngea.conf;"; done=1} 1' /tmp/nginx.conf.bak > /usr/local/etc/nginx/nginx.conf 2>&1 | head -5
                 if ! grep -q "ohngea.conf" /usr/local/etc/nginx/nginx.conf 2>&1; then
@@ -161,18 +131,15 @@ PYEOF
                 echo "include /usr/local/etc/nginx/ohngea.conf;" >> /usr/local/etc/nginx/nginx.conf
             fi
         fi
-        # Ensure sites-enabled exists for future
         mkdir -p /usr/local/etc/nginx/sites-enabled 2>&1 | head -5
         nginx -t 2>&1 | tail -10
     fi
 
-    # 9) Start remaining services
+    # 7) start remaining services (single ohngea service only).
     service freeswitch start 2>&1 | tail -10 || true
     service nginx start 2>&1 | tail -10 || service nginx restart 2>&1 | tail -10 || true
-    service ohngea_worker start 2>&1 | tail -10 || true
-    service ohngea_beat start 2>&1 | tail -10 || true
 
-    # 10) Display URL
+    # 8) display URL + write url.txt / motd.ohngea / sentinel.
     IP=$(ifconfig em0 2>&1 | grep "inet " | awk '{print $2}' | head -1)
     if [ -z "$IP" ]; then
         IP=$(ifconfig 2>&1 | grep "inet " | grep -v "127.0.0.1" | awk '{print $2}' | head -1)
@@ -189,7 +156,6 @@ PYEOF
     echo "=================================================="
     echo ""
 
-    # Write to motd and sentinel
     mkdir -p /var/db/ohngea
     echo "Ohngea PBX ready at ${URL} (admin/${ohngea_init_password})" > /etc/motd.ohngea 2>&1 | head -5
     cat /etc/motd.ohngea >> /etc/motd 2>&1 | head -5
@@ -198,8 +164,7 @@ PYEOF
     touch /var/db/ohngea/.init_done
     chown ohngea:ohngea /var/db/ohngea/.init_done 2>&1 | head -5
 
-    # Disable self after success (optional)
-    # sysrc ohngea_init_enable=NO 2>&1 | tail -5
-
     echo "ohngea_init done"
 }
+
+run_rc_command "$1"

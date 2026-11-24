@@ -4,6 +4,9 @@
     <binding name="ohngea">
       <param name="gateway-url" value="http://127.0.0.1:8000/api/internal/freeswitch/xml" bindings="directory|dialplan|configuration"/>
       <param name="gateway-credentials" value="freeswitch:ClueCon"/>
+      <param name="auth-scheme" value="basic"/>
+      <param name="disable-100-continue" value="true"/>
+      <param name="timeout" value="10"/>
     </binding>
   </bindings>
 </configuration>
