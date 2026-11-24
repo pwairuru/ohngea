@@ -71,6 +71,46 @@ pub use voicemails::build_voicemail_directory_xml;
 /// This constant documents the contract and is asserted by tests.
 pub const MAX_HEADER_BYTES: usize = 16384;
 
+/// Outermost request-log middleware (must stay the LAST `.layer()` in
+/// [`build_app`]): take-or-make `x-request-id` (UUIDv7), run inner
+/// layers/handlers, then log `method`/`path`/`status`/`latency_ms`/
+/// `request_id` (`error!` on 5xx, `info!` otherwise) and echo the id back on
+/// the response. The logged path comes from `MatchedPath` when routing has
+/// matched, else `uri.path()` — never the query string (see
+/// [`logging::logged_path`]).
+pub async fn request_log_middleware(
+    req: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let request_id = req
+        .headers()
+        .get("x-request-id")
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+        .unwrap_or_else(|| uuid::Uuid::now_v7().to_string());
+    let method = req.method().clone();
+    let template = req
+        .extensions()
+        .get::<axum::extract::MatchedPath>()
+        .map(|m| m.as_str().to_owned());
+    let uri_path = req.uri().path().to_owned();
+    let path = crate::logging::logged_path(template.as_deref(), &uri_path);
+    let started = std::time::Instant::now();
+    let mut res = next.run(req).await;
+    let status = res.status();
+    let latency_ms = started.elapsed().as_millis() as u64;
+    if status.is_server_error() {
+        tracing::error!(%method, path = %path, %status, latency_ms, request_id = %request_id, "request failed");
+    } else {
+        tracing::info!(%method, path = %path, %status, latency_ms, request_id = %request_id, "request");
+    }
+    if let Ok(value) = request_id.parse::<axum::http::HeaderValue>() {
+        res.headers_mut().insert("x-request-id", value);
+    }
+    res
+}
+
 /// Accept-compat middleware: accepts `Accept: application/vnd.pbx.v1+json`
 /// (and anything else) without 406, adds `Vary: Accept` to every response.
 /// 406-rejection is explicitly NOT enabled yet — see Global Constraints.
@@ -389,6 +429,11 @@ pub fn build_app() -> axum::Router {
         .layer(axum::middleware::from_fn(plugins::plugin_gate))
         .layer(axum::middleware::from_fn(pagination_fallback_middleware))
         .layer(axum::middleware::from_fn(accept_compat_middleware))
+        // Request log is added LAST: axum `Router::layer` wraps each route
+        // (`Route::layer` = `layer.layer(self)`), so the last call is the
+        // outermost. This keeps `x-request-id` + access logs on inner
+        // short-circuits (e.g. plugin-gate 403s).
+        .layer(axum::middleware::from_fn(request_log_middleware))
 }
 
 pub fn test_app() -> axum::Router {

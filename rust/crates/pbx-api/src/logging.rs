@@ -179,6 +179,17 @@ pub fn redact_esl(cmd: &str) -> String {
     }
 }
 
+/// Path string safe for log fields: the matched route template wins (e.g.
+/// `/api/v1/extensions/:id`); otherwise the raw request path. Any query
+/// string or fragment is stripped as defense-in-depth (`uri.path()` never
+/// carries one, but callers may pass a full path+query). Never logs tokens.
+pub fn logged_path(matched: Option<&str>, uri_path: &str) -> String {
+    if let Some(template) = matched.map(str::trim).filter(|s| !s.is_empty()) {
+        return template.to_string();
+    }
+    uri_path.split(['?', '#']).next().unwrap_or("").to_string()
+}
+
 /// Holds the non-blocking writer guards; dropping them flushes and shuts
 /// down the background logging threads. Keep alive to end of `main`.
 pub struct LogGuards {
@@ -200,7 +211,7 @@ fn filter_from_env() -> EnvFilter {
         }
     }
     let directives = resolve_filter(std::env::var("LOG_LEVEL").ok().as_deref());
-    EnvFilter::try_new(&directives).unwrap_or_else(|_| EnvFilter::new("info"))
+    EnvFilter::try_new(&directives).unwrap_or_else(|_| EnvFilter::new(default_filter()))
 }
 
 /// Install the process-wide subscriber. Call first in `main` and hold the
@@ -277,8 +288,10 @@ static TEST_INIT: OnceLock<()> = OnceLock::new();
 /// process: parallel tests calling this never double-init or panic.
 pub fn init_for_tests() {
     TEST_INIT.get_or_init(|| {
+        let filter = EnvFilter::try_new(default_filter())
+            .unwrap_or_else(|_| EnvFilter::new(default_filter()));
         let subscriber = tracing_subscriber::registry()
-            .with(EnvFilter::new(default_filter()))
+            .with(filter)
             .with(fmt::layer().with_writer(std::io::sink));
         let _ = tracing::subscriber::set_global_default(subscriber);
     });
