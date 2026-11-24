@@ -1,18 +1,12 @@
-@owner ohngea
-@group ohngea
+bin/pbx-api
 bin/ohngea-setup
 bin/ohngea-url
-@owner root
-@group wheel
-www/ohngea/alembic.ini.sample
 @sample etc/ohngea/ohngea.env.sample etc/ohngea/ohngea.env
-@sample etc/ohngea/gunicorn.conf.py.sample etc/ohngea/gunicorn.conf.py
 @sample etc/ohngea/nginx/nginx.conf.sample etc/ohngea/nginx/nginx.conf
 @sample etc/ohngea/nginx/ohngea.conf.sample etc/ohngea/nginx/ohngea.conf
 @sample etc/ohngea/freeswitch/xml_curl.conf.xml.sample etc/ohngea/freeswitch/xml_curl.conf.xml
+@sample etc/ohngea/freeswitch/xml_cdr.conf.xml.sample etc/ohngea/freeswitch/xml_cdr.conf.xml
 @dir www/ohngea/static
-@dir www/ohngea/templates
-@dir www/ohngea/plugins
 @dir etc/ohngea
 @dir etc/ohngea/nginx
 @dir etc/ohngea/freeswitch
