@@ -18,7 +18,7 @@ pkg update
 pkg install -y ohngea
 ```
 
-`ohngea` pkg pulls `postgresql18-server` `valkey` `nginx` `freeswitch` (`net/freeswitch`) as deps. If you want external DB/cache, add `pkg install -y ohngea` still works — deps are soft (OPTIONS).
+`ohngea` pkg pulls `postgresql18-server` `nginx` `freeswitch` (`net/freeswitch`) as deps — Rust single binary `bin/pbx-api`, no valkey/python. If you want an external DB, `pkg install -y ohngea` still works — deps are soft (OPTIONS).
 
 ### Turnkey — one command
 
@@ -34,10 +34,12 @@ ohngea-url                  # prints http://192.168.100.100/  admin/ohngea
 
 ### Manual post-install (if you don't use ohngea_init)
 
+Single service `ohngea` only — no worker/beat/valkey (Rust binary migrates on boot). Never expose `:8000` directly: nginx is the edge, `:8000` stays localhost-only for diagnostics.
+
 ```sh
 # 1) enable deps + app
-sysrc postgresql_enable=YES valkey_enable=YES nginx_enable=YES freeswitch_enable=YES
-sysrc ohngea_enable=YES ohngea_worker_enable=YES ohngea_beat_enable=YES
+sysrc postgresql_enable=YES nginx_enable=YES freeswitch_enable=YES
+sysrc ohngea_enable=YES ohngea_init_enable=YES
 
 # 2) init postgres (first time)
 service postgresql initdb
@@ -46,16 +48,18 @@ psql -U postgres -c "CREATE USER ohngea WITH PASSWORD 'ohngea';"
 psql -U postgres -c "CREATE DATABASE ohngea OWNER ohngea;"
 psql -U postgres -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;" ohngea
 
-# 3) config
+# 3) config — JWT_SECRET gate: the release binary exits 1 on empty,
+# test-secret, or dev-secret-change. Always set a fresh secret:
 cp /usr/local/etc/ohngea/ohngea.env.sample /usr/local/etc/ohngea/ohngea.env
-vi /usr/local/etc/ohngea/ohngea.env   # set JWT_SECRET=$(openssl rand -hex 32)
+# JWT_SECRET=$(openssl rand -hex 32) — replace dev-secret-change in ohngea.env
+vi /usr/local/etc/ohngea/ohngea.env
 chmod 640 /usr/local/etc/ohngea/ohngea.env
 chown ohngea:ohngea /usr/local/etc/ohngea/ohngea.env
+# DATABASE_URL ruling: postgresql:// scheme only — never postgresql+asyncpg://.
+# e.g. DATABASE_URL=postgresql://ohngea:ohngea@localhost:5432/ohngea
 
-# 4) migrate (creates HASH 32 + RLS)
-service valkey start
-ohngea-setup migrate
-# or: sudo -u ohngea /usr/local/www/ohngea/.venv/bin/alembic -c /usr/local/www/ohngea/alembic.ini upgrade head
+# 4) migrate — none needed: pbx-api runs SeaORM Migrator up on boot.
+# To apply pending migrations, restart: service ohngea restart
 
 # 5) freeswitch
 cp /usr/local/etc/ohngea/freeswitch/xml_curl.conf.xml.sample \
@@ -66,17 +70,16 @@ service freeswitch start
 # 6) nginx — turnkey vhost already in /usr/local/etc/ohngea/nginx/
 cp /usr/local/etc/ohngea/nginx/ohngea.conf.sample /usr/local/etc/nginx/ohngea.conf
 cp /usr/local/etc/ohngea/nginx/nginx.conf.sample /usr/local/etc/nginx/nginx.conf  # if no nginx.conf exists
-# nginx.conf already includes ohngea.conf
+# nginx.conf already includes ohngea.conf and sets
+# large_client_header_buffers 4 16k — oversized headers are rejected
+# at the nginx edge, never in axum.
 nginx -t && service nginx start
 
-# 7) app
+# 7) app (single service)
 service ohngea start
-service ohngea_worker start
-service ohngea_beat start
 
 ohngea-url
-curl http://127.0.0.1:8000/health
-curl http://127.0.0.1:8000/api/v1/health
+curl http://127.0.0.1:8000/health   # localhost diagnostics only — browsers use http://<ip>/
 # Browser: http://<ip>/  login admin/ohngea  domain pbx.local
 ```
 
@@ -209,9 +212,14 @@ Local staging without poudriere:
 # on FreeBSD host: cd /usr/ports/www/ohngea && make install
 ```
 
+## Validation status
+
+> End-to-end call-loop validation (sofia/RTP/CDR on live builder) is pending Task 4 — this doc claims no E2E results. The turnkey flow below (`pkg add` + `ohngea_init` + `ohngea-url`) is per port/files evidence only.
+
 ## Troubleshooting
 
 - `pkg update` 404: repo not yet pushed to gh-pages — check `https://ohngea.github.io/ohngea/FreeBSD:15:amd64/packagesite.pkg`
-- `alembic upgrade head` fails: `DATABASE_URL` wrong — check `ohngea.env` `postgresql+asyncpg://ohngea:ohngea@localhost:5432/ohngea`
+- DB/migration issues: `pbx-api` migrates on boot (SeaORM Migrator up) — no alembic. Check `DATABASE_URL` in `ohngea.env`: `postgresql://` scheme only, never `postgresql+asyncpg://` (e.g. `postgresql://ohngea:ohngea@localhost:5432/ohngea`); then `service ohngea restart`
+- `ohngea` exits 1 at startup: `JWT_SECRET` gate — empty, `test-secret`, or `dev-secret-change` refused. Set `JWT_SECRET=$(openssl rand -hex 32)` in `ohngea.env` (fresh installs get this via `ohngea_init`)
 - `freeswitch` not starting: check `xml_curl.conf.xml` gateway-url `127.0.0.1:8000` and `ohngea` running on `127.0.0.1:8000`
 - `ohngea` fails: `cat /var/log/ohngea.log` `journalctl` `service ohngea status`

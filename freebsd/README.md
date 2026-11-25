@@ -11,14 +11,14 @@ freebsd/
     distinfo
     pkg-descr / pkg-message / pkg-plist
     files/
-      ohngea.in             # rc.d ohngea (gunicorn)
-      ohngea_worker.in      # rc.d ohngea_worker (celery worker)
-      ohngea_beat.in        # rc.d ohngea_beat (celery beat)
-      ohngea-setup          # helper /usr/local/bin/ohngea-setup
-      ohngea.env.sample.in  # 12-factor env
-      nginx.conf.sample     # nginx vhost
-      xml_curl.conf.xml.sample
-      gunicorn.conf.py.sample
+      ohngea.in             # rc.d ohngea — single service, runs /usr/local/bin/pbx-api
+      ohngea-init.in        # rc.d ohngea_init — first-boot init (DB, env, bootstrap, nginx/FS)
+      ohngea-setup          # helper /usr/local/bin/ohngea-setup (init/migrate/check)
+      ohngea-url            # helper /usr/local/bin/ohngea-url (prints http://<ip>/)
+      ohngea.env.sample     # 12-factor env: DATABASE_URL postgresql:// only, JWT_SECRET gate
+      nginx.conf            # nginx main (large_client_header_buffers 4 16k edge rule)
+      ohngea.conf           # nginx vhost — :8000 localhost-only, never exposed directly
+      xml_curl.conf.xml.sample / xml_cdr.conf.xml.sample
   build/
     poudriere.conf          # poudriere jail config sample
     make.conf               # DEFAULT_VERSIONS python=3.14 pgsql=18
@@ -54,16 +54,20 @@ freebsd/scripts/repo-init.sh
 # On target VPS (vanilla 15.1) — local install without repo (current files):
 # scp pkg to VPS and pkg add, or use repo if pushed:
 fetch -o /usr/local/etc/pkg/repos/ohngea.conf https://ohngea.github.io/ohngea/FreeBSD:15:amd64/ohngea.conf
-mkdir -p /usr/local/etc/pkg/fingerprints
-fetch -o /usr/local/etc/pkg/fingerprints/ohngea https://ohngea.github.io/ohngea/repo.pub
+mkdir -p /usr/local/etc/pkg/fingerprints/ohngea
+fetch -o /usr/local/etc/pkg/fingerprints/ohngea/repo.pub https://ohngea.github.io/ohngea/repo.pub
 pkg update
-pkg install -y ohngea
+pkg install -y ohngea   # pulls postgresql18-server nginx freeswitch; single binary bin/pbx-api, no valkey/python
 # Turnkey:
 sysrc ohngea_init_enable=YES
-service ohngea_init start
+service ohngea_init start   # initdb, env (JWT_SECRET=$(openssl rand -hex 32)), migrate-on-boot, bootstrap pbx.local admin/ohngea
 ohngea-url   # -> http://192.168.100.100/  admin/ohngea
-# Now open http://<your-ip>/ in browser
+# Now open http://<your-ip>/ in browser (nginx edge only — never expose :8000 directly)
 ```
+
+Rust notes: `DATABASE_URL` is `postgresql://` only (never `postgresql+asyncpg://`); the release binary exits 1 on empty/`test-secret`/`dev-secret-change` `JWT_SECRET`; nginx sets `large_client_header_buffers 4 16k` so oversized headers are rejected at the edge, never in axum. Single service `ohngea` — no worker/beat.
+
+> E2E call-loop validation (sofia/RTP/CDR) pending Task 4 — no E2E results claimed here.
 
 ## ISO — hybrid BIOS+UEFI, ZFS — turnkey URL
 
@@ -105,4 +109,4 @@ sudo poudriere bulk -j 151 -p ohngea www/ohngea
 
 ## Rebrand
 
-Project renamed fusionpbx → ohngea 2026-08-23. Legacy dir `fusionpbx/` kept ignored, not packaged. Python pkg still `app` import, wheel name `ohngea-pbx`.
+Project renamed fusionpbx → ohngea 2026-08-23. Legacy dir `fusionpbx/` kept ignored, not packaged. Phase A ships the Rust binary `bin/pbx-api` (Axum + SeaORM, migrates on boot) plus React static assets — no Python/venv/alembic/gunicorn/celery/valkey.

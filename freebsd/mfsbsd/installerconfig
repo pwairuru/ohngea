@@ -51,14 +51,15 @@ if [ -d /tmp/repo/All ]; then
   pkg -c "${BSDINSTALL_CHROOT}" add /tmp/repo/All/ohngea-*.pkg 2>&1 | tail -20 || pkg -c "${BSDINSTALL_CHROOT}" install -y ohngea 2>&1 | tail -20 || echo "pkg add failed, trying pkg install from network..."
 fi
 # Fallback: try network install if local repo failed and network available (pkg+https)
-if [ ! -f "${BSDINSTALL_CHROOT}/usr/local/www/ohngea/app/main.py" ]; then
+# Rust single binary — no valkey/python.
+if [ ! -f "${BSDINSTALL_CHROOT}/usr/local/bin/pbx-api" ]; then
   echo "Trying network pkg install (requires internet)..."
   pkg -c "${BSDINSTALL_CHROOT}" update 2>&1 | tail -10 || true
-  pkg -c "${BSDINSTALL_CHROOT}" install -y ohngea postgresql18-server valkey nginx freeswitch 2>&1 | tail -20 || echo "network pkg install also failed — check /tmp/repo"
+  pkg -c "${BSDINSTALL_CHROOT}" install -y ohngea postgresql18-server nginx freeswitch 2>&1 | tail -20 || echo "network pkg install also failed — check /tmp/repo"
 fi
 
-# --- Turnkey: enable first-boot init + services ---
-for svc in postgresql valkey nginx freeswitch ohngea ohngea_worker ohngea_beat ohngea_init; do
+# --- Turnkey: enable first-boot init + services (single ohngea service only) ---
+for svc in postgresql nginx freeswitch ohngea ohngea_init; do
   chroot "${BSDINSTALL_CHROOT}" sysrc "${svc}_enable=YES" 2>&1 | head -5 || true
 done
 chroot "${BSDINSTALL_CHROOT}" sysrc ohngea_init_domain="pbx.local" 2>&1 | head -5 || true
