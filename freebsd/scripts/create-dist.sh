@@ -1,77 +1,69 @@
 #!/bin/sh
-# create-dist.sh — create ohngea-0.1.0.tar.gz for port MASTER_SITES
+# create-dist.sh — create ohngea-0.1.0.tar.gz for port MASTER_SITES (Rust binary port)
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 VERSION=${1:-0.1.0}
 DISTNAME="ohngea-${VERSION}"
 WRK=/tmp/${DISTNAME}
 OUT=/tmp/${DISTNAME}.tar.gz
+NATIVE_BIN=/tmp/pbx-api-freebsd-amd64
 
 echo "== Creating dist ${OUT} from ${ROOT}"
 
 rm -rf "${WRK}" "${OUT}"
 mkdir -p "${WRK}"
 
-# copy tracked files needed for port (exclude .git, .venv, node_modules, fusionpbx, freebsd built artifacts)
-# Use git archive if repo is git
+# Export tracked files with dist prefix
 if [ -d "${ROOT}/.git" ]; then
     git -C "${ROOT}" archive --format=tar --prefix="${DISTNAME}/" HEAD | tar -xf - -C /tmp
-    # ensure required dirs present
 else
-    cp -R "${ROOT}/app" "${WRK}/"
-    cp -R "${ROOT}/alembic" "${WRK}/"
-    cp -R "${ROOT}/plugins" "${WRK}/"
-    cp -R "${ROOT}/templates" "${WRK}/"
-    cp -R "${ROOT}/frontend" "${WRK}/" 2>/dev/null || true
-    cp "${ROOT}/pyproject.toml" "${ROOT}/alembic.ini" "${ROOT}/gunicorn.conf.py" "${ROOT}/README.md" "${WRK}/" 2>/dev/null || true
-    cp "${ROOT}/LICENSE" "${WRK}/" 2>/dev/null || true
+    echo "ERROR: ${ROOT}/.git not found; refusing unversioned dist" >&2
+    exit 1
 fi
 
-# Ensure frontend built assets present or placeholder
-# git archive respects .gitignore, so frontend/dist and static/assets are missing — copy from host if exists
-if [ ! -d "${WRK}/frontend/dist" ]; then
-    if [ -d "${ROOT}/frontend/dist" ]; then
+# Inject frontend/dist (gitignored build output — always needed)
+if [ ! -f "${WRK}/frontend/dist/index.html" ]; then
+    if [ -f "${ROOT}/frontend/dist/index.html" ]; then
         mkdir -p "${WRK}/frontend/dist"
-        cp -R "${ROOT}/frontend/dist/"* "${WRK}/frontend/dist/" 2>/dev/null || true
+        cp -R "${ROOT}/frontend/dist/"* "${WRK}/frontend/dist/"
         echo "Copied frontend/dist from host"
-    elif [ -d "${ROOT}/static" ]; then
+    else
         mkdir -p "${WRK}/frontend/dist"
-        cp -R "${ROOT}/static/"* "${WRK}/frontend/dist/" 2>/dev/null || true
-        echo "Copied static to frontend/dist"
+        echo '<html><body>Ohngea placeholder — run "npm run build" in frontend/</body></html>' > "${WRK}/frontend/dist/index.html"
+        echo "WARNING: frontend/dist/index.html missing on host; wrote placeholder" >&2
     fi
-fi
-if [ ! -d "${WRK}/static" ] || [ -z "$(ls -A "${WRK}/static" 2>/dev/null)" ]; then
-    if [ -d "${ROOT}/static" ]; then
-        mkdir -p "${WRK}/static"
-        cp -R "${ROOT}/static/"* "${WRK}/static/" 2>/dev/null || true
-    fi
-    if [ -d "${WRK}/frontend/dist" ] && [ ! -f "${WRK}/static/index.html" ]; then
-        mkdir -p "${WRK}/static"
-        cp -R "${WRK}/frontend/dist/"* "${WRK}/static/" 2>/dev/null || true
-    fi
-fi
-# Fallback placeholder if still missing
-if [ ! -f "${WRK}/frontend/dist/index.html" ] && [ ! -f "${WRK}/static/index.html" ]; then
-    mkdir -p "${WRK}/frontend/dist" "${WRK}/static"
-    echo '<html><body>Ohngea placeholder</body></html>' > "${WRK}/frontend/dist/index.html"
-    echo '<html><body>Ohngea placeholder</body></html>' > "${WRK}/static/index.html"
-    echo "Created placeholder static"
 fi
 
-# Create wheels dir placeholder for vendored deps (pydantic-xml, uuid6, valkey)
-mkdir -p "${WRK}/wheels"
-# Optionally pre-fetch wheels: pip download pydantic-xml uuid6 valkey -d "${WRK}/wheels" 2>/dev/null || true
+# Inject natively built FreeBSD binary when present (built on 192.168.100.100)
+if [ -f "${NATIVE_BIN}" ]; then
+    cp "${NATIVE_BIN}" "${WRK}/pbx-api-freebsd-amd64"
+    chmod 755 "${WRK}/pbx-api-freebsd-amd64"
+    echo "Copied native binary ${NATIVE_BIN}"
+else
+    echo "WARNING: ${NATIVE_BIN} not present; dist ships without prebuilt binary" >&2
+fi
+
+# Verify required payload
+for req in rust/Cargo.toml rust/Cargo.lock templates plugins LICENSE frontend/dist/index.html; do
+    if [ ! -e "${WRK}/${req}" ]; then
+        echo "ERROR: required ${req} missing from dist" >&2
+        exit 1
+    fi
+done
 
 echo "${VERSION}" > "${WRK}/VERSION"
 
 tar -czf "${OUT}" -C /tmp "${DISTNAME}"
 ls -lh "${OUT}"
+SIZE=$(stat -c %s "${OUT}" 2>/dev/null || stat -f %z "${OUT}" 2>/dev/null)
 if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "${OUT}"
+    SHA=$(sha256sum "${OUT}" | awk '{print $1}')
+    echo "${SHA}  ${OUT}"
 elif command -v sha256 >/dev/null 2>&1; then
-    sha256 -q "${OUT}" 2>/dev/null || sha256 "${OUT}"
+    SHA=$(sha256 -q "${OUT}" 2>/dev/null || sha256 "${OUT}" | awk '{print $NF}')
+    echo "SHA256 (${OUT##*/}) = ${SHA}"
 fi
+echo "SIZE=${SIZE}"
 echo "== Done. Update distinfo:"
 echo "  (cd freebsd/port/www/ohngea && make makesum)"
-echo "  or manually: SHA256=\$(sha256sum ${OUT} 2>/dev/null | awk '{print \$1}'; sha256 -q ${OUT} 2>/dev/null) SIZE=\$(stat -c %s ${OUT} 2>/dev/null || stat -f %z ${OUT} 2>/dev/null)"
-echo "  Move to distfiles: cp ${OUT} /usr/ports/distfiles/  # on builder"
+echo "  or manually set: SHA256 (${DISTNAME}.tar.gz) = ${SHA:-?} / SIZE (${DISTNAME}.tar.gz) = ${SIZE}"
