@@ -157,6 +157,7 @@ where
 /// pair in the same family, revoke the presented row. Any other outcome
 /// (unknown/rotated/revoked/expired/bound-mismatch row) revokes the claimed
 /// family and answers 401 — a stolen token is single-use.
+#[tracing::instrument(skip(claims))]
 async fn rotate_refresh(
     claims: &pbx_core::auth::Claims,
     jti: uuid::Uuid,
@@ -189,6 +190,7 @@ async fn rotate_refresh(
             revoke_family(&txn, r.family_id).await;
             let _ = txn.commit().await;
         }
+        tracing::warn!(username = %claims.username, "refresh rejected: token reuse or expiry");
         return Err(StatusCode::UNAUTHORIZED);
     }
     let r = row.unwrap_or_else(|| unreachable!("checked above"));
@@ -411,6 +413,7 @@ fn full_token_for(user: &pbx_db::entities::users::Model, perms: &[String]) -> St
     )
 }
 
+#[tracing::instrument(skip(payload))]
 async fn login_handler(
     payload: Result<Json<LoginRequest>, JsonRejection>,
 ) -> Result<impl IntoResponse, (StatusCode, &'static str)> {
@@ -418,6 +421,10 @@ async fn login_handler(
     // domain / domain_name accepted but optional (parity with Python schema).
     let domain = req.domain.or(req.domain_name);
     if req.username.trim().is_empty() || req.password.trim().is_empty() {
+        tracing::warn!(
+            username = req.username.trim(),
+            "login rejected: empty credentials"
+        );
         return Err(unauthorized());
     }
     let username_raw = req.username.trim().to_owned();
@@ -444,7 +451,10 @@ async fn login_handler(
     let scope: Option<uuid::Uuid> = match domain_str {
         Some(ref d) => match resolve_domain_id(db, d).await {
             Some(id) => Some(id),
-            None => return Err(unauthorized()),
+            None => {
+                tracing::warn!(username = %bare, "login rejected: unknown domain");
+                return Err(unauthorized());
+            }
         },
         None => None,
     };
@@ -466,6 +476,7 @@ async fn login_handler(
     // Real-user path (enforces enabled + domain scope + TOTP second factor).
     if let Some(u) = found {
         if !u.enabled || !pbx_core::auth::verify_password(&req.password, &u.password_hash) {
+            tracing::warn!(username = %bare, "login rejected: bad credentials");
             return Err(unauthorized());
         }
         let perms = user_permissions(db, u.user_uuid).await;
@@ -476,6 +487,7 @@ async fn login_handler(
                 if pbx_core::mfa::verify_current(secret, code) {
                     return Ok((StatusCode::OK, login_pair_for(&u, &perms).await).into_response());
                 }
+                tracing::warn!(username = %bare, "login rejected: bad totp code");
                 return Err(unauthorized());
             }
             let mfa_token = pbx_core::auth::encode_mfa_token(
@@ -498,6 +510,7 @@ async fn login_handler(
     // Scoped miss for a username that lives in another tenant → 401 (no
     // stub leak across tenants). Unscoped misses fall through to stub.
     if scope.is_some() && user_exists_global(db, &bare).await {
+        tracing::warn!(username = %bare, "login rejected: cross-tenant miss");
         return Err(unauthorized());
     }
     // Stub fallback (debug only): historical empty-DB login. Mints a
@@ -526,6 +539,7 @@ async fn login_handler(
     #[cfg(not(debug_assertions))]
     {
         let _ = domain;
+        tracing::warn!(username = %username_raw, "login rejected");
         return Err(unauthorized());
     }
 }
@@ -609,6 +623,7 @@ async fn me_handler(headers: HeaderMap) -> Result<Json<UserRead>, StatusCode> {
     }))
 }
 
+#[tracing::instrument(skip(headers))]
 async fn refresh_handler(headers: HeaderMap) -> Result<impl IntoResponse, StatusCode> {
     let token = bearer_or_cookie_token(&headers).ok_or(StatusCode::UNAUTHORIZED)?;
     let claims = pbx_core::auth::decode_test_token(&token).map_err(|_| StatusCode::UNAUTHORIZED)?;
@@ -648,6 +663,7 @@ async fn refresh_handler(headers: HeaderMap) -> Result<impl IntoResponse, Status
     Ok(token_response(fresh))
 }
 
+#[tracing::instrument(skip(headers))]
 async fn logout_handler(headers: HeaderMap) -> impl IntoResponse {
     // Best-effort: revoke the presenting refresh family (reuse detection
     // makes a stolen token single-use even if logout is skipped).
@@ -691,6 +707,7 @@ struct EnrollRequest {
     user_id: Option<uuid::Uuid>,
 }
 
+#[tracing::instrument(skip(headers, payload))]
 async fn mfa_enroll_handler(
     headers: HeaderMap,
     payload: Result<Json<EnrollRequest>, JsonRejection>,
@@ -745,6 +762,7 @@ async fn mfa_enroll_handler(
         .await
         .unwrap_or(None);
     let Some(u) = user else {
+        tracing::warn!(target_id = %target_id, "mfa enroll rejected: user not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -762,6 +780,7 @@ async fn mfa_enroll_handler(
     am.user_totp_secret = Set(Some(secret.clone()));
     am.updated_at = Set(crate::routing_db::now());
     if am.update(db).await.is_err() {
+        tracing::error!(target_id = %target_id, "mfa enroll failed: db update");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": "enrol failed"})),
@@ -785,6 +804,7 @@ struct VerifyRequest {
     code: String,
 }
 
+#[tracing::instrument(skip(payload))]
 async fn mfa_verify_handler(
     payload: Result<Json<VerifyRequest>, JsonRejection>,
 ) -> impl IntoResponse {
@@ -824,7 +844,10 @@ async fn mfa_verify_handler(
         .unwrap_or_default();
     let user = match user {
         Some(u) if u.enabled && pbx_core::mfa::verify_current(&secret, &body.code) => u,
-        _ => return StatusCode::UNAUTHORIZED.into_response(),
+        _ => {
+            tracing::warn!(user_id = %user_id, "mfa verify rejected");
+            return StatusCode::UNAUTHORIZED.into_response();
+        }
     };
     let perms = user_permissions(db, user.user_uuid).await;
     let token = full_token_for(&user, &perms);
@@ -859,6 +882,7 @@ struct ResetRequest {
     domain: Option<String>,
 }
 
+#[tracing::instrument(skip(payload))]
 async fn reset_request_handler(
     payload: Result<Json<ResetRequest>, JsonRejection>,
 ) -> impl IntoResponse {
@@ -941,6 +965,7 @@ struct ResetConfirm {
     new_password: String,
 }
 
+#[tracing::instrument(skip(payload))]
 async fn reset_confirm_handler(
     payload: Result<Json<ResetConfirm>, JsonRejection>,
 ) -> impl IntoResponse {
@@ -991,6 +1016,7 @@ async fn reset_confirm_handler(
     am.password_hash = Set(pbx_core::auth::hash_password(&body.new_password));
     am.updated_at = Set(crate::routing_db::now());
     if am.update(db).await.is_err() {
+        tracing::error!(user_id = %user_id, "password reset failed: db update");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": "reset failed"})),

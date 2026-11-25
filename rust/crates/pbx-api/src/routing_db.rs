@@ -155,6 +155,7 @@ pub async fn ensure_tenant_domain(
     };
     // Pre-existing / raced insert → ignore conflict.
     let _ = pbx_db::entities::domains::Entity::insert(am).exec(db).await;
+    tracing::debug!(tenant = %d, "tenant domain ensured");
     d
 }
 

@@ -78,6 +78,7 @@ fn norm_mac(m: &str) -> String {
 }
 
 // ---- handlers ----
+#[tracing::instrument(skip(payload))]
 async fn create_device(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<DeviceCreate>,
@@ -177,6 +178,7 @@ async fn create_device(
         updated_at: Set(now),
     };
     if let Err(e) = am.insert(db).await {
+        tracing::error!(error = %e, mac = %payload.mac, "device insert failed");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
@@ -539,6 +541,7 @@ pub fn devices_router() -> Router {
         .layer(axum::middleware::from_fn(crate::require_tenant))
 }
 
+#[tracing::instrument(skip(payload), fields(id = %id))]
 async fn patch_device(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -560,6 +563,7 @@ async fn patch_device(
         .await
         .unwrap_or(None);
     let Some(r) = row else {
+        tracing::warn!("device not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -660,14 +664,18 @@ async fn patch_device(
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
         Ok(r) => (StatusCode::OK, Json(ser_device(&r, None))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "device update failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+            )
+                .into_response()
+        }
     }
 }
 
+#[tracing::instrument(fields(id = %id))]
 async fn delete_device(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -687,6 +695,7 @@ async fn delete_device(
         .await
         .unwrap_or(None);
     let Some(r) = row else {
+        tracing::warn!("device not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -709,11 +718,14 @@ async fn delete_device(
     let am: devices::ActiveModel = r.into();
     match am.delete(db).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "device delete failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -782,6 +794,7 @@ async fn list_keys(
         .into_response()
 }
 
+#[tracing::instrument(skip(payload), fields(id = %id))]
 async fn create_key(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -848,14 +861,18 @@ async fn create_key(
             Json(serde_json::json!({"device_key_uuid": kid, "device_uuid": id})),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "device insert failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
+            )
+                .into_response()
+        }
     }
 }
 
+#[tracing::instrument(skip(payload), fields(id = %id, kid = %kid))]
 async fn patch_key(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((id, kid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
@@ -874,6 +891,7 @@ async fn patch_key(
         .await
         .unwrap_or(None);
     let Some(r) = row else {
+        tracing::warn!("device not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -890,10 +908,14 @@ async fn patch_key(
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
         Ok(r) => (StatusCode::OK, Json(serde_json::json!({"device_key_uuid": r.device_key_uuid, "device_key_value": r.device_key_value}))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("update failed: {e}")}))).into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "device update failed");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("update failed: {e}")}))).into_response()
+        }
     }
 }
 
+#[tracing::instrument(fields(id = %id, kid = %kid))]
 async fn delete_key(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((id, kid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
@@ -910,6 +932,7 @@ async fn delete_key(
         .await
         .unwrap_or(None);
     let Some(r) = row else {
+        tracing::warn!("device not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -919,11 +942,14 @@ async fn delete_key(
     let am: device_keys::ActiveModel = r.into();
     match am.delete(db).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "device delete failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -970,6 +996,7 @@ async fn list_lines(
         .into_response()
 }
 
+#[tracing::instrument(skip(payload), fields(id = %id))]
 async fn create_line(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -1039,14 +1066,18 @@ async fn create_line(
             Json(serde_json::json!({"device_line_uuid": lid, "device_uuid": id})),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "device insert failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
+            )
+                .into_response()
+        }
     }
 }
 
+#[tracing::instrument(skip(payload), fields(id = %id, lid = %lid))]
 async fn patch_line(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((id, lid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
@@ -1065,6 +1096,7 @@ async fn patch_line(
         .await
         .unwrap_or(None);
     let Some(r) = row else {
+        tracing::warn!("device not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -1084,14 +1116,18 @@ async fn patch_line(
             Json(serde_json::json!({"device_line_uuid": r.device_line_uuid, "user_id": r.user_id})),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "device update failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+            )
+                .into_response()
+        }
     }
 }
 
+#[tracing::instrument(fields(id = %id, lid = %lid))]
 async fn delete_line(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((id, lid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
@@ -1108,6 +1144,7 @@ async fn delete_line(
         .await
         .unwrap_or(None);
     let Some(r) = row else {
+        tracing::warn!("device not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -1117,11 +1154,14 @@ async fn delete_line(
     let am: device_lines::ActiveModel = r.into();
     match am.delete(db).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "device delete failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -1168,6 +1208,7 @@ async fn list_settings(
         .into_response()
 }
 
+#[tracing::instrument(skip(payload), fields(id = %id))]
 async fn create_setting(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -1225,14 +1266,18 @@ async fn create_setting(
             Json(serde_json::json!({"device_setting_uuid": sid, "device_uuid": id})),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "device insert failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
+            )
+                .into_response()
+        }
     }
 }
 
+#[tracing::instrument(skip(payload), fields(id = %id, sid = %sid))]
 async fn patch_setting(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((id, sid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
@@ -1251,6 +1296,7 @@ async fn patch_setting(
         .await
         .unwrap_or(None);
     let Some(r) = row else {
+        tracing::warn!("device not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -1271,10 +1317,14 @@ async fn patch_setting(
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
         Ok(r) => (StatusCode::OK, Json(serde_json::json!({"device_setting_uuid": r.device_setting_uuid, "device_setting_value": r.device_setting_value}))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("update failed: {e}")}))).into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "device update failed");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("update failed: {e}")}))).into_response()
+        }
     }
 }
 
+#[tracing::instrument(fields(id = %id, sid = %sid))]
 async fn delete_setting(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path((id, sid)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
@@ -1291,6 +1341,7 @@ async fn delete_setting(
         .await
         .unwrap_or(None);
     let Some(r) = row else {
+        tracing::warn!("device not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -1300,11 +1351,14 @@ async fn delete_setting(
     let am: device_settings::ActiveModel = r.into();
     match am.delete(db).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "device delete failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -1361,6 +1415,7 @@ async fn list_profiles(
         .into_response()
 }
 
+#[tracing::instrument(skip(payload))]
 async fn create_profile(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<serde_json::Value>,
@@ -1402,11 +1457,14 @@ async fn create_profile(
             Json(serde_json::json!({"device_profile_uuid": pid, "device_profile_name": name})),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "device insert failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -1430,6 +1488,7 @@ async fn get_profile(
     }
 }
 
+#[tracing::instrument(skip(payload), fields(id = %id))]
 async fn patch_profile(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -1447,6 +1506,7 @@ async fn patch_profile(
         .await
         .unwrap_or(None);
     let Some(r) = row else {
+        tracing::warn!("device not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -1466,10 +1526,14 @@ async fn patch_profile(
     am.updated_at = Set(crate::routing_db::now());
     match am.update(db).await {
         Ok(r) => (StatusCode::OK, Json(serde_json::json!({"device_profile_uuid": r.device_profile_uuid, "device_profile_name": r.device_profile_name}))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("update failed: {e}")}))).into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "device update failed");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("update failed: {e}")}))).into_response()
+        }
     }
 }
 
+#[tracing::instrument(fields(id = %id))]
 async fn delete_profile(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -1485,6 +1549,7 @@ async fn delete_profile(
         .await
         .unwrap_or(None);
     let Some(r) = row else {
+        tracing::warn!("device not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -1494,11 +1559,14 @@ async fn delete_profile(
     let am: device_profiles::ActiveModel = r.into();
     match am.delete(db).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "device delete failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+            )
+                .into_response()
+        }
     }
 }
 

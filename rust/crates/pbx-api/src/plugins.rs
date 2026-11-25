@@ -211,7 +211,9 @@ pub fn discover_plugins() -> Vec<PluginManifest> {
                     m.has_router = entry.path().join("router.py").is_file();
                     by_name.insert(m.name.clone(), m);
                 }
-                Err(e) => eprintln!("plugin registry: skipping {}: {e}", manifest.display()),
+                Err(e) => {
+                    tracing::warn!(manifest = %manifest.display(), error = %e, "plugin registry: skipping manifest")
+                }
             }
         }
         // First existing candidate dir wins (avoids double-scan of same tree
@@ -317,6 +319,7 @@ pub async fn plugin_gate(req: Request<Body>, next: Next) -> Response {
     };
     let db = crate::routing_db::conn().await;
     if plugin_disabled_for_tenant(db, tenant, plugin).await {
+        tracing::warn!(plugin = plugin, "plugin disabled for tenant");
         return (
             StatusCode::FORBIDDEN,
             Json(serde_json::json!({"detail": format!("plugin {plugin} disabled for tenant")})),
@@ -370,11 +373,13 @@ async fn available_plugins() -> impl IntoResponse {
 /// (`plugins/example/plugin.wasm`) runs through `PluginSandbox` and its
 /// output is embedded additively (`sandbox`) — proves the exec path without
 /// changing the `{plugin, status}` contract.
+#[tracing::instrument(skip(claims), fields(username = %claims.username))]
 async fn example_handler(
     Extension(claims): Extension<pbx_core::auth::Claims>,
 ) -> impl IntoResponse {
     let db = crate::routing_db::conn().await;
     if plugin_disabled_for_tenant(db, crate::routing_db::domain(&claims), "example").await {
+        tracing::warn!(username = %claims.username, "plugin example disabled for tenant");
         return (
             StatusCode::FORBIDDEN,
             Json(serde_json::json!({"detail": "plugin example disabled for tenant"})),
@@ -456,6 +461,7 @@ async fn ensure_domain(db: &sea_orm::DatabaseConnection, id: uuid::Uuid) {
 
 /// `PUT /api/v1/domains/{id}/plugins/{name}` — tenant toggle (Python parity:
 /// query `?enabled=` default true; also accepts JSON `{"enabled": bool}`).
+#[tracing::instrument(skip(query, body), fields(domain_id = %domain_id, plugin_name = %plugin_name))]
 async fn toggle_plugin(
     Extension(_claims): Extension<pbx_core::auth::Claims>,
     Path((domain_id, plugin_name)): Path<(uuid::Uuid, String)>,
@@ -520,6 +526,7 @@ async fn list_domain_plugins(
 }
 
 /// `PUT /api/v1/domains/{id}/apps/{name}` — app toggle (`DomainApp` parity).
+#[tracing::instrument(skip(query, body), fields(domain_id = %domain_id, app_name = %app_name))]
 async fn toggle_app(
     Extension(_claims): Extension<pbx_core::auth::Claims>,
     Path((domain_id, app_name)): Path<(uuid::Uuid, String)>,

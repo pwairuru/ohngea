@@ -447,7 +447,7 @@ pub async fn migrate_on_boot() {
     let db = crate::routing_db::conn().await;
     // Seed reference data on boot (idempotent, row-count guarded).
     if let Err(e) = seed_on_boot_inner(db).await {
-        eprintln!("migrate_on_boot seed failed: {e:?}");
+        tracing::error!(error = %e, "migrate_on_boot seed failed");
     }
 }
 
@@ -459,7 +459,7 @@ pub async fn migrate_on_boot() {
 pub async fn seed_on_boot() {
     let db = crate::routing_db::conn().await;
     if let Err(e) = seed_on_boot_inner(db).await {
-        eprintln!("seed_on_boot failed: {e:?}");
+        tracing::error!(error = %e, "seed_on_boot failed");
     }
 }
 

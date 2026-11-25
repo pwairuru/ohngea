@@ -562,6 +562,7 @@ async fn upsert_linked_mailbox<C>(
     }
 }
 
+#[tracing::instrument(skip(payload), fields(extension = %payload.extension))]
 async fn create_extension(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     Json(payload): Json<ExtensionCreate>,
@@ -610,6 +611,7 @@ async fn create_extension(
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
         Err(e) => {
+            tracing::error!(error = %e, "tenant txn failed");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
@@ -714,6 +716,7 @@ async fn create_extension(
         updated_at: Set(now),
     };
     if let Err(e) = am.insert(&txn).await {
+        tracing::error!(error = %e, extension = %ext, "extension insert failed");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
@@ -1130,6 +1133,7 @@ async fn get_extension(
     }
 }
 
+#[tracing::instrument(skip(payload), fields(id = %id))]
 async fn patch_extension(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -1143,6 +1147,7 @@ async fn patch_extension(
     let db = crate::routing_db::conn().await;
     let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
     let Some(row) = find_extension_row(db, domain_id, id).await else {
+        tracing::warn!(id = %id, "extension not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Extension not found"})),
@@ -1189,14 +1194,18 @@ async fn patch_extension(
             )
                 .into_response()
         }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, id = %id, "extension update failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+            )
+                .into_response()
+        }
     }
 }
 
+#[tracing::instrument(fields(id = %id))]
 async fn delete_extension(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -1207,6 +1216,7 @@ async fn delete_extension(
     let db = crate::routing_db::conn().await;
     let domain_id = crate::routing_db::tenant_domain(db, &claims).await;
     let Some(row) = find_extension_row(db, domain_id, id).await else {
+        tracing::warn!(id = %id, "extension not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Extension not found"})),
@@ -1220,11 +1230,14 @@ async fn delete_extension(
             propagate_to_freeswitch();
             StatusCode::NO_CONTENT.into_response()
         }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, id = %id, "extension delete failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -1235,6 +1248,7 @@ async fn delete_extension(
 /// `extension_edit.php`'s `$extension++` loop; existing numbers are skipped,
 /// the run is clamped to the remaining `limit.extensions` cap).
 /// Returns 201 `{"created": n}`.
+#[tracing::instrument(skip(payload))]
 async fn batch_create_extensions(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     Json(payload): Json<serde_json::Value>,
@@ -1311,6 +1325,7 @@ async fn batch_create_extensions(
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
         Err(e) => {
+            tracing::error!(error = %e, "tenant txn failed");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
@@ -1460,6 +1475,7 @@ async fn batch_create_extensions(
         };
         use sea_orm::ActiveModelTrait;
         if let Err(e) = am.insert(&txn).await {
+            tracing::error!(error = %e, extension = %ext, "extension insert failed");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
@@ -1489,6 +1505,7 @@ async fn batch_create_extensions(
 /// of the source row under a new UUID + new extension number (409 when the
 /// target exists), fresh generated password, description suffixed ` (copy)`.
 /// Requires the `extension_copy` permission.
+#[tracing::instrument(skip(payload), fields(id = %id))]
 async fn copy_extension(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -1525,6 +1542,7 @@ async fn copy_extension(
         .await
         .unwrap_or(None);
     let Some(src) = src else {
+        tracing::warn!(id = %id, "extension copy rejected: source not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "Extension not found"})),
@@ -1538,6 +1556,7 @@ async fn copy_extension(
         .await
         .unwrap_or(None);
     if dup.is_some() {
+        tracing::warn!(extension = %new_ext, "extension copy rejected: duplicate");
         return (
             StatusCode::CONFLICT,
             Json(serde_json::json!({"detail": format!("Extension {new_ext} already exists")})),
@@ -1568,6 +1587,7 @@ async fn copy_extension(
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
         Err(e) => {
+            tracing::error!(error = %e, "tenant txn failed");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
@@ -1577,6 +1597,7 @@ async fn copy_extension(
     };
     use sea_orm::ActiveModelTrait;
     if let Err(e) = am.insert(&txn).await {
+        tracing::error!(error = %e, extension = %new_ext, "extension copy failed");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"detail": format!("copy failed: {e}")})),
@@ -1627,6 +1648,7 @@ async fn copy_extension(
 /// `{"extensions": [...]}` rows, inserts valid new rows, collects per-row
 /// errors (blank/invalid extension, duplicates, domain cap) without
 /// aborting the batch. Returns 201 `{"imported": n, "errors": [...]}`.
+#[tracing::instrument(skip(payload))]
 async fn import_extensions(
     AxExtension(claims): AxExtension<pbx_core::auth::Claims>,
     Json(payload): Json<serde_json::Value>,
@@ -1644,6 +1666,7 @@ async fn import_extensions(
     let txn = match crate::routing_db::tenant_txn(db, &claims).await {
         Ok(t) => t,
         Err(e) => {
+            tracing::error!(error = %e, "tenant txn failed");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"detail": format!("txn failed: {e}")})),
@@ -1766,6 +1789,7 @@ async fn import_extensions(
             updated_at: Set(now),
         };
         if let Err(e) = am.insert(&txn).await {
+            tracing::warn!(row = i + 1, extension = %ext, error = %e, "extension import row failed");
             errors.push(serde_json::json!({"row": i + 1, "error": format!("insert failed: {e}")}));
             continue;
         }

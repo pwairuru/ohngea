@@ -18,6 +18,7 @@ fn cache() -> &'static tokio::sync::RwLock<pbx_fs::cache::XmlCache> {
 pub fn invalidate_cache() {
     // Best-effort: only used in tests/single-threaded paths.
     if let Ok(mut guard) = cache().try_write() {
+        tracing::debug!("fs_xml cache invalidated (full wipe)");
         *guard = pbx_fs::cache::XmlCache::new();
     }
 }
@@ -26,6 +27,7 @@ pub fn invalidate_cache() {
 /// not full wipe).
 pub fn invalidate_key(key: &str) {
     if let Ok(mut guard) = cache().try_write() {
+        tracing::debug!(cache_key = key, "fs_xml cache key invalidated");
         guard.remove(key);
     }
 }
@@ -34,6 +36,7 @@ pub fn invalidate_key(key: &str) {
 /// covers per-menu `configuration:ivr.conf:{uuid}` keys).
 pub fn invalidate_prefix(prefix: &str) {
     if let Ok(mut guard) = cache().try_write() {
+        tracing::debug!(cache_prefix = prefix, "fs_xml cache prefix invalidated");
         guard.remove_prefix(prefix);
     }
 }
@@ -46,7 +49,10 @@ pub fn propagate_esl(commands: &[&str]) {
     let esl = pbx_fs::esl::RealEs::from_env();
     for cmd in commands {
         if esl.try_api(cmd).is_none() {
-            eprintln!("[pbx-api] ESL propagate failed (FS down?) cmd={cmd}");
+            tracing::warn!(
+                cmd = crate::logging::redact_esl(cmd),
+                "esl propagate failed"
+            );
         }
     }
 }

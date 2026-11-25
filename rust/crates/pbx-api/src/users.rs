@@ -70,6 +70,7 @@ fn ser_user(r: &users::Model) -> serde_json::Value {
     })
 }
 
+#[tracing::instrument(skip(payload))]
 async fn create_user(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<serde_json::Value>,
@@ -117,6 +118,7 @@ async fn create_user(
         .await
         .unwrap_or(None);
     if exists.is_some() {
+        tracing::warn!(username = %username, "user create rejected: duplicate");
         return (
             StatusCode::CONFLICT,
             Json(serde_json::json!({"detail": "username exists"})),
@@ -220,11 +222,14 @@ async fn create_user(
     }
     match am.insert(db).await {
         Ok(r) => (StatusCode::CREATED, Json(ser_user(&r))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, username = %username, "user insert failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("insert failed: {e}")})),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -300,6 +305,7 @@ async fn get_user(
     }
 }
 
+#[tracing::instrument(skip(payload), fields(id = %id))]
 async fn patch_user(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -316,6 +322,7 @@ async fn patch_user(
         .await
         .unwrap_or(None);
     let Some(r) = row else {
+        tracing::warn!(id = %id, "user not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -419,14 +426,18 @@ async fn patch_user(
             }
             (StatusCode::OK, Json(ser_user(&r))).into_response()
         }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"detail": format!("update failed: {e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, id = %id, "user update failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("update failed: {e}")})),
+            )
+                .into_response()
+        }
     }
 }
 
+#[tracing::instrument(fields(id = %id))]
 async fn delete_user(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -442,6 +453,7 @@ async fn delete_user(
         .await
         .unwrap_or(None);
     let Some(r) = row else {
+        tracing::warn!(id = %id, "user delete rejected: not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "not found"})),
@@ -451,11 +463,14 @@ async fn delete_user(
     let am: users::ActiveModel = r.into();
     match am.delete(db).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, id = %id, "user delete failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"detail": format!("delete failed: {e}")})),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -538,6 +553,7 @@ fn bulk_id(v: &serde_json::Value) -> Option<uuid::Uuid> {
     }
 }
 
+#[tracing::instrument(skip(payload))]
 async fn bulk_users(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<BulkRequest>,
@@ -604,6 +620,7 @@ async fn bulk_users(
                         results.push(serde_json::json!({"user_uuid": nid, "action": "copied"}))
                     }
                     Err(e) => {
+                        tracing::warn!(user_id = %uid, error = %e, "bulk user op failed");
                         results.push(serde_json::json!({"user_uuid": uid, "error": format!("{e}")}))
                     }
                 }
@@ -615,6 +632,7 @@ async fn bulk_users(
                         results.push(serde_json::json!({"user_uuid": uid, "action": "deleted"}))
                     }
                     Err(e) => {
+                        tracing::warn!(user_id = %uid, error = %e, "bulk user op failed");
                         results.push(serde_json::json!({"user_uuid": uid, "error": format!("{e}")}))
                     }
                 }
@@ -627,6 +645,7 @@ async fn bulk_users(
 }
 
 // ---- import (parity shape: POST /users/import {"csv"} or {"users": [...]}) ----
+#[tracing::instrument(skip(payload))]
 async fn import_users(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     Json(payload): Json<serde_json::Value>,
@@ -825,6 +844,7 @@ async fn get_user_settings(
     Json(serde_json::json!({"data": data, "total": total})).into_response()
 }
 
+#[tracing::instrument(skip(payload), fields(id = %id))]
 async fn put_user_settings(
     Extension(claims): Extension<pbx_core::auth::Claims>,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -846,6 +866,7 @@ async fn put_user_settings(
         .await
         .unwrap_or(None);
     let Some(u) = user else {
+        tracing::warn!(id = %id, "user settings rejected: user not found");
         return (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"detail": "User not found"})),

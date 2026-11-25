@@ -46,6 +46,9 @@ pub fn has_permission(claims: &pbx_core::auth::Claims, perm: &str) -> bool {
 
 /// 403 body parity with Python `HTTPException(403, "Missing permission: {perm}")`.
 pub fn forbidden(perm: &str) -> (StatusCode, axum::Json<serde_json::Value>) {
+    // Single choke point for every permission-denied 403 (all routers funnel
+    // through `deny_if_missing`): perm names are public identifiers, safe to log.
+    tracing::warn!(perm = perm, "permission denied");
     (
         StatusCode::FORBIDDEN,
         axum::Json(serde_json::json!({"detail": format!("Missing permission: {perm}")})),
